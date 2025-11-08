@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(git add:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(git reset:*)",
+      "Bash(PGPASSWORD=67d83bc19d3547cc9b1d0bb3b0762a90 psql:*)",
+      "Bash(robocopy:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(powershell.exe -Command:*)",
+      "Bash(dir:*)",
+      "Bash(nul)",
+      "Bash(test:*)",
+      "Bash(find:*)",
+      "Bash(psql:*)",
+      "Bash(node database/setup-db.js:*)",
+      "Bash(node database/run-migration.js:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
