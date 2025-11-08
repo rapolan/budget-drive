@@ -4,26 +4,31 @@ A comprehensive multi-tenant driving school management platform with smart sched
 
 ## Current Status
 
-**Phase:** 4A Completed (Smart Scheduling Foundation)  
-**Version:** 0.4.0  
+**Phase:** 4A Frontend Complete (Smart Scheduling UI)
+**Version:** 0.4.1
 **Last Updated:** November 8, 2025
 
 ### What's Working
 - ✅ Multi-tenant architecture with complete data isolation
 - ✅ Student, instructor, vehicle, and lesson management
 - ✅ Payment tracking and history
-- ✅ Smart scheduling with availability management
+- ✅ Smart scheduling backend (17 API endpoints)
+- ✅ Smart scheduling frontend (4 major components)
+- ✅ Visual availability calendar (week view)
+- ✅ Availability editor (CRUD operations)
+- ✅ Time off request/approval system
+- ✅ 3-step booking wizard with conflict detection
 - ✅ 6-dimensional conflict detection
 - ✅ Intelligent slot finding algorithm
 - ✅ 30-minute buffer time management
 - ✅ Vehicle ownership tracking (school vs instructor-owned)
 - ✅ RESTful API with 60+ endpoints
-- ✅ React admin dashboard
+- ✅ React admin dashboard with Scheduling page
 
 ### What's Next
-- Phase 4A Frontend: Calendar UI components
 - Phase 4B: Google Calendar two-way sync
 - Phase 4C: Recurring lessons and packages
+- Phase 6: BSV blockchain payments (roadmap documented)
 
 ## Tech Stack
 

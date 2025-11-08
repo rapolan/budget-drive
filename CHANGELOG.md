@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.1] - 2025-11-08
+
+### Added - Phase 4A Frontend: Smart Scheduling UI
+
+**React Components:**
+- `AvailabilityCalendar.tsx` (172 lines) - Visual week view grid
+- `AvailabilityEditor.tsx` (267 lines) - CRUD for instructor schedules
+- `TimeOffManager.tsx` (305 lines) - Time off request/approval workflow
+- `SmartBookingForm.tsx` (432 lines) - 3-step booking wizard with conflict detection
+- `Scheduling.tsx` (180 lines) - Main admin page with tabbed interface
+
+**API Integration:**
+- `scheduling.ts` (186 lines) - Complete API client for 17 scheduling endpoints
+- Full TypeScript type definitions (95 lines)
+- Error handling and loading states
+
+**Features:**
+- Visual weekly availability calendar with color coding
+- Drag-free slot management (add/edit/delete availability)
+- Time off request submission and approval workflow
+- Smart slot finding with date range picker
+- Real-time conflict detection (6 dimensions)
+- Multi-step booking wizard with validation
+- Responsive Tailwind CSS design
+
+**Navigation:**
+- Added `/scheduling` route to App.tsx
+- Added "Scheduling" link to sidebar navigation
+- Tabbed interface (Availability, Time Off, Smart Booking)
+
+**Documentation:**
+- Created `PHASE_4A_FRONTEND.md` - Comprehensive frontend guide
+- Created `BLOCKCHAIN_ROADMAP.md` - Phase 6 BSV blockchain planning
+
+**Total Frontend Code:** ~1,637 lines of production TypeScript/React
+
+---
+
 ## [0.4.0] - 2025-11-08
 
 ### Added - Phase 4A: Smart Scheduling Foundation
