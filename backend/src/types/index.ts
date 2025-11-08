@@ -828,3 +828,115 @@ export interface SchedulingConflict {
   conflictingLessonId?: string;
   conflictingTimeOffId?: string;
 }
+
+// =====================================================
+// GOOGLE CALENDAR INTEGRATION TYPES (Phase 4B)
+// =====================================================
+
+export interface InstructorCalendarCredentials {
+  id: string;
+  tenantId: string;
+  instructorId: string;
+  googleAccessToken: string;
+  googleRefreshToken: string;
+  googleTokenExpiry: Date;
+  googleCalendarId: string;
+  calendarName: string | null;
+  syncEnabled: boolean;
+  syncDirection: 'to_google' | 'from_google' | 'two_way';
+  autoSync: boolean;
+  syncIntervalMinutes: number;
+  lastSyncAt: Date | null;
+  lastSyncStatus: 'pending' | 'success' | 'failed';
+  lastSyncError: string | null;
+  webhookChannelId: string | null;
+  webhookResourceId: string | null;
+  webhookExpiration: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CalendarEventMapping {
+  id: string;
+  tenantId: string;
+  lessonId: string | null;
+  instructorId: string;
+  googleEventId: string;
+  googleCalendarId: string;
+  eventTitle: string | null;
+  eventStart: Date;
+  eventEnd: Date;
+  eventDescription: string | null;
+  eventLocation: string | null;
+  lastSyncedAt: Date;
+  syncStatus: 'synced' | 'pending' | 'failed' | 'deleted';
+  syncDirection: 'to_google' | 'from_google' | null;
+  hasConflict: boolean;
+  conflictReason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ExternalCalendarEvent {
+  id: string;
+  tenantId: string;
+  instructorId: string;
+  googleEventId: string;
+  googleCalendarId: string;
+  eventTitle: string | null;
+  eventStart: Date;
+  eventEnd: Date;
+  eventDescription: string | null;
+  eventLocation: string | null;
+  allDayEvent: boolean;
+  eventStatus: 'confirmed' | 'tentative' | 'cancelled';
+  lastFetchedAt: Date;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CalendarSyncLog {
+  id: string;
+  tenantId: string;
+  instructorId: string;
+  syncType: 'manual' | 'auto' | 'webhook' | 'initial';
+  syncDirection: 'to_google' | 'from_google' | 'two_way';
+  status: 'success' | 'partial' | 'failed';
+  eventsSynced: number;
+  eventsCreated: number;
+  eventsUpdated: number;
+  eventsDeleted: number;
+  conflictsDetected: number;
+  errorMessage: string | null;
+  errorStack: string | null;
+  durationMs: number | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  createdAt: Date;
+}
+
+// DTOs for Google Calendar operations
+export interface CreateCalendarCredentialsDTO {
+  instructorId: string;
+  googleAccessToken: string;
+  googleRefreshToken: string;
+  googleTokenExpiry: Date;
+  googleCalendarId: string;
+  calendarName?: string;
+}
+
+export interface SyncCalendarRequest {
+  instructorId: string;
+  direction?: 'to_google' | 'from_google' | 'two_way';
+  startDate?: Date;
+  endDate?: Date;
+}
+
+export interface CalendarOAuthTokens {
+  access_token: string;
+  refresh_token: string;
+  expiry_date: number;
+  token_type: string;
+  scope: string;
+}

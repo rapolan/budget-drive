@@ -25,6 +25,7 @@
   "license": "PROPRIETARY",
   "dependencies": {
     "@bsv/sdk": "^1.0.21",
+    "@google-cloud/local-auth": "^3.0.1",
     "@paypal/checkout-server-sdk": "^1.0.3",
     "@paypal/paypal-server-sdk": "^0.6.1",
     "axios": "^1.7.2",
