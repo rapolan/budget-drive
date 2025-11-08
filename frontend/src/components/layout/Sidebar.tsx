@@ -30,6 +30,7 @@ const navigation: NavItem[] = [
   { name: 'Instructors', href: '/instructors', icon: UserCheck },
   { name: 'Vehicles', href: '/vehicles', icon: Car },
   { name: 'Lessons', href: '/lessons', icon: Calendar },
+  { name: 'Scheduling', href: '/scheduling', icon: Calendar },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates' },
   { name: 'Follow-Ups', href: '/follow-ups', icon: ClipboardList, featureFlag: 'enableFollowUpTracker' },

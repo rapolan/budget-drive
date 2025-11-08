@@ -271,3 +271,98 @@ export interface CreatePaymentInput {
   bsvTransactionId?: string;
   notes?: string;
 }
+
+// ===================================================================
+// PHASE 4A: SCHEDULING & AVAILABILITY TYPES
+// ===================================================================
+
+export interface InstructorAvailability {
+  id: string;
+  tenantId: string;
+  instructorId: string;
+  dayOfWeek: number; // 0 = Sunday, 6 = Saturday
+  startTime: string; // HH:MM format
+  endTime: string; // HH:MM format
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface InstructorTimeOff {
+  id: string;
+  tenantId: string;
+  instructorId: string;
+  startDate: Date;
+  endDate: Date;
+  reason?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SchedulingSettings {
+  id: string;
+  tenantId: string;
+  defaultBufferMinutes: number;
+  minimumNoticeHours: number;
+  maxAdvanceBookingDays: number;
+  allowDoubleBooking: boolean;
+  businessHoursStart: string; // HH:MM format
+  businessHoursEnd: string; // HH:MM format
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TimeSlot {
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  instructorId: string;
+  vehicleId?: string;
+  available: boolean;
+  conflictReason?: string;
+}
+
+export interface SchedulingConflict {
+  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation';
+  message: string;
+  conflictingLessonId?: string;
+  timeOffId?: string;
+}
+
+// Form Input Types for Phase 4A
+export interface CreateAvailabilityInput {
+  instructorId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isActive?: boolean;
+}
+
+export interface CreateTimeOffInput {
+  instructorId: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+}
+
+export interface FindSlotsRequest {
+  instructorId: string;
+  startDate: string;
+  endDate: string;
+  duration: number;
+  vehicleId?: string;
+  studentId?: string;
+}
+
+export interface CheckConflictsRequest {
+  instructorId: string;
+  vehicleId: string;
+  studentId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
