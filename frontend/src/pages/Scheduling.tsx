@@ -4,9 +4,11 @@ import {
   AvailabilityEditor,
   TimeOffManager,
   SmartBookingForm,
+  CalendarSync,
+  RecurringPatterns,
 } from '@/components/scheduling';
 
-type Tab = 'availability' | 'timeoff' | 'booking';
+type Tab = 'availability' | 'timeoff' | 'booking' | 'calendar' | 'patterns';
 
 export const SchedulingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('availability');
@@ -21,6 +23,8 @@ export const SchedulingPage: React.FC = () => {
     { id: 'availability' as Tab, label: 'Availability', icon: '📅' },
     { id: 'timeoff' as Tab, label: 'Time Off', icon: '🏖️' },
     { id: 'booking' as Tab, label: 'Smart Booking', icon: '✨' },
+    { id: 'calendar' as Tab, label: 'Calendar Sync', icon: '🔄' },
+    { id: 'patterns' as Tab, label: 'Recurring Patterns', icon: '🔁' },
   ];
 
   return (
@@ -30,7 +34,7 @@ export const SchedulingPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Scheduling</h1>
           <p className="text-gray-600 mt-1">
-            Manage instructor availability, time off, and smart lesson booking
+            Manage instructor availability, time off, smart booking, calendar sync, and recurring patterns
           </p>
         </div>
       </div>
@@ -55,12 +59,12 @@ export const SchedulingPage: React.FC = () => {
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
+          <nav className="flex -mb-px overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -140,6 +144,29 @@ export const SchedulingPage: React.FC = () => {
                   handleRefresh();
                 }}
               />
+            </div>
+          )}
+
+          {/* Calendar Sync Tab */}
+          {activeTab === 'calendar' && (
+            <div>
+              {selectedInstructorId ? (
+                <CalendarSync
+                  key={`calendar-${refreshKey}`}
+                  instructorId={selectedInstructorId}
+                />
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  Please select an instructor above to manage calendar sync
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recurring Patterns Tab */}
+          {activeTab === 'patterns' && (
+            <div>
+              <RecurringPatterns key={`patterns-${refreshKey}`} />
             </div>
           )}
         </div>
