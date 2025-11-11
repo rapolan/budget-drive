@@ -4,8 +4,8 @@
 
 import express from 'express';
 import { recurringPatternService } from '../services/recurringPatternService';
-import { authenticate } from '../middleware/authenticate';
-import { requireTenantContext } from '../middleware/requireTenantContext';
+import { authenticate } from '../middleware/auth';
+import { requireTenantContext } from '../middleware/tenantContext';
 
 const router = express.Router();
 

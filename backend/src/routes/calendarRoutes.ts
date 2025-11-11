@@ -5,8 +5,8 @@
 import express from 'express';
 import { googleCalendarAuthService } from '../services/googleCalendarAuth';
 import { googleCalendarSyncService } from '../services/googleCalendarSync';
-import { authenticate } from '../middleware/authenticate';
-import { requireTenantContext } from '../middleware/requireTenantContext';
+import { authenticate } from '../middleware/auth';
+import { requireTenantContext } from '../middleware/tenantContext';
 
 const router = express.Router();
 
@@ -28,12 +28,12 @@ router.get('/oauth/url', async (req, res) => {
 
     const authUrl = googleCalendarAuthService.generateAuthUrl(instructorId as string);
 
-    res.json({
+    return res.json({
       success: true,
       data: { authUrl, instructorId },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -59,10 +59,10 @@ router.get('/oauth/callback', async (req, res) => {
     await googleCalendarAuthService.storeCredentials(tenantId, instructorId, tokens);
 
     // Redirect to frontend success page
-    res.redirect(`http://localhost:5173/scheduling?calendar=connected`);
+    return res.redirect(`http://localhost:5173/scheduling?calendar=connected`);
   } catch (error: any) {
     console.error('OAuth callback error:', error);
-    res.redirect(`http://localhost:5173/scheduling?calendar=error`);
+    return res.redirect(`http://localhost:5173/scheduling?calendar=error`);
   }
 });
 
@@ -81,9 +81,9 @@ router.post('/sync', async (req, res) => {
 
     const result = await googleCalendarSyncService.performFullSync(instructorId, tenantId);
 
-    res.json({ success: true, data: result });
+    return res.json({ success: true, data: result });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -97,9 +97,9 @@ router.get('/status/:instructorId', async (req, res) => {
 
     const status = await googleCalendarAuthService.getSyncStatus(instructorId);
 
-    res.json({ success: true, data: status });
+    return res.json({ success: true, data: status });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -117,9 +117,9 @@ router.post('/disconnect', async (req, res) => {
 
     await googleCalendarAuthService.disconnect(instructorId);
 
-    res.json({ success: true, message: 'Calendar disconnected' });
+    return res.json({ success: true, message: 'Calendar disconnected' });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -132,7 +132,7 @@ router.get('/external-events/:instructorId', async (req, res) => {
     const { instructorId } = req.params;
     const tenantId = (req as any).tenantId;
 
-    const { rows } = await require('../config/database').pool.query(
+    const { rows } = await require('../config/database').default.query(
       `SELECT * FROM external_calendar_events
        WHERE instructor_id = $1 AND tenant_id = $2
        AND event_start >= CURRENT_TIMESTAMP
@@ -141,9 +141,9 @@ router.get('/external-events/:instructorId', async (req, res) => {
       [instructorId, tenantId]
     );
 
-    res.json({ success: true, data: rows });
+    return res.json({ success: true, data: rows });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

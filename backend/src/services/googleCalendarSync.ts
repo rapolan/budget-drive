@@ -3,7 +3,7 @@
  * Handles two-way synchronization between lessons and Google Calendar
  */
 
-import { pool } from '../config/database';
+import pool from '../config/database';
 import { googleCalendarAuthService } from './googleCalendarAuth';
 
 export class GoogleCalendarSyncService {

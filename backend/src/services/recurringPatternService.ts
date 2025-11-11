@@ -3,7 +3,7 @@
  * Generates lessons from recurring patterns
  */
 
-import { pool } from '../config/database';
+import pool from '../config/database';
 
 export class RecurringPatternService {
   /**

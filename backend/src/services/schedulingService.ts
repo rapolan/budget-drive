@@ -138,7 +138,7 @@ export const findAvailableSlots = async (
             startTime: slotStart.toISOString(),
             endTime: slotEnd.toISOString(),
             instructorId: instId,
-            vehicleId: vehicleForLesson,
+            vehicleId: vehicleForLesson ?? null,
             duration,
           });
         }

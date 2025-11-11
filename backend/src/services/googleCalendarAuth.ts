@@ -4,8 +4,8 @@
  */
 
 import { google } from 'googleapis';
-import { pool } from '../config/database';
-import { CalendarOAuthTokens, CreateCalendarCredentialsDTO } from '../types';
+import pool from '../config/database';
+import { CalendarOAuthTokens } from '../types';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar',
