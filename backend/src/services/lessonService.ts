@@ -2,11 +2,14 @@
  * Lesson Service
  * Business logic for lesson/appointment management
  * CRITICAL: All queries filtered by tenant_id for multi-tenant security
+ *
+ * BDP Integration: Treasury splits recorded on lesson booking (Phase 1)
  */
 
 import { query } from '../config/database';
 import { Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import treasuryService from './treasuryService';
 
 export const getAllLessons = async (
   tenantId: string,
@@ -154,7 +157,50 @@ export const createLesson = async (
       data.cost || 0,
     ]
   );
-  return result.rows[0] as Lesson;
+
+  const lesson = result.rows[0] as Lesson;
+
+  // BDP Phase 1: Record 1% treasury split on lesson booking (Patent Claim #2)
+  if (lesson.cost && lesson.cost > 0) {
+    try {
+      await treasuryService.createTransaction({
+        tenant_id: tenantId,
+        source_type: 'lesson_booking',
+        source_id: lesson.id,
+        gross_amount: lesson.cost,
+        description: `Treasury split from lesson booking (${data.lessonType || 'behind_wheel'})`,
+        metadata: {
+          student_id: data.studentId,
+          instructor_id: data.instructorId,
+          vehicle_id: data.vehicleId,
+          lesson_date: data.date,
+          lesson_type: data.lessonType || 'behind_wheel',
+        },
+      });
+
+      // Log BDP action
+      await treasuryService.logBDPAction(
+        tenantId,
+        'BDP_BOOK',
+        `${lesson.id}|${data.instructorId}|${data.date}|${data.startTime}`,
+        {
+          entityId: lesson.id,
+          entityType: 'lesson',
+          description: `Lesson booked with 1% treasury split`,
+          metadata: {
+            cost: lesson.cost,
+            student_id: data.studentId,
+            instructor_id: data.instructorId,
+          },
+        }
+      );
+    } catch (error) {
+      console.error('Treasury split recording failed (non-blocking):', error);
+      // Don't fail the lesson creation if treasury split fails
+    }
+  }
+
+  return lesson;
 };
 
 export const updateLesson = async (

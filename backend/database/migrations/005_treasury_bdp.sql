@@ -39,15 +39,15 @@ CREATE TABLE IF NOT EXISTS treasury_transactions (
 
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    confirmed_at TIMESTAMP, -- When BSV tx confirmed
-
-    -- Indexes for performance
-    INDEX idx_treasury_tenant (tenant_id),
-    INDEX idx_treasury_source (source_type, source_id),
-    INDEX idx_treasury_bsv_txid (bsv_txid),
-    INDEX idx_treasury_status (bsv_status),
-    INDEX idx_treasury_created (created_at DESC)
+    confirmed_at TIMESTAMP -- When BSV tx confirmed
 );
+
+-- Indexes for performance
+CREATE INDEX idx_treasury_tenant ON treasury_transactions (tenant_id);
+CREATE INDEX idx_treasury_source ON treasury_transactions (source_type, source_id);
+CREATE INDEX idx_treasury_bsv_txid ON treasury_transactions (bsv_txid);
+CREATE INDEX idx_treasury_status ON treasury_transactions (bsv_status);
+CREATE INDEX idx_treasury_created ON treasury_transactions (created_at DESC);
 
 COMMENT ON TABLE treasury_transactions IS 'BDP Treasury: Micropayment splits (1%) funding protocol operations';
 COMMENT ON COLUMN treasury_transactions.treasury_split IS 'Patent Claim #2: Self-funding via fractional splits';
@@ -77,10 +77,10 @@ CREATE TABLE IF NOT EXISTS treasury_balances (
 
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    INDEX idx_treasury_balance_tenant (tenant_id)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX idx_treasury_balance_tenant ON treasury_balances (tenant_id);
 
 COMMENT ON TABLE treasury_balances IS 'BDP Treasury: Aggregate balance tracking per tenant';
 
@@ -110,13 +110,13 @@ CREATE TABLE IF NOT EXISTS treasury_spending (
 
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    confirmed_at TIMESTAMP,
-
-    INDEX idx_treasury_spending_tenant (tenant_id),
-    INDEX idx_treasury_spending_type (spend_type),
-    INDEX idx_treasury_spending_recipient (recipient_type, recipient_id),
-    INDEX idx_treasury_spending_created (created_at DESC)
+    confirmed_at TIMESTAMP
 );
+
+CREATE INDEX idx_treasury_spending_tenant ON treasury_spending (tenant_id);
+CREATE INDEX idx_treasury_spending_type ON treasury_spending (spend_type);
+CREATE INDEX idx_treasury_spending_recipient ON treasury_spending (recipient_type, recipient_id);
+CREATE INDEX idx_treasury_spending_created ON treasury_spending (created_at DESC);
 
 COMMENT ON TABLE treasury_spending IS 'BDP Treasury: Track how protocol funds are spent (MNEE rewards, bounties, etc.)';
 
@@ -149,14 +149,14 @@ CREATE TABLE IF NOT EXISTS bdp_actions_log (
 
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    confirmed_at TIMESTAMP,
-
-    INDEX idx_bdp_actions_tenant (tenant_id),
-    INDEX idx_bdp_actions_type (action_type),
-    INDEX idx_bdp_actions_txid (bsv_txid),
-    INDEX idx_bdp_actions_entity (entity_type, entity_id),
-    INDEX idx_bdp_actions_created (created_at DESC)
+    confirmed_at TIMESTAMP
 );
+
+CREATE INDEX idx_bdp_actions_tenant ON bdp_actions_log (tenant_id);
+CREATE INDEX idx_bdp_actions_type ON bdp_actions_log (action_type);
+CREATE INDEX idx_bdp_actions_txid ON bdp_actions_log (bsv_txid);
+CREATE INDEX idx_bdp_actions_entity ON bdp_actions_log (entity_type, entity_id);
+CREATE INDEX idx_bdp_actions_created ON bdp_actions_log (created_at DESC);
 
 COMMENT ON TABLE bdp_actions_log IS 'BDP Protocol: Comprehensive log of all on-chain actions';
 COMMENT ON COLUMN bdp_actions_log.action_type IS 'See PATENT_DOCUMENTATION.md: The 7 Core BDP Actions';
@@ -218,7 +218,7 @@ IS 'Auto-update treasury_balances when new split recorded';
 CREATE OR REPLACE VIEW treasury_summary AS
 SELECT
     t.id AS tenant_id,
-    t.company_name,
+    t.name AS company_name,
     tb.current_balance,
     tb.total_collected,
     tb.total_spent,
@@ -227,7 +227,7 @@ SELECT
     tb.bsv_wallet_address,
     tb.bsv_wallet_balance_satoshis,
     (tb.bsv_wallet_balance_satoshis::DECIMAL / 100000000) *
-        (SELECT AVG(metadata->>'usd_per_btc')::DECIMAL FROM treasury_transactions WHERE metadata->>'usd_per_btc' IS NOT NULL)
+        (SELECT AVG((metadata->>'usd_per_btc')::DECIMAL) FROM treasury_transactions WHERE metadata->>'usd_per_btc' IS NOT NULL)
         AS bsv_balance_usd_estimate
 FROM tenants t
 LEFT JOIN treasury_balances tb ON t.id = tb.tenant_id;
@@ -239,7 +239,7 @@ CREATE OR REPLACE VIEW treasury_recent_activity AS
 SELECT
     tt.created_at,
     tt.tenant_id,
-    t.company_name,
+    t.name AS company_name,
     tt.source_type,
     tt.gross_amount,
     tt.treasury_split,
@@ -247,7 +247,7 @@ SELECT
     tt.bsv_status,
     tt.description
 FROM treasury_transactions tt
-JOIN tenants t ON tt.tenant_id = t.tenant_id
+JOIN tenants t ON tt.tenant_id = t.id
 ORDER BY tt.created_at DESC
 LIMIT 100;
 
