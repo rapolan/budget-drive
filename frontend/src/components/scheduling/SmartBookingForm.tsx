@@ -124,7 +124,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       };
 
       const lesson = await lessonsApi.create(lessonData);
-      onBookingComplete?.(lesson.id);
+      onBookingComplete?.(lesson.data?.id || '');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create lesson');
       console.error('Error creating lesson:', err);
