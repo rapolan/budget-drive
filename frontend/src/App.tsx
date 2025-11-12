@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardPage } from '@/pages/Dashboard';
 import { StudentsPage } from '@/pages/Students';
 import { SchedulingPage } from '@/pages/Scheduling';
+import TreasuryPage from '@/pages/Treasury';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -77,6 +78,14 @@ function App() {
               element={
                 <AppLayout>
                   <div className="text-center text-gray-500">Payments page - Coming soon</div>
+                </AppLayout>
+              }
+            />
+            <Route
+              path="/treasury"
+              element={
+                <AppLayout>
+                  <TreasuryPage />
                 </AppLayout>
               }
             />

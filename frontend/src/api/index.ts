@@ -6,3 +6,4 @@ export { lessonsApi } from './lessons';
 export { paymentsApi } from './payments';
 export { tenantsApi } from './tenants';
 export { schedulingApi } from './scheduling';
+export * as treasuryApi from './treasury';

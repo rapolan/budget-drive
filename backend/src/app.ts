@@ -18,6 +18,7 @@ import paymentRoutes from './routes/paymentRoutes';
 import availabilityRoutes from './routes/availabilityRoutes';
 import calendarRoutes from './routes/calendarRoutes';
 import recurringPatternRoutes from './routes/recurringPatternRoutes';
+import treasuryRoutes from './routes/treasuryRoutes';
 
 // Create Express app
 const app: Application = express();
@@ -76,6 +77,7 @@ app.use(API_PREFIX, paymentRoutes);
 app.use(API_PREFIX, availabilityRoutes);
 app.use(`${API_PREFIX}/calendar`, calendarRoutes);
 app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
+app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

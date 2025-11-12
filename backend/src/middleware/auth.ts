@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from './errorHandler';
 import { verifyToken, extractTokenFromHeader, JwtPayload } from '../utils/jwt';
+import { config } from '../config/env';
 
 // Extend Express Request to include user data
 declare global {
@@ -18,6 +19,7 @@ declare global {
 
 /**
  * Authentication middleware - Requires valid JWT token
+ * In development mode, bypasses authentication for easier testing
  */
 export const authenticate = (
   req: Request,
@@ -25,6 +27,18 @@ export const authenticate = (
   next: NextFunction
 ) => {
   try {
+    // DEVELOPMENT MODE: Bypass authentication
+    if (config.NODE_ENV === 'development') {
+      req.user = {
+        userId: '00000000-0000-0000-0000-000000000001',
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        email: 'dev@example.com',
+        role: 'admin',
+      };
+      return next();
+    }
+
+    // PRODUCTION MODE: Require authentication
     // Extract token from Authorization header
     const token = extractTokenFromHeader(req.headers.authorization);
 
