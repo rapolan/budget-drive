@@ -599,6 +599,152 @@ CREATE TABLE notification_queue (
 - "30 minute buffer time between lessons would be nice to start"
 - "admin only for now, students being able to schedule could be added later"
 
+### Session 10: Treasury Dashboard Frontend + Infrastructure
+**Date:** November 11, 2025
+**Outcome:** Completed Treasury Dashboard UI with conditional blockchain display + Added project infrastructure (CI, License, Dependabot, ESLint)
+
+**Commits:**
+- `76b4c2b` - feat: Add Treasury Dashboard with conditional blockchain display
+- `568b368` - chore: Add project infrastructure (CI, License, Dependabot, ESLint)
+
+**Conversation Flow:**
+1. User requested frontend review and improvement recommendations
+2. Explored codebase - identified 3 working pages vs 6 placeholder pages
+3. Discovered critical gap: Phase 1 backend features (treasury, notifications) had NO UI
+4. Presented two options:
+   - Option A: Phase 1 Sprint (build treasury, notifications, earnings UI)
+   - Option B: Foundation First (improve core pages first)
+5. User chose Option A - started with Treasury Dashboard
+6. Implemented Treasury API client, routes, and full dashboard page
+7. **Critical UX decision:** User didn't want blockchain/BSV terminology visible by default
+8. Implemented conditional rendering based on `enableBlockchainPayments` setting
+9. Fixed development authentication bypass for easier testing
+10. **Copilot review:** User showed Copilot conversation attempting infrastructure improvements
+11. Copilot got stuck in permission loops trying to add CI/License/Dependabot
+12. Reviewed Copilot's proposals, extracted valuable ideas, implemented simplified versions
+
+**Key Features Implemented:**
+
+**Treasury Dashboard (frontend/src/pages/Treasury.tsx):**
+- Two display modes controlled by `settings.enableBlockchainPayments`:
+  - **Default Mode (blockchain details OFF):**
+    - Shows "Platform fee collection and financial overview"
+    - Displays fees in USD only
+    - Generic terminology ("Action", "Fee")
+    - Hides Wright Philosophy content
+    - Hides blockchain integration status
+  - **Technical Mode (blockchain details ON):**
+    - Shows "Satoshi-level transaction fees • Craig Wright aligned"
+    - Displays fees in satoshis + USD
+    - Shows "BDP Action", "Fee (Sats)", "Fee (USD)"
+    - Includes Wright Philosophy banner and checklist
+    - Shows blockchain integration roadmap
+- 4 stat cards: balance, transaction count, gross volume, provider share
+- Recent transactions table with conditional satoshi column
+- Professional Tailwind CSS styling
+
+**Development Auth Bypass (backend/src/middleware/auth.ts):**
+- Auto-injects dev user in development mode
+- Valid UUID format: `00000000-0000-0000-0000-000000000001`
+- No database seeding required for testing
+- Maintains full security in production
+
+**Project Infrastructure:**
+1. **LICENSE (MIT)** - Legal clarity for code usage
+2. **.github/workflows/ci.yml** - GitHub Actions CI workflow
+   - Runs on push to main and all PRs
+   - Parallel jobs for backend + frontend
+   - TypeScript compilation check
+   - Production build verification
+3. **.github/dependabot.yml** - Weekly dependency updates
+   - Separate for backend/frontend/github-actions
+   - Auto-labeled for easy triage
+4. **.eslintrc.json** - TypeScript-aware linting
+   - Allows console.log (common in Node apps)
+   - Warns on unused vars (except _ prefixed)
+
+**Technical Decisions:**
+
+**Why Conditional Blockchain Display?**
+- **User Quote:** "I dont necessarly want the admin knowing they are using BSV or blockchain. Maybe this can be seen when a certain setting is checked in the user settings?"
+- **Decision:** Hide all BSV/blockchain terminology by default
+- **Rationale:**
+  - Simpler, less technical interface for mainstream users
+  - Blockchain details only shown to technically-interested admins
+  - Maintains full functionality while reducing complexity
+  - Aligns with "don't overwhelm the user" UX principle
+
+**Why Development Auth Bypass?**
+- **Problem:** Treasury endpoints required authentication but no dev user seeded
+- **Decision:** Auto-inject dev user with valid UUIDs in development mode
+- **Rationale:**
+  - Faster development iteration (no login flow needed)
+  - Valid UUID format prevents database errors
+  - Conditional on NODE_ENV=development (secure by default)
+  - Common pattern in many frameworks (Laravel, Rails, etc.)
+
+**Why Simplified CI (vs Copilot's Complex Version)?**
+- **Copilot Proposed:** Audit uploads, multiple artifact handling, complex failure logic
+- **We Implemented:** Simple typecheck + build verification
+- **Rationale:**
+  - Start simple, add complexity only when needed
+  - Faster CI runs = faster feedback
+  - npm audit can be run separately/manually for now
+  - YAGNI principle (You Aren't Gonna Need It yet)
+
+**Copilot Review Analysis:**
+- **What Copilot Did Well:**
+  - Excellent backend notification service implementation
+  - Comprehensive documentation (NOTIFICATION_SETUP_GUIDE, PROJECT_SCHEMA_REFERENCE)
+  - Clear Gmail SMTP setup instructions
+  - Good competitive research (DriveScout comparison)
+- **What Copilot Failed At:**
+  - Got stuck in infinite permission loop asking for write access
+  - Poor communication - should have just provided files
+  - Over-engineered CI with complex audit artifact handling
+  - Created branch `chore/add-ci-and-license` but never completed PR
+- **Our Fix:**
+  - Extracted valuable proposals (License, CI, Dependabot, ESLint)
+  - Simplified implementations (no permission requests, no complexity)
+  - Committed directly without branching confusion
+  - Kept infrastructure minimal and focused
+
+**Files Added:**
+- `backend/src/routes/treasuryRoutes.ts` (treasury API endpoints)
+- `frontend/src/api/treasury.ts` (API client + types + helpers)
+- `frontend/src/pages/Treasury.tsx` (main dashboard, 339 lines)
+- `LICENSE` (MIT license)
+- `.github/workflows/ci.yml` (CI pipeline)
+- `.github/dependabot.yml` (dependency updates)
+- `.eslintrc.json` (linting config)
+
+**Files Modified:**
+- `backend/src/app.ts` (register treasury routes)
+- `backend/src/middleware/auth.ts` (dev auth bypass)
+- `frontend/src/App.tsx` (add treasury route)
+- `frontend/src/api/index.ts` (export treasury API)
+- `frontend/src/components/layout/Sidebar.tsx` (treasury nav link)
+
+**Code Statistics:**
+- Treasury feature: ~535 lines
+- Infrastructure: ~139 lines
+- Total: ~674 lines
+- 2 commits
+- 12 files created/modified
+
+**User Quotes:**
+- "ok great i can see it now. I dont necessarly want the admin knowing they are using BSV or blockchain. Maybe this can be seen when a certain setting is checked in the user settings? does this make sense of what im asking?"
+- "can you give claude instructions in what to do to make all your suggestions, or can you implement this for me? i would like to make sure its all being logged and where changes are being made."
+- "commit our work and lets review copilots proposals and see what we can implement if its helpful for our case"
+- "make sure this is all logged as we discussed before"
+
+**Remaining Phase 1 Work:**
+- Build Notification Settings page (pending)
+- Connect bell icon to notification system (pending)
+- Create Lessons page with CRUD (pending)
+- Build Instructor Earnings dashboard (pending)
+- Create Payments page with recording and refunds (pending)
+
 ---
 
 ## Technical Decisions & Rationale
