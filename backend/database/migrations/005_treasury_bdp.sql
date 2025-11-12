@@ -1,17 +1,24 @@
 /**
  * Migration 005: Budget Drive Protocol (BDP) Treasury
  * Date: November 11, 2025
- * Purpose: Add treasury tracking for micropayment splits (Phase 1)
+ * Purpose: Add treasury tracking for satoshi-level transaction fees (Phase 1)
  *
- * PATENT NOTE: This implements Claim #2 (Self-Funding Treasury via Micropayment Splits)
+ * CRAIG WRIGHT PHILOSOPHY ALIGNMENT:
+ * - Satoshi-based fees (NOT percentage extraction)
+ * - Cost-based pricing (reflects computational cost)
+ * - Scales at volume (millions of tx = profitable)
+ * - No rent-seeking (honest money principle)
+ *
+ * PATENT NOTE: This implements Claim #2 (Self-Funding Treasury via Satoshi-Level Fees)
  * See: PATENT_DOCUMENTATION.md for full technical disclosure
  */
 
 -- =====================================================
 -- TREASURY TRANSACTIONS TABLE
 -- =====================================================
--- Tracks all treasury splits (1% of lesson payments)
+-- Tracks all treasury fees (satoshi-level: 5 sats per booking, etc.)
 -- Dual-write: PostgreSQL (current) + BSV blockchain (future)
+-- Wright-Aligned Model: Cost-based fees, not percentage extraction
 
 CREATE TABLE IF NOT EXISTS treasury_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -23,14 +30,14 @@ CREATE TABLE IF NOT EXISTS treasury_transactions (
 
     -- Amount tracking (USD)
     gross_amount DECIMAL(10, 2) NOT NULL, -- Original transaction amount ($50.00)
-    treasury_split DECIMAL(10, 2) NOT NULL, -- 1% split ($0.50)
-    provider_amount DECIMAL(10, 2) NOT NULL, -- 99% to provider ($49.50)
+    treasury_split DECIMAL(10, 2) NOT NULL, -- Satoshi-level fee in USD (~$0.000002 for 5 sats)
+    provider_amount DECIMAL(10, 2) NOT NULL, -- Provider gets nearly full amount ($49.999998)
 
     -- BSV blockchain tracking
     bsv_txid VARCHAR(64), -- BSV transaction ID (once on-chain)
     bsv_action VARCHAR(20), -- BDP action type: BDP_BOOK, BDP_PAY, BDP_TIP
-    bsv_satoshis INTEGER, -- Satoshis sent (for BSV conversion tracking)
-    bsv_fee_satoshis INTEGER DEFAULT 5, -- Blockchain fee (5 sats typical)
+    bsv_satoshis INTEGER, -- Protocol fee in satoshis (5 for BDP_BOOK, 3 for BDP_PAY, etc.)
+    bsv_fee_satoshis INTEGER DEFAULT 5, -- Miner fee (5 sats typical) - separate from protocol fee
     bsv_status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'confirmed', 'failed'
 
     -- Metadata
@@ -49,9 +56,10 @@ CREATE INDEX idx_treasury_bsv_txid ON treasury_transactions (bsv_txid);
 CREATE INDEX idx_treasury_status ON treasury_transactions (bsv_status);
 CREATE INDEX idx_treasury_created ON treasury_transactions (created_at DESC);
 
-COMMENT ON TABLE treasury_transactions IS 'BDP Treasury: Micropayment splits (1%) funding protocol operations';
-COMMENT ON COLUMN treasury_transactions.treasury_split IS 'Patent Claim #2: Self-funding via fractional splits';
+COMMENT ON TABLE treasury_transactions IS 'BDP Treasury: Satoshi-level fees (cost-based, Wright-aligned) funding protocol operations';
+COMMENT ON COLUMN treasury_transactions.treasury_split IS 'Patent Claim #2: Self-funding via satoshi-level transaction fees (~$0.000002)';
 COMMENT ON COLUMN treasury_transactions.bsv_action IS 'See PATENT_DOCUMENTATION.md Section: BDP Transaction Format';
+COMMENT ON COLUMN treasury_transactions.bsv_satoshis IS 'Wright Model: 5 sats for BDP_BOOK, 3 for BDP_PAY - cost-based, NOT percentage';
 
 -- =====================================================
 -- TREASURY BALANCE TABLE
@@ -165,17 +173,21 @@ COMMENT ON COLUMN bdp_actions_log.action_type IS 'See PATENT_DOCUMENTATION.md: T
 -- HELPER FUNCTIONS
 -- =====================================================
 
--- Function: Calculate treasury split (1%)
+-- Function: Calculate satoshi-based treasury fee (Wright-Aligned)
+-- NOTE: This function is deprecated. Use treasuryService.calculateFee() instead
+-- for proper satoshi-based fee calculation (5 sats for BDP_BOOK, 3 for BDP_PAY, etc.)
 CREATE OR REPLACE FUNCTION calculate_treasury_split(amount DECIMAL)
 RETURNS TABLE(treasury DECIMAL, provider DECIMAL) AS $$
 BEGIN
+    -- DEPRECATED: Old 1% model - replaced by satoshi-level fees
+    -- Kept for backward compatibility with existing data
     RETURN QUERY SELECT
         ROUND(amount * 0.01, 2) AS treasury,
         ROUND(amount * 0.99, 2) AS provider;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
-COMMENT ON FUNCTION calculate_treasury_split IS 'Patent Claim #2: 1% treasury, 99% provider split';
+COMMENT ON FUNCTION calculate_treasury_split IS 'DEPRECATED: Old 1% model. Use treasuryService.calculateFee() for Wright-aligned satoshi-level fees';
 
 -- Function: Update treasury balance (called by trigger)
 CREATE OR REPLACE FUNCTION update_treasury_balance()

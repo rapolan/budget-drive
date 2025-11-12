@@ -8,10 +8,10 @@
 
 ## Executive Summary
 
-Budget Drive Protocol (BDP) is a novel blockchain-based system for managing service-based businesses (initially driving schools) with **autonomous funding through micropayment splits**, **hidden blockchain complexity**, and **stable engagement rewards**. The system eliminates traditional payment processing chokepoints while maintaining familiar fiat UX.
+Budget Drive Protocol (BDP) is a novel blockchain-based system for managing service-based businesses (initially driving schools) with **autonomous funding through satoshi-level transaction fees**, **hidden blockchain complexity**, and **stable engagement rewards**. The system eliminates traditional payment processing chokepoints while maintaining familiar fiat UX.
 
 ### Core Innovation
-**Self-Funding Protocol Architecture**: A system where 1% of every transaction automatically funds protocol operations, rewards, and growth—creating an antifragile network that strengthens with use.
+**Self-Funding Protocol Architecture (Wright-Aligned)**: A system where fixed satoshi-denominated fees (5 sats per booking = ~$0.000002 USD) automatically fund protocol operations, rewards, and growth—creating an antifragile network that strengthens with use. Unlike percentage-based extraction models, BDP uses cost-based pricing that scales profitably at volume, aligning with Craig Wright's Bitcoin philosophy of "honest money" and micropayment economics.
 
 ---
 
@@ -38,30 +38,58 @@ A method for preventing scheduling conflicts in a multi-party service system com
 
 ---
 
-### **Claim 2: Self-Funding Treasury via Micropayment Splits**
-A system for autonomous protocol funding comprising:
-1. Automated fractional transaction splits (1% to treasury, 99% to service provider)
-2. Treasury wallet accumulation without user interaction
-3. Protocol-funded operations including:
-   - Blockchain transaction fees
+### **Claim 2: Self-Funding Treasury via Satoshi-Level Transaction Fees**
+A system for autonomous protocol funding using cost-based micropayments comprising:
+1. Satoshi-denominated transaction fees (NOT percentage-based)
+   - BDP_BOOK: 5 satoshis (~$0.000002 USD) per lesson booking
+   - BDP_PAY: 3 satoshis per payment confirmation
+   - BDP_PROGRESS: 2 satoshis per progress update
+   - BDP_CERT: 10 satoshis per certificate issuance
+2. Craig Wright Bitcoin Philosophy Alignment:
+   - Cost-based pricing (reflects actual computational cost)
+   - Scales at volume (millions of transactions = profitability)
+   - No rent-seeking middleman (honest money principle)
+   - Fixed satoshi fees independent of transaction value
+3. Treasury wallet accumulation without user interaction
+4. Protocol-funded operations including:
+   - Blockchain transaction fees (miner fees)
    - User engagement rewards
    - Growth incentives
-4. Transparent accounting via on-chain ledger
+5. Transparent accounting via on-chain ledger
 
-**Mathematical Model:**
+**Mathematical Model (Wright-Aligned):**
 ```
 Let L = lesson cost ($50 typical)
-Treasury split = L × 0.01 = $0.50
-Provider receives = L × 0.99 = $49.50
-Annual treasury (10% market) = 23,946 schools × 50 lessons/day × 365 days × 0.10 × $0.50
-= ~$21.9M treasury growth potential
+Treasury fee = 5 satoshis = $0.000002 USD (at BSV = $47)
+Provider receives = $49.999998 (virtually full amount)
+
+Scale Economics (100 million bookings):
+100M bookings × 5 sats = 500M satoshis = 5 BSV
+At BSV=$47: 5 BSV = $235/year
+At BSV=$10,000 (Wright target): 5 BSV = $50,000/year
+
+Key Insight: Profitability comes from VOLUME, not extraction
+```
+
+**Comparison to Old Model:**
+```
+OLD (1% Split):
+- $50 lesson → $0.50 treasury fee (rent-seeking)
+- Does NOT scale (always 1% regardless of volume)
+- Contradicts Wright's "honest money" principle
+
+NEW (Satoshi-Level):
+- $50 lesson → $0.000002 treasury fee (cost-based)
+- Scales infinitely at volume
+- Aligns with Wright's Bitcoin vision
 ```
 
 **Prior Art Differentiation:**
 - Traditional SaaS: Monthly subscriptions ($50-200/month)
-- BDP: Pay-per-use microfees, self-funding from usage
+- Stripe/PayPal: 2.9% + 30¢ per transaction (percentage extraction)
+- BDP: Fixed satoshi fees, scales with volume, NOT value
 
-**Reduction to Practice:** To be implemented in Phase 1 (Week 1-2, Nov 2025)
+**Reduction to Practice:** Implemented November 11, 2025 in `backend/src/services/treasuryService.ts`
 
 ---
 

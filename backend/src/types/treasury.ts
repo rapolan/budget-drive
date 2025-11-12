@@ -70,8 +70,9 @@ export interface BDPAction {
 }
 
 export interface TreasurySplitResult {
-  treasury: number;
-  provider: number;
+  treasury: number;            // Fee in USD (tiny: ~$0.000002)
+  provider: number;            // Provider gets nearly full amount
+  treasurySatoshis?: number;   // Fee in satoshis (5 sats for BDP_BOOK)
 }
 
 export interface CreateTreasuryTransactionDTO {

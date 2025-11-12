@@ -10,6 +10,7 @@ import { query } from '../config/database';
 import { Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import treasuryService from './treasuryService';
+import notificationService from './notificationService';
 
 export const getAllLessons = async (
   tenantId: string,
@@ -198,6 +199,97 @@ export const createLesson = async (
       console.error('Treasury split recording failed (non-blocking):', error);
       // Don't fail the lesson creation if treasury split fails
     }
+  }
+
+  // Phase 1: Queue email notifications
+  try {
+    // Get student and instructor emails
+    const studentResult = await query(
+      'SELECT email, full_name FROM students WHERE id = $1',
+      [data.studentId]
+    );
+    const instructorResult = await query(
+      'SELECT email FROM instructors WHERE id = $1',
+      [data.instructorId]
+    );
+
+    const studentEmail = studentResult.rows[0]?.email;
+    const instructorEmail = instructorResult.rows[0]?.email;
+
+    // Calculate notification times
+    const lessonDateTime = new Date(`${data.date}T${data.startTime}`);
+    const twentyFourHoursBefore = new Date(lessonDateTime.getTime() - 24 * 60 * 60 * 1000);
+    const oneHourBefore = new Date(lessonDateTime.getTime() - 60 * 60 * 1000);
+
+    // Queue booking confirmation (send immediately)
+    if (studentEmail) {
+      await notificationService.queueNotification(
+        tenantId,
+        lesson.id,
+        'student',
+        data.studentId,
+        studentEmail,
+        'booking_confirmation',
+        new Date(), // Send immediately
+        { lessonType: data.lessonType }
+      );
+    }
+
+    // Queue 24-hour reminder
+    if (studentEmail && twentyFourHoursBefore > new Date()) {
+      await notificationService.queueNotification(
+        tenantId,
+        lesson.id,
+        'student',
+        data.studentId,
+        studentEmail,
+        '24_hour_reminder',
+        twentyFourHoursBefore
+      );
+    }
+
+    // Queue 1-hour reminder
+    if (studentEmail && oneHourBefore > new Date()) {
+      await notificationService.queueNotification(
+        tenantId,
+        lesson.id,
+        'student',
+        data.studentId,
+        studentEmail,
+        '1_hour_reminder',
+        oneHourBefore
+      );
+    }
+
+    // Queue instructor notifications too
+    if (instructorEmail) {
+      await notificationService.queueNotification(
+        tenantId,
+        lesson.id,
+        'instructor',
+        data.instructorId,
+        instructorEmail,
+        'booking_confirmation',
+        new Date()
+      );
+
+      if (twentyFourHoursBefore > new Date()) {
+        await notificationService.queueNotification(
+          tenantId,
+          lesson.id,
+          'instructor',
+          data.instructorId,
+          instructorEmail,
+          '24_hour_reminder',
+          twentyFourHoursBefore
+        );
+      }
+    }
+
+    console.log('✅ Notifications queued for lesson', lesson.id);
+  } catch (error) {
+    console.error('Notification queueing failed (non-blocking):', error);
+    // Don't fail the lesson creation if notification queueing fails
   }
 
   return lesson;

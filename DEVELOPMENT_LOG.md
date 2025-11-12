@@ -1,8 +1,8 @@
 # Budget Driving School - Development Log
 
 **Project Start Date:** November 2025
-**Current Phase:** Phase 4A (Smart Scheduling Foundation) - COMPLETED
-**Last Updated:** November 8, 2025
+**Current Phase:** BDP Phase 1 - Week 1 (Treasury + Notifications)
+**Last Updated:** November 11, 2025
 
 ---
 
@@ -1382,9 +1382,269 @@ All known issues have been resolved as of November 8, 2025.
 
 ---
 
-**Last Updated:** November 8, 2025
-**Log Version:** 1.0
-**Next Review:** After Phase 4A Frontend completion
+**Last Updated:** November 11, 2025
+**Log Version:** 1.1
+**Next Review:** After BDP Phase 1 completion
+
+---
+
+## Session 9: BDP Phase 1 - Week 1 (November 11, 2025)
+
+**Focus:** Budget Drive Protocol Treasury + Email Notifications
+
+### Competitive Research
+**Analyzed DriveScout (drivescout.com):**
+- Pricing: $250/month minimum ($3,000/year)
+- Per-user: $50/month per instructor
+- 5-year cost: $15,250 for 3-instructor school
+
+**BDP Competitive Advantages:**
+- One-time licensing: $2,500-$10,000 (83% cheaper over 5 years)
+- Savings: $12,750 over 5 years
+- Wright-aligned: Cost-based satoshi fees, NOT percentage extraction
+- Blockchain verification (future Patent Claim #1)
+- Self-funding treasury (Patent Claim #2)
+
+**Feature Gaps Identified:**
+- ✅ Automated notifications (NOW implemented)
+- ⏳ Payroll reports (Week 2)
+- ⏳ Public booking widget (Week 2)
+- 📅 Payment processing (Phase 2+)
+
+### Treasury Implementation Complete
+**Implemented satoshi-level transaction fees (Craig Wright aligned):**
+
+**Philosophy:**
+- Cost-based fees: 5 sats per booking (~$0.000002 USD)
+- NOT percentage extraction (no rent-seeking)
+- Scales at volume: 100M bookings = 5 BSV = ~$235 USD
+- At BSV=$10,000: 100M bookings = $50,000/year passive income
+
+**BDP Fee Schedule:**
+```typescript
+BDP_BOOK: 5 sats       // Lesson booking
+BDP_PAY: 3 sats        // Payment logging
+BDP_PROGRESS: 2 sats   // Progress update
+BDP_CERT: 10 sats      // Certificate issuance
+BDP_AVAIL: 1 sat       // Availability update
+BDP_SYNC: 1 sat        // Calendar sync
+BDP_TIP: 0 sats        // Tips free (user already paying)
+```
+
+**Files Created/Modified:**
+- `backend/database/migrations/005_treasury_bdp.sql` - Treasury schema
+- `backend/src/services/treasuryService.ts` - Satoshi-level fee calculation
+- `TREASURY_TEST_GUIDE.md` - Testing instructions
+- `PROJECT_SCHEMA_REFERENCE.md` - Comprehensive 26KB reference doc
+
+**Treasury Testing Results:**
+```
+Test: $50 lesson booking
+Treasury Fee: 5 sats = $0.00000235 USD
+Provider Gets: $49.99999765 (99.999996%)
+BSV Status: pending (Phase 1 - blockchain disabled)
+Wright-Aligned: ✅ true
+```
+
+**Database Tables:**
+- `treasury_transactions` - All fee transactions
+- `treasury_balances` - Aggregate balances
+- `treasury_spending` - Reward distributions (future)
+- `bdp_actions_log` - Comprehensive action log
+
+### Email Notifications Implementation
+**Goal:** Free email notifications during pilot phase
+
+**Research:**
+- SendGrid free tier discontinued May 2025 (now $19.95/month minimum)
+- Evaluated alternatives: Resend, Mailgun, SMTP2GO, Nodemailer
+
+**Decision: Nodemailer + Gmail**
+- Cost: $0.00 (100% free)
+- Limit: 500 emails/day (15,000/month)
+- Setup: 5 minutes with Gmail app password
+- Professional delivery via Gmail infrastructure
+
+**Implementation:**
+1. **Installed:** `nodemailer` + `@types/nodemailer`
+2. **Created:** `backend/src/services/notificationService.ts`
+   - `sendLessonReminder()` - 24hr/1hr reminders
+   - `sendBookingConfirmation()` - Immediate confirmation
+   - `processNotificationQueue()` - Queue processor
+   - `queueNotification()` - Add to queue
+
+3. **Integrated:** Lesson booking flow
+   - Modified `backend/src/services/lessonService.ts`
+   - Auto-queue 3 notifications on lesson creation:
+     - Booking confirmation (immediate)
+     - 24-hour reminder (scheduled)
+     - 1-hour reminder (scheduled)
+   - Queued for both student AND instructor
+
+4. **Email Templates:**
+   - Professional HTML with inline CSS
+   - Plain text fallback
+   - Branded "Budget Driving School"
+   - Lesson details: date, time, instructor, type, cost
+
+5. **Configuration:**
+   - Updated `.env.example` with `EMAIL_USER` and `EMAIL_PASSWORD`
+   - Gmail app password setup instructions
+
+6. **Documentation:**
+   - Created `NOTIFICATION_SETUP_GUIDE.md` (350+ lines)
+   - Gmail app password setup (5 minutes)
+   - Testing instructions (3 methods)
+   - Production cron job setup (node-cron, system cron, Windows Task Scheduler)
+   - Troubleshooting guide
+   - Cost comparison table
+   - Security best practices
+
+**Notification Flow:**
+```
+Lesson Booked
+    ↓
+Notifications Queued (notification_queue table)
+    ↓
+Cron Job (every 5 minutes - future)
+    ↓
+processNotificationQueue()
+    ↓
+Send via Gmail SMTP (Nodemailer)
+    ↓
+Update status: 'sent' or 'failed'
+```
+
+**Future Enhancements:**
+- Week 2: SMS via Twilio (~$50/month for 1,000 SMS)
+- Phase 2: Push notifications
+- Phase 3: In-app notification center
+
+### Documentation Improvements
+**Created PROJECT_SCHEMA_REFERENCE.md (26KB):**
+- Complete database schema documentation
+- All 60+ API endpoints
+- BDP fee schedule and philosophy
+- Craig Wright alignment principles
+- Technology stack
+- Environment variables
+- Patent claims summary
+- Business model and revenue projections
+- Current development status
+
+**Purpose:** Ensure future Claude sessions maintain context and alignment
+
+**Archived Documentation:**
+- Moved completed phase docs to `docs/archived_phases/`
+  - PHASE_4A_FRONTEND.md
+  - PHASE_4A_SUMMARY.md
+  - PHASE_4B_4C_FRONTEND.md
+  - PHASE_4B_PROGRESS.md
+  - PHASE_4C_COMPLETE.md
+
+**Updated README.md:**
+- Version: 0.5.0
+- Phase: BDP Phase 1 (Treasury + Notifications)
+- Added BDP Treasury features section
+- Updated documentation links
+
+### Technical Implementation Details
+
+**Files Modified:**
+```
+backend/package.json                          (+ nodemailer)
+backend/.env.example                          (+ EMAIL_USER, EMAIL_PASSWORD)
+backend/src/services/notificationService.ts   (NEW - 450 lines)
+backend/src/services/lessonService.ts         (+ notification queueing)
+NOTIFICATION_SETUP_GUIDE.md                   (NEW - 350+ lines)
+PROJECT_SCHEMA_REFERENCE.md                   (NEW - 26KB)
+README.md                                     (UPDATED - v0.5.0)
+DEVELOPMENT_LOG.md                            (UPDATED - this entry)
+```
+
+**Code Statistics:**
+- New code: ~800 lines (notification service + integration)
+- Documentation: ~600 lines (setup guide + schema reference)
+- Total session output: ~1,400 lines
+
+### Testing Plan
+**Email Notification Testing:**
+1. Book test lesson via API
+2. Verify 3 notifications queued
+3. Run `processNotificationQueue()` manually
+4. Check Gmail sent folder
+5. Verify `notification_queue` status = 'sent'
+
+**Treasury Testing (Already Complete):**
+- ✅ Verified satoshi fee calculation
+- ✅ Database transaction created
+- ✅ Wright alignment confirmed
+
+### Next Steps - Week 2 (Nov 18-22)
+
+**Priority 1: Instructor Earnings Reports**
+- Export to CSV/PDF
+- Weekly/monthly summaries
+- Email delivery option
+
+**Priority 2: Public Booking Widget**
+- Embeddable iframe
+- Student self-service booking
+- Real-time availability check
+
+**Future (Phase 2+):**
+- MNEE engagement rewards (Dec 2025)
+- BSV blockchain integration (Q1 2026)
+- Multi-school expansion (Q2 2026)
+
+### Business Model Update
+
+**Target Market:**
+- 25,000 driving schools in America
+- Average 3-5 instructors per school
+
+**Pricing Strategy:**
+- One-time license: $2,500 (small), $5,000 (medium), $10,000 (large)
+- Satoshi protocol fees for infrastructure
+- No monthly subscriptions (Wright-aligned)
+
+**Revenue Projections:**
+- 100 schools × $2,500 = $250,000 initial
+- 100M bookings × 5 sats = 5 BSV passive (~$235 at BSV=$47)
+- At BSV=$10,000: 100M bookings = $50,000/year passive
+
+**Competitive Advantage:**
+- 83% cheaper than DriveScout over 5 years
+- No lock-in (one-time payment)
+- Blockchain verification (future)
+- Cost-based fees, not rent-seeking
+
+### Wright Philosophy Alignment Check
+✅ **Cost-based fees:** 5 sats reflects computational cost
+✅ **Fixed fees:** NOT percentage-based extraction
+✅ **Scales at volume:** Profitable at millions of transactions
+✅ **No rent-seeking:** Honest money principle
+✅ **Satoshi-denominated:** Bitcoin-native pricing
+✅ **Transparent:** All fees documented and logged
+
+### Session Statistics
+- **Duration:** ~3 hours
+- **Commits:** 0 (pending)
+- **Files Created:** 3
+- **Files Modified:** 5
+- **Lines of Code:** ~800
+- **Documentation:** ~600 lines
+- **Tests Written:** 0 (manual testing planned)
+- **Bugs Fixed:** 0
+- **Features Completed:** 2 (Treasury testing, Email notifications)
+
+### Deployment Status
+- **Backend:** Running on port 3000 ✅
+- **Frontend:** Running on port 5173 ✅
+- **Database:** PostgreSQL (driving_school) ✅
+- **Treasury:** Implemented and tested ✅
+- **Notifications:** Implemented, pending test ⏳
+- **Gmail SMTP:** Configured in .env.example ⏳
 
 ---
 

@@ -25,7 +25,9 @@
       "Bash(git push:*)",
       "Bash(git commit:*)",
       "Bash(set PGPASSWORD=67d83bc19d3547cc9b1d0bb3b0762a90:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npx @bsv/bsv-claude-agents:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

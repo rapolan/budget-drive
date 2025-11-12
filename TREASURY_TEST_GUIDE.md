@@ -1,4 +1,7 @@
-# Treasury Testing Guide - Phase 1 BDP
+# Treasury Testing Guide - Phase 1 BDP (Satoshi-Level Fees)
+
+**UPDATED:** November 11, 2025 - Refactored from 1% percentage split to satoshi-level cost-based fees
+**Wright Philosophy:** Fixed satoshi fees (5 sats = ~$0.000002), NOT percentage extraction
 
 ## Test Data Summary
 
@@ -92,29 +95,37 @@ INSERT INTO lessons (
 
 ---
 
-## Verify Treasury Split
+## Verify Treasury Split (Satoshi-Level Fees)
 
 After creating a lesson, check the treasury tables:
 
 ```sql
--- Check treasury transaction (1% split)
+-- Check treasury transaction (Satoshi-level fee: ~$0.000002)
 SELECT
     id,
     source_type,
     gross_amount,
     treasury_split,
     provider_amount,
+    bsv_action,
+    bsv_satoshis,
     bsv_status,
     description,
+    metadata::json->'fee_satoshis' AS fee_satoshis,
+    metadata::json->'craig_wright_aligned' AS wright_aligned,
     created_at
 FROM treasury_transactions
 ORDER BY created_at DESC
 LIMIT 5;
 
--- Expected result:
+-- Expected result (Wright-Aligned Satoshi Model):
 -- gross_amount: 50.00
--- treasury_split: 0.50 (1%)
--- provider_amount: 49.50 (99%)
+-- treasury_split: 0.00 (satoshi-level: ~$0.000002 rounds to 0 in USD display)
+-- provider_amount: 50.00 (virtually full amount)
+-- bsv_action: BDP_BOOK
+-- bsv_satoshis: 5 (5 satoshis = ~$0.000002 at BSV=$47)
+-- fee_satoshis: 5
+-- wright_aligned: true
 
 -- Check treasury balance
 SELECT
@@ -140,23 +151,37 @@ LIMIT 5;
 
 ---
 
-## Expected Results
+## Expected Results (Satoshi-Level Fee Model)
 
 ### Treasury Transaction:
 - **Gross Amount:** $50.00
-- **Treasury Split:** $0.50 (1%)
-- **Provider Amount:** $49.50 (99%)
+- **Treasury Split:** $0.00 (satoshi-level fee: 5 sats = ~$0.000002, rounds to $0.00)
+- **Provider Amount:** $50.00 (virtually full amount, 99.999996%)
+- **BDP Action:** `BDP_BOOK`
+- **BSV Satoshis:** 5 (cost-based protocol fee)
 - **BSV Status:** `pending` (Phase 1 - blockchain disabled)
+- **Metadata:**
+  - `fee_model`: "satoshi_based"
+  - `fee_satoshis`: 5
+  - `craig_wright_aligned`: true
 
 ### Treasury Balance:
-- **Total Collected:** $0.50 (or sum of all test lessons)
-- **Current Balance:** $0.50
+- **Total Collected:** $0.00 (or sum of satoshi fees in USD - will be microscopic)
+- **Current Balance:** $0.00 (satoshi fees don't show up in USD cents)
 - **Transaction Count:** 1 (or number of lessons booked)
+- **Note:** At scale (100M bookings), 5 sats × 100M = 5 BSV = ~$235 USD
 
 ### BDP Action Log:
 - **Action Type:** `BDP_BOOK`
 - **Action Data:** `lesson_id|instructor_id|date|time`
-- **Description:** "Lesson booked with 1% treasury split"
+- **Description:** "BDP_BOOK - Satoshi-level fee: 5 sats (~$0.00000002)"
+
+### Craig Wright Philosophy Alignment:
+✅ **Cost-based pricing** (5 sats reflects computational cost)
+✅ **Fixed fee** (NOT percentage-based)
+✅ **Scales at volume** (millions of tx = profitability)
+✅ **No rent-seeking** (honest money principle)
+✅ **Satoshi-denominated** (Bitcoin-native pricing)
 
 ---
 
@@ -177,11 +202,21 @@ VALUES ('55654b9d-6d7f-46e0-ade2-be606abfe00a', '37aa4cde-c481-4f04-b99d-ea3bb8c
 INSERT INTO lessons (tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time, duration, lesson_type, cost, status)
 VALUES ('55654b9d-6d7f-46e0-ade2-be606abfe00a', '5dd5b6e5-6705-480d-add6-7244bc794edf', '9d248b1a-4118-4432-947f-3f107dd8d479', '28b372fc-8ad5-4810-a1f5-cb5bc11ee263', '2025-11-17', '09:00:00', '11:00:00', 120, 'road_test', 100.00, 'scheduled');
 
--- Check total treasury collected
+-- Check total treasury collected (Satoshi Model)
 SELECT
-    total_collected,  -- Should be $2.25 ($0.50 + $0.75 + $1.00)
-    transaction_count -- Should be 3
+    total_collected,  -- Will be $0.00 (satoshi fees are microscopic in USD)
+    transaction_count, -- Should be 3
+    bsv_wallet_balance_satoshis -- This is where fees accumulate: 15 sats (5+5+5)
 FROM treasury_balances;
+
+-- To see actual satoshi fee accumulation:
+SELECT
+    SUM(bsv_satoshis) as total_satoshis_collected,
+    COUNT(*) as transaction_count,
+    SUM(bsv_satoshis) / 100000000.0 * 47.00 as usd_value_at_47_per_bsv
+FROM treasury_transactions;
+
+-- Expected: 15 satoshis total = 0.00000015 BSV = ~$0.000007 USD
 ```
 
 ---

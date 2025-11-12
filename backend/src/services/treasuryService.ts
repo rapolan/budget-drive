@@ -2,7 +2,12 @@
  * Treasury Service - Budget Drive Protocol (BDP)
  * Patent Documentation: See PATENT_DOCUMENTATION.md - Claim #2 (Self-Funding Treasury)
  *
- * This service implements the 1% micropayment split mechanism that funds protocol operations
+ * ALIGNED WITH CRAIG WRIGHT'S BITCOIN PHILOSOPHY:
+ * - Uses satoshi-level transaction fees (NOT percentage extraction)
+ * - Fees reflect actual computational cost (honest pricing)
+ * - Scales infinitely at volume (millions of tx = profitable)
+ * - No rent-seeking middleman (only cost-based fees)
+ *
  * Dual-write architecture: PostgreSQL (current) + BSV blockchain (future)
  */
 
@@ -16,15 +21,84 @@ import {
 } from '../types/treasury';
 
 class TreasuryService {
+  // BSV Price (updated periodically - in production, fetch from exchange API)
+  private readonly BSV_PRICE_USD = 47.00; // Current BSV price in USD
+  private readonly SATOSHIS_PER_BSV = 100000000; // 1 BSV = 100 million satoshis
+
+  // BDP Action Fee Schedule (Craig Wright Model: Cost-Based, Not Percentage)
+  private readonly BDP_FEE_SCHEDULE = {
+    BDP_BOOK: 5,       // 5 sats to record booking on-chain
+    BDP_PAY: 3,        // 3 sats to log payment
+    BDP_PROGRESS: 2,   // 2 sats to update progress
+    BDP_CERT: 10,      // 10 sats for certificate hash
+    BDP_AVAIL: 1,      // 1 sat for availability update
+    BDP_SYNC: 1,       // 1 sat per calendar event sync
+    BDP_TIP: 0,        // Tips are free (user already paying)
+    DEFAULT: 1,        // Default 1 sat for unknown actions
+  };
+
   /**
-   * Calculate 1% treasury split (Patent Claim #2)
-   * @param grossAmount - Original transaction amount ($50.00)
-   * @returns {treasury: $0.50, provider: $49.50}
+   * Calculate satoshi-based protocol fee (Wright-Aligned Model)
+   * @param actionType - BDP action type (BDP_BOOK, BDP_PAY, etc.)
+   * @param grossAmount - Original transaction amount (for reference only)
+   * @returns {treasurySatoshis, treasuryUSD, providerUSD}
    */
-  calculateSplit(grossAmount: number): TreasurySplitResult {
-    const treasury = Math.round(grossAmount * 0.01 * 100) / 100; // 1% rounded to 2 decimals
-    const provider = Math.round(grossAmount * 0.99 * 100) / 100; // 99% rounded to 2 decimals
-    return { treasury, provider };
+  calculateFee(actionType: string, grossAmount: number): TreasurySplitResult {
+    // Get fee in satoshis (cost-based, not percentage)
+    const feeSatoshis = this.BDP_FEE_SCHEDULE[actionType as keyof typeof this.BDP_FEE_SCHEDULE]
+                        || this.BDP_FEE_SCHEDULE.DEFAULT;
+
+    // Convert satoshis to USD
+    const feeUSD = this.satoshisToUSD(feeSatoshis);
+
+    // Provider gets full amount minus tiny protocol fee
+    const providerAmount = grossAmount - feeUSD;
+
+    return {
+      treasury: feeUSD,           // Tiny: ~$0.000002 for 5 sats
+      provider: providerAmount,   // Nearly full: $49.999998
+      treasurySatoshis: feeSatoshis, // 5 sats
+    };
+  }
+
+  /**
+   * Convert satoshis to USD
+   */
+  private satoshisToUSD(satoshis: number): number {
+    const bsv = satoshis / this.SATOSHIS_PER_BSV;
+    const usd = bsv * this.BSV_PRICE_USD;
+    return Math.round(usd * 100000000) / 100000000; // 8 decimal precision
+  }
+
+  /**
+   * Convert USD to satoshis
+   * (Currently unused - reserved for Phase 3 BSV integration)
+   */
+  // private usdToSatoshis(usd: number): number {
+  //   const bsv = usd / this.BSV_PRICE_USD;
+  //   const satoshis = Math.round(bsv * this.SATOSHIS_PER_BSV);
+  //   return satoshis;
+  // }
+
+  /**
+   * Get BSV price (in production, fetch from exchange)
+   */
+  async getBSVPrice(): Promise<number> {
+    // TODO Phase 3: Fetch from WhatsOnChain or exchange API
+    return this.BSV_PRICE_USD;
+  }
+
+  /**
+   * Map source_type to BDP action type
+   */
+  private mapSourceTypeToBDPAction(sourceType: string): string {
+    const mapping: Record<string, string> = {
+      lesson_booking: 'BDP_BOOK',
+      lesson_payment: 'BDP_PAY',
+      tip: 'BDP_TIP',
+      refund: 'DEFAULT',
+    };
+    return mapping[sourceType] || 'DEFAULT';
   }
 
   /**
@@ -33,17 +107,33 @@ class TreasuryService {
    * Phase 3: Enable BSV blockchain writes
    */
   async createTransaction(data: CreateTreasuryTransactionDTO): Promise<TreasuryTransaction> {
-    const { treasury, provider } = this.calculateSplit(data.gross_amount);
+    // Calculate satoshi-based fee (NOT percentage)
+    const actionType = this.mapSourceTypeToBDPAction(data.source_type);
+    const feeResult = this.calculateFee(actionType, data.gross_amount);
+
+    const { treasury, provider, treasurySatoshis } = feeResult;
 
     // Insert into PostgreSQL
     const query = `
       INSERT INTO treasury_transactions (
         tenant_id, source_type, source_id, gross_amount, treasury_split, provider_amount,
-        bsv_status, description, metadata
+        bsv_action, bsv_satoshis, bsv_fee_satoshis, bsv_status, description, metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *
     `;
+
+    // Enhanced metadata with satoshi tracking
+    const enhancedMetadata = {
+      ...(data.metadata || {}),
+      fee_model: 'satoshi_based',
+      bdp_action: actionType,
+      fee_satoshis: treasurySatoshis,
+      fee_usd: treasury,
+      bsv_price_snapshot: this.BSV_PRICE_USD,
+      calculated_at: new Date().toISOString(),
+      craig_wright_aligned: true, // Cost-based, not percentage
+    };
 
     const values = [
       data.tenant_id,
@@ -52,9 +142,12 @@ class TreasuryService {
       data.gross_amount,
       treasury,
       provider,
+      actionType, // BDP action type (BDP_BOOK, BDP_PAY, etc.)
+      treasurySatoshis, // Protocol fee in satoshis
+      treasurySatoshis, // Same as fee for now (in Phase 3, this will be miner fee)
       'pending', // BSV status (will be 'confirmed' when blockchain enabled)
-      data.description || null,
-      data.metadata ? JSON.stringify(data.metadata) : null,
+      data.description || `${actionType} - Satoshi-level fee: ${treasurySatoshis} sats (~$${treasury.toFixed(8)})`,
+      JSON.stringify(enhancedMetadata),
     ];
 
     const result = await pool.query(query, values);

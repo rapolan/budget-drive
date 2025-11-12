@@ -1,34 +1,61 @@
-# Budget Driving School - Management System
+# Budget Drive Protocol (BDP) - Driving School Management System
 
-A comprehensive multi-tenant driving school management platform with smart scheduling, instructor availability tracking, and automated conflict detection.
+A comprehensive multi-tenant driving school management platform with **smart scheduling**, **Google Calendar sync**, **recurring lessons**, and **blockchain-verified treasury** (Craig Wright aligned).
 
 ## Current Status
 
-**Phase:** 4A Frontend Complete (Smart Scheduling UI)
-**Version:** 0.4.1
-**Last Updated:** November 8, 2025
+**Phase:** BDP Phase 1 (Treasury + Notifications)
+**Version:** 0.5.0
+**Last Updated:** November 11, 2025
 
-### What's Working
-- ✅ Multi-tenant architecture with complete data isolation
-- ✅ Student, instructor, vehicle, and lesson management
-- ✅ Payment tracking and history
-- ✅ Smart scheduling backend (17 API endpoints)
-- ✅ Smart scheduling frontend (4 major components)
-- ✅ Visual availability calendar (week view)
-- ✅ Availability editor (CRUD operations)
-- ✅ Time off request/approval system
-- ✅ 3-step booking wizard with conflict detection
-- ✅ 6-dimensional conflict detection
-- ✅ Intelligent slot finding algorithm
-- ✅ 30-minute buffer time management
-- ✅ Vehicle ownership tracking (school vs instructor-owned)
-- ✅ RESTful API with 60+ endpoints
-- ✅ React admin dashboard with Scheduling page
+### ✅ Completed Features
+**Phase 1-3: Core System**
+- Multi-tenant architecture with complete data isolation
+- Student, instructor, vehicle, and lesson management
+- Payment tracking and history
+- RESTful API with 60+ endpoints
+- React admin dashboard
 
-### What's Next
-- Phase 4B: Google Calendar two-way sync
-- Phase 4C: Recurring lessons and packages
-- Phase 6: BSV blockchain payments (roadmap documented)
+**Phase 4A: Smart Scheduling**
+- 6-dimensional conflict detection (Patent Claim #1)
+- Intelligent slot finding algorithm
+- 30-minute buffer time management
+- Vehicle ownership tracking (school vs instructor-owned)
+- Availability calendar + time-off system
+- 3-step booking wizard
+
+**Phase 4B: Google Calendar Integration**
+- OAuth 2.0 two-way sync
+- Automatic lesson push to Google Calendar
+- External event conflict detection
+- Sync status monitoring
+
+**Phase 4C: Recurring Lessons**
+- Pattern-based lesson generation (daily, weekly, biweekly, monthly)
+- Bulk scheduling with conflict detection
+- Series management (pause, resume, cancel)
+
+**BDP Treasury (Nov 11, 2025):**
+- Satoshi-level transaction fees (Patent Claim #2)
+- Cost-based pricing: 5 sats per booking (~$0.000002 USD)
+- Craig Wright philosophy alignment
+- Treasury balance tracking
+- BDP action logging (BDP_BOOK, BDP_PAY, etc.)
+
+### 🔄 In Progress
+**BDP Phase 1 - Week 1 (Nov 11-15):**
+1. Treasury testing with lesson bookings
+2. Twilio SMS notifications
+3. SendGrid email notifications
+
+**BDP Phase 1 - Week 2 (Nov 18-22):**
+4. Instructor earnings reports
+5. Public booking widget (embeddable)
+
+### 📅 Upcoming
+- **BDP Phase 2:** MNEE engagement rewards (Dec 2025)
+- **BDP Phase 3:** BSV blockchain integration (Q1 2026)
+- **BDP Phase 4:** Multi-school expansion + gig mode (Q2 2026)
 
 ## Tech Stack
 
@@ -95,8 +122,13 @@ cd frontend && npm run dev
 
 ## Documentation
 
+- **[PROJECT_SCHEMA_REFERENCE.md](PROJECT_SCHEMA_REFERENCE.md)** - Comprehensive schema reference (for future sessions)
 - **[DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)** - Complete project history (1000+ lines)
-- **[PHASE_4A_SUMMARY.md](PHASE_4A_SUMMARY.md)** - Phase 4A technical details
+- **[PATENT_DOCUMENTATION.md](PATENT_DOCUMENTATION.md)** - Patent claims and technical disclosure
+- **[TREASURY_TEST_GUIDE.md](TREASURY_TEST_GUIDE.md)** - Testing guide for satoshi-level fees
+- **[BLOCKCHAIN_ROADMAP.md](BLOCKCHAIN_ROADMAP.md)** - BSV integration roadmap
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[docs/archived_phases/](docs/archived_phases/)** - Completed phase documentation
 
 ## Key Features
 
