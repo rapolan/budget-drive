@@ -5,6 +5,7 @@ import { TenantProvider } from '@/contexts/TenantContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardPage } from '@/pages/Dashboard';
 import { StudentsPage } from '@/pages/Students';
+import { LessonsPage } from '@/pages/Lessons';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
 
@@ -61,7 +62,7 @@ function App() {
               path="/lessons"
               element={
                 <AppLayout>
-                  <div className="text-center text-gray-500">Lessons page - Coming soon</div>
+                  <LessonsPage />
                 </AppLayout>
               }
             />
