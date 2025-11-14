@@ -7,13 +7,14 @@
 import { query } from '../config/database';
 import { Vehicle } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { keysToCamel } from '../utils/caseConversion';
 
 export const getAllVehicles = async (tenantId: string): Promise<Vehicle[]> => {
   const result = await query(
     'SELECT * FROM vehicles WHERE tenant_id = $1 ORDER BY created_at DESC',
     [tenantId]
   );
-  return result.rows as Vehicle[];
+  return result.rows.map(keysToCamel) as Vehicle[];
 };
 
 export const getVehicleById = async (
@@ -24,7 +25,7 @@ export const getVehicleById = async (
     'SELECT * FROM vehicles WHERE id = $1 AND tenant_id = $2',
     [id, tenantId]
   );
-  return result.rows.length > 0 ? (result.rows[0] as Vehicle) : null;
+  return result.rows.length > 0 ? (keysToCamel(result.rows[0]) as Vehicle) : null;
 };
 
 export const getAvailableVehicles = async (
@@ -36,7 +37,7 @@ export const getAvailableVehicles = async (
      ORDER BY created_at DESC`,
     [tenantId]
   );
-  return result.rows as Vehicle[];
+  return result.rows.map(keysToCamel) as Vehicle[];
 };
 
 export const createVehicle = async (
@@ -66,7 +67,7 @@ export const createVehicle = async (
       data.currentMileage || 0,
     ]
   );
-  return result.rows[0] as Vehicle;
+  return keysToCamel(result.rows[0]) as Vehicle;
 };
 
 export const updateVehicle = async (
@@ -144,7 +145,7 @@ export const updateVehicle = async (
     throw new AppError('Vehicle not found', 404);
   }
 
-  return result.rows[0] as Vehicle;
+  return keysToCamel(result.rows[0]) as Vehicle;
 };
 
 export const deleteVehicle = async (

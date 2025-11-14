@@ -11,6 +11,7 @@ import { Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import treasuryService from './treasuryService';
 import notificationService from './notificationService';
+import { keysToCamel } from '../utils/caseConversion';
 
 export const getAllLessons = async (
   tenantId: string,
@@ -37,7 +38,7 @@ export const getAllLessons = async (
   );
 
   return {
-    lessons: result.rows as Lesson[],
+    lessons: result.rows.map(keysToCamel) as Lesson[],
     total,
     page,
     totalPages,
@@ -52,7 +53,7 @@ export const getLessonById = async (
     'SELECT * FROM lessons WHERE id = $1 AND tenant_id = $2',
     [id, tenantId]
   );
-  return result.rows.length > 0 ? (result.rows[0] as Lesson) : null;
+  return result.rows.length > 0 ? (keysToCamel(result.rows[0]) as Lesson) : null;
 };
 
 export const getLessonsByStudent = async (
@@ -65,7 +66,7 @@ export const getLessonsByStudent = async (
      ORDER BY date DESC, start_time DESC`,
     [tenantId, studentId]
   );
-  return result.rows as Lesson[];
+  return result.rows.map(keysToCamel) as Lesson[];
 };
 
 export const getLessonsByInstructor = async (
@@ -78,7 +79,7 @@ export const getLessonsByInstructor = async (
      ORDER BY date DESC, start_time DESC`,
     [tenantId, instructorId]
   );
-  return result.rows as Lesson[];
+  return result.rows.map(keysToCamel) as Lesson[];
 };
 
 export const getLessonsByStatus = async (
@@ -91,7 +92,7 @@ export const getLessonsByStatus = async (
      ORDER BY date DESC, start_time DESC`,
     [tenantId, status]
   );
-  return result.rows as Lesson[];
+  return result.rows.map(keysToCamel) as Lesson[];
 };
 
 export const getLessonsByDateRange = async (
@@ -107,7 +108,7 @@ export const getLessonsByDateRange = async (
      ORDER BY date ASC, start_time ASC`,
     [tenantId, startDate, endDate]
   );
-  return result.rows as Lesson[];
+  return result.rows.map(keysToCamel) as Lesson[];
 };
 
 export const createLesson = async (
@@ -139,6 +140,27 @@ export const createLesson = async (
     throw new AppError('Vehicle not found or does not belong to this organization', 404);
   }
 
+  // Extract date and time from scheduledStart/scheduledEnd if provided (ISO format)
+  // Otherwise use separate date/startTime/endTime fields
+  let lessonDate, startTime, endTime, duration;
+
+  if (data.scheduledStart && data.scheduledEnd) {
+    const startDate = new Date(data.scheduledStart);
+    const endDate = new Date(data.scheduledEnd);
+
+    lessonDate = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    startTime = startDate.toTimeString().substring(0, 8); // HH:MM:SS
+    endTime = endDate.toTimeString().substring(0, 8); // HH:MM:SS
+
+    // Calculate duration in minutes
+    duration = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60));
+  } else {
+    lessonDate = data.date;
+    startTime = data.startTime;
+    endTime = data.endTime;
+    duration = data.duration;
+  }
+
   const result = await query(
     `INSERT INTO lessons (
       tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time,
@@ -150,10 +172,10 @@ export const createLesson = async (
       data.studentId,
       data.instructorId,
       data.vehicleId,
-      data.date,
-      data.startTime,
-      data.endTime,
-      data.duration,
+      lessonDate,
+      startTime,
+      endTime,
+      duration,
       data.lessonType || 'behind_wheel',
       data.cost || 0,
     ]
@@ -230,8 +252,7 @@ export const createLesson = async (
         data.studentId,
         studentEmail,
         'booking_confirmation',
-        new Date(), // Send immediately
-        { lessonType: data.lessonType }
+        new Date() // Send immediately
       );
     }
 
@@ -390,7 +411,7 @@ export const updateLesson = async (
     throw new AppError('Lesson not found', 404);
   }
 
-  return result.rows[0] as Lesson;
+  return keysToCamel(result.rows[0]) as Lesson;
 };
 
 export const deleteLesson = async (
@@ -426,5 +447,5 @@ export const completeLesson = async (
     throw new AppError('Lesson not found', 404);
   }
 
-  return result.rows[0] as Lesson;
+  return keysToCamel(result.rows[0]) as Lesson;
 };

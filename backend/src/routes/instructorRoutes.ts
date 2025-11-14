@@ -49,4 +49,11 @@ router.delete(
   instructorController.deleteInstructor
 );
 
+// Get instructor earnings
+router.get(
+  '/instructors/:id/earnings',
+  validateUUID('id'),
+  instructorController.getInstructorEarnings
+);
+
 export default router;

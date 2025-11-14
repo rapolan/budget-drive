@@ -1,62 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import { studentsApi } from '@/api';
-import type { Student, CreateStudentInput } from '@/types';
+import { instructorsApi } from '@/api';
+import type { Instructor, CreateInstructorInput } from '@/types';
 
-interface StudentModalProps {
-  student: Student | null;
+interface InstructorModalProps {
+  instructor: Instructor | null;
   onClose: () => void;
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) => {
+export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, onClose }) => {
   const queryClient = useQueryClient();
-  const isEditing = Boolean(student);
+  const isEditing = Boolean(instructor);
 
-  const [formData, setFormData] = useState<CreateStudentInput>({
+  const [formData, setFormData] = useState<CreateInstructorInput>({
     fullName: '',
     email: '',
     phone: '',
     dateOfBirth: '',
     address: '',
-    emergencyContactName: '',
-    emergencyContactPhone: '',
-    learnerPermitNumber: '',
-    learnerPermitExpiration: '',
+    licenseNumber: '',
+    licenseExpiration: '',
+    employmentType: 'w2_employee',
+    hireDate: new Date().toISOString().split('T')[0],
+    hourlyRate: 0,
+    googleCalendarId: '',
     notes: '',
   });
 
   useEffect(() => {
-    if (student) {
+    if (instructor) {
       setFormData({
-        fullName: student.fullName,
-        email: student.email,
-        phone: student.phone,
-        dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
-        address: student.address || '',
-        emergencyContactName: student.emergencyContactName || '',
-        emergencyContactPhone: student.emergencyContactPhone || '',
-        learnerPermitNumber: student.learnerPermitNumber || '',
-        learnerPermitExpiration: student.learnerPermitExpiration
-          ? new Date(student.learnerPermitExpiration).toISOString().split('T')[0]
+        fullName: instructor.fullName,
+        email: instructor.email,
+        phone: instructor.phone,
+        dateOfBirth: instructor.dateOfBirth ? new Date(instructor.dateOfBirth).toISOString().split('T')[0] : '',
+        address: instructor.address || '',
+        licenseNumber: instructor.licenseNumber || '',
+        licenseExpiration: instructor.licenseExpiration
+          ? new Date(instructor.licenseExpiration).toISOString().split('T')[0]
           : '',
-        notes: student.notes || '',
+        employmentType: instructor.employmentType,
+        hireDate: new Date(instructor.hireDate).toISOString().split('T')[0],
+        hourlyRate: instructor.hourlyRate || 0,
+        googleCalendarId: instructor.googleCalendarId || '',
+        notes: instructor.notes || '',
       });
     }
-  }, [student]);
+  }, [instructor]);
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateStudentInput) => studentsApi.create(data),
+    mutationFn: (data: CreateInstructorInput) => instructorsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['instructors'] });
       onClose();
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: CreateStudentInput) => studentsApi.update(student!.id, data),
+    mutationFn: (data: CreateInstructorInput) => instructorsApi.update(instructor!.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['instructors'] });
       onClose();
     },
   });
@@ -72,10 +76,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'number' ? parseFloat(value) || 0 : value,
+    }));
   };
 
   return (
@@ -84,7 +91,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">
-            {isEditing ? 'Edit Student' : 'Add New Student'}
+            {isEditing ? 'Edit Instructor' : 'Add New Instructor'}
           </h2>
           <button
             onClick={onClose}
@@ -156,29 +163,90 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
               />
             </div>
 
-            {/* Learner Permit Number */}
+            {/* License Number */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Learner Permit Number
+                License Number
               </label>
               <input
                 type="text"
-                name="learnerPermitNumber"
-                value={formData.learnerPermitNumber}
+                name="licenseNumber"
+                value={formData.licenseNumber}
                 onChange={handleChange}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
-            {/* Learner Permit Expiration */}
+            {/* License Expiration */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Permit Expiration
+                License Expiration
               </label>
               <input
                 type="date"
-                name="learnerPermitExpiration"
-                value={formData.learnerPermitExpiration}
+                name="licenseExpiration"
+                value={formData.licenseExpiration}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* Employment Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Employment Type
+              </label>
+              <select
+                name="employmentType"
+                value={formData.employmentType}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="w2_employee">W2 Employee</option>
+                <option value="1099_contractor">1099 Contractor</option>
+                <option value="volunteer">Volunteer</option>
+              </select>
+            </div>
+
+            {/* Hire Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Hire Date
+              </label>
+              <input
+                type="date"
+                name="hireDate"
+                value={formData.hireDate}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* Hourly Rate */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Hourly Rate ($)
+              </label>
+              <input
+                type="number"
+                name="hourlyRate"
+                value={formData.hourlyRate}
+                onChange={handleChange}
+                min="0"
+                step="0.01"
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* Google Calendar ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Google Calendar ID
+              </label>
+              <input
+                type="text"
+                name="googleCalendarId"
+                value={formData.googleCalendarId}
                 onChange={handleChange}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -193,34 +261,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
                 type="text"
                 name="address"
                 value={formData.address}
-                onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            {/* Emergency Contact Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Emergency Contact Name
-              </label>
-              <input
-                type="text"
-                name="emergencyContactName"
-                value={formData.emergencyContactName}
-                onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            {/* Emergency Contact Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Emergency Contact Phone
-              </label>
-              <input
-                type="tel"
-                name="emergencyContactPhone"
-                value={formData.emergencyContactPhone}
                 onChange={handleChange}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -241,7 +281,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Submit Button */}
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
@@ -252,14 +292,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending || updateMutation.isPending}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-opacity-90 disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-opacity-90"
             >
-              {createMutation.isPending || updateMutation.isPending
-                ? 'Saving...'
-                : isEditing
-                ? 'Update Student'
-                : 'Create Student'}
+              {isEditing ? 'Update' : 'Create'} Instructor
             </button>
           </div>
         </form>

@@ -7,6 +7,7 @@
 import { query } from '../config/database';
 import { Student } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { keysToCamel } from '../utils/caseConversion';
 
 /**
  * Get all students for a tenant (with pagination)
@@ -35,7 +36,7 @@ export const getAllStudents = async (
   );
 
   return {
-    students: result.rows as Student[],
+    students: result.rows.map(keysToCamel) as Student[],
     total,
     page,
     totalPages: Math.ceil(total / limit),
@@ -58,7 +59,7 @@ export const getStudentById = async (
     return null;
   }
 
-  return result.rows[0] as Student;
+  return keysToCamel(result.rows[0]) as Student;
 };
 
 /**
@@ -109,7 +110,7 @@ export const createStudent = async (
     ]
   );
 
-  return result.rows[0] as Student;
+  return keysToCamel(result.rows[0]) as Student;
 };
 
 /**
@@ -192,7 +193,7 @@ export const updateStudent = async (
     throw new AppError('Student not found', 404);
   }
 
-  return result.rows[0] as Student;
+  return keysToCamel(result.rows[0]) as Student;
 };
 
 /**
@@ -226,7 +227,7 @@ export const getStudentsByStatus = async (
     [tenantId, status]
   );
 
-  return result.rows as Student[];
+  return result.rows.map(keysToCamel) as Student[];
 };
 
 /**
@@ -243,5 +244,5 @@ export const getStudentsByInstructor = async (
     [tenantId, instructorId]
   );
 
-  return result.rows as Student[];
+  return result.rows.map(keysToCamel) as Student[];
 };

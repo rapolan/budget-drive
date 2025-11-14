@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, X, CheckCircle } from 'lucide-react';
+import { Plus, Search, Edit, X, CheckCircle, List, Calendar } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson } from '@/types';
 import { LessonModal } from '@/components/lessons/LessonModal';
+import { LessonsCalendarView } from '@/components/lessons/LessonsCalendarView';
+
+type ViewMode = 'table' | 'calendar';
 
 export const LessonsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -139,30 +143,72 @@ export const LessonsPage: React.FC = () => {
             Manage driving lessons and appointments
           </p>
         </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90"
-        >
-          <Plus className="mr-2 h-5 w-5" />
-          Add Lesson
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* View Toggle */}
+          <div className="flex rounded-md border border-gray-300 bg-white">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center px-3 py-2 text-sm font-medium ${
+                viewMode === 'table'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <List className="mr-2 h-4 w-4" />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`flex items-center px-3 py-2 text-sm font-medium ${
+                viewMode === 'calendar'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Calendar className="mr-2 h-4 w-4" />
+              Calendar
+            </button>
+          </div>
+
+          <button
+            onClick={handleAddNew}
+            className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            Add Lesson
+          </button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
-        <Search className="h-5 w-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by student, instructor, type, or status..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="ml-2 flex-1 border-none bg-transparent outline-none"
+      {/* Search - Only show in table view */}
+      {viewMode === 'table' && (
+        <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
+          <Search className="h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by student, instructor, type, or status..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="ml-2 flex-1 border-none bg-transparent outline-none"
+          />
+        </div>
+      )}
+
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <LessonsCalendarView
+          lessons={data?.data || []}
+          onLessonClick={handleEdit}
+          getStudentName={getStudentName}
+          getInstructorName={getInstructorName}
         />
-      </div>
+      )}
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <table className="min-w-full divide-y divide-gray-200">
+      {/* Table View */}
+      {viewMode === 'table' && (
+        <div className="rounded-lg bg-white shadow">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -239,7 +285,7 @@ export const LessonsPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    ${lesson.cost.toFixed(2)}
+                    ${parseFloat(lesson.cost).toFixed(2)}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
@@ -278,10 +324,12 @@ export const LessonsPage: React.FC = () => {
             )}
           </tbody>
         </table>
-      </div>
+          </div>
+        </div>
+      )}
 
-      {/* Pagination */}
-      {data?.pagination && data.pagination.totalPages > 1 && (
+      {/* Pagination - Only show in table view */}
+      {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (
         <div className="flex items-center justify-between bg-white px-4 py-3 rounded-lg">
           <div className="text-sm text-gray-700">
             Page {data.pagination.page} of {data.pagination.totalPages}

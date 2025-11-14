@@ -353,10 +353,11 @@ Powered by Budget Drive Protocol (BDP)
           nq.lesson_id,
           nq.recipient_type,
           nq.recipient_id,
-          nq.recipient_email,
+          nq.email as recipient_email,
           nq.notification_type,
           nq.scheduled_for,
-          nq.metadata,
+          nq.subject,
+          nq.message,
           l.date as lesson_date,
           l.start_time,
           l.duration,
@@ -460,15 +461,34 @@ Powered by Budget Drive Protocol (BDP)
     recipientId: string,
     recipientEmail: string,
     notificationType: '24_hour_reminder' | '1_hour_reminder' | 'booking_confirmation',
-    scheduledFor: Date,
-    metadata?: any
+    scheduledFor: Date
   ): Promise<void> {
+    // Generate subject and message based on notification type
+    let subject = '';
+    let message = '';
+
+    switch (notificationType) {
+      case 'booking_confirmation':
+        subject = 'Lesson Booking Confirmation - Budget Driving School';
+        message = 'Your driving lesson has been booked. Details will be sent separately.';
+        break;
+      case '24_hour_reminder':
+        subject = 'Reminder: Lesson Tomorrow - Budget Driving School';
+        message = 'This is a reminder that you have a driving lesson scheduled for tomorrow.';
+        break;
+      case '1_hour_reminder':
+        subject = 'Reminder: Lesson in 1 Hour - Budget Driving School';
+        message = 'This is a reminder that you have a driving lesson starting in 1 hour.';
+        break;
+    }
+
     const query = `
       INSERT INTO notification_queue (
-        tenant_id, lesson_id, recipient_type, recipient_id, recipient_email,
-        notification_type, scheduled_for, status, metadata
+        tenant_id, lesson_id, recipient_type, recipient_id, email,
+        notification_type, scheduled_for, status, send_email, send_sms,
+        subject, message
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `;
 
     await pool.query(query, [
@@ -476,11 +496,14 @@ Powered by Budget Drive Protocol (BDP)
       lessonId,
       recipientType,
       recipientId,
-      recipientEmail,
+      recipientEmail,  // maps to 'email' column
       notificationType,
       scheduledFor,
       'pending',
-      metadata ? JSON.stringify(metadata) : null,
+      true,  // send_email
+      false, // send_sms
+      subject,
+      message,
     ]);
 
     console.log(`📝 Queued notification: ${notificationType} for ${recipientEmail} at ${scheduledFor}`);

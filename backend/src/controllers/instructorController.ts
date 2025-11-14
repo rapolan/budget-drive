@@ -101,3 +101,26 @@ export const deleteInstructor = asyncHandler(async (req: Request, res: Response)
     message: 'Instructor deleted successfully',
   });
 });
+
+/**
+ * @route   GET /api/v1/instructors/:id/earnings
+ * @desc    Get instructor earnings
+ * @access  Private
+ */
+export const getInstructorEarnings = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = req.tenantId!;
+  const { id } = req.params;
+  const { startDate, endDate } = req.query;
+
+  const earnings = await instructorService.getInstructorEarnings(
+    id,
+    tenantId,
+    startDate as string | undefined,
+    endDate as string | undefined
+  );
+
+  res.json({
+    success: true,
+    data: earnings,
+  });
+});

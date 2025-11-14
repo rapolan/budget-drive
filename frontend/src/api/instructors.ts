@@ -35,4 +35,18 @@ export const instructorsApi = {
     const response = await apiClient.get<ApiResponse<Instructor[]>>(`/instructors/status/${status}`);
     return response.data;
   },
+
+  getEarnings: async (id: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await apiClient.get<ApiResponse<{
+      totalLessons: number;
+      grossEarnings: number;
+      totalFees: number;
+      netEarnings: number;
+    }>>(`/instructors/${id}/earnings?${params.toString()}`);
+    return response.data;
+  },
 };

@@ -27,7 +27,16 @@
       "Bash(set PGPASSWORD=67d83bc19d3547cc9b1d0bb3b0762a90:*)",
       "Bash(npx tsc:*)",
       "Bash(npx @bsv/bsv-claude-agents:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File add-test-data.ps1)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File setup-tenant-and-data.ps1:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(timeout /t 3 /nobreak)",
+      "Bash(netstat:*)",
+      "Bash(echo:*)",
+      "Bash(src/index.ts)",
+      "Bash(src/services/instructorService.ts)"
     ],
     "deny": [],
     "ask": []

@@ -111,10 +111,25 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       return;
     }
 
+    // Transform frontend fields to backend format
+    const scheduledStart = `${formData.date}T${formData.startTime}:00`;
+    const scheduledEnd = `${formData.date}T${formData.endTime}:00`;
+
+    const lessonData = {
+      studentId: formData.studentId,
+      instructorId: formData.instructorId,
+      vehicleId: formData.vehicleId,
+      scheduledStart,
+      scheduledEnd,
+      lessonType: formData.lessonType,
+      cost: formData.cost,
+      notes: formData.notes,
+    };
+
     if (isEditing) {
-      await updateMutation.mutateAsync(formData);
+      await updateMutation.mutateAsync(lessonData as any);
     } else {
-      await createMutation.mutateAsync(formData);
+      await createMutation.mutateAsync(lessonData as any);
     }
   };
 
@@ -245,8 +260,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               >
                 <option value="behind_wheel">Behind the Wheel</option>
                 <option value="classroom">Classroom</option>
-                <option value="observation">Observation</option>
-                <option value="road_test">Road Test</option>
+                <option value="road_test_prep">Road Test Prep</option>
               </select>
             </div>
 

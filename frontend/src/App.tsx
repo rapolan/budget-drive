@@ -5,9 +5,12 @@ import { TenantProvider } from '@/contexts/TenantContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardPage } from '@/pages/Dashboard';
 import { StudentsPage } from '@/pages/Students';
+import { InstructorsPage } from '@/pages/Instructors';
+import { VehiclesPage } from '@/pages/Vehicles';
 import { LessonsPage } from '@/pages/Lessons';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
+import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -46,7 +49,7 @@ function App() {
               path="/instructors"
               element={
                 <AppLayout>
-                  <div className="text-center text-gray-500">Instructors page - Coming soon</div>
+                  <InstructorsPage />
                 </AppLayout>
               }
             />
@@ -54,7 +57,7 @@ function App() {
               path="/vehicles"
               element={
                 <AppLayout>
-                  <div className="text-center text-gray-500">Vehicles page - Coming soon</div>
+                  <VehiclesPage />
                 </AppLayout>
               }
             />
@@ -71,6 +74,14 @@ function App() {
               element={
                 <AppLayout>
                   <SchedulingPage />
+                </AppLayout>
+              }
+            />
+            <Route
+              path="/instructor-earnings"
+              element={
+                <AppLayout>
+                  <InstructorEarningsPage />
                 </AppLayout>
               }
             />

@@ -11,6 +11,7 @@ import {
   Award,
   ClipboardList,
   Coins,
+  DollarSign,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import clsx from 'clsx';
@@ -29,6 +30,7 @@ const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Students', href: '/students', icon: Users },
   { name: 'Instructors', href: '/instructors', icon: UserCheck },
+  { name: 'Earnings', href: '/instructor-earnings', icon: DollarSign },
   { name: 'Vehicles', href: '/vehicles', icon: Car },
   { name: 'Lessons', href: '/lessons', icon: Calendar },
   { name: 'Scheduling', href: '/scheduling', icon: Calendar },
