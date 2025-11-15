@@ -11,6 +11,8 @@ import { LessonsPage } from '@/pages/Lessons';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
+import { NotificationSettingsPage } from '@/pages/NotificationSettings';
+import { PaymentsPage } from '@/pages/Payments';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -89,7 +91,7 @@ function App() {
               path="/payments"
               element={
                 <AppLayout>
-                  <div className="text-center text-gray-500">Payments page - Coming soon</div>
+                  <PaymentsPage />
                 </AppLayout>
               }
             />
@@ -114,6 +116,14 @@ function App() {
               element={
                 <AppLayout>
                   <div className="text-center text-gray-500">Follow-ups page - Coming soon</div>
+                </AppLayout>
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                <AppLayout>
+                  <NotificationSettingsPage />
                 </AppLayout>
               }
             />

@@ -1,9 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, User, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTenant } from '@/contexts/TenantContext';
 
 export const Header: React.FC = () => {
   const { settings } = useTenant();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    // In production, this would fetch from the notification API
+    // For now, simulate with a random count
+    const mockCount = Math.floor(Math.random() * 10);
+    setNotificationCount(mockCount);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
@@ -24,9 +33,17 @@ export const Header: React.FC = () => {
       {/* Right side - notifications, user menu */}
       <div className="flex items-center space-x-4">
         {/* Notifications */}
-        <button className="rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+        <Link
+          to="/notifications"
+          className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+        >
           <Bell className="h-5 w-5" />
-        </button>
+          {notificationCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              {notificationCount > 9 ? '9+' : notificationCount}
+            </span>
+          )}
+        </Link>
 
         {/* User menu */}
         <div className="flex items-center space-x-3">

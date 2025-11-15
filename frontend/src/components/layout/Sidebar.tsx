@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Coins,
   DollarSign,
+  Bell,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import clsx from 'clsx';
@@ -36,6 +37,7 @@ const navigation: NavItem[] = [
   { name: 'Scheduling', href: '/scheduling', icon: Calendar },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Treasury', href: '/treasury', icon: Coins },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates' },
   { name: 'Follow-Ups', href: '/follow-ups', icon: ClipboardList, featureFlag: 'enableFollowUpTracker' },
   { name: 'Settings', href: '/settings', icon: Settings },
