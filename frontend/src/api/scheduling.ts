@@ -26,7 +26,7 @@ export const schedulingApi = {
    */
   async getInstructorAvailability(instructorId: string): Promise<InstructorAvailability[]> {
     const response = await apiClient.get<ApiResponse<InstructorAvailability[]>>(
-      `/scheduling/availability/instructor/${instructorId}`
+      `/availability/instructor/${instructorId}`
     );
     return response.data.data || [];
   },
@@ -36,18 +36,20 @@ export const schedulingApi = {
    */
   async getAllInstructorsAvailability(): Promise<Record<string, InstructorAvailability[]>> {
     const response = await apiClient.get<ApiResponse<Record<string, InstructorAvailability[]>>>(
-      '/scheduling/availability/all'
+      '/availability/all'
     );
     return response.data.data || {};
   },
 
   /**
    * Create a new availability slot for an instructor
+   * Note: instructorId must be provided in the data object
    */
-  async createAvailability(data: CreateAvailabilityInput): Promise<InstructorAvailability> {
+  async createAvailability(data: CreateAvailabilityInput & { instructorId: string }): Promise<InstructorAvailability> {
+    const { instructorId, ...availabilityData } = data;
     const response = await apiClient.post<ApiResponse<InstructorAvailability>>(
-      '/scheduling/availability',
-      data
+      `/availability/instructor/${instructorId}`,
+      availabilityData
     );
     return response.data.data!;
   },
@@ -60,7 +62,7 @@ export const schedulingApi = {
     data: Partial<CreateAvailabilityInput>
   ): Promise<InstructorAvailability> {
     const response = await apiClient.put<ApiResponse<InstructorAvailability>>(
-      `/scheduling/availability/${id}`,
+      `/availability/${id}`,
       data
     );
     return response.data.data!;
@@ -70,7 +72,7 @@ export const schedulingApi = {
    * Delete an availability slot
    */
   async deleteAvailability(id: string): Promise<void> {
-    await apiClient.delete(`/scheduling/availability/${id}`);
+    await apiClient.delete(`/availability/${id}`);
   },
 
   // ===================================================================
@@ -82,27 +84,30 @@ export const schedulingApi = {
    */
   async getInstructorTimeOff(instructorId: string): Promise<InstructorTimeOff[]> {
     const response = await apiClient.get<ApiResponse<InstructorTimeOff[]>>(
-      `/scheduling/time-off/instructor/${instructorId}`
+      `/availability/instructor/${instructorId}/time-off`
     );
     return response.data.data || [];
   },
 
   /**
    * Get all time off requests (admin view, optionally filtered by status)
+   * Note: This endpoint may not be implemented yet on the backend
    */
   async getAllTimeOff(status?: 'pending' | 'approved' | 'rejected'): Promise<InstructorTimeOff[]> {
-    const url = status ? `/scheduling/time-off?status=${status}` : '/scheduling/time-off';
+    const url = status ? `/availability/time-off?status=${status}` : '/availability/time-off';
     const response = await apiClient.get<ApiResponse<InstructorTimeOff[]>>(url);
     return response.data.data || [];
   },
 
   /**
    * Create a new time off request
+   * Note: instructorId must be provided in the data object
    */
-  async createTimeOff(data: CreateTimeOffInput): Promise<InstructorTimeOff> {
+  async createTimeOff(data: CreateTimeOffInput & { instructorId: string }): Promise<InstructorTimeOff> {
+    const { instructorId, ...timeOffData } = data;
     const response = await apiClient.post<ApiResponse<InstructorTimeOff>>(
-      '/scheduling/time-off',
-      data
+      `/availability/instructor/${instructorId}/time-off`,
+      timeOffData
     );
     return response.data.data!;
   },
@@ -115,7 +120,7 @@ export const schedulingApi = {
     data: Partial<CreateTimeOffInput>
   ): Promise<InstructorTimeOff> {
     const response = await apiClient.put<ApiResponse<InstructorTimeOff>>(
-      `/scheduling/time-off/${id}`,
+      `/availability/time-off/${id}`,
       data
     );
     return response.data.data!;
@@ -125,7 +130,7 @@ export const schedulingApi = {
    * Delete a time off request
    */
   async deleteTimeOff(id: string): Promise<void> {
-    await apiClient.delete(`/scheduling/time-off/${id}`);
+    await apiClient.delete(`/availability/time-off/${id}`);
   },
 
   // ===================================================================
@@ -137,7 +142,7 @@ export const schedulingApi = {
    */
   async getSchedulingSettings(): Promise<SchedulingSettings> {
     const response = await apiClient.get<ApiResponse<SchedulingSettings>>(
-      '/scheduling/settings'
+      '/availability/settings'
     );
     return response.data.data!;
   },
@@ -149,7 +154,7 @@ export const schedulingApi = {
     data: Partial<Omit<SchedulingSettings, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>>
   ): Promise<SchedulingSettings> {
     const response = await apiClient.put<ApiResponse<SchedulingSettings>>(
-      '/scheduling/settings',
+      '/availability/settings',
       data
     );
     return response.data.data!;
@@ -164,7 +169,7 @@ export const schedulingApi = {
    */
   async findAvailableSlots(request: FindSlotsRequest): Promise<TimeSlot[]> {
     const response = await apiClient.post<ApiResponse<TimeSlot[]>>(
-      '/scheduling/find-slots',
+      '/availability/find-slots',
       request
     );
     return response.data.data || [];
@@ -175,7 +180,7 @@ export const schedulingApi = {
    */
   async checkConflicts(request: CheckConflictsRequest): Promise<SchedulingConflict[]> {
     const response = await apiClient.post<ApiResponse<SchedulingConflict[]>>(
-      '/scheduling/check-conflicts',
+      '/availability/check-conflicts',
       request
     );
     return response.data.data || [];
@@ -190,7 +195,7 @@ export const schedulingApi = {
   }> {
     const response = await apiClient.post<
       ApiResponse<{ valid: boolean; conflicts: SchedulingConflict[] }>
-    >('/scheduling/validate-booking', request);
+    >('/availability/validate-booking', request);
     return response.data.data || { valid: false, conflicts: [] };
   },
 };
