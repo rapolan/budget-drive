@@ -45,6 +45,8 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     } catch (err: any) {
       console.error('Failed to load tenant settings:', err);
       setError(err.response?.data?.error || 'Failed to load tenant settings');
+      // Don't throw - allow app to continue with no settings
+      // This prevents infinite loops when not authenticated
     } finally {
       setLoading(false);
     }

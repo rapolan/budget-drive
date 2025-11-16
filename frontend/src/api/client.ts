@@ -37,11 +37,12 @@ class ApiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Redirect to login or clear auth (but only if not already on login page)
+          // Clear auth token but don't redirect (no login page implemented yet)
+          // TODO: Add redirect to /login when login page is implemented
           localStorage.removeItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
+          // if (window.location.pathname !== '/login') {
+          //   window.location.href = '/login';
+          // }
         }
         return Promise.reject(error);
       }
