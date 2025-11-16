@@ -2,10 +2,15 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DollarSign, CreditCard, TrendingUp, Search, Plus, Check, X } from 'lucide-react';
 import { studentsApi } from '@/api';
+import { PaymentModal, PaymentHistoryModal } from '@/components/payments';
+import type { Student } from '@/types';
 
 export const PaymentsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   // Fetch students
   const { data: studentsData, isLoading, error } = useQuery({
@@ -126,7 +131,13 @@ export const PaymentsPage: React.FC = () => {
             Track student payments and account balances
           </p>
         </div>
-        <button className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90">
+        <button
+          onClick={() => {
+            setSelectedStudent(null);
+            setIsPaymentModalOpen(true);
+          }}
+          className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90"
+        >
           <Plus className="mr-2 h-5 w-5" />
           Record Payment
         </button>
@@ -284,9 +295,27 @@ export const PaymentsPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                        <button className="text-primary hover:text-opacity-80">
-                          View History
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedStudent(student);
+                              setIsPaymentModalOpen(true);
+                            }}
+                            className="text-primary hover:text-opacity-80"
+                          >
+                            Add Payment
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            onClick={() => {
+                              setSelectedStudent(student);
+                              setIsHistoryModalOpen(true);
+                            }}
+                            className="text-primary hover:text-opacity-80"
+                          >
+                            View History
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -316,6 +345,25 @@ export const PaymentsPage: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Modals */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedStudent(null);
+        }}
+        student={selectedStudent}
+      />
+
+      <PaymentHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => {
+          setIsHistoryModalOpen(false);
+          setSelectedStudent(null);
+        }}
+        student={selectedStudent}
+      />
     </div>
   );
 };

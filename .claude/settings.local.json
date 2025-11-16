@@ -3,7 +3,11 @@
     "allow": [
       "Bash(tree:*)",
       "Bash(git rm:*)",
-      "Bash(del \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\backend\\database\\seeds\\001_test_data.sql\")"
+      "Bash(del \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\backend\\database\\seeds\\001_test_data.sql\")",
+      "Bash(npm start)",
+      "Bash(npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
