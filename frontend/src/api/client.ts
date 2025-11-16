@@ -1,13 +1,12 @@
 import axios, { AxiosInstance } from 'axios';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+import { API_CONFIG } from '@/config/api';
 
 class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL: API_CONFIG.BASE_URL,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -16,12 +15,12 @@ class ApiClient {
     // Request interceptor to add auth token
     this.client.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('auth_token');
+        const token = localStorage.getItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
 
-        const tenantId = localStorage.getItem('tenant_id');
+        const tenantId = localStorage.getItem(API_CONFIG.STORAGE_KEYS.TENANT_ID);
         if (tenantId) {
           config.headers['X-Tenant-ID'] = tenantId;
         }
@@ -39,7 +38,7 @@ class ApiClient {
       (error) => {
         if (error.response?.status === 401) {
           // Redirect to login or clear auth
-          localStorage.removeItem('auth_token');
+          localStorage.removeItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
           window.location.href = '/login';
         }
         return Promise.reject(error);
