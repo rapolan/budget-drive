@@ -330,7 +330,7 @@ export const LessonsPage: React.FC = () => {
 
       {/* Pagination - Only show in table view */}
       {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white px-4 py-3 rounded-lg">
+        <div className="flex items-center justify-between rounded-lg bg-white px-4 py-3 shadow">
           <div className="text-sm text-gray-700">
             Page {data.pagination.page} of {data.pagination.totalPages}
           </div>
