@@ -19,8 +19,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
     phone: '',
     dateOfBirth: '',
     address: '',
-    emergencyContactName: '',
-    emergencyContactPhone: '',
+    emergencyContact: '',
+    licenseType: 'car',
+    hoursRequired: 0,
     learnerPermitNumber: '',
     learnerPermitExpiration: '',
     notes: '',
@@ -34,8 +35,10 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
         phone: student.phone,
         dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
         address: student.address || '',
-        emergencyContactName: student.emergencyContactName || '',
-        emergencyContactPhone: student.emergencyContactPhone || '',
+        emergencyContact: student.emergencyContact || '',
+        licenseType: student.licenseType || 'car',
+        hoursRequired: student.hoursRequired || 0,
+        assignedInstructorId: student.assignedInstructorId,
         learnerPermitNumber: student.learnerPermitNumber || '',
         learnerPermitExpiration: student.learnerPermitExpiration
           ? new Date(student.learnerPermitExpiration).toISOString().split('T')[0]
@@ -72,10 +75,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === 'hoursRequired' ? parseFloat(value) || 0 : value
+    }));
   };
 
   return (
@@ -145,13 +151,49 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
             {/* Date of Birth */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Date of Birth
+                Date of Birth *
               </label>
               <input
                 type="date"
                 name="dateOfBirth"
                 value={formData.dateOfBirth}
                 onChange={handleChange}
+                required
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* License Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                License Type *
+              </label>
+              <select
+                name="licenseType"
+                value={formData.licenseType}
+                onChange={handleChange}
+                required
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="car">Car</option>
+                <option value="motorcycle">Motorcycle</option>
+                <option value="commercial">Commercial</option>
+              </select>
+            </div>
+
+            {/* Hours Required */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Hours Required *
+              </label>
+              <input
+                type="number"
+                name="hoursRequired"
+                value={formData.hoursRequired}
+                onChange={handleChange}
+                required
+                min="0"
+                step="0.5"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -187,41 +229,30 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
             {/* Address */}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700">
-                Address
+                Address *
               </label>
               <input
                 type="text"
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
+                required
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
-            {/* Emergency Contact Name */}
-            <div>
+            {/* Emergency Contact */}
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700">
-                Emergency Contact Name
+                Emergency Contact *
               </label>
               <input
                 type="text"
-                name="emergencyContactName"
-                value={formData.emergencyContactName}
+                name="emergencyContact"
+                value={formData.emergencyContact}
                 onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            {/* Emergency Contact Phone */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Emergency Contact Phone
-              </label>
-              <input
-                type="tel"
-                name="emergencyContactPhone"
-                value={formData.emergencyContactPhone}
-                onChange={handleChange}
+                required
+                placeholder="Name and phone (e.g., Jane Doe - 555-1234)"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>

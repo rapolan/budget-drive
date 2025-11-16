@@ -8,24 +8,61 @@ export const PaymentsPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
 
   // Fetch students
-  const { data: studentsData } = useQuery({
+  const { data: studentsData, isLoading, error } = useQuery({
     queryKey: ['students'],
     queryFn: () => studentsApi.getAll(1, 1000),
   });
 
   const students = studentsData?.data || [];
 
-  // Mock payment data (in production, this would come from an API)
-  const getPaymentInfo = (studentId: string) => {
-    // Simulate different payment statuses
-    const mockData = [
-      { totalDue: 500, paid: 500, status: 'paid' },
-      { totalDue: 750, paid: 300, status: 'partial' },
-      { totalDue: 600, paid: 0, status: 'unpaid' },
-      { totalDue: 400, paid: 400, status: 'paid' },
-    ];
-    const random = Math.abs(studentId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % mockData.length;
-    return mockData[random];
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        Error loading students data. Please try again.
+      </div>
+    );
+  }
+
+  // Calculate payment info from student data
+  const getPaymentInfo = (student: typeof students[0]) => {
+    if (!student) {
+      return {
+        totalDue: 0,
+        paid: 0,
+        balance: 0,
+        status: 'unpaid' as const,
+      };
+    }
+
+    const totalPaid = Number(student.totalPaid) || 0;
+    const outstandingBalance = Number(student.outstandingBalance) || 0;
+    const totalDue = totalPaid + outstandingBalance;
+
+    let status: 'paid' | 'partial' | 'unpaid' | 'overdue' = 'unpaid';
+    if (outstandingBalance === 0 && totalPaid > 0) {
+      status = 'paid';
+    } else if (totalPaid > 0 && outstandingBalance > 0) {
+      status = 'partial';
+    } else if (student.paymentStatus === 'overdue') {
+      status = 'overdue';
+    }
+
+    return {
+      totalDue,
+      paid: totalPaid,
+      balance: outstandingBalance,
+      status,
+    };
   };
 
   // Filter students
@@ -38,18 +75,18 @@ export const PaymentsPage: React.FC = () => {
 
     if (filterStatus === 'all') return true;
 
-    const payment = getPaymentInfo(student.id);
+    const payment = getPaymentInfo(student);
     return payment.status === filterStatus;
   });
 
   // Calculate totals
   const totals = students.reduce(
     (acc, student) => {
-      const payment = getPaymentInfo(student.id);
+      const payment = getPaymentInfo(student);
       return {
         totalDue: acc.totalDue + payment.totalDue,
         totalPaid: acc.totalPaid + payment.paid,
-        totalOutstanding: acc.totalOutstanding + (payment.totalDue - payment.paid),
+        totalOutstanding: acc.totalOutstanding + payment.balance,
       };
     },
     { totalDue: 0, totalPaid: 0, totalOutstanding: 0 }
@@ -204,8 +241,7 @@ export const PaymentsPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredStudents.map((student) => {
-                  const payment = getPaymentInfo(student.id);
-                  const balance = payment.totalDue - payment.paid;
+                  const payment = getPaymentInfo(student);
 
                   return (
                     <tr key={student.id} className="hover:bg-gray-50">
@@ -231,10 +267,10 @@ export const PaymentsPage: React.FC = () => {
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div
                           className={`text-sm font-medium ${
-                            balance > 0 ? 'text-red-600' : 'text-green-600'
+                            payment.balance > 0 ? 'text-red-600' : 'text-green-600'
                           }`}
                         >
-                          ${balance.toFixed(2)}
+                          ${payment.balance.toFixed(2)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-center">

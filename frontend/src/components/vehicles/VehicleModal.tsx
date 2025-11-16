@@ -187,13 +187,14 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* VIN */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                VIN
+                VIN *
               </label>
               <input
                 type="text"
                 name="vin"
                 value={formData.vin}
                 onChange={handleChange}
+                required
                 placeholder="Vehicle Identification Number"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />

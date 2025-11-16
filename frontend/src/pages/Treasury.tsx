@@ -43,11 +43,11 @@ const Treasury: React.FC = () => {
     );
   }
 
-  const balance = stats?.balance;
-  const statistics = stats?.statistics;
+  const balance = stats?.data?.balance;
+  const statistics = stats?.data?.statistics;
 
   // Calculate satoshi totals
-  const totalSatoshis = transactions?.reduce((sum, tx) => sum + (tx.bsv_satoshis || 0), 0) || 0;
+  const totalSatoshis = transactions?.data?.reduce((sum, tx) => sum + (tx.bsv_satoshis || 0), 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -216,8 +216,8 @@ const Treasury: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {transactions && transactions.length > 0 ? (
-                transactions.map((tx) => (
+              {transactions?.data && transactions.data.length > 0 ? (
+                transactions.data.map((tx) => (
                   <tr key={tx.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(tx.created_at).toLocaleDateString()}

@@ -10,7 +10,6 @@ import { query } from '../config/database';
 import { Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import treasuryService from './treasuryService';
-import notificationService from './notificationService';
 import { keysToCamel } from '../utils/caseConversion';
 
 export const getAllLessons = async (
@@ -223,7 +222,7 @@ export const createLesson = async (
     }
   }
 
-  // Phase 1: Queue email notifications
+  // BDP Phase 2A: Queue email notifications (1 sat per notification)
   try {
     // Get student and instructor emails
     const studentResult = await query(
@@ -239,70 +238,61 @@ export const createLesson = async (
     const instructorEmail = instructorResult.rows[0]?.email;
 
     // Calculate notification times
-    const lessonDateTime = new Date(`${data.date}T${data.startTime}`);
+    const lessonDateTime = new Date(`${lessonDate}T${startTime}`);
     const twentyFourHoursBefore = new Date(lessonDateTime.getTime() - 24 * 60 * 60 * 1000);
     const oneHourBefore = new Date(lessonDateTime.getTime() - 60 * 60 * 1000);
 
-    // Queue booking confirmation (send immediately)
+    // Queue booking confirmation (send immediately) for student
     if (studentEmail) {
-      await notificationService.queueNotification(
-        tenantId,
-        lesson.id,
-        'student',
-        data.studentId,
-        studentEmail,
-        'booking_confirmation',
-        new Date() // Send immediately
+      await query(
+        `INSERT INTO notification_queue (
+          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+          scheduled_send_time, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
+        [tenantId, lesson.id, 'booking_confirmation', studentEmail, 'student']
       );
     }
 
-    // Queue 24-hour reminder
+    // Queue 24-hour reminder for student
     if (studentEmail && twentyFourHoursBefore > new Date()) {
-      await notificationService.queueNotification(
-        tenantId,
-        lesson.id,
-        'student',
-        data.studentId,
-        studentEmail,
-        '24_hour_reminder',
-        twentyFourHoursBefore
+      await query(
+        `INSERT INTO notification_queue (
+          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+          scheduled_send_time, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())`,
+        [tenantId, lesson.id, 'reminder_24h', studentEmail, 'student', twentyFourHoursBefore]
       );
     }
 
-    // Queue 1-hour reminder
+    // Queue 1-hour reminder for student
     if (studentEmail && oneHourBefore > new Date()) {
-      await notificationService.queueNotification(
-        tenantId,
-        lesson.id,
-        'student',
-        data.studentId,
-        studentEmail,
-        '1_hour_reminder',
-        oneHourBefore
+      await query(
+        `INSERT INTO notification_queue (
+          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+          scheduled_send_time, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())`,
+        [tenantId, lesson.id, 'reminder_1h', studentEmail, 'student', oneHourBefore]
       );
     }
 
-    // Queue instructor notifications too
+    // Queue instructor booking confirmation
     if (instructorEmail) {
-      await notificationService.queueNotification(
-        tenantId,
-        lesson.id,
-        'instructor',
-        data.instructorId,
-        instructorEmail,
-        'booking_confirmation',
-        new Date()
+      await query(
+        `INSERT INTO notification_queue (
+          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+          scheduled_send_time, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
+        [tenantId, lesson.id, 'booking_confirmation', instructorEmail, 'instructor']
       );
 
+      // Queue 24-hour reminder for instructor
       if (twentyFourHoursBefore > new Date()) {
-        await notificationService.queueNotification(
-          tenantId,
-          lesson.id,
-          'instructor',
-          data.instructorId,
-          instructorEmail,
-          '24_hour_reminder',
-          twentyFourHoursBefore
+        await query(
+          `INSERT INTO notification_queue (
+            tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+            scheduled_send_time, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())`,
+          [tenantId, lesson.id, 'reminder_24h', instructorEmail, 'instructor', twentyFourHoursBefore]
         );
       }
     }
@@ -421,12 +411,68 @@ export const deleteLesson = async (
   const result = await query(
     `UPDATE lessons SET status = 'cancelled'
      WHERE id = $1 AND tenant_id = $2
-     RETURNING id`,
+     RETURNING id, student_id, instructor_id`,
     [id, tenantId]
   );
 
   if (result.rows.length === 0) {
     throw new AppError('Lesson not found', 404);
+  }
+
+  const lesson = result.rows[0];
+
+  // BDP Phase 2A: Queue cancellation notifications
+  try {
+    // Get student and instructor emails
+    const studentResult = await query(
+      'SELECT email FROM students WHERE id = $1',
+      [lesson.student_id]
+    );
+    const instructorResult = await query(
+      'SELECT email FROM instructors WHERE id = $1',
+      [lesson.instructor_id]
+    );
+
+    const studentEmail = studentResult.rows[0]?.email;
+    const instructorEmail = instructorResult.rows[0]?.email;
+
+    // Queue cancellation notification for student
+    if (studentEmail) {
+      await query(
+        `INSERT INTO notification_queue (
+          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+          scheduled_send_time, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
+        [tenantId, id, 'cancellation', studentEmail, 'student']
+      );
+    }
+
+    // Queue cancellation notification for instructor
+    if (instructorEmail) {
+      await query(
+        `INSERT INTO notification_queue (
+          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+          scheduled_send_time, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
+        [tenantId, id, 'cancellation', instructorEmail, 'instructor']
+      );
+    }
+
+    // Delete any pending reminder notifications for this lesson
+    await query(
+      `UPDATE notification_queue
+       SET status = 'cancelled'
+       WHERE lesson_id = $1
+       AND tenant_id = $2
+       AND status = 'pending'
+       AND notification_type IN ('reminder_24h', 'reminder_1h')`,
+      [id, tenantId]
+    );
+
+    console.log('✅ Cancellation notifications queued and pending reminders cancelled for lesson', id);
+  } catch (error) {
+    console.error('Cancellation notification queueing failed (non-blocking):', error);
+    // Don't fail the lesson cancellation if notification queueing fails
   }
 };
 

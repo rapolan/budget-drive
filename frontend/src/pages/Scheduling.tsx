@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { instructorsApi } from '@/api';
 import {
   AvailabilityCalendar,
   AvailabilityEditor,
@@ -14,6 +16,14 @@ export const SchedulingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('availability');
   const [selectedInstructorId, setSelectedInstructorId] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Fetch instructors for the dropdown
+  const { data: instructorsResponse } = useQuery({
+    queryKey: ['instructors'],
+    queryFn: () => instructorsApi.getAll(),
+  });
+
+  const instructors = instructorsResponse?.data;
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -44,15 +54,20 @@ export const SchedulingPage: React.FC = () => {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Select Instructor
         </label>
-        <input
-          type="text"
-          placeholder="Enter Instructor ID"
+        <select
           value={selectedInstructorId}
           onChange={(e) => setSelectedInstructorId(e.target.value)}
           className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+        >
+          <option value="">-- Select an Instructor --</option>
+          {instructors?.map((instructor) => (
+            <option key={instructor.id} value={instructor.id}>
+              {instructor.fullName} ({instructor.email})
+            </option>
+          ))}
+        </select>
         <p className="text-xs text-gray-500 mt-1">
-          For demo: You can get instructor IDs from the backend database or API
+          Choose an instructor to manage their availability, time off, and calendar settings
         </p>
       </div>
 

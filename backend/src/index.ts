@@ -6,6 +6,7 @@
 import app from './app';
 import { config } from './config/env';
 import pool from './config/database';
+import { startNotificationCron, stopNotificationCron } from './jobs/notificationCron';
 
 const PORT = config.PORT;
 
@@ -19,11 +20,17 @@ const server = app.listen(PORT, () => {
   console.log(`API Base URL: http://localhost:${PORT}/api/${config.API_VERSION}`);
   console.log(`Health Check: http://localhost:${PORT}/health`);
   console.log('==============================================');
+
+  // Start notification cron job
+  startNotificationCron();
 });
 
 // Graceful shutdown
 const gracefulShutdown = async () => {
   console.log('\n🛑 Shutting down gracefully...');
+
+  // Stop cron jobs
+  stopNotificationCron();
 
   server.close(async () => {
     console.log('✅ HTTP server closed');

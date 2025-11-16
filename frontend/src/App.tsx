@@ -13,6 +13,7 @@ import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
 import { NotificationSettingsPage } from '@/pages/NotificationSettings';
 import { PaymentsPage } from '@/pages/Payments';
+import NotificationHistory from '@/pages/NotificationHistory';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -124,6 +125,14 @@ function App() {
               element={
                 <AppLayout>
                   <NotificationSettingsPage />
+                </AppLayout>
+              }
+            />
+            <Route
+              path="/notification-history"
+              element={
+                <AppLayout>
+                  <NotificationHistory />
                 </AppLayout>
               }
             />

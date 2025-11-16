@@ -36,7 +36,8 @@
       "Bash(netstat:*)",
       "Bash(echo:*)",
       "Bash(src/index.ts)",
-      "Bash(src/services/instructorService.ts)"
+      "Bash(src/services/instructorService.ts)",
+      "Bash(or manage each individual calendar separately?\"\n\nAnswer: Hybrid Model - Centralized master calendar (/lessons) with\nautomatic population of filtered instructor-specific views.\n\nFile: CALENDAR_MANAGEMENT_GUIDE.md (400+ lines)\nRelated: Completes BDP Phase 1 documentation\n\nGenerated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
