@@ -159,7 +159,7 @@ export const InstructorsPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                    {instructor.hourlyRate ? `$${instructor.hourlyRate.toFixed(2)}/hr` : 'N/A'}
+                    {instructor.hourlyRate ? `$${Number(instructor.hourlyRate).toFixed(2)}/hr` : 'N/A'}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <span

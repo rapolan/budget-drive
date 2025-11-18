@@ -21,18 +21,22 @@ declare global {
  * Authentication middleware - Requires valid JWT token
  * In development mode, bypasses authentication for easier testing
  */
-export const authenticate = (
+export const authenticate = async (
   req: Request,
   _res: Response,
   next: NextFunction
 ) => {
   try {
-    // DEVELOPMENT MODE: Bypass authentication
+    // DEVELOPMENT MODE: Bypass authentication with hardcoded tenant ID
     if (config.NODE_ENV === 'development') {
+      // Use hardcoded UUID for development - matches first seeded tenant
+      // This avoids database dependency issues during auth
+      const tenantId = '55654b9d-6d7f-46e0-ade2-be606abfe00a';
+
       req.user = {
         userId: '00000000-0000-0000-0000-000000000001',
-        tenantId: '00000000-0000-0000-0000-000000000001',
-        email: 'dev@example.com',
+        tenantId: tenantId,
+        email: 'dev@budgetdrivingschool.com',
         role: 'admin',
       };
       return next();

@@ -29,8 +29,55 @@ export const PaymentsPage: React.FC = () => {
     );
   }
 
-  // Error state
+  // Error state - show helpful message for auth errors
   if (error) {
+    const is401Error = (error as any)?.response?.status === 401;
+
+    if (is401Error) {
+      return (
+        <div className="space-y-6">
+          {/* Header */}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Payments & Balances</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Track student payments and account balances
+            </p>
+          </div>
+
+          {/* Auth Notice */}
+          <div className="rounded-lg border-l-4 border-yellow-500 bg-yellow-50 p-6">
+            <h3 className="mb-2 font-semibold text-yellow-900">Authentication Required</h3>
+            <div className="space-y-2 text-sm text-yellow-800">
+              <p>
+                This page requires authentication to load student payment data.
+              </p>
+              <p>
+                <strong>For Development:</strong> Authentication and login functionality is being
+                implemented. For now, you can:
+              </p>
+              <ul className="ml-6 list-disc space-y-1">
+                <li>View the page layout and UI components</li>
+                <li>See how the payment system will work once auth is set up</li>
+                <li>Continue with other development tasks</li>
+              </ul>
+              <p className="mt-3">
+                <strong>Next Steps:</strong> Implement login page and authentication flow to enable
+                full payment tracking functionality.
+              </p>
+            </div>
+          </div>
+
+          {/* Preview of Page Layout */}
+          <div className="rounded-lg bg-gray-100 p-8 text-center">
+            <DollarSign className="mx-auto h-16 w-16 text-gray-400" />
+            <p className="mt-4 text-sm text-gray-600">
+              Payment tracking interface will appear here once authenticated
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
         Error loading students data. Please try again.

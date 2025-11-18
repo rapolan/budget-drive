@@ -8,7 +8,18 @@
       "Bash(npm run dev:*)",
       "Bash(npx tsc:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm run logs:*)",
+      "Bash(npm run seed:*)",
+      "Bash(psql:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout /t 2)",
+      "Bash(npm run build:*)",
+      "Bash(timeout /t 5)",
+      "Bash(ping:*)",
+      "Bash(nul)",
+      "Bash(if not exist \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\frontend\\src\\components\\lessons\" mkdir \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\frontend\\src\\components\\lessons\")",
+      "Bash(if not exist \"docs\\archived_sessions\" mkdir \"docs\\archived_sessions\")"
     ],
     "deny": [],
     "ask": []

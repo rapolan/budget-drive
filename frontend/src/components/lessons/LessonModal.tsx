@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson, CreateLessonInput } from '@/types';
 
@@ -41,6 +41,74 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     queryKey: ['vehicles'],
     queryFn: () => vehiclesApi.getAll(),
   });
+
+  // Fetch instructor's lessons for the selected date to check availability
+  const { data: instructorLessonsData } = useQuery({
+    queryKey: ['instructor-lessons', formData.instructorId, formData.date],
+    queryFn: () => lessonsApi.getByInstructor(formData.instructorId),
+    enabled: !!formData.instructorId && !!formData.date,
+  });
+
+  const instructorLessons = instructorLessonsData?.data || [];
+
+  // Filter lessons for the selected date only
+  const sameDayLessons = instructorLessons.filter((l) => {
+    if (!formData.date) return false;
+    const lessonDate = new Date(l.date).toISOString().split('T')[0];
+    return lessonDate === formData.date && l.status === 'scheduled';
+  });
+
+  // Check if there's a time conflict
+  const hasTimeConflict = () => {
+    if (!formData.startTime || !formData.endTime || sameDayLessons.length === 0) {
+      return false;
+    }
+
+    const newStart = formData.startTime;
+    const newEnd = formData.endTime;
+
+    return sameDayLessons.some((existingLesson) => {
+      // Skip if we're editing the same lesson
+      if (lesson && existingLesson.id === lesson.id) return false;
+
+      const existingStart = existingLesson.startTime.substring(0, 5);
+      const existingEnd = existingLesson.endTime.substring(0, 5);
+
+      // Check for overlap: new lesson starts before existing ends AND new lesson ends after existing starts
+      return newStart < existingEnd && newEnd > existingStart;
+    });
+  };
+
+  // Find next available slot
+  const findNextAvailableSlot = () => {
+    if (sameDayLessons.length === 0 || !formData.duration) {
+      return null;
+    }
+
+    // Sort lessons by start time
+    const sortedLessons = [...sameDayLessons].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime)
+    );
+
+    // Check after the last lesson
+    const lastLesson = sortedLessons[sortedLessons.length - 1];
+    const lastEnd = lastLesson.endTime.substring(0, 5);
+
+    // Calculate suggested start time (30 min after last lesson ends)
+    const [hours, minutes] = lastEnd.split(':').map(Number);
+    const suggestedStartMinutes = hours * 60 + minutes + 30;
+    const suggestedHours = Math.floor(suggestedStartMinutes / 60);
+    const suggestedMins = suggestedStartMinutes % 60;
+
+    if (suggestedHours < 18) { // Before 6 PM
+      return `${String(suggestedHours).padStart(2, '0')}:${String(suggestedMins).padStart(2, '0')}`;
+    }
+
+    return null;
+  };
+
+  const conflict = hasTimeConflict();
+  const nextAvailable = conflict ? findNextAvailableSlot() : null;
 
   useEffect(() => {
     if (lesson) {
@@ -109,6 +177,18 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     if (formData.duration <= 0) {
       alert('End time must be after start time');
       return;
+    }
+
+    // Check for time conflicts
+    if (conflict) {
+      const confirmed = window.confirm(
+        `The instructor is already booked during this time. ${
+          nextAvailable
+            ? `The next available slot is at ${nextAvailable}. `
+            : ''
+        }Do you want to proceed anyway?`
+      );
+      if (!confirmed) return;
     }
 
     // Transform frontend fields to backend format
@@ -345,6 +425,76 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               />
             </div>
           </div>
+
+          {/* Availability Indicator */}
+          {formData.instructorId && formData.date && (
+            <div className="mt-4">
+              {sameDayLessons.length === 0 ? (
+                <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
+                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900">
+                      Instructor is available all day
+                    </p>
+                    <p className="mt-0.5 text-xs text-green-700">
+                      No other lessons scheduled for this date
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <Clock className="h-5 w-5 flex-shrink-0 text-blue-600" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-blue-900">
+                        Instructor's schedule for this day:
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {sameDayLessons.map((l, idx) => (
+                          <p key={idx} className="text-xs text-blue-700">
+                            • {l.startTime.substring(0, 5)} - {l.endTime.substring(0, 5)} (Busy)
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {conflict && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                      <div>
+                        <p className="text-sm font-medium text-red-900">
+                          Time conflict detected
+                        </p>
+                        <p className="mt-0.5 text-xs text-red-700">
+                          The instructor is already booked during this time.
+                          {nextAvailable && (
+                            <span className="ml-1 font-medium">
+                              Next available: {nextAvailable}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!conflict && formData.startTime && formData.endTime && (
+                    <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
+                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-green-900">
+                          Selected time is available
+                        </p>
+                        <p className="mt-0.5 text-xs text-green-700">
+                          No conflicts with existing lessons
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* BDP Info Banner */}
           {!isEditing && (
