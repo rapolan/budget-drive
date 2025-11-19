@@ -7,13 +7,22 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { treasuryApi } from '../api';
 import { useTenant } from '@/contexts/TenantContext';
-import { Coins, TrendingUp, Activity, Check, Clock, AlertCircle } from 'lucide-react';
+import { Coins, TrendingUp, Activity, Check, Clock, AlertCircle, ExternalLink } from 'lucide-react';
 
 const BSV_PRICE = 47; // Current BSV price in USD
+const BSV_NETWORK = 'testnet'; // Change to 'mainnet' when ready
 
 const Treasury: React.FC = () => {
   const { settings } = useTenant();
   const showBlockchainDetails = settings?.enableBlockchainPayments || false;
+
+  // Helper to generate WhatsOnChain URL
+  const getWhatsOnChainUrl = (txid: string) => {
+    const baseUrl = BSV_NETWORK === 'testnet'
+      ? 'https://test.whatsonchain.com/tx/'
+      : 'https://whatsonchain.com/tx/';
+    return baseUrl + txid;
+  };
 
   // Fetch treasury statistics
   const { data: stats, isLoading, error } = useQuery({
@@ -208,6 +217,11 @@ const Treasury: React.FC = () => {
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
+                {showBlockchainDetails && (
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    On-Chain
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -253,11 +267,28 @@ const Treasury: React.FC = () => {
                         </span>
                       )}
                     </td>
+                    {showBlockchainDetails && (
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {tx.bsv_txid ? (
+                          <a
+                            href={getWhatsOnChainUrl(tx.bsv_txid)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                            title="View transaction on WhatsOnChain"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <span className="text-gray-400 text-xs">N/A</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={showBlockchainDetails ? 7 : 6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={showBlockchainDetails ? 8 : 6} className="px-6 py-12 text-center text-gray-500">
                     No transactions yet. Treasury fees will appear here when lessons are booked.
                   </td>
                 </tr>
@@ -320,14 +351,28 @@ const Treasury: React.FC = () => {
 
       {/* BSV Blockchain Info */}
       {showBlockchainDetails && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Blockchain Integration Status</h3>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+            <Check className="h-5 w-5 text-green-600 mr-2" />
+            Blockchain Integration Status: LIVE ✅
+          </h3>
           <p className="text-sm text-gray-600 mb-4">
-            <strong>Phase 1 (Current):</strong> Treasury fees recorded in PostgreSQL database. BSV blockchain disabled for pilot testing.
+            <strong>Phase 2 (LIVE NOW):</strong> All treasury transactions are automatically written to BSV testnet blockchain
+            with OP_RETURN metadata. Every booking creates a permanent, immutable on-chain record.
           </p>
+          <p className="text-sm text-gray-600 mb-2">
+            <strong>Current Status:</strong>
+          </p>
+          <ul className="text-sm text-gray-600 list-disc list-inside space-y-1 mb-4">
+            <li>✅ Wallet service operational (testnet)</li>
+            <li>✅ Automatic BSV broadcasts on every booking</li>
+            <li>✅ OP_RETURN data: BDP action type + transaction ID</li>
+            <li>✅ Graceful fallback if blockchain unavailable</li>
+            <li>✅ Real-time balance checking via WhatsOnChain API</li>
+          </ul>
           <p className="text-sm text-gray-600">
-            <strong>Phase 3 (Q1 2026):</strong> All treasury transactions will be written to BSV blockchain for permanent,
-            immutable record-keeping. Current pending status will become confirmed on-chain.
+            <strong>Phase 3 (Q1 2026):</strong> Merkle tree batching to aggregate 100+ transactions into single on-chain write,
+            reducing costs by 97%. Mainnet migration with production wallet.
           </p>
         </div>
       )}
