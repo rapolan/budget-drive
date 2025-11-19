@@ -35,8 +35,10 @@ interface EnvConfig {
   LOG_LEVEL: string;
   LOG_FILE_PATH: string;
 
-  // Blockchain (optional for Phase 1)
+  // Blockchain (BSV Integration - Phase 2)
   BSV_NETWORK?: string;
+  BSV_PROTOCOL_WALLET_WIF?: string; // Private key for protocol wallet
+  TAAL_API_KEY?: string; // For ARC transaction broadcasting
   TERANODE_RPC_URL?: string;
   TERANODE_API_KEY?: string;
 }
@@ -84,7 +86,9 @@ export const config: EnvConfig = {
   LOG_FILE_PATH: process.env.LOG_FILE_PATH || 'logs/app.log',
 
   // Blockchain
-  BSV_NETWORK: process.env.BSV_NETWORK,
+  BSV_NETWORK: process.env.BSV_NETWORK || 'testnet',
+  BSV_PROTOCOL_WALLET_WIF: process.env.BSV_PROTOCOL_WALLET_WIF,
+  TAAL_API_KEY: process.env.TAAL_API_KEY,
   TERANODE_RPC_URL: process.env.TERANODE_RPC_URL,
   TERANODE_API_KEY: process.env.TERANODE_API_KEY,
 };
