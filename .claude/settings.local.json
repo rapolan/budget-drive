@@ -19,7 +19,11 @@
       "Bash(ping:*)",
       "Bash(nul)",
       "Bash(if not exist \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\frontend\\src\\components\\lessons\" mkdir \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\frontend\\src\\components\\lessons\")",
-      "Bash(if not exist \"docs\\archived_sessions\" mkdir \"docs\\archived_sessions\")"
+      "Bash(if not exist \"docs\\archived_sessions\" mkdir \"docs\\archived_sessions\")",
+      "Bash(npm install:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(set:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

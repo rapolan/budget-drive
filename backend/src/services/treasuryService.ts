@@ -19,6 +19,8 @@ import {
   TreasurySplitResult,
   BDPAction,
 } from '../types/treasury';
+import { getProtocolWallet } from './walletService';
+import { config } from '../config/env';
 
 class TreasuryService {
   // BSV Price (updated periodically - in production, fetch from exchange API)
@@ -153,17 +155,21 @@ class TreasuryService {
     const result = await pool.query(query, values);
     const transaction = result.rows[0];
 
-    // Phase 1: Skip BSV blockchain write (pilot testing)
-    // Phase 3: Uncomment below to enable BSV
-    /*
-    try {
-      const bsvTxid = await this.writeToBSVBlockchain(transaction);
-      await this.updateBSVStatus(transaction.id, bsvTxid, 'confirmed');
-    } catch (error) {
-      console.error('BSV write failed:', error);
-      await this.updateBSVStatus(transaction.id, null, 'failed');
+    // Phase 2: BSV blockchain write (enabled via BSV_ENABLED flag)
+    if (config.BSV_ENABLED && config.BSV_PROTOCOL_WALLET_WIF) {
+      try {
+        console.log(`📤 Broadcasting BSV transaction for ${actionType}...`);
+        const bsvTxid = await this.writeToBSVBlockchain(transaction);
+        await this.updateBSVStatus(transaction.id, bsvTxid, 'confirmed');
+        console.log(`✅ BSV transaction confirmed: ${bsvTxid}`);
+      } catch (error: any) {
+        console.error('❌ BSV write failed:', error.message);
+        await this.updateBSVStatus(transaction.id, null, 'failed');
+        // Don't throw - allow transaction to succeed even if BSV fails
+      }
+    } else {
+      console.log(`⚠️  BSV disabled - transaction recorded in database only`);
     }
-    */
 
     return this.mapToTreasuryTransaction(transaction);
   }
@@ -262,25 +268,34 @@ class TreasuryService {
     return this.mapToBDPAction(result.rows[0]);
   }
 
-  // PHASE 3: BSV blockchain methods (commented out for Phase 1)
-  /*
+  /**
+   * Write treasury transaction to BSV blockchain
+   * This sends satoshis to the protocol wallet and includes OP_RETURN metadata
+   */
   private async writeToBSVBlockchain(transaction: any): Promise<string> {
-    // TODO Phase 3: Implement BSV transaction
-    // const bsv = require('bsv');
-    // const privateKey = process.env.BSV_PRIVATE_KEY;
-    //
-    // const tx = new bsv.Transaction()
-    //   .from(utxo)
-    //   .to(process.env.TREASURY_BSV_ADDRESS, satoshis)
-    //   .addData(`BDP_PAY|${transaction.id}|${transaction.treasury_split}`)
-    //   .change(changeAddress)
-    //   .sign(privateKey);
-    //
-    // return tx.id;
+    const wallet = getProtocolWallet();
 
-    throw new Error('BSV blockchain write not implemented yet (Phase 3)');
+    // Create OP_RETURN memo with transaction metadata
+    const memo = `BDP:${transaction.bsv_action}|ID:${transaction.id}|SATS:${transaction.bsv_satoshis}`;
+
+    // Send the satoshi fee to ourselves (protocol wallet)
+    // In production, this would go to a separate collection wallet
+    const result = await wallet.sendSats({
+      toAddress: wallet.getAddress(), // Send to self for now
+      amountSats: transaction.bsv_satoshis,
+      memo: memo,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'BSV transaction failed');
+    }
+
+    return result.txid;
   }
 
+  /**
+   * Update BSV transaction status in database
+   */
   private async updateBSVStatus(
     transactionId: string,
     bsvTxid: string | null,
@@ -294,7 +309,6 @@ class TreasuryService {
     const confirmedAt = status === 'confirmed' ? new Date() : null;
     await pool.query(query, [bsvTxid, status, confirmedAt, transactionId]);
   }
-  */
 
   // Mapping helpers
   private mapToTreasuryTransaction(row: any): TreasuryTransaction {

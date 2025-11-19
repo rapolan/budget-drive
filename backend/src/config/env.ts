@@ -38,6 +38,7 @@ interface EnvConfig {
   // Blockchain (BSV Integration - Phase 2)
   BSV_NETWORK?: string;
   BSV_PROTOCOL_WALLET_WIF?: string; // Private key for protocol wallet
+  BSV_ENABLED?: boolean; // Enable BSV blockchain writes
   TAAL_API_KEY?: string; // For ARC transaction broadcasting
   TERANODE_RPC_URL?: string;
   TERANODE_API_KEY?: string;
@@ -88,6 +89,7 @@ export const config: EnvConfig = {
   // Blockchain
   BSV_NETWORK: process.env.BSV_NETWORK || 'testnet',
   BSV_PROTOCOL_WALLET_WIF: process.env.BSV_PROTOCOL_WALLET_WIF,
+  BSV_ENABLED: process.env.BSV_ENABLED === 'true',
   TAAL_API_KEY: process.env.TAAL_API_KEY,
   TERANODE_RPC_URL: process.env.TERANODE_RPC_URL,
   TERANODE_API_KEY: process.env.TERANODE_API_KEY,
