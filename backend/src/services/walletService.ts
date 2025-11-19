@@ -218,20 +218,39 @@ class WalletService {
   }
 
   /**
-   * Get wallet balance (requires blockchain query)
+   * Get wallet balance in satoshis
    *
-   * NOTE: This requires integration with a blockchain API or node.
-   * For MVP, we'll track balance internally in PostgreSQL.
+   * Fetches all UTXOs from WhatsOnChain and sums their values
    */
   async getBalance(): Promise<number> {
-    // TODO: Implement blockchain balance query
-    // Options:
-    // 1. WhatsOnChain API (simple but centralized)
-    // 2. Direct node RPC (decentralized but complex)
-    // 3. Track UTXOs in PostgreSQL (fast but requires sync)
+    try {
+      const address = this.getAddress();
+      const wocEndpoint = this.network === 'testnet'
+        ? 'https://api.whatsonchain.com/v1/bsv/test'
+        : 'https://api.whatsonchain.com/v1/bsv/main';
 
-    console.warn('⚠️  Balance checking not yet implemented');
-    return 0;
+      // Fetch unspent outputs
+      const response = await fetch(`${wocEndpoint}/address/${address}/unspent`);
+
+      if (!response.ok) {
+        // If address has no UTXOs, WhatsOnChain returns 404
+        if (response.status === 404) {
+          return 0;
+        }
+        throw new Error(`WhatsOnChain API error: ${response.status}`);
+      }
+
+      const utxos: any[] = await response.json() as any[];
+
+      // Sum all UTXO values
+      const balance = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+
+      return balance;
+    } catch (error: any) {
+      console.error('Failed to fetch balance:', error.message);
+      // Return 0 instead of throwing - allows operations to continue
+      return 0;
+    }
   }
 
   /**
