@@ -100,11 +100,15 @@ NEW (Satoshi-Level):
 - **Phase 1:** Implemented November 11, 2025 in `backend/src/services/treasuryService.ts`
 - **Phase 2:** BSV wallet integration November 18, 2025 in `backend/src/services/walletService.ts` (220 lines)
 - **Phase 2:** Merkle aggregation schema November 18, 2025 in `backend/database/migrations/006_merkle_aggregation.sql` (290 lines)
+- **Phase 2:** First live BSV transaction November 18, 2025
 
 **Implementation Evidence:**
-- Testnet wallet generated: `1ARbqsYrFQD6dZykcscFqoCcHp7gaMmDwQ`
+- Testnet wallet: `mxnpmB7d5RjXVAoHyc6rk2RZvoazBi4y7F`
+- **First BDP transaction on BSV blockchain:** `0f16484d83093f9b8a66a85680fdf9021ecac2c7d13c1c914a2001c83eec8c70`
+- Transaction contains OP_RETURN data: "BDP_TEST: First transaction from Budget Drive Protocol"
+- Verified on-chain: https://test.whatsonchain.com/tx/0f16484d83093f9b8a66a85680fdf9021ecac2c7d13c1c914a2001c83eec8c70
 - Database schema supports Merkle batching (5 new columns, 1 new table)
-- Cost optimization calculations implemented
+- Cost optimization calculations implemented and tested (15 sat fee vs 5 sat payment)
 
 ---
 
@@ -194,7 +198,8 @@ At Teranode scale (1 sat/KB fees):
 - **Functions Implemented:**
   - `calculate_leaf_hash()` - Deterministic SHA-256 generation
   - `is_batch_ready()` - 100 actions OR 1 hour trigger logic
-- **Testnet Wallet:** `1ARbqsYrFQD6dZykcscFqoCcHp7gaMmDwQ` (ready for testing)
+- **Testnet Wallet:** `mxnpmB7d5RjXVAoHyc6rk2RZvoazBi4y7F` (tested and operational)
+- **First Live Transaction:** `0f16484d83093f9b8a66a85680fdf9021ecac2c7d13c1c914a2001c83eec8c70`
 
 **Patent Strength:** HIGH
 - Novel combination of Merkle trees + micropayment optimization
@@ -479,7 +484,8 @@ Example: BDP_BOOK|lesson_uuid|2025-11-15T10:00:00|instructor_uuid|$50
 - **Config Updates:** `backend/src/config/env.ts` (BSV wallet configuration)
 - **Wallet Generation:** `backend/src/scripts/generateTestnetWallet.ts` (40 lines)
 - **Migration Runner:** `backend/src/scripts/runMigration006.ts` (45 lines)
-- **Testnet Wallet:** `1ARbqsYrFQD6dZykcscFqoCcHp7gaMmDwQ` (secured in .env)
+- **Testnet Wallet:** `mxnpmB7d5RjXVAoHyc6rk2RZvoazBi4y7F` (secured in .env)
+- **Proof of Operation:** First transaction broadcasted November 18, 2025
 
 ### C. Inventor Contributions
 - **Rob (Budget Driving School):** Domain expertise, business model, pilot testing
@@ -503,7 +509,11 @@ Example: BDP_BOOK|lesson_uuid|2025-11-15T10:00:00|instructor_uuid|$50
 - ✅ Testnet wallet generated and secured
 - ✅ Merkle aggregation database schema created (290 lines)
 - ✅ Patent Claim #3 documented (Merkle batching innovation)
-- ⏳ Awaiting testnet funding for first real BSV transaction
+- ✅ **FIRST BSV TRANSACTION SUCCESSFUL** 🎉
+  - TXID: `0f16484d83093f9b8a66a85680fdf9021ecac2c7d13c1c914a2001c83eec8c70`
+  - On-chain proof: https://test.whatsonchain.com/tx/0f16484d83093f9b8a66a85680fdf9021ecac2c7d13c1c914a2001c83eec8c70
+  - OP_RETURN data successfully embedded
+  - Working UTXO management, signing, and broadcasting
 
 ---
 
