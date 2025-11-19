@@ -36,14 +36,25 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
+
+      // DEBUG: Check localStorage for auth credentials
+      console.log('='.repeat(50));
+      console.log('🔐 TENANT CONTEXT - AUTH DEBUG');
+      console.log('='.repeat(50));
+      console.log('AUTH_TOKEN:', localStorage.getItem('auth_token') ? 'Present ✓' : 'MISSING ✗');
+      console.log('TENANT_ID:', localStorage.getItem('tenant_id') || 'MISSING ✗');
+      console.log('='.repeat(50));
+
       const response = await tenantsApi.getSettings();
 
       if (response.success && response.data) {
+        console.log('✅ Settings loaded successfully:', response.data);
         setSettings(response.data);
         updateTheme(response.data);
       }
     } catch (err: any) {
-      console.error('Failed to load tenant settings:', err);
+      console.error('❌ Failed to load tenant settings:', err);
+      console.error('Error response:', err.response);
       setError(err.response?.data?.error || 'Failed to load tenant settings');
       // Don't throw - allow app to continue with no settings
       // This prevents infinite loops when not authenticated

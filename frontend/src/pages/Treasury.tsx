@@ -14,7 +14,10 @@ const BSV_NETWORK = 'testnet'; // Change to 'mainnet' when ready
 
 const Treasury: React.FC = () => {
   const { settings } = useTenant();
-  const showBlockchainDetails = settings?.enableBlockchainPayments || false;
+  // NOTE: Backend returns snake_case field names from database (enable_blockchain_payments)
+  // Frontend TypeScript types expect camelCase (enableBlockchainPayments)
+  // Using type assertion to access the actual field from the API response
+  const showBlockchainDetails = (settings as any)?.enable_blockchain_payments === true;
 
   // Helper to generate WhatsOnChain URL
   const getWhatsOnChainUrl = (txid: string) => {
@@ -28,13 +31,32 @@ const Treasury: React.FC = () => {
   const { data: stats, isLoading, error } = useQuery({
     queryKey: ['treasury', 'statistics'],
     queryFn: () => treasuryApi.getStatistics(),
+    staleTime: 0, // Always consider data stale (refetch on mount)
+    cacheTime: 0, // Don't cache
   });
 
   // Fetch recent transactions
-  const { data: transactions } = useQuery({
+  const { data: transactions, isLoading: transactionsLoading, error: transactionsError } = useQuery({
     queryKey: ['treasury', 'transactions'],
     queryFn: () => treasuryApi.getRecentTransactions(50),
+    staleTime: 0, // Always consider data stale (refetch on mount)
+    cacheTime: 0, // Don't cache
   });
+
+  // DEBUG: Log settings to console with detailed info (AFTER fetching data)
+  console.log('='.repeat(50));
+  console.log('🔧 TREASURY PAGE DEBUG');
+  console.log('='.repeat(50));
+  console.log('Settings loaded:', settings !== null);
+  console.log('Enable Blockchain Payments (camelCase - WRONG):', (settings as any)?.enableBlockchainPayments);
+  console.log('Enable Blockchain Payments (snake_case - CORRECT):', (settings as any)?.enable_blockchain_payments);
+  console.log('Show Blockchain Details (computed):', showBlockchainDetails);
+  console.log('Transactions loading:', transactionsLoading);
+  console.log('Transactions error:', transactionsError);
+  console.log('Transactions data:', transactions);
+  console.log('Transactions count:', transactions?.data?.length || 0, 'found');
+  console.log('Full settings object:', settings);
+  console.log('='.repeat(50));
 
   if (isLoading) {
     return (
@@ -56,7 +78,9 @@ const Treasury: React.FC = () => {
   const statistics = stats?.data?.statistics;
 
   // Calculate satoshi totals
-  const totalSatoshis = transactions?.data?.reduce((sum, tx) => sum + (tx.bsv_satoshis || 0), 0) || 0;
+  // Note: transactions is the array directly from React Query, not wrapped in {data: [...]}
+  const transactionsArray = Array.isArray(transactions) ? transactions : (transactions as any)?.data || [];
+  const totalSatoshis = transactionsArray.reduce((sum: number, tx: any) => sum + (tx.bsv_satoshis || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -225,8 +249,8 @@ const Treasury: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {transactions?.data && transactions.data.length > 0 ? (
-                transactions.data.map((tx) => (
+              {transactionsArray && transactionsArray.length > 0 ? (
+                transactionsArray.map((tx) => (
                   <tr key={tx.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(tx.created_at).toLocaleDateString()}
