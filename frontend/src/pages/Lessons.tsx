@@ -5,12 +5,14 @@ import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson } from '@/types';
 import { LessonModal } from '@/components/lessons/LessonModal';
 import { LessonsCalendarView } from '@/components/lessons/LessonsCalendarView';
+import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 
 type ViewMode = 'table' | 'calendar';
 
 export const LessonsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -69,8 +71,12 @@ export const LessonsPage: React.FC = () => {
   };
 
   const handleAddNew = () => {
-    setSelectedLesson(null);
-    setIsModalOpen(true);
+    setIsSmartBookingOpen(true);
+  };
+
+  const handleBookingComplete = (lessonId: string) => {
+    setIsSmartBookingOpen(false);
+    queryClient.invalidateQueries({ queryKey: ['lessons'] });
   };
 
   // Helper functions to get names from IDs
@@ -175,7 +181,7 @@ export const LessonsPage: React.FC = () => {
             className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
           >
             <Plus className="mr-2 h-5 w-5" />
-            Add Lesson
+            Book New Lesson
           </button>
         </div>
       </div>
@@ -353,7 +359,7 @@ export const LessonsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* LessonModal - for quick edits */}
       {isModalOpen && (
         <LessonModal
           lesson={selectedLesson}
@@ -362,6 +368,16 @@ export const LessonsPage: React.FC = () => {
             setSelectedLesson(null);
           }}
         />
+      )}
+
+      {/* SmartBookingForm - for new bookings */}
+      {isSmartBookingOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <SmartBookingForm
+            onBookingComplete={handleBookingComplete}
+            onCancel={() => setIsSmartBookingOpen(false)}
+          />
+        </div>
       )}
     </div>
   );

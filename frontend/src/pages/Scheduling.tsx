@@ -5,12 +5,11 @@ import {
   AvailabilityCalendar,
   AvailabilityEditor,
   TimeOffManager,
-  SmartBookingForm,
   CalendarSync,
   RecurringPatterns,
 } from '@/components/scheduling';
 
-type Tab = 'availability' | 'timeoff' | 'booking' | 'calendar' | 'patterns';
+type Tab = 'availability' | 'timeoff' | 'calendar' | 'patterns';
 
 export const SchedulingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('availability');
@@ -32,7 +31,6 @@ export const SchedulingPage: React.FC = () => {
   const tabs = [
     { id: 'availability' as Tab, label: 'Availability', icon: '📅' },
     { id: 'timeoff' as Tab, label: 'Time Off', icon: '🏖️' },
-    { id: 'booking' as Tab, label: 'Smart Booking', icon: '✨' },
     { id: 'calendar' as Tab, label: 'Calendar Sync', icon: '🔄' },
     { id: 'patterns' as Tab, label: 'Recurring Patterns', icon: '🔁' },
   ];
@@ -42,9 +40,9 @@ export const SchedulingPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Scheduling</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Scheduling Configuration</h1>
           <p className="text-gray-600 mt-1">
-            Manage instructor availability, time off, smart booking, calendar sync, and recurring patterns
+            Manage instructor availability, time off, calendar sync, and recurring patterns
           </p>
         </div>
       </div>
@@ -146,19 +144,6 @@ export const SchedulingPage: React.FC = () => {
                   />
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Smart Booking Tab */}
-          {activeTab === 'booking' && (
-            <div>
-              <SmartBookingForm
-                key={`booking-${refreshKey}`}
-                onBookingComplete={(lessonId) => {
-                  alert(`Lesson created successfully! ID: ${lessonId}`);
-                  handleRefresh();
-                }}
-              />
             </div>
           )}
 
