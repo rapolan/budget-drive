@@ -186,24 +186,26 @@ export const LessonsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search - Only show in table view */}
-      {viewMode === 'table' && (
-        <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
-          <Search className="h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by student, instructor, type, or status..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="ml-2 flex-1 border-none bg-transparent outline-none"
-          />
-        </div>
-      )}
+      {/* Search - Show in both views */}
+      <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
+        <Search className="h-5 w-5 text-gray-400" />
+        <input
+          type="text"
+          placeholder={
+            viewMode === 'calendar'
+              ? "Filter by student, instructor, or type..."
+              : "Search by student, instructor, type, or status..."
+          }
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="ml-2 flex-1 border-none bg-transparent outline-none"
+        />
+      </div>
 
       {/* Calendar View */}
       {viewMode === 'calendar' && (
         <LessonsCalendarView
-          lessons={data?.data || []}
+          lessons={filteredLessons || []}
           onLessonClick={handleEdit}
           getStudentName={getStudentName}
           getInstructorName={getInstructorName}
