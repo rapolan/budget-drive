@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { schedulingApi, lessonsApi } from '@/api';
-import { TimeSlot, SchedulingConflict, Student, Instructor, Vehicle } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
+import { TimeSlot, SchedulingConflict, Student, Instructor } from '@/types';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -15,7 +16,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   onBookingComplete,
   onCancel,
 }) => {
-  const [step, setStep] = useState<'select' | 'slots' | 'confirm'>('select');
+  const [step, setStep] = useState<'select' | 'slots' | 'payment' | 'confirm'>('select');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,10 +25,84 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     preselectedInstructor?.id || ''
   );
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
-  const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [duration, setDuration] = useState(60);
   const [lessonType, setLessonType] = useState<'behind_wheel' | 'classroom' | 'observation' | 'road_test'>('behind_wheel');
   const [cost, setCost] = useState(50);
+
+  // Payment data
+  const [payNow, setPayNow] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'credit_card' | 'check' | 'other'>('cash');
+
+  // Search states
+  const [instructorSearch, setInstructorSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+
+  // Dropdown visibility
+  const [showInstructorDropdown, setShowInstructorDropdown] = useState(false);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
+  // Fetch lists
+  const { data: studentsData } = useQuery({
+    queryKey: ['students'],
+    queryFn: studentsApi.getAll,
+  });
+
+  const { data: instructorsData } = useQuery({
+    queryKey: ['instructors'],
+    queryFn: instructorsApi.getAll,
+  });
+
+  const students = studentsData?.data || [];
+  const instructors = instructorsData?.data || [];
+
+  // Filter based on search
+  const filteredInstructors = instructors.filter(i =>
+    i.fullName.toLowerCase().includes(instructorSearch.toLowerCase()) ||
+    i.email.toLowerCase().includes(instructorSearch.toLowerCase())
+  );
+
+  const filteredStudents = students.filter(s =>
+    s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(studentSearch.toLowerCase())
+  );
+
+  // Get display names
+  const getInstructorDisplay = (instructor: Instructor) => {
+    const duplicates = instructors.filter(i => i.fullName === instructor.fullName);
+    if (duplicates.length > 1) {
+      return `${instructor.fullName} (${instructor.email})`;
+    }
+    return instructor.fullName;
+  };
+
+  const getStudentDisplay = (student: Student) => {
+    const duplicates = students.filter(s => s.fullName === student.fullName);
+    if (duplicates.length > 1) {
+      return `${student.fullName} (${student.email})`;
+    }
+    return student.fullName;
+  };
+
+  // Initialize search fields with preselected values
+  useEffect(() => {
+    if (preselectedInstructor) {
+      setInstructorSearch(getInstructorDisplay(preselectedInstructor));
+    }
+  }, [preselectedInstructor, instructors]);
+
+  useEffect(() => {
+    if (preselectedStudent) {
+      setStudentSearch(getStudentDisplay(preselectedStudent));
+    }
+  }, [preselectedStudent, students]);
+
+  // Update payment amount when cost changes
+  useEffect(() => {
+    if (payNow) {
+      setPaymentAmount(cost);
+    }
+  }, [cost, payNow]);
 
   // Slot finding
   const [dateRange, setDateRange] = useState({
@@ -55,7 +130,6 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
         duration,
-        vehicleId: selectedVehicleId || undefined,
         studentId: selectedStudentId || undefined,
       });
 
@@ -70,8 +144,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   };
 
   const handleSelectSlot = async (slot: TimeSlot) => {
-    if (!selectedStudentId || !selectedVehicleId) {
-      setError('Please select both a student and vehicle before choosing a time slot');
+    if (!selectedStudentId) {
+      setError('Please select a student before choosing a time slot');
       return;
     }
 
@@ -83,7 +157,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setError(null);
       const conflictList = await schedulingApi.checkConflicts({
         instructorId: selectedInstructorId,
-        vehicleId: selectedVehicleId,
+        vehicleId: null,
         studentId: selectedStudentId,
         date: slot.date,
         startTime: slot.startTime,
@@ -94,7 +168,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setShowConflicts(conflictList.length > 0);
 
       if (conflictList.length === 0) {
-        setStep('confirm');
+        setStep('payment');
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to check conflicts');
@@ -114,13 +188,22 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       const lessonData = {
         studentId: selectedStudentId,
         instructorId: selectedInstructorId,
-        vehicleId: selectedVehicleId,
+        vehicleId: null, // Vehicle will be assigned separately
         date: selectedSlot.date,
         startTime: selectedSlot.startTime,
         endTime: selectedSlot.endTime,
         duration,
         lessonType,
         cost,
+        // Payment data - will be used once backend supports it
+        // TODO: Backend needs to support payment data on lesson creation
+        ...(payNow && {
+          payment: {
+            amount: paymentAmount,
+            method: paymentMethod,
+            paidAt: new Date().toISOString(),
+          }
+        }),
       };
 
       const lesson = await lessonsApi.create(lessonData);
@@ -186,45 +269,94 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       {step === 'select' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Instructor Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Instructor *
               </label>
-              <input
-                type="text"
-                value={selectedInstructorId}
-                onChange={(e) => setSelectedInstructorId(e.target.value)}
-                placeholder="Instructor ID"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={!!preselectedInstructor}
-              />
+              {preselectedInstructor ? (
+                <div className="w-full px-3 py-2 border border-gray-300 bg-gray-50 rounded-lg text-gray-700">
+                  {getInstructorDisplay(preselectedInstructor)}
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={instructorSearch}
+                    onChange={(e) => {
+                      setInstructorSearch(e.target.value);
+                      setShowInstructorDropdown(true);
+                    }}
+                    onFocus={() => setShowInstructorDropdown(true)}
+                    placeholder="Search by name or email..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {showInstructorDropdown && instructorSearch && filteredInstructors.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredInstructors.map((instructor) => (
+                        <button
+                          key={instructor.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedInstructorId(instructor.id);
+                            setInstructorSearch(getInstructorDisplay(instructor));
+                            setShowInstructorDropdown(false);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                        >
+                          <div className="font-medium text-gray-900">{instructor.fullName}</div>
+                          <div className="text-sm text-gray-500">{instructor.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
+            {/* Student Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Student *
               </label>
-              <input
-                type="text"
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                placeholder="Student ID"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={!!preselectedStudent}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vehicle *
-              </label>
-              <input
-                type="text"
-                value={selectedVehicleId}
-                onChange={(e) => setSelectedVehicleId(e.target.value)}
-                placeholder="Vehicle ID"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              {preselectedStudent ? (
+                <div className="w-full px-3 py-2 border border-gray-300 bg-gray-50 rounded-lg text-gray-700">
+                  {getStudentDisplay(preselectedStudent)}
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => {
+                      setStudentSearch(e.target.value);
+                      setShowStudentDropdown(true);
+                    }}
+                    onFocus={() => setShowStudentDropdown(true)}
+                    placeholder="Search by name or email..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  {showStudentDropdown && studentSearch && filteredStudents.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {filteredStudents.map((student) => (
+                        <button
+                          key={student.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedStudentId(student.id);
+                            setStudentSearch(getStudentDisplay(student));
+                            setShowStudentDropdown(false);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0"
+                        >
+                          <div className="font-medium text-gray-900">{student.fullName}</div>
+                          <div className="text-sm text-gray-500">{student.email}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -383,7 +515,118 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         </div>
       )}
 
-      {/* Step 3: Confirmation */}
+      {/* Step 3: Payment */}
+      {step === 'payment' && selectedSlot && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Payment Details</h3>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-gray-700 font-medium">Lesson Cost:</span>
+              <span className="text-xl font-bold text-gray-900">${cost.toFixed(2)}</span>
+            </div>
+            <div className="text-sm text-gray-600">
+              {formatSlotTime(selectedSlot)} • {duration} minutes
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Pay Now Checkbox */}
+            <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="payNow"
+                checked={payNow}
+                onChange={(e) => {
+                  setPayNow(e.target.checked);
+                  if (e.target.checked) {
+                    setPaymentAmount(cost);
+                  } else {
+                    setPaymentAmount(0);
+                  }
+                }}
+                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="payNow" className="text-sm font-medium text-gray-700 cursor-pointer">
+                Record payment now (default: Pay Later)
+              </label>
+            </div>
+
+            {/* Payment Details - Only show if payNow is checked */}
+            {payNow && (
+              <div className="space-y-4 border-l-4 border-blue-500 pl-4 ml-2">
+                {/* Payment Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Amount *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                      min="0"
+                      max={cost}
+                      step="0.01"
+                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  {paymentAmount > 0 && paymentAmount < cost && (
+                    <p className="mt-1 text-sm text-amber-600">
+                      Partial payment: ${(cost - paymentAmount).toFixed(2)} remaining
+                    </p>
+                  )}
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Method *
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="check">Check</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Info Message */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <p className="text-sm text-gray-600">
+                {payNow
+                  ? "💡 Payment will be recorded with this lesson booking."
+                  : "💡 No payment will be recorded. You can add payment later from the Payments page."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex space-x-3 pt-4">
+            <button
+              onClick={() => setStep('slots')}
+              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              Go Back
+            </button>
+            <button
+              onClick={() => setStep('confirm')}
+              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Continue to Review
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Confirmation */}
       {step === 'confirm' && selectedSlot && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Confirm Booking</h3>
@@ -399,12 +642,36 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Lesson Type:</span>
-              <span className="font-semibold">{lessonType.replace('_', ' ')}</span>
+              <span className="font-semibold capitalize">{lessonType.replace(/_/g, ' ')}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Cost:</span>
+            <div className="flex justify-between border-t pt-2 mt-2">
+              <span className="text-gray-600">Lesson Cost:</span>
               <span className="font-semibold">${cost.toFixed(2)}</span>
             </div>
+            {payNow && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Payment Amount:</span>
+                  <span className="font-semibold text-green-600">${paymentAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Payment Method:</span>
+                  <span className="font-semibold capitalize">{paymentMethod.replace(/_/g, ' ')}</span>
+                </div>
+                {paymentAmount < cost && (
+                  <div className="flex justify-between border-t pt-2 mt-2">
+                    <span className="text-gray-600">Remaining Balance:</span>
+                    <span className="font-semibold text-amber-600">${(cost - paymentAmount).toFixed(2)}</span>
+                  </div>
+                )}
+              </>
+            )}
+            {!payNow && (
+              <div className="flex justify-between border-t pt-2 mt-2">
+                <span className="text-gray-600">Payment Status:</span>
+                <span className="font-semibold text-amber-600">Pay Later</span>
+              </div>
+            )}
           </div>
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -416,7 +683,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
           <div className="flex space-x-3">
             <button
-              onClick={() => setStep('slots')}
+              onClick={() => setStep('payment')}
               className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
             >
               Go Back
