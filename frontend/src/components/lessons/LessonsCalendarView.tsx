@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Lesson } from '@/types';
+import type { Lesson, InstructorAvailability, Instructor } from '@/types';
 
 interface LessonsCalendarViewProps {
   lessons: Lesson[];
+  availability: Record<string, InstructorAvailability[]>;
+  instructors: Instructor[];
   onLessonClick: (lesson: Lesson) => void;
   getStudentName: (id: string) => string;
   getInstructorName: (id: string) => string;
@@ -11,6 +13,8 @@ interface LessonsCalendarViewProps {
 
 export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
   lessons,
+  availability,
+  instructors,
   onLessonClick,
   getStudentName,
   getInstructorName,
@@ -55,6 +59,32 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
         lessonDate.getFullYear() === date.getFullYear()
       );
     });
+  };
+
+  // Get availability slots for a specific date
+  const getAvailabilityForDate = (date: Date) => {
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+    const availabilitySlots: Array<{ instructorId: string; instructorName: string; startTime: string; endTime: string }> = [];
+
+    // Iterate through each instructor's availability
+    Object.entries(availability).forEach(([instructorId, slots]) => {
+      const instructor = instructors.find(i => i.id === instructorId);
+      if (!instructor) return;
+
+      // Find slots that match this day of week and are active
+      slots.forEach((slot) => {
+        if (slot.dayOfWeek === dayOfWeek && slot.isActive) {
+          availabilitySlots.push({
+            instructorId,
+            instructorName: instructor.fullName,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+          });
+        }
+      });
+    });
+
+    return availabilitySlots;
   };
 
   // Generate calendar days
@@ -165,6 +195,7 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
         {/* Calendar days */}
         {calendarDays.map((calendarDay, idx) => {
           const dayLessons = getLessonsForDate(calendarDay.date);
+          const dayAvailability = calendarDay.isCurrentMonth ? getAvailabilityForDate(calendarDay.date) : [];
           const isTodayDate = isToday(calendarDay.date);
 
           return (
@@ -185,7 +216,8 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
               >
                 {calendarDay.day}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 max-h-[90px] overflow-y-auto">
+                {/* Scheduled Lessons */}
                 {dayLessons.map((lesson) => (
                   <button
                     key={lesson.id}
@@ -201,6 +233,21 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
                       {getInstructorName(lesson.instructorId)}
                     </div>
                   </button>
+                ))}
+
+                {/* Availability Slots */}
+                {dayAvailability.map((slot, slotIdx) => (
+                  <div
+                    key={`avail-${slotIdx}`}
+                    className="w-full rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-1 text-xs"
+                  >
+                    <div className="truncate text-gray-600">
+                      {formatTime(slot.startTime)}-{formatTime(slot.endTime)}
+                    </div>
+                    <div className="truncate text-[10px] text-gray-500">
+                      {slot.instructorName} (Available)
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -225,6 +272,10 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
         <div className="flex items-center">
           <div className="mr-2 h-3 w-3 rounded bg-orange-100 border border-orange-300"></div>
           <span>No Show</span>
+        </div>
+        <div className="flex items-center">
+          <div className="mr-2 h-3 w-3 rounded border border-dashed border-gray-300 bg-gray-50"></div>
+          <span>Available</span>
         </div>
       </div>
     </div>

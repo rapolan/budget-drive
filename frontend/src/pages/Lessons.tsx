@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Edit, X, CheckCircle, List, Calendar } from 'lucide-react';
-import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
+import { lessonsApi, studentsApi, instructorsApi, vehiclesApi, schedulingApi } from '@/api';
 import type { Lesson } from '@/types';
 import { LessonModal } from '@/components/lessons/LessonModal';
 import { LessonsCalendarView } from '@/components/lessons/LessonsCalendarView';
@@ -37,6 +37,13 @@ export const LessonsPage: React.FC = () => {
   const { data: vehiclesData } = useQuery({
     queryKey: ['vehicles'],
     queryFn: () => vehiclesApi.getAll(),
+  });
+
+  // Fetch availability data for calendar view
+  const { data: availabilityData } = useQuery({
+    queryKey: ['availability', 'all'],
+    queryFn: () => schedulingApi.getAllInstructorsAvailability(),
+    enabled: viewMode === 'calendar', // Only fetch when in calendar view
   });
 
   const cancelMutation = useMutation({
@@ -206,6 +213,8 @@ export const LessonsPage: React.FC = () => {
       {viewMode === 'calendar' && (
         <LessonsCalendarView
           lessons={filteredLessons || []}
+          availability={availabilityData || {}}
+          instructors={instructorsData?.data || []}
           onLessonClick={handleEdit}
           getStudentName={getStudentName}
           getInstructorName={getInstructorName}
