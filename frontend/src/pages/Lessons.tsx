@@ -148,9 +148,9 @@ export const LessonsPage: React.FC = () => {
           <div className="flex rounded-md border border-gray-300 bg-white">
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center px-3 py-2 text-sm font-medium ${
+              className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-primary text-white'
+                  ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -159,9 +159,9 @@ export const LessonsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`flex items-center px-3 py-2 text-sm font-medium ${
+              className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
                 viewMode === 'calendar'
-                  ? 'bg-primary text-white'
+                  ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
@@ -172,7 +172,7 @@ export const LessonsPage: React.FC = () => {
 
           <button
             onClick={handleAddNew}
-            className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90"
+            className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
           >
             <Plus className="mr-2 h-5 w-5" />
             Add Lesson
@@ -293,21 +293,21 @@ export const LessonsPage: React.FC = () => {
                         <>
                           <button
                             onClick={() => handleEdit(lesson)}
-                            className="text-blue-600 hover:text-blue-900"
+                            className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
                             title="Edit lesson"
                           >
                             <Edit className="h-5 w-5" />
                           </button>
                           <button
                             onClick={() => handleComplete(lesson.id)}
-                            className="text-green-600 hover:text-green-900"
+                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
                             title="Mark as completed"
                           >
                             <CheckCircle className="h-5 w-5" />
                           </button>
                           <button
                             onClick={() => handleCancel(lesson.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
                             title="Cancel lesson"
                           >
                             <X className="h-5 w-5" />

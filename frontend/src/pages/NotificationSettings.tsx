@@ -90,7 +90,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('emailBookingConfirmation')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailBookingConfirmation ? 'bg-primary' : 'bg-gray-200'
+                settings.emailBookingConfirmation ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -112,7 +112,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('emailReminder24h')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailReminder24h ? 'bg-primary' : 'bg-gray-200'
+                settings.emailReminder24h ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -134,7 +134,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('emailReminder1h')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailReminder1h ? 'bg-primary' : 'bg-gray-200'
+                settings.emailReminder1h ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -156,7 +156,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('emailCancellation')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailCancellation ? 'bg-primary' : 'bg-gray-200'
+                settings.emailCancellation ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -178,7 +178,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('emailRescheduled')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailRescheduled ? 'bg-primary' : 'bg-gray-200'
+                settings.emailRescheduled ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -264,7 +264,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('sendToStudent')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.sendToStudent ? 'bg-primary' : 'bg-gray-200'
+                settings.sendToStudent ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -285,7 +285,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('sendToInstructor')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.sendToInstructor ? 'bg-primary' : 'bg-gray-200'
+                settings.sendToInstructor ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -306,7 +306,7 @@ export const NotificationSettingsPage: React.FC = () => {
             <button
               onClick={() => handleToggle('sendToAdmin')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.sendToAdmin ? 'bg-primary' : 'bg-gray-200'
+                settings.sendToAdmin ? 'bg-blue-600' : 'bg-gray-200'
               }`}
             >
               <span
@@ -338,7 +338,7 @@ export const NotificationSettingsPage: React.FC = () => {
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center rounded-md bg-primary px-6 py-2 text-white hover:bg-opacity-90 disabled:opacity-50"
+            className="flex items-center rounded-md bg-blue-600 px-6 py-2 text-white hover:bg-opacity-90 disabled:opacity-50"
           >
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? 'Saving...' : 'Save Settings'}

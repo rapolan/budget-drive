@@ -350,25 +350,25 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                       {getStatusLabel(timeOff)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {allowApproval && !timeOff.isApproved && (
-                      <>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex justify-end gap-2">
+                      {allowApproval && !timeOff.isApproved && (
                         <button
                           onClick={() => handleUpdateStatus(timeOff.id, true)}
-                          className="text-green-600 hover:text-green-900"
+                          className="px-3 py-1 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
                         >
                           Approve
                         </button>
-                      </>
-                    )}
-                    {!timeOff.isApproved && (
-                      <button
-                        onClick={() => handleDelete(timeOff.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    )}
+                      )}
+                      {!timeOff.isApproved && (
+                        <button
+                          onClick={() => handleDelete(timeOff.id)}
+                          className="px-3 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

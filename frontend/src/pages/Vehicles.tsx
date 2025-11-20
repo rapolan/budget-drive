@@ -83,7 +83,7 @@ export const VehiclesPage: React.FC = () => {
         </div>
         <button
           onClick={handleAddNew}
-          className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90"
+          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
         >
           <Plus className="mr-2 h-5 w-5" />
           Add Vehicle
@@ -172,18 +172,22 @@ export const VehiclesPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(vehicle)}
-                      className="mr-3 text-blue-600 hover:text-blue-900"
-                    >
-                      <Edit className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(vehicle.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleEdit(vehicle)}
+                        className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                        title="Edit vehicle"
+                      >
+                        <Edit className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(vehicle.id)}
+                        className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                        title="Delete vehicle"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

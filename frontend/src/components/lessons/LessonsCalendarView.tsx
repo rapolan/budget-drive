@@ -179,7 +179,7 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
                   !calendarDay.isCurrentMonth
                     ? 'text-gray-400'
                     : isTodayDate
-                    ? 'flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white'
+                    ? 'flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white'
                     : 'text-gray-900'
                 }`}
               >

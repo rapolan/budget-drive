@@ -349,18 +349,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90 disabled:opacity-50"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {createMutation.isPending ? 'Recording...' : 'Record Payment'}
               </button>

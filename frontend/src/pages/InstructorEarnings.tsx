@@ -92,7 +92,7 @@ export const InstructorEarningsPage: React.FC = () => {
                 setStartDate('');
                 setEndDate('');
               }}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
             >
               Clear date filters
             </button>

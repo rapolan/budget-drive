@@ -183,7 +183,7 @@ export const PaymentsPage: React.FC = () => {
             setSelectedStudent(null);
             setIsPaymentModalOpen(true);
           }}
-          className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:bg-opacity-90"
+          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
         >
           <Plus className="mr-2 h-5 w-5" />
           Record Payment

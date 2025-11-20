@@ -169,7 +169,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         {onCancel && (
           <button
             onClick={onCancel}
-            className="text-gray-500 hover:text-gray-700"
+            className="px-2 py-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors text-xl"
           >
             ✕
           </button>
@@ -326,7 +326,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </h3>
             <button
               onClick={() => setStep('select')}
-              className="text-blue-600 hover:text-blue-800"
+              className="px-3 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
             >
               ← Change Criteria
             </button>
