@@ -8,6 +8,26 @@ import { InstructorAvailability, InstructorTimeOff, SchedulingSettings } from '.
 import { AppError } from '../middleware/errorHandler';
 
 // =====================================================
+// HELPER FUNCTIONS
+// =====================================================
+
+/**
+ * Transform snake_case database row to camelCase TypeScript object
+ */
+const transformAvailability = (row: any): InstructorAvailability => ({
+  id: row.id,
+  tenantId: row.tenant_id,
+  instructorId: row.instructor_id,
+  dayOfWeek: row.day_of_week,
+  startTime: row.start_time,
+  endTime: row.end_time,
+  isActive: row.is_active,
+  notes: row.notes,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+// =====================================================
 // INSTRUCTOR AVAILABILITY (RECURRING SCHEDULE)
 // =====================================================
 
@@ -21,7 +41,7 @@ export const getInstructorAvailability = async (
      ORDER BY day_of_week, start_time`,
     [instructorId, tenantId]
   );
-  return result.rows as InstructorAvailability[];
+  return result.rows.map(transformAvailability);
 };
 
 export const getAllInstructorsAvailability = async (
@@ -33,7 +53,7 @@ export const getAllInstructorsAvailability = async (
      ORDER BY instructor_id, day_of_week, start_time`,
     [tenantId]
   );
-  return result.rows as InstructorAvailability[];
+  return result.rows.map(transformAvailability);
 };
 
 export const createAvailability = async (
@@ -73,7 +93,7 @@ export const createAvailability = async (
     [tenantId, instructorId, data.dayOfWeek, data.startTime, data.endTime, data.notes || null]
   );
 
-  return result.rows[0] as InstructorAvailability;
+  return transformAvailability(result.rows[0]);
 };
 
 export const updateAvailability = async (
@@ -132,7 +152,7 @@ export const updateAvailability = async (
     throw new AppError('Availability not found', 404);
   }
 
-  return result.rows[0] as InstructorAvailability;
+  return transformAvailability(result.rows[0]);
 };
 
 export const deleteAvailability = async (
@@ -187,7 +207,7 @@ export const setInstructorSchedule = async (
       RETURNING *`,
       [tenantId, instructorId, entry.dayOfWeek, entry.startTime, entry.endTime, entry.notes || null]
     );
-    availabilities.push(result.rows[0] as InstructorAvailability);
+    availabilities.push(transformAvailability(result.rows[0]));
   }
 
   return availabilities;
@@ -196,6 +216,26 @@ export const setInstructorSchedule = async (
 // =====================================================
 // TIME OFF / UNAVAILABILITY
 // =====================================================
+
+/**
+ * Transform snake_case database row to camelCase TypeScript object
+ */
+const transformTimeOff = (row: any): InstructorTimeOff => ({
+  id: row.id,
+  tenantId: row.tenant_id,
+  instructorId: row.instructor_id,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  startTime: row.start_time,
+  endTime: row.end_time,
+  reason: row.reason,
+  notes: row.notes,
+  isApproved: row.is_approved,
+  approvedBy: row.approved_by,
+  approvedAt: row.approved_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
 
 export const getInstructorTimeOff = async (
   instructorId: string,
@@ -222,7 +262,7 @@ export const getInstructorTimeOff = async (
   queryText += ' ORDER BY start_date, start_time';
 
   const result = await query(queryText, params);
-  return result.rows as InstructorTimeOff[];
+  return result.rows.map(transformTimeOff);
 };
 
 export const createTimeOff = async (
@@ -274,7 +314,7 @@ export const createTimeOff = async (
     ]
   );
 
-  return result.rows[0] as InstructorTimeOff;
+  return transformTimeOff(result.rows[0]);
 };
 
 export const updateTimeOff = async (
@@ -339,7 +379,7 @@ export const updateTimeOff = async (
     throw new AppError('Time off not found', 404);
   }
 
-  return result.rows[0] as InstructorTimeOff;
+  return transformTimeOff(result.rows[0]);
 };
 
 export const deleteTimeOff = async (
@@ -360,6 +400,25 @@ export const deleteTimeOff = async (
 // SCHEDULING SETTINGS
 // =====================================================
 
+/**
+ * Transform snake_case database row to camelCase TypeScript object
+ */
+const transformSchedulingSettings = (row: any): SchedulingSettings => ({
+  id: row.id,
+  tenantId: row.tenant_id,
+  bufferTimeBetweenLessons: row.buffer_time_between_lessons,
+  bufferTimeBeforeFirstLesson: row.buffer_time_before_first_lesson,
+  bufferTimeAfterLastLesson: row.buffer_time_after_last_lesson,
+  minHoursAdvanceBooking: row.min_hours_advance_booking,
+  maxDaysAdvanceBooking: row.max_days_advance_booking,
+  defaultLessonDuration: row.default_lesson_duration,
+  allowBackToBackLessons: row.allow_back_to_back_lessons,
+  defaultWorkStartTime: row.default_work_start_time,
+  defaultWorkEndTime: row.default_work_end_time,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 export const getSchedulingSettings = async (
   tenantId: string
 ): Promise<SchedulingSettings> => {
@@ -376,10 +435,10 @@ export const getSchedulingSettings = async (
        RETURNING *`,
       [tenantId]
     );
-    return createResult.rows[0] as SchedulingSettings;
+    return transformSchedulingSettings(createResult.rows[0]);
   }
 
-  return result.rows[0] as SchedulingSettings;
+  return transformSchedulingSettings(result.rows[0]);
 };
 
 export const updateSchedulingSettings = async (
@@ -444,5 +503,5 @@ export const updateSchedulingSettings = async (
     throw new AppError('Scheduling settings not found', 404);
   }
 
-  return result.rows[0] as SchedulingSettings;
+  return transformSchedulingSettings(result.rows[0]);
 };

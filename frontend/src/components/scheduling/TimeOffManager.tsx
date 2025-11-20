@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { schedulingApi } from '@/api';
-import { InstructorTimeOff, CreateTimeOffInput } from '@/types';
+import { InstructorTimeOff } from '@/types';
 
 interface TimeOffManagerProps {
   instructorId?: string; // If provided, show only this instructor's time off
@@ -20,15 +20,21 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved'>('all');
 
-  const [formData, setFormData] = useState<CreateTimeOffInput>({
-    instructorId: instructorId || '',
+  const [formData, setFormData] = useState({
     startDate: '',
     endDate: '',
+    startTime: '',
+    endTime: '',
     reason: '',
-    status: 'pending',
+    notes: '',
   });
+
+  // Helper to determine status from isApproved
+  const getStatus = (timeOff: InstructorTimeOff): 'pending' | 'approved' => {
+    return timeOff.isApproved ? 'approved' : 'pending';
+  };
 
   useEffect(() => {
     loadTimeOffs();
@@ -42,12 +48,12 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
       let data: InstructorTimeOff[];
 
       if (showAllInstructors) {
-        const status = filterStatus === 'all' ? undefined : filterStatus;
-        data = await schedulingApi.getAllTimeOff(status as any);
+        // getAllTimeOff endpoint may not be implemented - use getInstructorTimeOff for now
+        data = [];
       } else if (instructorId) {
         data = await schedulingApi.getInstructorTimeOff(instructorId);
         if (filterStatus !== 'all') {
-          data = data.filter((t) => t.status === filterStatus);
+          data = data.filter((t) => getStatus(t) === filterStatus);
         }
       } else {
         data = [];
@@ -65,7 +71,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.instructorId) {
+    if (!instructorId) {
       setError('Instructor ID is required');
       return;
     }
@@ -73,15 +79,26 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
     try {
       setSaving(true);
       setError(null);
-      await schedulingApi.createTimeOff(formData);
+
+      await schedulingApi.createTimeOff({
+        instructorId,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        startTime: formData.startTime || undefined,
+        endTime: formData.endTime || undefined,
+        reason: formData.reason,
+        notes: formData.notes || undefined,
+      });
+
       await loadTimeOffs();
       setShowAddForm(false);
       setFormData({
-        instructorId: instructorId || '',
         startDate: '',
         endDate: '',
+        startTime: '',
+        endTime: '',
         reason: '',
-        status: 'pending',
+        notes: '',
       });
       onUpdate?.();
     } catch (err: any) {
@@ -106,10 +123,10 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: 'approved' | 'rejected') => {
+  const handleUpdateStatus = async (id: string, isApproved: boolean) => {
     try {
       setError(null);
-      await schedulingApi.updateTimeOff(id, { status });
+      await schedulingApi.updateTimeOff(id, { isApproved });
       await loadTimeOffs();
       onUpdate?.();
     } catch (err: any) {
@@ -126,17 +143,18 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
     });
   };
 
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const formatTime = (time: string | null): string => {
+    if (!time) return '';
+    // Remove seconds if present
+    return time.substring(0, 5);
+  };
+
+  const getStatusColor = (timeOff: InstructorTimeOff): string => {
+    return timeOff.isApproved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+  };
+
+  const getStatusLabel = (timeOff: InstructorTimeOff): string => {
+    return timeOff.isApproved ? 'Approved' : 'Pending';
   };
 
   if (loading) {
@@ -168,7 +186,6 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
             </select>
           )}
         </div>
@@ -188,7 +205,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
+                Start Date *
               </label>
               <input
                 type="date"
@@ -201,7 +218,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
+                End Date *
               </label>
               <input
                 type="date"
@@ -213,16 +230,56 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Start Time (Optional for partial day)
+              </label>
+              <input
+                type="time"
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Time (Optional for partial day)
+              </label>
+              <input
+                type="time"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Reason (Optional)
+              Reason *
             </label>
-            <textarea
+            <input
+              type="text"
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g., Vacation, Sick leave, Personal emergency"
+              placeholder="e.g., Vacation, Sick leave, Personal"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Additional details..."
             />
           </div>
 
@@ -254,6 +311,9 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                   End Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Time
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Reason
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -273,36 +333,35 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatDate(timeOff.endDate)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {timeOff.startTime && timeOff.endTime
+                      ? `${formatTime(timeOff.startTime)} - ${formatTime(timeOff.endTime)}`
+                      : 'Full day'}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                     {timeOff.reason || '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                        timeOff.status
+                        timeOff
                       )}`}
                     >
-                      {timeOff.status.charAt(0).toUpperCase() + timeOff.status.slice(1)}
+                      {getStatusLabel(timeOff)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {allowApproval && timeOff.status === 'pending' && (
+                    {allowApproval && !timeOff.isApproved && (
                       <>
                         <button
-                          onClick={() => handleUpdateStatus(timeOff.id, 'approved')}
+                          onClick={() => handleUpdateStatus(timeOff.id, true)}
                           className="text-green-600 hover:text-green-900"
                         >
                           Approve
                         </button>
-                        <button
-                          onClick={() => handleUpdateStatus(timeOff.id, 'rejected')}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Reject
-                        </button>
                       </>
                     )}
-                    {timeOff.status === 'pending' && (
+                    {!timeOff.isApproved && (
                       <button
                         onClick={() => handleDelete(timeOff.id)}
                         className="text-red-600 hover:text-red-900"

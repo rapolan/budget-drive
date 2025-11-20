@@ -301,10 +301,13 @@ export interface InstructorTimeOff {
   instructorId: string;
   startDate: Date;
   endDate: Date;
-  reason?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  approvedBy?: string;
-  approvedAt?: Date;
+  startTime: string | null; // HH:MM:SS format (null = all day)
+  endTime: string | null; // HH:MM:SS format (null = all day)
+  reason: string;
+  notes: string | null;
+  isApproved: boolean;
+  approvedBy: string | null;
+  approvedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -352,8 +355,11 @@ export interface CreateTimeOffInput {
   instructorId: string;
   startDate: string;
   endDate: string;
-  reason?: string;
-  status?: 'pending' | 'approved' | 'rejected';
+  startTime?: string;
+  endTime?: string;
+  reason: string;
+  notes?: string;
+  isApproved?: boolean;
 }
 
 export interface FindSlotsRequest {

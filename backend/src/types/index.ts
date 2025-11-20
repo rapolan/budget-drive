@@ -50,6 +50,7 @@ export interface TenantSettings {
 
   // Features
   enableBlockchain: boolean;
+  enableBlockchainPayments: boolean;
   enableGoogleCalendar: boolean;
   enableAppleCalendar: boolean;
   enableCertificates: boolean;
@@ -720,6 +721,7 @@ export interface UpdateTenantSettingsDTO {
   supportPhone?: string;
   websiteUrl?: string;
   enableBlockchain?: boolean;
+  enableBlockchainPayments?: boolean;
   enableGoogleCalendar?: boolean;
   enableCertificates?: boolean;
   enableMultiPayment?: boolean;
