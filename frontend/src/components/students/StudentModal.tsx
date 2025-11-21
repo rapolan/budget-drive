@@ -7,11 +7,13 @@ import type { Student, CreateStudentInput } from '@/types';
 interface StudentModalProps {
   student: Student | null;
   onClose: () => void;
+  onBookLesson?: (student: Student) => void;
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson }) => {
   const queryClient = useQueryClient();
   const isEditing = Boolean(student);
+  const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
 
   const [formData, setFormData] = useState<CreateStudentInput>({
     fullName: '',
@@ -50,9 +52,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
 
   const createMutation = useMutation({
     mutationFn: (data: CreateStudentInput) => studentsApi.create(data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
-      onClose();
+      // Store the created student to show success options
+      if (response.data) {
+        setCreatedStudent(response.data);
+      } else {
+        onClose();
+      }
     },
   });
 
@@ -114,6 +121,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
                 value={formData.fullName}
                 onChange={handleChange}
                 required
+                autoComplete="off"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -273,26 +281,61 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose }) 
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createMutation.isPending || updateMutation.isPending}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {createMutation.isPending || updateMutation.isPending
-                ? 'Saving...'
-                : isEditing
-                ? 'Update Student'
-                : 'Create Student'}
-            </button>
-          </div>
+          {!createdStudent ? (
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createMutation.isPending || updateMutation.isPending}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {createMutation.isPending || updateMutation.isPending
+                  ? 'Saving...'
+                  : isEditing
+                  ? 'Update Student'
+                  : 'Create Student'}
+              </button>
+            </div>
+          ) : (
+            <div className="pt-4 border-t border-gray-200 mt-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-green-800 font-medium flex items-center">
+                  <span className="text-2xl mr-2">✅</span>
+                  Student created successfully!
+                </p>
+                <p className="text-green-700 text-sm mt-1">
+                  {createdStudent.fullName} has been added to the system.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+                {onBookLesson && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onBookLesson(createdStudent);
+                      onClose();
+                    }}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  >
+                    Book Lesson
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </form>
       </div>
     </div>

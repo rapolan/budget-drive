@@ -14,6 +14,7 @@ import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
 import { NotificationSettingsPage } from '@/pages/NotificationSettings';
 import { PaymentsPage } from '@/pages/Payments';
 import NotificationHistory from '@/pages/NotificationHistory';
+import { SettingsPage } from '@/pages/Settings';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -140,7 +141,7 @@ function App() {
               path="/settings"
               element={
                 <AppLayout>
-                  <div className="text-center text-gray-500">Settings page - Coming soon</div>
+                  <SettingsPage />
                 </AppLayout>
               }
             />

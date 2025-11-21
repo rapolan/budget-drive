@@ -114,30 +114,48 @@ export const createLesson = async (
   tenantId: string,
   data: any
 ): Promise<Lesson> => {
+  console.log('📚 [LessonService] Creating new lesson:', {
+    tenantId,
+    studentId: data.studentId,
+    instructorId: data.instructorId,
+    vehicleId: data.vehicleId,
+    scheduledStart: data.scheduledStart,
+    scheduledEnd: data.scheduledEnd,
+    lessonType: data.lessonType,
+    cost: data.cost,
+    pickupAddress: data.pickupAddress,
+  });
+
   // Validate that student, instructor, and vehicle belong to the same tenant
   const studentCheck = await query(
     'SELECT id FROM students WHERE id = $1 AND tenant_id = $2',
     [data.studentId, tenantId]
   );
   if (studentCheck.rows.length === 0) {
+    console.error('❌ [LessonService] Student not found:', data.studentId);
     throw new AppError('Student not found or does not belong to this organization', 404);
   }
+  console.log('✅ [LessonService] Student validated:', data.studentId);
 
   const instructorCheck = await query(
     'SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2',
     [data.instructorId, tenantId]
   );
   if (instructorCheck.rows.length === 0) {
+    console.error('❌ [LessonService] Instructor not found:', data.instructorId);
     throw new AppError('Instructor not found or does not belong to this organization', 404);
   }
+  console.log('✅ [LessonService] Instructor validated:', data.instructorId);
 
   const vehicleCheck = await query(
     'SELECT id FROM vehicles WHERE id = $1 AND tenant_id = $2',
     [data.vehicleId, tenantId]
   );
   if (vehicleCheck.rows.length === 0) {
+    console.error('❌ [LessonService] Vehicle not found:', data.vehicleId);
     throw new AppError('Vehicle not found or does not belong to this organization', 404);
   }
+  console.log('✅ [LessonService] Vehicle validated:', data.vehicleId);
 
   // Extract date and time from scheduledStart/scheduledEnd if provided (ISO format)
   // Otherwise use separate date/startTime/endTime fields
@@ -153,18 +171,33 @@ export const createLesson = async (
 
     // Calculate duration in minutes
     duration = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60));
+
+    console.log('📅 [LessonService] Parsed lesson schedule:', {
+      lessonDate,
+      startTime,
+      endTime,
+      duration: `${duration} minutes`,
+    });
   } else {
     lessonDate = data.date;
     startTime = data.startTime;
     endTime = data.endTime;
     duration = data.duration;
+
+    console.log('📅 [LessonService] Using provided schedule:', {
+      lessonDate,
+      startTime,
+      endTime,
+      duration,
+    });
   }
 
+  console.log('💾 [LessonService] Inserting lesson into database...');
   const result = await query(
     `INSERT INTO lessons (
       tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time,
-      duration, lesson_type, cost, status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled')
+      duration, lesson_type, cost, status, pickup_address
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'scheduled', $11)
     RETURNING *`,
     [
       tenantId,
@@ -177,10 +210,17 @@ export const createLesson = async (
       duration,
       data.lessonType || 'behind_wheel',
       data.cost || 0,
+      data.pickupAddress || null,
     ]
   );
 
   const lesson = result.rows[0] as Lesson;
+  console.log('✅ [LessonService] Lesson created successfully:', {
+    lessonId: lesson.id,
+    date: lesson.date,
+    status: lesson.status,
+    pickupAddress: lesson.pickupAddress,
+  });
 
   // BDP Phase 1: Record 1% treasury split on lesson booking (Patent Claim #2)
   if (lesson.cost && lesson.cost > 0) {

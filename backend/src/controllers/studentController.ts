@@ -94,7 +94,7 @@ export const updateStudent = asyncHandler(async (req: Request, res: Response) =>
 
 /**
  * @route   DELETE /api/v1/students/:id
- * @desc    Delete student (soft delete)
+ * @desc    Delete student (hard delete - will be soft delete with blockchain)
  * @access  Private
  */
 export const deleteStudent = asyncHandler(async (req: Request, res: Response) => {

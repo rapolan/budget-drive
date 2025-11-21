@@ -135,11 +135,14 @@ export const findAvailableSlots = async (
           slotEnd.setHours(Math.floor(slot.end / 60), slot.end % 60, 0, 0);
 
           availableSlots.push({
+            date: dateStr, // Add the date field
             startTime: slotStart.toISOString(),
             endTime: slotEnd.toISOString(),
             instructorId: instId,
             vehicleId: vehicleForLesson ?? null,
             duration,
+            available: true, // Mark as available since we're returning free slots
+            reason: undefined, // No conflict reason since it's available
           });
         }
       }

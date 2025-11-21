@@ -115,6 +115,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                 value={formData.fullName}
                 onChange={handleChange}
                 required
+                autoComplete="off"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>

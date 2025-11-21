@@ -37,7 +37,7 @@ const navigation: NavItem[] = [
   { name: 'Lessons', href: '/lessons', icon: Calendar },
   { name: 'Scheduling', href: '/scheduling', icon: Calendar },
   { name: 'Payments', href: '/payments', icon: CreditCard },
-  { name: 'Treasury', href: '/treasury', icon: Coins },
+  { name: 'Treasury', href: '/treasury', icon: Coins, featureFlag: 'enableBlockchainPayments' },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Notification History', href: '/notification-history', icon: History },
   { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates' },
@@ -51,6 +51,13 @@ export const Sidebar: React.FC = () => {
 
   const filteredNavigation = navigation.filter((item) => {
     if (!item.featureFlag) return true;
+
+    // Handle snake_case from backend (enable_blockchain_payments)
+    if (item.featureFlag === 'enableBlockchainPayments') {
+      return (settings as any)?.enable_blockchain_payments === true;
+    }
+
+    // Handle other feature flags (add conversions as needed)
     return settings?.[item.featureFlag] === true;
   });
 

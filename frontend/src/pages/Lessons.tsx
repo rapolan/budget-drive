@@ -16,6 +16,9 @@ export const LessonsPage: React.FC = () => {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [preselectedInstructorId, setPreselectedInstructorId] = useState<string | null>(null);
+  const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
+  const [preselectedTime, setPreselectedTime] = useState<{ start: string; end: string } | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -42,7 +45,14 @@ export const LessonsPage: React.FC = () => {
   // Fetch availability data for calendar view
   const { data: availabilityData } = useQuery({
     queryKey: ['availability', 'all'],
-    queryFn: () => schedulingApi.getAllInstructorsAvailability(),
+    queryFn: async () => {
+      console.log('=== FETCHING ALL INSTRUCTORS AVAILABILITY ===');
+      const result = await schedulingApi.getAllInstructorsAvailability();
+      console.log('API Result:', result);
+      console.log('Result is array?', Array.isArray(result));
+      console.log('Result length:', result?.length);
+      return result;
+    },
     enabled: viewMode === 'calendar', // Only fetch when in calendar view
   });
 
@@ -78,11 +88,24 @@ export const LessonsPage: React.FC = () => {
   };
 
   const handleAddNew = () => {
+    setPreselectedInstructorId(null);
+    setPreselectedDate(null);
+    setPreselectedTime(null);
+    setIsSmartBookingOpen(true);
+  };
+
+  const handleAvailabilityClick = (instructorId: string, date: Date, startTime: string, endTime: string) => {
+    setPreselectedInstructorId(instructorId);
+    setPreselectedDate(date);
+    setPreselectedTime({ start: startTime, end: endTime });
     setIsSmartBookingOpen(true);
   };
 
   const handleBookingComplete = (lessonId: string) => {
     setIsSmartBookingOpen(false);
+    setPreselectedInstructorId(null);
+    setPreselectedDate(null);
+    setPreselectedTime(null);
     queryClient.invalidateQueries({ queryKey: ['lessons'] });
   };
 
@@ -213,9 +236,10 @@ export const LessonsPage: React.FC = () => {
       {viewMode === 'calendar' && (
         <LessonsCalendarView
           lessons={filteredLessons || []}
-          availability={availabilityData || {}}
+          availability={availabilityData || []}
           instructors={instructorsData?.data || []}
           onLessonClick={handleEdit}
+          onAvailabilityClick={handleAvailabilityClick}
           getStudentName={getStudentName}
           getInstructorName={getInstructorName}
         />
@@ -385,8 +409,18 @@ export const LessonsPage: React.FC = () => {
       {isSmartBookingOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
           <SmartBookingForm
+            preselectedInstructor={
+              preselectedInstructorId
+                ? instructorsData?.data?.find(i => i.id === preselectedInstructorId)
+                : undefined
+            }
             onBookingComplete={handleBookingComplete}
-            onCancel={() => setIsSmartBookingOpen(false)}
+            onCancel={() => {
+              setIsSmartBookingOpen(false);
+              setPreselectedInstructorId(null);
+              setPreselectedDate(null);
+              setPreselectedTime(null);
+            }}
           />
         </div>
       )}

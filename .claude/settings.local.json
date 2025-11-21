@@ -23,7 +23,16 @@
       "Bash(npm install:*)",
       "Bash(npx ts-node:*)",
       "Bash(set:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(npm run db:query:*)",
+      "Bash(dir:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(npm run:*)",
+      "Bash(powershell -Command \"(Get-Content NotificationSettings.tsx) -replace ''bg-primary'', ''bg-blue-600'' | Set-Content NotificationSettings.tsx\")",
+      "Bash(powershell -Command \"(Get-Content Settings.tsx) -replace ''bg-primary'', ''bg-blue-600'' | Set-Content Settings.tsx\")",
+      "Bash(git checkout:*)",
+      "Bash(curl:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

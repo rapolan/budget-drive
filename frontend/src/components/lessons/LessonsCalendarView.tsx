@@ -4,9 +4,10 @@ import type { Lesson, InstructorAvailability, Instructor } from '@/types';
 
 interface LessonsCalendarViewProps {
   lessons: Lesson[];
-  availability: Record<string, InstructorAvailability[]>;
+  availability: InstructorAvailability[] | Record<string, InstructorAvailability[]>;
   instructors: Instructor[];
   onLessonClick: (lesson: Lesson) => void;
+  onAvailabilityClick?: (instructorId: string, date: Date, startTime: string, endTime: string) => void;
   getStudentName: (id: string) => string;
   getInstructorName: (id: string) => string;
 }
@@ -16,6 +17,7 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
   availability,
   instructors,
   onLessonClick,
+  onAvailabilityClick,
   getStudentName,
   getInstructorName,
 }) => {
@@ -66,23 +68,58 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
     const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
     const availabilitySlots: Array<{ instructorId: string; instructorName: string; startTime: string; endTime: string }> = [];
 
-    // Iterate through each instructor's availability
-    Object.entries(availability).forEach(([instructorId, slots]) => {
-      const instructor = instructors.find(i => i.id === instructorId);
-      if (!instructor) return;
+    // Debug logging
+    console.log('=== Availability Debug ===');
+    console.log('Date:', date.toDateString(), 'Day of Week:', dayOfWeek);
+    console.log('Availability data:', availability);
+    console.log('Is Array?', Array.isArray(availability));
+    console.log('Instructors:', instructors);
 
-      // Find slots that match this day of week and are active
-      slots.forEach((slot) => {
+    // Handle both array and object formats
+    if (Array.isArray(availability)) {
+      // Backend returns flat array format
+      availability.forEach((slot) => {
+        console.log('Checking slot:', slot);
+        console.log('  Slot day:', slot.dayOfWeek, 'Target day:', dayOfWeek, 'Match:', slot.dayOfWeek === dayOfWeek);
+        console.log('  Is Active:', slot.isActive);
+
         if (slot.dayOfWeek === dayOfWeek && slot.isActive) {
-          availabilitySlots.push({
-            instructorId,
-            instructorName: instructor.fullName,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-          });
+          const instructor = instructors.find(i => i.id === slot.instructorId);
+          console.log('  Looking for instructor ID:', slot.instructorId);
+          console.log('  Found instructor:', instructor);
+
+          if (instructor) {
+            availabilitySlots.push({
+              instructorId: slot.instructorId,
+              instructorName: instructor.fullName,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            });
+          }
         }
       });
-    });
+    } else {
+      // Object format (instructorId -> slots[])
+      Object.entries(availability).forEach(([instructorId, slots]) => {
+        const instructor = instructors.find(i => i.id === instructorId);
+        if (!instructor) return;
+
+        // Find slots that match this day of week and are active
+        slots.forEach((slot) => {
+          if (slot.dayOfWeek === dayOfWeek && slot.isActive) {
+            availabilitySlots.push({
+              instructorId,
+              instructorName: instructor.fullName,
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            });
+          }
+        });
+      });
+    }
+
+    console.log('Resulting availability slots:', availabilitySlots);
+    console.log('======================');
 
     return availabilitySlots;
   };
@@ -237,9 +274,11 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
 
                 {/* Availability Slots */}
                 {dayAvailability.map((slot, slotIdx) => (
-                  <div
+                  <button
                     key={`avail-${slotIdx}`}
-                    className="w-full rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-1 text-xs"
+                    onClick={() => onAvailabilityClick?.(slot.instructorId, calendarDay.date, slot.startTime, slot.endTime)}
+                    className="w-full rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-1 text-xs hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                    title="Click to book this time slot"
                   >
                     <div className="truncate text-gray-600">
                       {formatTime(slot.startTime)}-{formatTime(slot.endTime)}
@@ -247,7 +286,7 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
                     <div className="truncate text-[10px] text-gray-500">
                       {slot.instructorName} (Available)
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

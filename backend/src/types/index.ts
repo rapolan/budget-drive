@@ -437,6 +437,7 @@ export interface Lesson {
   // Details
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
   lessonType: 'behind_wheel' | 'classroom' | 'road_test_prep';
+  pickupAddress: string | null;
   skillsPracticed: string[] | null;
 
   // Performance
@@ -805,11 +806,14 @@ export interface NotificationQueue {
 
 // Available time slot for booking
 export interface TimeSlot {
+  date: string; // Date string (YYYY-MM-DD format)
   startTime: string; // ISO 8601 datetime
   endTime: string; // ISO 8601 datetime
   instructorId: string;
   vehicleId: string | null;
   duration: number; // minutes
+  available: boolean; // Whether this slot is available for booking
+  reason?: string; // Optional reason if unavailable (conflict reason)
 }
 
 // Request to find available slots

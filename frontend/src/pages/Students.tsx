@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Calendar } from 'lucide-react';
 import { studentsApi } from '@/api';
 import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
+import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 
 export const StudentsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentForBooking, setStudentForBooking] = useState<Student | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
 
@@ -38,6 +41,17 @@ export const StudentsPage: React.FC = () => {
   const handleAddNew = () => {
     setSelectedStudent(null);
     setIsModalOpen(true);
+  };
+
+  const handleBookLesson = (student: Student) => {
+    setStudentForBooking(student);
+    setIsSmartBookingOpen(true);
+  };
+
+  const handleBookingComplete = (lessonId: string) => {
+    setIsSmartBookingOpen(false);
+    setStudentForBooking(null);
+    queryClient.invalidateQueries({ queryKey: ['lessons'] });
   };
 
   const filteredStudents = data?.data?.filter((student) =>
@@ -93,7 +107,7 @@ export const StudentsPage: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-x-auto rounded-lg bg-white shadow">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -112,7 +126,7 @@ export const StudentsPage: React.FC = () => {
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                 Enrollment Date
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 min-w-[160px]">
                 Actions
               </th>
             </tr>
@@ -157,6 +171,13 @@ export const StudentsPage: React.FC = () => {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleBookLesson(student)}
+                        className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
+                        title="Book lesson"
+                      >
+                        <Calendar className="h-5 w-5" />
+                      </button>
                       <button
                         onClick={() => handleEdit(student)}
                         className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
@@ -205,7 +226,7 @@ export const StudentsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Student Modal */}
       {isModalOpen && (
         <StudentModal
           student={selectedStudent}
@@ -213,7 +234,22 @@ export const StudentsPage: React.FC = () => {
             setIsModalOpen(false);
             setSelectedStudent(null);
           }}
+          onBookLesson={handleBookLesson}
         />
+      )}
+
+      {/* SmartBookingForm - for booking lessons */}
+      {isSmartBookingOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <SmartBookingForm
+            preselectedStudent={studentForBooking || undefined}
+            onBookingComplete={handleBookingComplete}
+            onCancel={() => {
+              setIsSmartBookingOpen(false);
+              setStudentForBooking(null);
+            }}
+          />
+        </div>
       )}
     </div>
   );

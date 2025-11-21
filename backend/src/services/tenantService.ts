@@ -244,6 +244,10 @@ export const updateTenantSettings = async (
     fields.push(`enable_blockchain = $${paramCount++}`);
     values.push(data.enableBlockchain);
   }
+  if (data.enableBlockchainPayments !== undefined) {
+    fields.push(`enable_blockchain_payments = $${paramCount++}`);
+    values.push(data.enableBlockchainPayments);
+  }
   if (data.enableGoogleCalendar !== undefined) {
     fields.push(`enable_google_calendar = $${paramCount++}`);
     values.push(data.enableGoogleCalendar);

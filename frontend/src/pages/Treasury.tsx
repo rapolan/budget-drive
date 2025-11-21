@@ -3,7 +3,7 @@
  * BDP Phase 1: Display satoshi-level transaction fees (Craig Wright aligned)
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { treasuryApi } from '../api';
 import { useTenant } from '@/contexts/TenantContext';
@@ -18,6 +18,14 @@ const Treasury: React.FC = () => {
   // Frontend TypeScript types expect camelCase (enableBlockchainPayments)
   // Using type assertion to access the actual field from the API response
   const showBlockchainDetails = (settings as any)?.enable_blockchain_payments === true;
+
+  // Track settings changes
+  useEffect(() => {
+    console.log('🔄 TREASURY - SETTINGS CHANGED!');
+    console.log('   New settings:', settings);
+    console.log('   enable_blockchain_payments:', (settings as any)?.enable_blockchain_payments);
+    console.log('   showBlockchainDetails:', showBlockchainDetails);
+  }, [settings, showBlockchainDetails]);
 
   // Helper to generate WhatsOnChain URL
   const getWhatsOnChainUrl = (txid: string) => {
@@ -195,21 +203,23 @@ const Treasury: React.FC = () => {
           </div>
         </div>
 
-        {/* Provider Share */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Provider Share</p>
-              <p className="text-2xl font-bold text-gray-900 mt-2">99.999996%</p>
-              <p className="text-xs text-gray-500 mt-1">
-                ${statistics?.total_provider?.toLocaleString() || '0'}
-              </p>
-            </div>
-            <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center">
-              <Check className="h-6 w-6 text-yellow-600" />
+        {/* Provider Share - Only show in power mode */}
+        {showBlockchainDetails && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Provider Share</p>
+                <p className="text-2xl font-bold text-gray-900 mt-2">99.999996%</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  ${statistics?.total_provider?.toLocaleString() || '0'}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Check className="h-6 w-6 text-yellow-600" />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Recent Transactions */}
@@ -231,13 +241,15 @@ const Treasury: React.FC = () => {
                   Gross Amount
                 </th>
                 {showBlockchainDetails && (
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fee (Sats)
-                  </th>
+                  <>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fee (Sats)
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fee (USD)
+                    </th>
+                  </>
                 )}
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {showBlockchainDetails ? 'Fee (USD)' : 'Fee'}
-                </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
@@ -267,13 +279,15 @@ const Treasury: React.FC = () => {
                       ${tx.gross_amount.toFixed(2)}
                     </td>
                     {showBlockchainDetails && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-blue-600">
-                        {tx.bsv_satoshis} sats
-                      </td>
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-blue-600">
+                          {tx.bsv_satoshis} sats
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
+                          {treasuryApi.formatCurrency(treasuryApi.satoshisToUSD(tx.bsv_satoshis, BSV_PRICE))}
+                        </td>
+                      </>
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
-                      {treasuryApi.formatCurrency(treasuryApi.satoshisToUSD(tx.bsv_satoshis, BSV_PRICE))}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       {tx.bsv_status === 'pending' && (
                         <span className="inline-flex items-center text-yellow-600">

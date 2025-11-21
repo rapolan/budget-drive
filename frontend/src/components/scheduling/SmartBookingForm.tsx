@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Calendar, List } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { TimeSlot, SchedulingConflict, Student, Instructor } from '@/types';
+import { WeeklySlotView } from './WeeklySlotView';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -16,9 +18,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   onBookingComplete,
   onCancel,
 }) => {
-  const [step, setStep] = useState<'select' | 'slots' | 'payment' | 'confirm'>('select');
+  const [step, setStep] = useState<'select' | 'slots' | 'details' | 'confirm'>('select');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slotViewMode, setSlotViewMode] = useState<'list' | 'calendar'>('calendar');
 
   // Form data
   const [selectedInstructorId, setSelectedInstructorId] = useState(
@@ -28,6 +31,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [duration, setDuration] = useState(60);
   const [lessonType, setLessonType] = useState<'behind_wheel' | 'classroom' | 'observation' | 'road_test'>('behind_wheel');
   const [cost, setCost] = useState(50);
+  const [pickupAddress, setPickupAddress] = useState('');
 
   // Payment data
   const [payNow, setPayNow] = useState(false);
@@ -125,6 +129,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     try {
       setLoading(true);
       setError(null);
+
       const slots = await schedulingApi.findAvailableSlots({
         instructorId: selectedInstructorId,
         startDate: dateRange.startDate,
@@ -151,6 +156,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
     setSelectedSlot(slot);
 
+    // Pre-fill pickup address with student's home address
+    const student = students.find(s => s.id === selectedStudentId);
+    if (student && student.address) {
+      setPickupAddress(student.address);
+    }
+
     // Check for conflicts
     try {
       setLoading(true);
@@ -168,7 +179,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setShowConflicts(conflictList.length > 0);
 
       if (conflictList.length === 0) {
-        setStep('payment');
+        setStep('details');
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to check conflicts');
@@ -189,12 +200,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         studentId: selectedStudentId,
         instructorId: selectedInstructorId,
         vehicleId: null, // Vehicle will be assigned separately
-        date: selectedSlot.date,
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
+        scheduledStart: selectedSlot.startTime,
+        scheduledEnd: selectedSlot.endTime,
         duration,
         lessonType,
         cost,
+        pickupAddress: pickupAddress || null, // Lesson-specific pickup address
         // Payment data - will be used once backend supports it
         // TODO: Backend needs to support payment data on lesson creation
         ...(payNow && {
@@ -223,7 +234,20 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       month: 'short',
       day: 'numeric',
     });
-    return `${dayName}, ${formattedDate} at ${slot.startTime}`;
+
+    // Format the time from ISO 8601 to readable format
+    const startTime = new Date(slot.startTime);
+    const endTime = new Date(slot.endTime);
+    const formatTime = (date: Date) => {
+      const hours = date.getUTCHours();
+      const minutes = date.getUTCMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const displayMinutes = minutes.toString().padStart(2, '0');
+      return `${displayHours}:${displayMinutes} ${ampm}`;
+    };
+
+    return `${dayName}, ${formattedDate} at ${formatTime(startTime)} - ${formatTime(endTime)}`;
   };
 
   const getConflictIcon = (type: string): string => {
@@ -456,12 +480,39 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             <h3 className="text-lg font-semibold text-gray-900">
               Available Time Slots ({availableSlots.length})
             </h3>
-            <button
-              onClick={() => setStep('select')}
-              className="px-3 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
-            >
-              ← Change Criteria
-            </button>
+            <div className="flex items-center space-x-3">
+              {/* View Toggle */}
+              <div className="flex rounded-md border border-gray-300 bg-white">
+                <button
+                  onClick={() => setSlotViewMode('list')}
+                  className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
+                    slotViewMode === 'list'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="List view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setSlotViewMode('calendar')}
+                  className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
+                    slotViewMode === 'calendar'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                  title="Calendar view"
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => setStep('select')}
+                className="px-3 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+              >
+                ← Change Criteria
+              </button>
+            </div>
           </div>
 
           {availableSlots.length === 0 ? (
@@ -469,22 +520,42 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               No available slots found in the selected date range. Try adjusting your criteria.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-              {availableSlots.map((slot, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleSelectSlot(slot)}
-                  className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
-                >
-                  <div className="font-semibold text-gray-900">
-                    {formatSlotTime(slot)}
-                  </div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    {slot.startTime} - {slot.endTime}
-                  </div>
-                </button>
-              ))}
-            </div>
+            <>
+              {/* Calendar View */}
+              {slotViewMode === 'calendar' && (
+                <WeeklySlotView
+                  availableSlots={availableSlots}
+                  onSelectSlot={handleSelectSlot}
+                  selectedSlot={selectedSlot}
+                />
+              )}
+
+              {/* List View */}
+              {slotViewMode === 'list' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+                  {availableSlots.map((slot, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSelectSlot(slot)}
+                      className={`p-4 border-2 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left ${
+                        selectedSlot &&
+                        selectedSlot.date === slot.date &&
+                        selectedSlot.startTime === slot.startTime
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="font-semibold text-gray-900">
+                        {formatSlotTime(slot)}
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {slot.startTime} - {slot.endTime}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -515,97 +586,115 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         </div>
       )}
 
-      {/* Step 3: Payment */}
-      {step === 'payment' && selectedSlot && (
+      {/* Step 3: Booking Details */}
+      {step === 'details' && selectedSlot && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Payment Details</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Booking Details</h3>
 
+          {/* Scheduled Time */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-700 font-medium">Lesson Cost:</span>
-              <span className="text-xl font-bold text-gray-900">${cost.toFixed(2)}</span>
-            </div>
-            <div className="text-sm text-gray-600">
-              {formatSlotTime(selectedSlot)} • {duration} minutes
+            <div className="flex items-center mb-2">
+              <span className="text-2xl mr-3">📅</span>
+              <div>
+                <div className="text-sm text-gray-600 font-medium">Scheduled Time</div>
+                <div className="text-lg font-bold text-gray-900">{formatSlotTime(selectedSlot)}</div>
+                <div className="text-sm text-gray-600">{duration} minutes • {lessonType.replace(/_/g, ' ')}</div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {/* Pay Now Checkbox */}
-            <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
-              <input
-                type="checkbox"
-                id="payNow"
-                checked={payNow}
-                onChange={(e) => {
-                  setPayNow(e.target.checked);
-                  if (e.target.checked) {
-                    setPaymentAmount(cost);
-                  } else {
-                    setPaymentAmount(0);
-                  }
-                }}
-                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="payNow" className="text-sm font-medium text-gray-700 cursor-pointer">
-                Record payment now (default: Pay Later)
-              </label>
-            </div>
-
-            {/* Payment Details - Only show if payNow is checked */}
-            {payNow && (
-              <div className="space-y-4 border-l-4 border-blue-500 pl-4 ml-2">
-                {/* Payment Amount */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Amount *
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
-                      min="0"
-                      max={cost}
-                      step="0.01"
-                      className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  {paymentAmount > 0 && paymentAmount < cost && (
-                    <p className="mt-1 text-sm text-amber-600">
-                      Partial payment: ${(cost - paymentAmount).toFixed(2)} remaining
-                    </p>
-                  )}
-                </div>
-
-                {/* Payment Method */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Payment Method *
-                  </label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="credit_card">Credit Card</option>
-                    <option value="check">Check</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
+          {/* Student Details */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <span className="text-2xl mr-3">👤</span>
+              <div className="flex-1">
+                <div className="text-sm text-gray-600 font-medium mb-2">Student Information</div>
+                {(() => {
+                  const student = students.find(s => s.id === selectedStudentId);
+                  return student ? (
+                    <>
+                      <div className="font-semibold text-gray-900">{student.fullName}</div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <div>📧 {student.email}</div>
+                        <div>📞 {student.phone}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-gray-500">No student selected</div>
+                  );
+                })()}
               </div>
-            )}
+            </div>
+          </div>
 
-            {/* Info Message */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <p className="text-sm text-gray-600">
-                {payNow
-                  ? "💡 Payment will be recorded with this lesson booking."
-                  : "💡 No payment will be recorded. You can add payment later from the Payments page."}
-              </p>
+          {/* Pickup Address */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <span className="text-2xl mr-3">📍</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm text-gray-600 font-medium">Pickup Location for This Lesson</div>
+                  {(() => {
+                    const student = students.find(s => s.id === selectedStudentId);
+                    return student?.address && pickupAddress !== student.address ? (
+                      <button
+                        onClick={() => setPickupAddress(student.address)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Use Home Address
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
+                <textarea
+                  value={pickupAddress}
+                  onChange={(e) => setPickupAddress(e.target.value)}
+                  placeholder="Enter pickup address for this lesson..."
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  💡 This is where the instructor will pick up the student. It can be different from their home address.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Instructor Details */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <span className="text-2xl mr-3">👨‍🏫</span>
+              <div className="flex-1">
+                <div className="text-sm text-gray-600 font-medium mb-2">Instructor Information</div>
+                {(() => {
+                  const instructor = instructors.find(i => i.id === selectedInstructorId);
+                  return instructor ? (
+                    <>
+                      <div className="font-semibold text-gray-900">{instructor.fullName}</div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        <div>📧 {instructor.email}</div>
+                        <div>📞 {instructor.phone}</div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-gray-500">No instructor selected</div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Lesson Cost */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="text-2xl mr-3">💰</span>
+                <div className="text-sm text-gray-600 font-medium">Lesson Cost</div>
+              </div>
+              <div className="text-2xl font-bold text-green-700">${cost.toFixed(2)}</div>
+            </div>
+            <div className="text-xs text-gray-600 mt-2 ml-11">
+              Payment can be recorded after the lesson
             </div>
           </div>
 
@@ -620,7 +709,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               onClick={() => setStep('confirm')}
               className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
-              Continue to Review
+              Continue to Confirm
             </button>
           </div>
         </div>
@@ -683,7 +772,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
           <div className="flex space-x-3">
             <button
-              onClick={() => setStep('payment')}
+              onClick={() => setStep('details')}
               className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
             >
               Go Back

@@ -34,11 +34,11 @@ export const schedulingApi = {
   /**
    * Get all instructors' availability (admin view)
    */
-  async getAllInstructorsAvailability(): Promise<Record<string, InstructorAvailability[]>> {
-    const response = await apiClient.get<ApiResponse<Record<string, InstructorAvailability[]>>>(
+  async getAllInstructorsAvailability(): Promise<InstructorAvailability[]> {
+    const response = await apiClient.get<ApiResponse<InstructorAvailability[]>>(
       '/availability/all'
     );
-    return response.data.data || {};
+    return response.data.data || [];
   },
 
   /**

@@ -197,14 +197,16 @@ export const updateStudent = async (
 };
 
 /**
- * Delete student (soft delete by setting status to inactive)
+ * Delete student (hard delete for now, will be soft delete when blockchain is implemented)
+ * NOTE: When blockchain is integrated, this will change to set a deleted_at timestamp
+ * instead of actually removing the record, since blockchain data is immutable.
  */
 export const deleteStudent = async (
   id: string,
   tenantId: string
 ): Promise<void> => {
   const result = await query(
-    `UPDATE students SET status = 'inactive'
+    `DELETE FROM students
      WHERE id = $1 AND tenant_id = $2
      RETURNING id`,
     [id, tenantId]
