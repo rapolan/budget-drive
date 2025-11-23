@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, UserCheck, Car, Calendar, CreditCard, TrendingUp } from 'lucide-react';
+import * as Icons from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   // TODO: Fetch real data from API
@@ -7,42 +7,42 @@ export const DashboardPage: React.FC = () => {
     {
       name: 'Total Students',
       value: '0',
-      icon: Users,
+      icon: Icons.Users,
       color: 'bg-blue-500',
       change: '+0%',
     },
     {
       name: 'Active Instructors',
       value: '0',
-      icon: UserCheck,
+      icon: Icons.UserCheck,
       color: 'bg-green-500',
       change: '+0%',
     },
     {
       name: 'Vehicles',
       value: '0',
-      icon: Car,
+      icon: Icons.Car,
       color: 'bg-purple-500',
       change: '+0%',
     },
     {
       name: 'Lessons This Week',
       value: '0',
-      icon: Calendar,
+      icon: Icons.Calendar,
       color: 'bg-yellow-500',
       change: '+0%',
     },
     {
       name: 'Revenue This Month',
       value: '$0',
-      icon: CreditCard,
+      icon: Icons.CreditCard,
       color: 'bg-pink-500',
       change: '+0%',
     },
     {
       name: 'Growth Rate',
       value: '0%',
-      icon: TrendingUp,
+      icon: Icons.TrendingUp,
       color: 'bg-indigo-500',
       change: '+0%',
     },
