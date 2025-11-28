@@ -412,6 +412,13 @@ const transformSchedulingSettings = (row: any): SchedulingSettings => ({
   minHoursAdvanceBooking: row.min_hours_advance_booking,
   maxDaysAdvanceBooking: row.max_days_advance_booking,
   defaultLessonDuration: row.default_lesson_duration,
+  defaultMaxStudentsPerDay: row.default_max_students_per_day ?? 3, // Fallback to 3 if null
+  lessonDurationTemplates: row.lesson_duration_templates ?? [
+    { name: 'Quick (1 hour)', minutes: 60 },
+    { name: 'Standard (2 hours)', minutes: 120 },
+    { name: 'Extended (2.5 hours)', minutes: 150 },
+    { name: 'Intensive (3 hours)', minutes: 180 }
+  ], // Fallback to default templates if null
   allowBackToBackLessons: row.allow_back_to_back_lessons,
   defaultWorkStartTime: row.default_work_start_time,
   defaultWorkEndTime: row.default_work_end_time,
@@ -472,6 +479,10 @@ export const updateSchedulingSettings = async (
   if (data.defaultLessonDuration !== undefined) {
     fields.push(`default_lesson_duration = $${paramCount++}`);
     values.push(data.defaultLessonDuration);
+  }
+  if (data.defaultMaxStudentsPerDay !== undefined) {
+    fields.push(`default_max_students_per_day = $${paramCount++}`);
+    values.push(data.defaultMaxStudentsPerDay);
   }
   if (data.allowBackToBackLessons !== undefined) {
     fields.push(`allow_back_to_back_lessons = $${paramCount++}`);

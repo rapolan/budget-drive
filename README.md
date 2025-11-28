@@ -5,8 +5,8 @@ A comprehensive multi-tenant driving school management platform with **smart sch
 ## Current Status
 
 **Phase:** BDP Phase 1 (Treasury + Notifications)
-**Version:** 0.5.0
-**Last Updated:** November 11, 2025
+**Version:** 0.5.1
+**Last Updated:** November 28, 2025
 
 ### ✅ Completed Features
 **Phase 1-3: Core System**
@@ -18,11 +18,13 @@ A comprehensive multi-tenant driving school management platform with **smart sch
 
 **Phase 4A: Smart Scheduling**
 - 6-dimensional conflict detection (Patent Claim #1)
+- **Capacity-based scheduling** - Generate exact N slots per day (not time ranges)
 - Intelligent slot finding algorithm
-- 30-minute buffer time management
+- Auto-calculated end times (instructors set start time only)
+- Configurable buffer times and lesson durations
 - Vehicle ownership tracking (school vs instructor-owned)
 - Availability calendar + time-off system
-- 3-step booking wizard
+- 3-step booking wizard with capacity indicators
 
 **Phase 4B: Google Calendar Integration**
 - OAuth 2.0 two-way sync
@@ -127,15 +129,19 @@ cd frontend && npm run dev
 - **[PATENT_DOCUMENTATION.md](PATENT_DOCUMENTATION.md)** - Patent claims and technical disclosure
 - **[TREASURY_TEST_GUIDE.md](TREASURY_TEST_GUIDE.md)** - Testing guide for satoshi-level fees
 - **[BLOCKCHAIN_ROADMAP.md](BLOCKCHAIN_ROADMAP.md)** - BSV integration roadmap
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[MOBILE_APP_ROADMAP.md](MOBILE_APP_ROADMAP.md)** - Instructor mobile app vision (command center)
+- **[docs/SESSION_CAPACITY_SCHEDULING.md](docs/SESSION_CAPACITY_SCHEDULING.md)** - Latest session: Capacity-based scheduling
 - **[docs/archived_phases/](docs/archived_phases/)** - Completed phase documentation
 
 ## Key Features
 
 ### Smart Scheduling
+- **Capacity-based slot generation** - Exactly N slots per day (not time ranges)
 - Intelligent slot finding with gap detection
 - 6 types of conflict detection (instructor, vehicle, student, time-off, hours, buffer)
-- Configurable buffer times
+- Configurable buffer times and lesson durations
+- Auto-calculated instructor end times
+- Visual capacity indicators ("3 avail" badges)
 - Vehicle ownership tracking
 
 ### API Highlights

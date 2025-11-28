@@ -137,6 +137,11 @@ export interface Instructor {
   providesOwnVehicle: boolean;
   mileageReimbursementRate: number;
 
+  // Capacity-based scheduling
+  maxStudentsPerDay: number | null; // Override for max students per day (null = use tenant default)
+  prefersOwnVehicle: boolean; // Whether instructor prefers their own vehicle
+  defaultVehicleId: string | null; // Default vehicle to use for lessons
+
   // Availability
   availability: any; // JSONB
   hourlyRate: number | null;
@@ -765,6 +770,11 @@ export interface InstructorTimeOff {
   updatedAt: Date;
 }
 
+export interface LessonDurationTemplate {
+  name: string;
+  minutes: number;
+}
+
 export interface SchedulingSettings {
   id: string;
   tenantId: string;
@@ -773,7 +783,9 @@ export interface SchedulingSettings {
   bufferTimeAfterLastLesson: number; // minutes
   minHoursAdvanceBooking: number; // hours
   maxDaysAdvanceBooking: number; // days
-  defaultLessonDuration: number; // minutes
+  defaultLessonDuration: number; // minutes (default: 120)
+  defaultMaxStudentsPerDay: number; // max students per instructor per day (default: 3)
+  lessonDurationTemplates: LessonDurationTemplate[]; // pre-configured duration options
   allowBackToBackLessons: boolean;
   defaultWorkStartTime: string; // HH:MM:SS format
   defaultWorkEndTime: string; // HH:MM:SS format

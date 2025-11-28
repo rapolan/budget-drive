@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { schedulingApi } from '@/api';
 import { InstructorAvailability, CreateAvailabilityInput } from '@/types';
+import { Info } from 'lucide-react';
 
 interface AvailabilityEditorProps {
   instructorId: string;
@@ -26,18 +27,41 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [schedulingSettings, setSchedulingSettings] = useState<any>(null);
+  const [loadingSettings, setLoadingSettings] = useState(true);
 
   const [formData, setFormData] = useState<CreateAvailabilityInput>({
     instructorId,
     dayOfWeek: 1,
     startTime: '09:00',
-    endTime: '17:00',
+    endTime: '16:00', // Will be calculated automatically but backend still requires it
     isActive: true,
   });
 
   useEffect(() => {
     loadAvailability();
+    loadSchedulingSettings();
   }, [instructorId]);
+
+  const loadSchedulingSettings = async () => {
+    try {
+      setLoadingSettings(true);
+      const response = await fetch('http://localhost:3000/api/v1/availability/settings', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
+        },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        setSchedulingSettings(result.data);
+      }
+    } catch (err) {
+      console.error('Error loading scheduling settings:', err);
+    } finally {
+      setLoadingSettings(false);
+    }
+  };
 
   const loadAvailability = async () => {
     try {
@@ -53,20 +77,51 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
     }
   };
 
+  // Calculate end time based on capacity-based scheduling
+  const calculateEndTime = (startTime: string): string => {
+    if (!schedulingSettings) return '16:00';
+
+    const defaultLessonDuration = schedulingSettings.defaultLessonDuration || 120;
+    const bufferTime = schedulingSettings.bufferTimeBetweenLessons || 30;
+    const maxStudents = schedulingSettings.defaultMaxStudentsPerDay || 3;
+
+    // Parse start time
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startMinutes = hours * 60 + minutes;
+
+    // Calculate total time needed: (lesson_duration × max_students) + (buffer × (max_students - 1))
+    const totalMinutes = (defaultLessonDuration * maxStudents) + (bufferTime * (maxStudents - 1));
+    const endMinutes = startMinutes + totalMinutes;
+
+    // Convert back to HH:MM format
+    const endHours = Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
+
+    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       setSaving(true);
       setError(null);
-      await schedulingApi.createAvailability(formData);
+
+      // Calculate end time automatically
+      const calculatedEndTime = calculateEndTime(formData.startTime);
+
+      await schedulingApi.createAvailability({
+        ...formData,
+        endTime: calculatedEndTime,
+      });
+
       await loadAvailability();
       setShowAddForm(false);
       setFormData({
         instructorId,
         dayOfWeek: 1,
         startTime: '09:00',
-        endTime: '17:00',
+        endTime: '16:00',
         isActive: true,
       });
       onUpdate?.();
@@ -110,13 +165,15 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
     return DAYS_OF_WEEK.find((d) => d.value === dayOfWeek)?.label || 'Unknown';
   };
 
-  if (loading) {
+  if (loading || loadingSettings) {
     return (
       <div className="flex items-center justify-center h-32">
         <div className="text-gray-500">Loading availability...</div>
       </div>
     );
   }
+
+  const calculatedEndTime = calculateEndTime(formData.startTime);
 
   return (
     <div className="space-y-4">
@@ -126,9 +183,24 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
         </div>
       )}
 
+      {/* Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start space-x-3">
+        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+        <div className="text-sm text-blue-800">
+          <p className="font-semibold mb-1">Capacity-Based Scheduling</p>
+          <p>
+            Set only the <strong>start time</strong> for each day. End time is automatically calculated based on school settings:{' '}
+            <strong>{schedulingSettings?.defaultMaxStudentsPerDay || 3} students/day</strong>,{' '}
+            <strong>{schedulingSettings?.defaultLessonDuration || 120} min lessons</strong>,{' '}
+            <strong>{schedulingSettings?.bufferTimeBetweenLessons || 30} min buffer</strong>.
+          </p>
+        </div>
+      </div>
+
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-900">Weekly Availability</h3>
         <button
+          type="button"
           onClick={() => setShowAddForm(!showAddForm)}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
@@ -138,7 +210,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
 
       {showAddForm && (
         <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-lg space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Day of Week
@@ -149,6 +221,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                   setFormData({ ...formData, dayOfWeek: parseInt(e.target.value) })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                title="Select day of week"
                 required
               >
                 {DAYS_OF_WEEK.map((day) => (
@@ -170,19 +243,9 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Time
-              </label>
-              <input
-                type="time"
-                value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+              <p className="text-xs text-gray-600 mt-1">
+                Day ends around <strong>{calculatedEndTime}</strong> ({schedulingSettings?.defaultMaxStudentsPerDay || 3} students × {schedulingSettings?.defaultLessonDuration || 120} min + buffers)
+              </p>
             </div>
           </div>
 
@@ -209,7 +272,10 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                   Day
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Time Range
+                  Start Time
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Calculated End Time
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -225,8 +291,12 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {getDayLabel(slot.dayOfWeek)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                    {slot.startTime}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {slot.startTime} - {slot.endTime}
+                    ~{slot.endTime}
+                    <span className="text-xs text-gray-400 ml-2">(auto-calculated)</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span

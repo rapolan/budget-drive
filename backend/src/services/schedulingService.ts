@@ -59,17 +59,26 @@ export const findAvailableSlots = async (
 
     // Check each instructor
     for (const instId of instructorsToCheck) {
-      // Get instructor's availability for this day of week
-      const availabilityResult = await query(
-        `SELECT * FROM instructor_availability
-         WHERE instructor_id = $1 AND tenant_id = $2 AND day_of_week = $3 AND is_active = true
-         ORDER BY start_time`,
+      // Get instructor's capacity and availability for this day of week
+      const instructorResult = await query(
+        `SELECT ia.start_time, i.max_students_per_day, i.prefers_own_vehicle, i.default_vehicle_id
+         FROM instructor_availability ia
+         JOIN instructors i ON i.id = ia.instructor_id
+         WHERE ia.instructor_id = $1 AND ia.tenant_id = $2 AND ia.day_of_week = $3 AND ia.is_active = true
+         ORDER BY ia.start_time
+         LIMIT 1`,
         [instId, tenantId, dayOfWeek]
       );
 
-      if (availabilityResult.rows.length === 0) {
+      if (instructorResult.rows.length === 0) {
         continue; // Instructor doesn't work on this day
       }
+
+      const instructorData = instructorResult.rows[0];
+      const blockStart = timeToMinutes(instructorData.start_time);
+
+      // Determine max students per day (instructor override or tenant default)
+      const maxSlotsPerDay = instructorData.max_students_per_day || settings.defaultMaxStudentsPerDay;
 
       // Check for time off
       const timeOffResult = await query(
@@ -100,51 +109,38 @@ export const findAvailableSlots = async (
       // Get vehicle for this instructor (if they use their own)
       let vehicleForLesson: string | null = vehicleId || null;
       if (!vehicleId) {
-        const instructorVehicleResult = await query(
-          `SELECT default_vehicle_id, prefers_own_vehicle FROM instructors WHERE id = $1`,
-          [instId]
-        );
-        if (instructorVehicleResult.rows.length > 0) {
-          const inst = instructorVehicleResult.rows[0];
-          if (inst.prefers_own_vehicle && inst.default_vehicle_id) {
-            vehicleForLesson = inst.default_vehicle_id;
-          }
+        if (instructorData.prefers_own_vehicle && instructorData.default_vehicle_id) {
+          vehicleForLesson = instructorData.default_vehicle_id;
         }
       }
 
-      // For each availability block, find free slots
-      for (const availBlock of availabilityResult.rows) {
-        const blockStart = timeToMinutes(availBlock.start_time);
-        const blockEnd = timeToMinutes(availBlock.end_time);
+      // Generate capacity-based slots
+      const slots = findSlotsInBlock(
+        blockStart,
+        maxSlotsPerDay,
+        existingLessons,
+        duration,
+        bufferTime
+      );
 
-        // Find gaps between existing lessons
-        const slots = findSlotsInBlock(
-          blockStart,
-          blockEnd,
-          existingLessons,
+      // Create TimeSlot objects
+      for (const slot of slots) {
+        const slotStart = new Date(currentDate);
+        slotStart.setHours(Math.floor(slot.start / 60), slot.start % 60, 0, 0);
+
+        const slotEnd = new Date(currentDate);
+        slotEnd.setHours(Math.floor(slot.end / 60), slot.end % 60, 0, 0);
+
+        availableSlots.push({
+          date: dateStr,
+          startTime: slotStart.toISOString(),
+          endTime: slotEnd.toISOString(),
+          instructorId: instId,
+          vehicleId: vehicleForLesson ?? null,
           duration,
-          bufferTime
-        );
-
-        // Create TimeSlot objects
-        for (const slot of slots) {
-          const slotStart = new Date(currentDate);
-          slotStart.setHours(Math.floor(slot.start / 60), slot.start % 60, 0, 0);
-
-          const slotEnd = new Date(currentDate);
-          slotEnd.setHours(Math.floor(slot.end / 60), slot.end % 60, 0, 0);
-
-          availableSlots.push({
-            date: dateStr, // Add the date field
-            startTime: slotStart.toISOString(),
-            endTime: slotEnd.toISOString(),
-            instructorId: instId,
-            vehicleId: vehicleForLesson ?? null,
-            duration,
-            available: true, // Mark as available since we're returning free slots
-            reason: undefined, // No conflict reason since it's available
-          });
-        }
+          available: true,
+          reason: undefined,
+        });
       }
     }
 
@@ -156,45 +152,66 @@ export const findAvailableSlots = async (
 };
 
 /**
- * Find free slots within a time block, considering existing lessons
+ * Find free slots within a time block using capacity-based scheduling
+ * Generates ONLY the exact number of slots needed based on max_students_per_day
+ *
+ * @param blockStart - Instructor's start time in minutes since midnight
+ * @param maxSlots - Maximum number of students per day (from settings or instructor override)
+ * @param existingLessons - Already booked lessons for this day
+ * @param duration - Lesson duration in minutes (e.g., 120 for 2 hours)
+ * @param bufferTime - Buffer time between lessons in minutes (e.g., 30)
+ * @returns Array of available time slots
+ *
+ * Example: blockStart=540 (9am), maxSlots=3, duration=120, buffer=30
+ * Generates exactly 3 slots:
+ *   Slot 1: 9:00-11:00 (540-660)
+ *   Slot 2: 11:30-1:30 (690-810)
+ *   Slot 3: 2:00-4:00 (840-960)
  */
 function findSlotsInBlock(
   blockStart: number,
-  blockEnd: number,
+  maxSlots: number,
   existingLessons: any[],
   duration: number,
   bufferTime: number
 ): Array<{ start: number; end: number }> {
   const slots: Array<{ start: number; end: number }> = [];
 
-  if (existingLessons.length === 0) {
-    // No existing lessons - entire block is available
-    if (blockEnd - blockStart >= duration) {
-      slots.push({ start: blockStart, end: blockStart + duration });
-    }
-    return slots;
-  }
-
+  // Generate the theoretical slots for the day (based on capacity, not time range)
+  const theoreticalSlots: Array<{ start: number; end: number }> = [];
   let currentTime = blockStart;
 
-  // Check gaps between lessons
-  for (const lesson of existingLessons) {
-    const lessonStart = timeToMinutes(lesson.start_time);
-    const lessonEnd = timeToMinutes(lesson.end_time);
-    const lessonBuffer = lesson.buffer_time_after || bufferTime;
+  for (let i = 0; i < maxSlots; i++) {
+    const slotStart = currentTime;
+    const slotEnd = currentTime + duration;
 
-    // Check if there's a slot before this lesson
-    if (lessonStart - currentTime >= duration) {
-      slots.push({ start: currentTime, end: currentTime + duration });
-    }
+    theoreticalSlots.push({ start: slotStart, end: slotEnd });
 
-    // Move current time past this lesson and its buffer
-    currentTime = lessonEnd + lessonBuffer;
+    // Move to next slot (add lesson duration + buffer)
+    currentTime = slotEnd + bufferTime;
   }
 
-  // Check if there's a slot after the last lesson
-  if (blockEnd - currentTime >= duration) {
-    slots.push({ start: currentTime, end: currentTime + duration });
+  // Filter out slots that conflict with existing lessons
+  for (const theoreticalSlot of theoreticalSlots) {
+    let hasConflict = false;
+
+    for (const lesson of existingLessons) {
+      const lessonStart = timeToMinutes(lesson.start_time);
+      const lessonEnd = timeToMinutes(lesson.end_time);
+
+      // Check if theoretical slot overlaps with existing lesson
+      if (
+        (theoreticalSlot.start < lessonEnd && theoreticalSlot.end > lessonStart) ||
+        (theoreticalSlot.start >= lessonStart && theoreticalSlot.start < lessonEnd)
+      ) {
+        hasConflict = true;
+        break;
+      }
+    }
+
+    if (!hasConflict) {
+      slots.push(theoreticalSlot);
+    }
   }
 
   return slots;
