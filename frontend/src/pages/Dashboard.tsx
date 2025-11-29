@@ -1,54 +1,79 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Users, UserCheck, Car, Calendar, CreditCard, TrendingUp, Plus, DollarSign } from 'lucide-react';
-import { studentsApi, instructorsApi, vehiclesApi, paymentsApi, lessonsApi } from '@/api';
+import { useNavigate } from 'react-router-dom';
+import { Users, UserCheck, Calendar, CreditCard, Plus, DollarSign, AlertCircle, Clock, CheckCircle, TrendingUp } from 'lucide-react';
+import { studentsApi, instructorsApi, paymentsApi, lessonsApi } from '@/api';
 import { StudentModal } from '@/components/students/StudentModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
-import { LessonModal } from '@/components/lessons/LessonModal';
+import { DashboardSkeleton } from '@/components/common/Skeleton';
+import type { Student } from '@/types';
+import { computeStudentStatus, studentNeedsFollowup as checkNeedsFollowup } from '@/utils/studentStatus';
 
 export const DashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
 
   // Fetch real data for stats
-  const { data: studentsData } = useQuery({
+  const { data: studentsData, isLoading: studentsLoading } = useQuery({
     queryKey: ['students'],
     queryFn: () => studentsApi.getAll(1, 1000),
   });
 
-  const { data: instructorsData } = useQuery({
+  const { data: instructorsData, isLoading: instructorsLoading } = useQuery({
     queryKey: ['instructors'],
     queryFn: () => instructorsApi.getAll(),
   });
 
-  const { data: vehiclesData } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => vehiclesApi.getAll(),
-  });
-
-  const { data: paymentsData } = useQuery({
+  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
     queryKey: ['payments'],
     queryFn: () => paymentsApi.getAll(),
   });
 
-  const { data: lessonsData } = useQuery({
+  const { data: lessonsData, isLoading: lessonsLoading } = useQuery({
     queryKey: ['lessons'],
     queryFn: () => lessonsApi.getAll(1, 1000),
   });
 
   const students = studentsData?.data || [];
   const instructors = instructorsData?.data || [];
-  const vehicles = vehiclesData?.data || [];
   const payments = paymentsData?.data || [];
   const lessons = lessonsData?.data || [];
 
-  // Calculate stats
+  // Show loading skeleton while any data is loading
+  const isLoading = studentsLoading || instructorsLoading || paymentsLoading || lessonsLoading;
+
+  // Calculate stats using computed status
   const activeInstructors = instructors.filter((i) => i.status === 'active').length;
-  const activeStudents = students.filter((s) => s.status === 'active').length;
+
+  // Count active students using computed status
+  const activeStudents = students.filter((s) => {
+    const statusInfo = computeStudentStatus(s, lessons);
+    return statusInfo.status === 'active';
+  }).length;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Today's lessons
+  const todaysLessons = lessons.filter((l) => {
+    const lessonDate = new Date(l.date);
+    const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+    return lessonDay.getTime() === today.getTime() && l.status === 'scheduled';
+  });
+
+  // Upcoming lessons (next 7 days)
+  const next7Days = new Date(today);
+  next7Days.setDate(today.getDate() + 7);
+  const upcomingLessons = lessons.filter((l) => {
+    const lessonDate = new Date(l.date);
+    return lessonDate > now && lessonDate <= next7Days && l.status === 'scheduled';
+  });
+
+  // Students needing followup using utility function
+  const studentsNeedingFollowup = students.filter((s) => checkNeedsFollowup(s, lessons)).length;
 
   // Calculate this month's revenue
-  const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthlyPayments = payments.filter((p) => {
     const paymentDate = new Date(p.date);
@@ -56,18 +81,8 @@ export const DashboardPage: React.FC = () => {
   });
   const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  // Calculate this week's lessons
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
-  endOfWeek.setHours(23, 59, 59, 999);
-
-  const weeklyLessons = lessons.filter((l) => {
-    const lessonDate = new Date(l.date);
-    return lessonDate >= startOfWeek && lessonDate <= endOfWeek && l.status === 'scheduled';
-  });
+  // Outstanding balance
+  const outstandingBalance = students.reduce((sum, s) => sum + (Number(s.outstandingBalance) || 0), 0);
 
   const stats = [
     {
@@ -76,6 +91,8 @@ export const DashboardPage: React.FC = () => {
       icon: Users,
       color: 'bg-blue-500',
       change: `${activeStudents} active`,
+      link: '/students',
+      filter: null,
     },
     {
       name: 'Active Instructors',
@@ -83,20 +100,35 @@ export const DashboardPage: React.FC = () => {
       icon: UserCheck,
       color: 'bg-green-500',
       change: `${instructors.length} total`,
+      link: '/instructors',
+      filter: null,
     },
     {
-      name: 'Vehicles',
-      value: vehicles.length.toString(),
-      icon: Car,
-      color: 'bg-purple-500',
-      change: 'Fleet status',
-    },
-    {
-      name: 'Lessons This Week',
-      value: weeklyLessons.length.toString(),
+      name: "Today's Lessons",
+      value: todaysLessons.length.toString(),
       icon: Calendar,
       color: 'bg-yellow-500',
-      change: `${lessons.filter((l) => l.status === 'scheduled').length} total scheduled`,
+      change: todaysLessons.length === 0 ? 'No lessons today' : 'Scheduled for today',
+      link: '/lessons',
+      filter: null,
+    },
+    {
+      name: 'Upcoming (7 Days)',
+      value: upcomingLessons.length.toString(),
+      icon: Clock,
+      color: 'bg-purple-500',
+      change: 'Next week',
+      link: '/lessons',
+      filter: null,
+    },
+    {
+      name: 'Need Followup',
+      value: studentsNeedingFollowup.toString(),
+      icon: AlertCircle,
+      color: 'bg-orange-500',
+      change: studentsNeedingFollowup === 0 ? 'All good!' : 'Students to contact',
+      link: '/students',
+      filter: 'needsFollowup',
     },
     {
       name: 'Revenue This Month',
@@ -104,15 +136,15 @@ export const DashboardPage: React.FC = () => {
       icon: CreditCard,
       color: 'bg-pink-500',
       change: `${monthlyPayments.length} payments`,
-    },
-    {
-      name: 'Total Payments',
-      value: payments.length.toString(),
-      icon: TrendingUp,
-      color: 'bg-indigo-500',
-      change: 'All time',
+      link: '/payments',
+      filter: null,
     },
   ];
+
+  // Show loading skeleton while data is being fetched
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
@@ -125,13 +157,20 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div
               key={stat.name}
-              className="overflow-hidden rounded-lg bg-white shadow"
+              onClick={() => {
+                if (stat.filter) {
+                  navigate(stat.link, { state: { filter: stat.filter } });
+                } else {
+                  navigate(stat.link);
+                }
+              }}
+              className="overflow-hidden rounded-lg bg-white shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105"
             >
               <div className="p-6">
                 <div className="flex items-center">
@@ -162,10 +201,11 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="rounded-lg bg-white p-6 shadow">
-        <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
+      <div className="rounded-lg bg-white p-4 sm:p-6 shadow">
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900">Quick Actions</h2>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <button
+            type="button"
             onClick={() => setIsStudentModalOpen(true)}
             className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all hover:border-primary hover:bg-blue-50 hover:shadow-sm"
           >
@@ -178,7 +218,8 @@ export const DashboardPage: React.FC = () => {
             </div>
           </button>
           <button
-            onClick={() => setIsLessonModalOpen(true)}
+            type="button"
+            onClick={() => navigate('/lessons', { state: { openSmartBooking: true } })}
             className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all hover:border-primary hover:bg-yellow-50 hover:shadow-sm"
           >
             <div className="rounded-md bg-yellow-100 p-2 text-yellow-600 group-hover:bg-yellow-200">
@@ -186,10 +227,11 @@ export const DashboardPage: React.FC = () => {
             </div>
             <div className="flex-1">
               <p className="font-medium text-gray-900">Schedule Lesson</p>
-              <p className="mt-0.5 text-sm text-gray-500">Book a driving lesson</p>
+              <p className="mt-0.5 text-sm text-gray-500">Smart booking with availability</p>
             </div>
           </button>
           <button
+            type="button"
             onClick={() => setIsPaymentModalOpen(true)}
             className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all hover:border-primary hover:bg-green-50 hover:shadow-sm"
           >
@@ -202,6 +244,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           </button>
           <button
+            type="button"
             disabled
             className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left opacity-60"
           >
@@ -216,11 +259,121 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Today's Schedule */}
+      {todaysLessons.length > 0 && (
+        <div className="rounded-lg bg-white p-6 shadow">
+          <h2 className="text-lg font-semibold text-gray-900">Today's Schedule</h2>
+          <div className="mt-4 space-y-3">
+            {todaysLessons
+              .sort((a, b) => a.startTime.localeCompare(b.startTime))
+              .map((lesson) => {
+                const student = students.find(s => s.id === lesson.studentId);
+                const instructor = instructors.find(i => i.id === lesson.instructorId);
+                return (
+                  <div key={lesson.id} className="flex items-center justify-between border-l-4 border-blue-500 bg-blue-50 p-4 rounded-r">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-blue-600" />
+                        <span className="font-medium text-gray-900">
+                          {lesson.startTime.slice(0, 5)} - {lesson.endTime.slice(0, 5)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {student?.fullName || 'Unknown Student'} with {instructor?.fullName || 'Unknown Instructor'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1 capitalize">
+                        {lesson.lessonType.replace(/_/g, ' ')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
+                        Scheduled
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Recent Activity */}
       <div className="rounded-lg bg-white p-6 shadow">
         <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-        <div className="mt-4">
-          <p className="text-sm text-gray-500">No recent activity to display</p>
+        <div className="mt-4 space-y-3">
+          {(() => {
+            // Get last 5 completed lessons
+            const recentCompletedLessons = lessons
+              .filter(l => l.status === 'completed')
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .slice(0, 3);
+
+            // Get recent enrollments (last 30 days)
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const recentEnrollments = students
+              .filter(s => new Date(s.enrollmentDate) >= thirtyDaysAgo)
+              .sort((a, b) => new Date(b.enrollmentDate).getTime() - new Date(a.enrollmentDate).getTime())
+              .slice(0, 2);
+
+            // Get recent cancellations (last 7 days)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const recentCancellations = lessons
+              .filter(l => l.status === 'cancelled' && new Date(l.date) >= sevenDaysAgo)
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .slice(0, 2);
+
+            const activities = [
+              ...recentCompletedLessons.map(lesson => ({
+                type: 'completed_lesson',
+                date: new Date(lesson.date),
+                icon: CheckCircle,
+                color: 'text-green-600',
+                bgColor: 'bg-green-50',
+                title: 'Lesson Completed',
+                description: `${students.find(s => s.id === lesson.studentId)?.fullName || 'Student'} completed ${lesson.lessonType.replace(/_/g, ' ')}`,
+              })),
+              ...recentEnrollments.map(student => ({
+                type: 'enrollment',
+                date: new Date(student.enrollmentDate),
+                icon: Users,
+                color: 'text-blue-600',
+                bgColor: 'bg-blue-50',
+                title: 'New Enrollment',
+                description: `${student.fullName} enrolled`,
+              })),
+              ...recentCancellations.map(lesson => ({
+                type: 'cancellation',
+                date: new Date(lesson.date),
+                icon: AlertCircle,
+                color: 'text-red-600',
+                bgColor: 'bg-red-50',
+                title: 'Lesson Cancelled',
+                description: `${students.find(s => s.id === lesson.studentId)?.fullName || 'Student'}'s lesson cancelled`,
+              })),
+            ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
+
+            if (activities.length === 0) {
+              return <p className="text-sm text-gray-500">No recent activity to display</p>;
+            }
+
+            return activities.map((activity, index) => {
+              const Icon = activity.icon;
+              return (
+                <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${activity.bgColor}`}>
+                  <Icon className={`h-5 w-5 ${activity.color} mt-0.5`} />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{activity.title}</p>
+                    <p className="text-sm text-gray-600">{activity.description}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {activity.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
 
@@ -237,13 +390,6 @@ export const DashboardPage: React.FC = () => {
         onClose={() => setIsPaymentModalOpen(false)}
         student={null}
       />
-
-      {isLessonModalOpen && (
-        <LessonModal
-          lesson={null}
-          onClose={() => setIsLessonModalOpen(false)}
-        />
-      )}
     </div>
   );
 };

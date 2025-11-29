@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Lesson, InstructorAvailability, Instructor } from '@/types';
+import { DayDetailModal } from './DayDetailModal';
 
 interface LessonsCalendarViewProps {
   lessons: Lesson[];
@@ -22,6 +23,7 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
   getInstructorName,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Get current month/year
   const currentMonth = currentDate.getMonth();
@@ -68,26 +70,12 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
     const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
     const availabilitySlots: Array<{ instructorId: string; instructorName: string; startTime: string; endTime: string }> = [];
 
-    // Debug logging
-    console.log('=== Availability Debug ===');
-    console.log('Date:', date.toDateString(), 'Day of Week:', dayOfWeek);
-    console.log('Availability data:', availability);
-    console.log('Is Array?', Array.isArray(availability));
-    console.log('Instructors:', instructors);
-
     // Handle both array and object formats
     if (Array.isArray(availability)) {
       // Backend returns flat array format
       availability.forEach((slot) => {
-        console.log('Checking slot:', slot);
-        console.log('  Slot day:', slot.dayOfWeek, 'Target day:', dayOfWeek, 'Match:', slot.dayOfWeek === dayOfWeek);
-        console.log('  Is Active:', slot.isActive);
-
         if (slot.dayOfWeek === dayOfWeek && slot.isActive) {
           const instructor = instructors.find(i => i.id === slot.instructorId);
-          console.log('  Looking for instructor ID:', slot.instructorId);
-          console.log('  Found instructor:', instructor);
-
           if (instructor) {
             availabilitySlots.push({
               instructorId: slot.instructorId,
@@ -118,10 +106,26 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
       });
     }
 
-    console.log('Resulting availability slots:', availabilitySlots);
-    console.log('======================');
-
     return availabilitySlots;
+  };
+
+  // Get unique instructors working on a specific day
+  const getInstructorsForDay = (date: Date) => {
+    const dayLessons = getLessonsForDate(date);
+    const dayAvailability = getAvailabilityForDate(date);
+
+    const instructorIds = new Set<string>();
+
+    // Add instructors from lessons
+    dayLessons.forEach(lesson => instructorIds.add(lesson.instructorId));
+
+    // Add instructors from availability
+    dayAvailability.forEach(slot => instructorIds.add(slot.instructorId));
+
+    return Array.from(instructorIds)
+      .map(id => instructors.find(i => i.id === id))
+      .filter((instructor): instructor is Instructor => instructor !== undefined)
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
   };
 
   // Generate calendar days
@@ -163,29 +167,6 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
       date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear()
     );
-  };
-
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes}${ampm}`;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-blue-100 border-blue-300 text-blue-800';
-      case 'completed':
-        return 'bg-green-100 border-green-300 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 border-red-300 text-red-800';
-      case 'no_show':
-        return 'bg-orange-100 border-orange-300 text-orange-800';
-      default:
-        return 'bg-gray-100 border-gray-300 text-gray-800';
-    }
   };
 
   return (
@@ -232,18 +213,25 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
         {/* Calendar days */}
         {calendarDays.map((calendarDay, idx) => {
           const dayLessons = getLessonsForDate(calendarDay.date);
-          const dayAvailability = calendarDay.isCurrentMonth ? getAvailabilityForDate(calendarDay.date) : [];
+          const dayInstructors = calendarDay.isCurrentMonth ? getInstructorsForDay(calendarDay.date) : [];
           const isTodayDate = isToday(calendarDay.date);
+          const hasActivity = dayInstructors.length > 0;
 
           return (
-            <div
+            <button
               key={idx}
-              className={`min-h-[120px] bg-white p-2 ${
-                !calendarDay.isCurrentMonth ? 'bg-gray-50' : ''
+              type="button"
+              onClick={() => calendarDay.isCurrentMonth && hasActivity && setSelectedDate(calendarDay.date)}
+              className={`min-h-[120px] bg-white p-2 text-left transition-colors ${
+                !calendarDay.isCurrentMonth
+                  ? 'bg-gray-50 cursor-default'
+                  : hasActivity
+                  ? 'hover:bg-blue-50 cursor-pointer'
+                  : 'cursor-default'
               }`}
             >
               <div
-                className={`mb-1 text-sm font-medium ${
+                className={`mb-2 text-sm font-medium ${
                   !calendarDay.isCurrentMonth
                     ? 'text-gray-400'
                     : isTodayDate
@@ -253,70 +241,51 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
               >
                 {calendarDay.day}
               </div>
-              <div className="space-y-1 max-h-[90px] overflow-y-auto">
-                {/* Scheduled Lessons */}
-                {dayLessons.map((lesson) => (
-                  <button
-                    key={lesson.id}
-                    onClick={() => onLessonClick(lesson)}
-                    className={`w-full rounded border px-2 py-1 text-left text-xs hover:opacity-80 ${getStatusColor(
-                      lesson.status
-                    )}`}
-                  >
-                    <div className="truncate font-medium">
-                      {formatTime(lesson.startTime)} {getStudentName(lesson.studentId)}
-                    </div>
-                    <div className="truncate text-[10px]">
-                      {getInstructorName(lesson.instructorId)}
-                    </div>
-                  </button>
-                ))}
 
-                {/* Availability Slots */}
-                {dayAvailability.map((slot, slotIdx) => (
-                  <button
-                    key={`avail-${slotIdx}`}
-                    onClick={() => onAvailabilityClick?.(slot.instructorId, calendarDay.date, slot.startTime, slot.endTime)}
-                    className="w-full rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-1 text-xs hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
-                    title="Click to book this time slot"
-                  >
-                    <div className="truncate text-gray-600">
-                      {formatTime(slot.startTime)}-{formatTime(slot.endTime)}
+              {hasActivity && (
+                <div className="space-y-1">
+                  {/* Show lesson count if any */}
+                  {dayLessons.length > 0 && (
+                    <div className="text-xs font-medium text-gray-700 mb-1">
+                      {dayLessons.length} lesson{dayLessons.length !== 1 ? 's' : ''}
                     </div>
-                    <div className="truncate text-[10px] text-gray-500">
-                      {slot.instructorName} (Available)
+                  )}
+
+                  {/* Show instructor names */}
+                  {dayInstructors.map((instructor) => (
+                    <div
+                      key={instructor.id}
+                      className="text-xs text-gray-600 truncate"
+                    >
+                      {instructor.fullName}
                     </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+                  ))}
+                </div>
+              )}
+            </button>
           );
         })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-4 flex flex-wrap gap-4 text-xs">
-        <div className="flex items-center">
-          <div className="mr-2 h-3 w-3 rounded bg-blue-100 border border-blue-300"></div>
-          <span>Scheduled</span>
-        </div>
-        <div className="flex items-center">
-          <div className="mr-2 h-3 w-3 rounded bg-green-100 border border-green-300"></div>
-          <span>Completed</span>
-        </div>
-        <div className="flex items-center">
-          <div className="mr-2 h-3 w-3 rounded bg-red-100 border border-red-300"></div>
-          <span>Cancelled</span>
-        </div>
-        <div className="flex items-center">
-          <div className="mr-2 h-3 w-3 rounded bg-orange-100 border border-orange-300"></div>
-          <span>No Show</span>
-        </div>
-        <div className="flex items-center">
-          <div className="mr-2 h-3 w-3 rounded border border-dashed border-gray-300 bg-gray-50"></div>
-          <span>Available</span>
-        </div>
+      {/* Help text */}
+      <div className="mt-4 text-xs text-gray-500">
+        Click on a day to view detailed schedule and book lessons
       </div>
+
+      {/* Day Detail Modal */}
+      {selectedDate && (
+        <DayDetailModal
+          date={selectedDate}
+          lessons={getLessonsForDate(selectedDate)}
+          availability={getAvailabilityForDate(selectedDate)}
+          instructors={instructors}
+          onClose={() => setSelectedDate(null)}
+          onLessonClick={onLessonClick}
+          onAvailabilityClick={onAvailabilityClick}
+          getStudentName={getStudentName}
+          getInstructorName={getInstructorName}
+        />
+      )}
     </div>
   );
 };
