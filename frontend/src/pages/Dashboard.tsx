@@ -170,18 +170,18 @@ export const DashboardPage: React.FC = () => {
                   navigate(stat.link);
                 }
               }}
-              className="overflow-hidden rounded-lg bg-white shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105"
+              className="group overflow-hidden rounded-lg bg-white shadow cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1"
             >
               <div className="p-6">
                 <div className="flex items-center">
-                  <div className={`rounded-md p-3 ${stat.color}`}>
+                  <div className={`rounded-md p-3 ${stat.color} transition-transform duration-300 group-hover:scale-110`}>
                     <Icon className="h-6 w-6 text-white" />
                   </div>
                   <div className="ml-4 flex-1">
-                    <p className="text-sm font-medium text-gray-500">
+                    <p className="text-sm font-medium text-gray-500 transition-colors duration-200 group-hover:text-gray-700">
                       {stat.name}
                     </p>
-                    <p className="mt-1 text-2xl font-semibold text-gray-900">
+                    <p className="mt-1 text-2xl font-semibold text-gray-900 transition-all duration-200">
                       {stat.value}
                     </p>
                   </div>
@@ -195,6 +195,8 @@ export const DashboardPage: React.FC = () => {
                   </span>
                 </div>
               </div>
+              {/* Subtle bottom accent bar */}
+              <div className={`h-1 ${stat.color} transform scale-x-0 transition-transform duration-300 group-hover:scale-x-100`} />
             </div>
           );
         })}
@@ -207,46 +209,46 @@ export const DashboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsStudentModalOpen(true)}
-            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all hover:border-primary hover:bg-blue-50 hover:shadow-sm"
+            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all duration-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md hover:scale-[1.02]"
           >
-            <div className="rounded-md bg-blue-100 p-2 text-blue-600 group-hover:bg-blue-200">
+            <div className="rounded-md bg-blue-100 p-2 text-blue-600 transition-all duration-200 group-hover:bg-blue-200 group-hover:scale-110">
               <Plus className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <p className="font-medium text-gray-900">Add New Student</p>
+              <p className="font-medium text-gray-900 transition-colors group-hover:text-blue-700">Add New Student</p>
               <p className="mt-0.5 text-sm text-gray-500">Register a new student</p>
             </div>
           </button>
           <button
             type="button"
             onClick={() => navigate('/lessons', { state: { openSmartBooking: true } })}
-            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all hover:border-primary hover:bg-yellow-50 hover:shadow-sm"
+            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all duration-200 hover:border-yellow-300 hover:bg-yellow-50 hover:shadow-md hover:scale-[1.02]"
           >
-            <div className="rounded-md bg-yellow-100 p-2 text-yellow-600 group-hover:bg-yellow-200">
+            <div className="rounded-md bg-yellow-100 p-2 text-yellow-600 transition-all duration-200 group-hover:bg-yellow-200 group-hover:scale-110">
               <Calendar className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <p className="font-medium text-gray-900">Schedule Lesson</p>
+              <p className="font-medium text-gray-900 transition-colors group-hover:text-yellow-700">Schedule Lesson</p>
               <p className="mt-0.5 text-sm text-gray-500">Smart booking with availability</p>
             </div>
           </button>
           <button
             type="button"
             onClick={() => setIsPaymentModalOpen(true)}
-            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all hover:border-primary hover:bg-green-50 hover:shadow-sm"
+            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left transition-all duration-200 hover:border-green-300 hover:bg-green-50 hover:shadow-md hover:scale-[1.02]"
           >
-            <div className="rounded-md bg-green-100 p-2 text-green-600 group-hover:bg-green-200">
+            <div className="rounded-md bg-green-100 p-2 text-green-600 transition-all duration-200 group-hover:bg-green-200 group-hover:scale-110">
               <DollarSign className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <p className="font-medium text-gray-900">Process Payment</p>
+              <p className="font-medium text-gray-900 transition-colors group-hover:text-green-700">Process Payment</p>
               <p className="mt-0.5 text-sm text-gray-500">Record a new payment</p>
             </div>
           </button>
           <button
             type="button"
             disabled
-            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left opacity-60"
+            className="group flex items-start gap-3 rounded-lg border border-gray-200 p-4 text-left opacity-60 cursor-not-allowed"
           >
             <div className="rounded-md bg-purple-100 p-2 text-purple-600">
               <TrendingUp className="h-5 w-5" />

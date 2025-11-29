@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { TimeSlot, Student, Instructor } from '@/types';
+import { ProgressStepper } from '@/components/common';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -248,29 +249,39 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const selectedStudent = students.find((s: Student) => s.id === selectedStudentId);
   const selectedInstructor = instructors.find((i: Instructor) => i.id === selectedInstructorId);
 
+  const bookingSteps = [
+    { number: 1, label: 'Setup' },
+    { number: 2, label: 'Confirm' },
+  ];
+
+  const currentStepNumber = step === 'setup' ? 1 : 2;
+
   return (
     <div className="bg-white rounded-lg shadow-xl max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex justify-between items-center border-b border-gray-200 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Sparkles className="h-6 w-6 text-blue-600" />
+      <div className="border-b border-gray-200 p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Sparkles className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Book a Lesson</h2>
+              <p className="text-sm text-gray-500">Smart booking with availability</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Book a Lesson</h2>
-            <p className="text-sm text-gray-500">
-              {step === 'setup' ? 'Step 1 of 2: Setup Details' : 'Step 2 of 2: Confirm Booking'}
-            </p>
-          </div>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <span className="text-2xl">×</span>
+            </button>
+          )}
         </div>
-        {onCancel && (
-          <button
-            onClick={onCancel}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <span className="text-2xl">×</span>
-          </button>
-        )}
+
+        {/* Progress Stepper */}
+        <ProgressStepper steps={bookingSteps} currentStep={currentStepNumber} />
       </div>
 
       {/* Error Display */}
