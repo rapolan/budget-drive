@@ -2090,4 +2090,101 @@ User shared simplified BDP vision:
 
 ---
 
+## Session 15 - December 2, 2025 (Weekly Schedule UI/UX)
+
+### Focus
+UI/UX improvements to the InstructorWeeklySchedule component and related pages.
+
+### Completed Work
+
+#### 1. InstructorWeeklySchedule.tsx - Major Enhancement
+**Stats Bar Added:**
+- Lessons This Week (blue card)
+- Available Slots (green card)
+- Completed (purple card)
+- Utilization % (amber card)
+
+**Instructor Selector Redesign:**
+- Changed from dropdown to card-style buttons
+- Shows initials in avatar + first name
+- Full name in tooltip on hover
+- Compact design for many instructors
+
+**Enhanced Today Highlighting:**
+- Top gradient bar indicator
+- Pulsing "TODAY" badge
+- Day number in circular badge
+- Gradient background on column
+
+**Capacity Progress Bars:**
+- Per-day visual progress bars
+- Color-coded: green/amber/red
+- Shows booked/max and percentage
+
+**Better Slot Styling:**
+- Available: dashed border, sparkle emoji, gradient, hover scale
+- Booked: gradient avatar, status badge, hover effects
+- Unavailable: subtle circle indicator
+- Time column: dot indicator, clearer formatting
+
+**Improved Legend:**
+- Centered layout matching actual styles
+- Added "Today" indicator
+
+#### 2. Bug Fix - Variable Order
+**Issue:** `ReferenceError: Cannot access 'availabilityData' before initialization`
+**Cause:** `weeklyStats` useMemo referenced `availabilityData` before its `useQuery` definition
+**Fix:** Moved availability query before weeklyStats calculation
+
+#### 3. Earlier in Session (Lessons & Students Pages)
+- Added stats cards to Lessons page with clickable functionality
+- "This Week" card opens weekly view
+- Added stats cards to Students page with comparison toggle
+- Fixed Payments API: `payment_date` → `date` column
+- Database migration: added `default_hours_required` column
+
+### Files Modified
+1. `frontend/src/components/scheduling/InstructorWeeklySchedule.tsx` - Major UI overhaul
+2. `frontend/src/pages/Lessons.tsx` - Stats cards, weekly view integration
+3. `frontend/src/pages/Students.tsx` - Stats cards, comparison toggle
+4. `backend/src/services/paymentService.ts` - Column name fix
+
+### Technical Notes
+- React Query for data fetching
+- useMemo for expensive calculations (weeklyStats, lessons, weeklySchedule)
+- Pre-computed studentMap for O(1) lookups
+- Tailwind CSS with gradients and transitions
+- Lucide React icons throughout
+
+### Code Quality
+- ✅ Proper TypeScript typing
+- ✅ useMemo dependencies correct
+- ✅ Accessible tooltips (title attributes)
+- ✅ Responsive design
+- ✅ Smooth animations
+
+### Lint Warnings (Non-blocking)
+- Inline styles on progress bar (required for dynamic width)
+- Scrollbar-width CSS compatibility
+- Some accessibility warnings (can add titles later)
+
+### Session Statistics
+- **Duration:** ~2 hours
+- **Files Modified:** 4
+- **Bug Fixes:** 2 (variable order, payment_date column)
+- **UI Features Added:** Stats bar, instructor selector, progress bars, slot styling
+- **Breaking Changes:** None
+
+### Deployment Status
+- **Backend:** http://localhost:3000 ✅
+- **Frontend:** http://localhost:5173 ✅
+- **Database:** PostgreSQL ✅
+
+### Next Session Recommendations
+1. **BSV Integration** - Core differentiator (see BLOCKCHAIN_ROADMAP.md)
+2. **Dashboard Improvements** - Match new Lessons/Students style
+3. **Instructor Portal** - Public booking pages
+
+---
+
 *This log is a living document. Update it after completing each phase, fixing major bugs, or making architectural decisions.*

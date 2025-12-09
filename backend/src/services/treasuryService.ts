@@ -21,6 +21,9 @@ import {
 } from '../types/treasury';
 import { getProtocolWallet } from './walletService';
 import { config } from '../config/env';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('TreasuryService');
 
 class TreasuryService {
   // BSV Price (updated periodically - in production, fetch from exchange API)
@@ -109,11 +112,26 @@ class TreasuryService {
    * Phase 3: Enable BSV blockchain writes
    */
   async createTransaction(data: CreateTreasuryTransactionDTO): Promise<TreasuryTransaction> {
+    logger.info('Creating treasury transaction', {
+      tenantId: data.tenant_id,
+      sourceType: data.source_type,
+      sourceId: data.source_id,
+      grossAmount: data.gross_amount,
+    });
+
     // Calculate satoshi-based fee (NOT percentage)
     const actionType = this.mapSourceTypeToBDPAction(data.source_type);
     const feeResult = this.calculateFee(actionType, data.gross_amount);
 
     const { treasury, provider, treasurySatoshis } = feeResult;
+
+    logger.debug('Calculated satoshi-based fee', {
+      tenantId: data.tenant_id,
+      actionType,
+      treasurySatoshis,
+      treasuryUSD: treasury,
+      providerUSD: provider,
+    });
 
     // Insert into PostgreSQL
     const query = `
@@ -155,20 +173,42 @@ class TreasuryService {
     const result = await pool.query(query, values);
     const transaction = result.rows[0];
 
+    logger.info('Treasury transaction created in database', {
+      tenantId: data.tenant_id,
+      transactionId: transaction.id,
+      actionType,
+      treasurySatoshis,
+    });
+
     // Phase 2: BSV blockchain write (enabled via BSV_ENABLED flag)
     if (config.BSV_ENABLED && config.BSV_PROTOCOL_WALLET_WIF) {
       try {
-        console.log(`📤 Broadcasting BSV transaction for ${actionType}...`);
+        logger.info('Broadcasting BSV transaction', {
+          tenantId: data.tenant_id,
+          transactionId: transaction.id,
+          actionType,
+        });
         const bsvTxid = await this.writeToBSVBlockchain(transaction);
         await this.updateBSVStatus(transaction.id, bsvTxid, 'confirmed');
-        console.log(`✅ BSV transaction confirmed: ${bsvTxid}`);
+        logger.info('BSV transaction confirmed', {
+          tenantId: data.tenant_id,
+          transactionId: transaction.id,
+          bsvTxid,
+        });
       } catch (error: any) {
-        console.error('❌ BSV write failed:', error.message);
+        logger.error('BSV write failed (non-blocking)', error, {
+          tenantId: data.tenant_id,
+          transactionId: transaction.id,
+          actionType,
+        });
         await this.updateBSVStatus(transaction.id, null, 'failed');
         // Don't throw - allow transaction to succeed even if BSV fails
       }
     } else {
-      console.log(`⚠️  BSV disabled - transaction recorded in database only`);
+      logger.debug('BSV disabled - transaction recorded in database only', {
+        tenantId: data.tenant_id,
+        transactionId: transaction.id,
+      });
     }
 
     return this.mapToTreasuryTransaction(transaction);
@@ -178,20 +218,32 @@ class TreasuryService {
    * Get treasury balance for tenant
    */
   async getBalance(tenantId: string): Promise<TreasuryBalance | null> {
+    logger.debug('Fetching treasury balance', { tenantId });
+
     const query = 'SELECT * FROM treasury_balances WHERE tenant_id = $1';
     const result = await pool.query(query, [tenantId]);
 
     if (result.rows.length === 0) {
+      logger.debug('Treasury balance not found', { tenantId });
       return null;
     }
 
-    return this.mapToTreasuryBalance(result.rows[0]);
+    const balance = this.mapToTreasuryBalance(result.rows[0]);
+    logger.debug('Successfully fetched treasury balance', {
+      tenantId,
+      currentBalance: balance.current_balance,
+      transactionCount: balance.transaction_count,
+    });
+
+    return balance;
   }
 
   /**
    * Get recent treasury transactions
    */
   async getRecentTransactions(tenantId: string, limit = 50): Promise<TreasuryTransaction[]> {
+    logger.debug('Fetching recent treasury transactions', { tenantId, limit });
+
     const query = `
       SELECT * FROM treasury_transactions
       WHERE tenant_id = $1
@@ -199,6 +251,12 @@ class TreasuryService {
       LIMIT $2
     `;
     const result = await pool.query(query, [tenantId, limit]);
+
+    logger.debug('Successfully fetched treasury transactions', {
+      tenantId,
+      count: result.rows.length,
+    });
+
     return result.rows.map(this.mapToTreasuryTransaction);
   }
 
@@ -206,6 +264,9 @@ class TreasuryService {
    * Get treasury statistics for tenant
    */
   async getStatistics(tenantId: string) {
+    const startTime = Date.now();
+    logger.info('Calculating treasury statistics', { tenantId });
+
     const balanceQuery = 'SELECT * FROM treasury_balances WHERE tenant_id = $1';
     const balanceResult = await pool.query(balanceQuery, [tenantId]);
 
@@ -221,6 +282,14 @@ class TreasuryService {
       WHERE tenant_id = $1
     `;
     const statsResult = await pool.query(statsQuery, [tenantId]);
+
+    const duration = Date.now() - startTime;
+    logger.info('Successfully calculated treasury statistics', {
+      tenantId,
+      totalTransactions: statsResult.rows[0].total_transactions,
+      totalTreasury: statsResult.rows[0].total_treasury,
+      duration: `${duration}ms`,
+    });
 
     return {
       balance: balanceResult.rows[0] || null,
@@ -243,6 +312,13 @@ class TreasuryService {
       metadata?: Record<string, any>;
     } = {}
   ): Promise<BDPAction> {
+    logger.info('Logging BDP action', {
+      tenantId,
+      actionType,
+      entityId: options.entityId,
+      entityType: options.entityType,
+    });
+
     const query = `
       INSERT INTO bdp_actions_log (
         tenant_id, action_type, action_data, user_id, entity_id, entity_type,
@@ -265,7 +341,15 @@ class TreasuryService {
     ];
 
     const result = await pool.query(query, values);
-    return this.mapToBDPAction(result.rows[0]);
+    const bdpAction = this.mapToBDPAction(result.rows[0]);
+
+    logger.info('Successfully logged BDP action', {
+      tenantId,
+      actionId: bdpAction.id,
+      actionType,
+    });
+
+    return bdpAction;
   }
 
   /**

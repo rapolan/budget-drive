@@ -9,6 +9,11 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { sanitizeBody } from './middleware/validate';
+import {
+  requestLoggingMiddleware,
+  errorLoggingMiddleware,
+  slowRequestMiddleware,
+} from './middleware/loggingMiddleware';
 import tenantRoutes from './routes/tenantRoutes';
 import studentRoutes from './routes/studentRoutes';
 import instructorRoutes from './routes/instructorRoutes';
@@ -16,10 +21,10 @@ import vehicleRoutes from './routes/vehicleRoutes';
 import lessonRoutes from './routes/lessonRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import availabilityRoutes from './routes/availabilityRoutes';
-import calendarRoutes from './routes/calendarRoutes';
 import recurringPatternRoutes from './routes/recurringPatternRoutes';
 import treasuryRoutes from './routes/treasuryRoutes';
 import notificationRoutes from './routes/notifications';
+import calendarFeedRoutes from './routes/calendarFeedRoutes';
 
 // Create Express app
 const app: Application = express();
@@ -40,7 +45,11 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging
+// Structured logging middleware
+app.use(requestLoggingMiddleware);
+app.use(slowRequestMiddleware(1000)); // Warn for requests taking > 1s
+
+// Request logging (HTTP format for development)
 if (config.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
@@ -76,10 +85,10 @@ app.use(API_PREFIX, vehicleRoutes);
 app.use(API_PREFIX, lessonRoutes);
 app.use(API_PREFIX, paymentRoutes);
 app.use(API_PREFIX, availabilityRoutes);
-app.use(`${API_PREFIX}/calendar`, calendarRoutes);
 app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
 app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
+app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
@@ -92,6 +101,9 @@ app.use((_req: Request, res: Response) => {
 // =====================================================
 // ERROR HANDLING
 // =====================================================
+
+// Error logging middleware (before error handler)
+app.use(errorLoggingMiddleware);
 
 // Global error handler (must be last)
 app.use(errorHandler);

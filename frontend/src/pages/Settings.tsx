@@ -73,6 +73,56 @@ export const SettingsPage: React.FC = () => {
  * General Settings Tab
  */
 const GeneralSettings: React.FC = () => {
+  const { settings, refreshSettings } = useTenant();
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [defaultHoursRequired, setDefaultHoursRequired] = useState(settings?.defaultHoursRequired || 6);
+
+  // Update local state when settings load
+  React.useEffect(() => {
+    if (settings?.defaultHoursRequired !== undefined) {
+      setDefaultHoursRequired(settings.defaultHoursRequired);
+    }
+  }, [settings]);
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setMessage(null);
+
+      const response = await fetch('http://localhost:3000/api/v1/tenant/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
+        },
+        body: JSON.stringify({
+          defaultHoursRequired,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update settings');
+      }
+
+      await refreshSettings();
+      setMessage({
+        type: 'success',
+        text: 'Settings saved successfully!',
+      });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      setMessage({
+        type: 'error',
+        text: 'Failed to save settings. Please try again.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -82,8 +132,84 @@ const GeneralSettings: React.FC = () => {
         </p>
       </div>
 
-      <div className="text-center text-gray-500 py-12">
-        Coming soon: School name, contact info, timezone, etc.
+      {/* Success/Error Message */}
+      {message && (
+        <div
+          className={`rounded-md p-4 ${
+            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      {/* Default Hours Required */}
+      <div className="border border-gray-200 rounded-lg p-6">
+        <label htmlFor="default-hours" className="block text-base font-medium text-gray-900 mb-2">
+          Default Training Hours Required
+        </label>
+        <p className="text-sm text-gray-500 mb-4">
+          Set the default number of behind-the-wheel training hours required for new students. 
+          This varies by state (e.g., California requires 6 hours for students under 18).
+        </p>
+        <div className="flex items-center space-x-4">
+          <input
+            id="default-hours"
+            type="number"
+            value={defaultHoursRequired}
+            onChange={(e) => setDefaultHoursRequired(parseFloat(e.target.value) || 6)}
+            min="1"
+            max="100"
+            step="0.5"
+            className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <span className="text-gray-700">hours</span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setDefaultHoursRequired(6)}
+            className={`px-3 py-1 text-xs rounded ${defaultHoursRequired === 6 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            6 hrs (CA)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDefaultHoursRequired(8)}
+            className={`px-3 py-1 text-xs rounded ${defaultHoursRequired === 8 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            8 hrs
+          </button>
+          <button
+            type="button"
+            onClick={() => setDefaultHoursRequired(10)}
+            className={`px-3 py-1 text-xs rounded ${defaultHoursRequired === 10 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            10 hrs
+          </button>
+          <button
+            type="button"
+            onClick={() => setDefaultHoursRequired(12)}
+            className={`px-3 py-1 text-xs rounded ${defaultHoursRequired === 12 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            12 hrs
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-gray-400">
+          Students can have their individual hours adjusted during or after enrollment.
+        </p>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+        >
+          {saving ? 'Saving...' : 'Save General Settings'}
+        </button>
       </div>
     </div>
   );
@@ -581,16 +707,27 @@ const FeaturesSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* Other Feature Toggles (Coming Soon) */}
-      <div className="border border-gray-200 rounded-lg p-6 opacity-50">
+      {/* Calendar Sync - Now Available! */}
+      <div className="border border-green-200 rounded-lg p-6 bg-green-50">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-medium text-gray-900">Google Calendar Integration</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Sync lessons with Google Calendar
+            <h3 className="text-base font-medium text-gray-900 flex items-center gap-2">
+              📅 Calendar Sync
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Available</span>
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              Instructors can subscribe to their lesson calendar using any calendar app (Google Calendar, Apple Calendar, Outlook).
+            </p>
+            <p className="mt-2 text-sm text-gray-500">
+              <strong>How to set up:</strong> Go to Instructors → Edit an instructor → Expand "Calendar Sync" section → Enable and share the feed URL with the instructor.
             </p>
           </div>
-          <span className="text-sm text-gray-400">Coming Soon</span>
+          <a 
+            href="/instructors"
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
+          >
+            Go to Instructors →
+          </a>
         </div>
       </div>
 

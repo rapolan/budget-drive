@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles } from 'lucide-react';
+import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
-import { TimeSlot, Student, Instructor } from '@/types';
+import { TimeSlot, Student, Instructor, Lesson } from '@/types';
 import { ProgressStepper } from '@/components/common';
+import { formatShortDate } from '@/utils/timeFormat';
+import { getEffectiveZipCode, calculateProximityScore, extractZipCode } from '@/utils/zipCode';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -23,10 +25,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   onCancel,
 }) => {
   // Simplified to 2 steps: 'setup' and 'confirm'
-  const initialStep = (preselectedDate && preselectedTime) ? 'confirm' : 'setup';
+  // Only skip to confirm if ALL required fields are pre-selected (student, instructor, date, time)
+  const initialStep = (preselectedStudent && preselectedInstructor && preselectedDate && preselectedTime) ? 'confirm' : 'setup';
   const [step, setStep] = useState<'setup' | 'confirm'>(initialStep);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
 
   // Form data
   const [selectedInstructorId, setSelectedInstructorId] = useState(preselectedInstructor?.id || '');
@@ -35,6 +40,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [lessonType, setLessonType] = useState<'behind_wheel' | 'classroom' | 'observation' | 'road_test'>('behind_wheel');
   const [cost, setCost] = useState(50);
   const [pickupAddress, setPickupAddress] = useState('');
+  const [notes, setNotes] = useState('');
 
   // Slot selection
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
@@ -47,10 +53,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [showInstructorDropdown, setShowInstructorDropdown] = useState(false);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
-  // Fetch lists
+  // Fetch lists - paginate students for better performance
   const { data: studentsData } = useQuery({
-    queryKey: ['students'],
-    queryFn: () => studentsApi.getAll(1, 1000),
+    queryKey: ['students', 'booking'],
+    queryFn: () => studentsApi.getAll(1, 50), // Fetch only 50 students initially
   });
 
   const { data: instructorsData } = useQuery({
@@ -58,14 +64,77 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     queryFn: () => instructorsApi.getAll(),
   });
 
+  // Fetch recent lessons for instructor location data (for proximity sorting)
+  const { data: recentLessonsData } = useQuery({
+    queryKey: ['lessons', 'recent-for-proximity'],
+    queryFn: () => lessonsApi.getAll(1, 200), // Get recent lessons to determine instructor locations
+  });
+
   const students = studentsData?.data || [];
   const instructors = instructorsData?.data || [];
+  const recentLessons = recentLessonsData?.data || [];
 
-  // Filter based on search
-  const filteredInstructors = instructors.filter((i: Instructor) =>
-    i.fullName.toLowerCase().includes(instructorSearch.toLowerCase()) ||
-    i.email.toLowerCase().includes(instructorSearch.toLowerCase())
-  );
+  // Helper: Get full address string from student's structured fields
+  const getStudentFullAddress = (student: Student): string => {
+    if (student.addressLine1) {
+      const parts = [
+        student.addressLine1,
+        student.addressLine2,
+        student.city && student.state ? `${student.city}, ${student.state}` : student.city || student.state,
+        student.zipCode
+      ].filter(Boolean);
+      return parts.join(', ');
+    }
+    // Fall back to legacy address field
+    return student.address || '';
+  };
+
+  // Get each instructor's most recent lesson pickup address (for proximity sorting)
+  const instructorLastLocations = useMemo(() => {
+    const locationMap: Record<string, string> = {};
+    
+    // Sort lessons by date descending to find most recent
+    const sortedLessons = [...recentLessons].sort((a: Lesson, b: Lesson) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    
+    // For each instructor, get their most recent lesson's pickup address
+    for (const lesson of sortedLessons) {
+      if (lesson.instructorId && !locationMap[lesson.instructorId] && lesson.pickupAddress) {
+        locationMap[lesson.instructorId] = lesson.pickupAddress;
+      }
+    }
+    
+    return locationMap;
+  }, [recentLessons]);
+
+  // Get the target zip code for proximity sorting (from selected student)
+  const targetZipCode = useMemo(() => {
+    if (!selectedStudentId) return null;
+    const student = students.find((s: Student) => s.id === selectedStudentId);
+    if (!student) return null;
+    return getEffectiveZipCode(null, student.zipCode);
+  }, [selectedStudentId, students]);
+
+  // Sort and filter instructors with proximity scoring
+  const filteredInstructors = useMemo(() => {
+    let filtered = instructors.filter((i: Instructor) =>
+      i.fullName.toLowerCase().includes(instructorSearch.toLowerCase()) ||
+      i.email.toLowerCase().includes(instructorSearch.toLowerCase())
+    );
+
+    // If we have a target zip code, sort by proximity
+    if (targetZipCode) {
+      filtered = filtered.map((instructor: Instructor) => {
+        const lastLocation = instructorLastLocations[instructor.id];
+        const lastZip = extractZipCode(lastLocation);
+        const proximityScore = calculateProximityScore(lastZip, targetZipCode);
+        return { ...instructor, proximityScore, lastLocation };
+      }).sort((a: any, b: any) => (b.proximityScore || 50) - (a.proximityScore || 50));
+    }
+
+    return filtered;
+  }, [instructors, instructorSearch, targetZipCode, instructorLastLocations]);
 
   const filteredStudents = students.filter((s: Student) =>
     s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
@@ -114,7 +183,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // Initialize selectedSlot with preselected date/time
   useEffect(() => {
     if (preselectedDate && preselectedTime) {
-      const dateStr = preselectedDate.toISOString().split('T')[0];
+      // Format date as YYYY-MM-DD in local timezone (not UTC)
+      const year = preselectedDate.getFullYear();
+      const month = String(preselectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(preselectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
       setSelectedSlot({
         instructorId: selectedInstructorId,
         date: dateStr,
@@ -126,8 +200,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       // Pre-fill pickup address with student's home address if student is selected
       if (selectedStudentId) {
         const student = students.find((s: Student) => s.id === selectedStudentId);
-        if (student && student.address) {
-          setPickupAddress(student.address);
+        if (student) {
+          const fullAddress = getStudentFullAddress(student);
+          if (fullAddress) {
+            setPickupAddress(fullAddress);
+          }
         }
       }
     }
@@ -171,15 +248,41 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     setShowingSlots(false);
 
     // Pre-fill pickup address with student's home address
-    if (selectedStudentId) {
+    if (selectedStudentId && !pickupAddress) {
       const student = students.find((s: Student) => s.id === selectedStudentId);
-      if (student && student.address && !pickupAddress) {
-        setPickupAddress(student.address);
+      if (student) {
+        const fullAddress = getStudentFullAddress(student);
+        if (fullAddress) {
+          setPickupAddress(fullAddress);
+        }
       }
     }
   };
 
-  const handleContinueToConfirm = () => {
+  // Parse API error to get user-friendly conflict message
+  const getConflictMessage = (errorMessage: string): string => {
+    if (errorMessage.includes('instructor already has a lesson')) {
+      return 'This instructor already has another lesson at this time. Please choose a different time slot.';
+    }
+    if (errorMessage.includes('student already has a lesson')) {
+      return 'This student already has another lesson scheduled at this time. Please choose a different time slot.';
+    }
+    if (errorMessage.includes('buffer time')) {
+      return 'There needs to be a 30-minute buffer between lessons. Please choose a time slot with more spacing.';
+    }
+    if (errorMessage.includes('capacity')) {
+      return 'This instructor has reached their maximum students for the day. Please choose a different day.';
+    }
+    if (errorMessage.includes('outside availability')) {
+      return 'This time is outside the instructor\'s available hours. Please choose a different time slot.';
+    }
+    if (errorMessage.includes('vehicle is not available')) {
+      return 'The vehicle is already in use at this time. Please choose a different time slot.';
+    }
+    return errorMessage;
+  };
+
+  const handleContinueToConfirm = async () => {
     if (!selectedStudentId) {
       setError('Please select a student');
       return;
@@ -192,7 +295,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setError('Please select a time slot');
       return;
     }
+
+    // Clear previous warnings and proceed to confirm step
+    // Conflicts will be checked during final booking
     setError(null);
+    setConflictWarning(null);
     setStep('confirm');
   };
 
@@ -204,25 +311,30 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setError(null);
 
       // Parse date and times from the selected slot
-      const lessonDate = selectedSlot.date;
+      // Backend expects scheduledStart and scheduledEnd as ISO datetime strings
+      // We create datetime strings without timezone conversion to preserve local time
+      const dateStr = selectedSlot.date; // Already in YYYY-MM-DD format
+      const scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
+      const scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
 
       const lessonData: any = {
         studentId: selectedStudentId,
         instructorId: selectedInstructorId,
         vehicleId: null,
-        date: lessonDate,
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
-        duration,
+        scheduledStart: scheduledStart,
+        scheduledEnd: scheduledEnd,
         lessonType,
         cost,
         pickupAddress: pickupAddress || null,
+        notes: notes || null,
       };
 
       const lesson = await lessonsApi.create(lessonData);
       onBookingComplete?.(lesson.data?.id || '');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create lesson');
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create lesson';
+      const friendlyMessage = getConflictMessage(errorMsg);
+      setError(friendlyMessage);
       console.error('Error creating lesson:', err);
     } finally {
       setLoading(false);
@@ -230,20 +342,29 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   };
 
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
+    // Handle both ISO datetime strings and HH:MM format
+    let hour: number, minutes: string;
+
+    if (time.includes('T')) {
+      // ISO datetime string
+      const date = new Date(time);
+      hour = date.getHours();
+      minutes = date.getMinutes().toString().padStart(2, '0');
+    } else {
+      // HH:MM format
+      const parts = time.split(':');
+      hour = parseInt(parts[0]);
+      minutes = parts[1];
+    }
+
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
+  // Use centralized date formatting utility that handles local timezone correctly
   const formatSlotDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatShortDate(dateStr);
   };
 
   const selectedStudent = students.find((s: Student) => s.id === selectedStudentId);
@@ -357,8 +478,9 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                             setSelectedStudentId(student.id);
                             setStudentSearch(getStudentDisplay(student));
                             setShowStudentDropdown(false);
-                            if (student.address) {
-                              setPickupAddress(student.address);
+                            const fullAddress = getStudentFullAddress(student);
+                            if (fullAddress) {
+                              setPickupAddress(fullAddress);
                             }
                           }}
                           className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 flex items-center space-x-3"
@@ -434,7 +556,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   />
                   {showInstructorDropdown && instructorSearch && filteredInstructors.length > 0 && (
                     <div className="absolute z-20 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                      {filteredInstructors.map((instructor) => (
+                      {targetZipCode && (
+                        <div className="px-4 py-2 bg-green-50 border-b border-green-100 text-xs text-green-700 flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          Sorted by proximity to student location
+                        </div>
+                      )}
+                      {filteredInstructors.map((instructor: any) => (
                         <button
                           key={instructor.id}
                           type="button"
@@ -448,10 +576,21 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                           <div className="h-10 w-10 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-semibold text-sm">
                             {getInitials(instructor.fullName)}
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <div className="font-medium text-gray-900">{instructor.fullName}</div>
                             <div className="text-sm text-gray-500">{instructor.email}</div>
                           </div>
+                          {targetZipCode && instructor.proximityScore !== undefined && (
+                            <div className={`text-xs px-2 py-1 rounded-full ${
+                              instructor.proximityScore >= 80 ? 'bg-green-100 text-green-700' :
+                              instructor.proximityScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {instructor.proximityScore >= 80 ? '📍 Nearby' :
+                               instructor.proximityScore >= 60 ? '~Close' :
+                               'Farther'}
+                            </div>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -658,6 +797,44 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </div>
           )}
 
+          {/* Notes */}
+          {selectedSlot && (
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex items-center space-x-2 mb-3">
+                <FileText className="h-5 w-5 text-purple-600" />
+                <label className="block text-sm font-semibold text-gray-900">
+                  Lesson Notes
+                </label>
+                <span className="text-xs text-gray-400">(optional)</span>
+              </div>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any notes for the instructor (e.g., focus areas, special requests, student needs)..."
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-all"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                📅 These notes will appear in the instructor's calendar event.
+              </p>
+            </div>
+          )}
+
+          {/* Conflict Warning */}
+          {conflictWarning && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <svg className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-yellow-800">Scheduling Conflict</h4>
+                  <p className="mt-1 text-sm text-yellow-700">{conflictWarning}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Continue Button */}
           <div className="border-t border-gray-200 pt-6 flex space-x-3">
             {onCancel && (
@@ -672,10 +849,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             <button
               type="button"
               onClick={handleContinueToConfirm}
-              disabled={!selectedStudentId || !selectedInstructorId || !selectedSlot}
+              disabled={!selectedStudentId || !selectedInstructorId || !selectedSlot || checkingConflicts}
               className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
             >
-              Continue to Confirm
+              {checkingConflicts ? 'Checking...' : 'Continue to Confirm'}
             </button>
           </div>
         </div>
@@ -748,6 +925,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                 <div className="flex items-start justify-between">
                   <span className="text-sm text-gray-600">Pickup Location</span>
                   <span className="font-semibold text-gray-900 text-right max-w-xs">{pickupAddress}</span>
+                </div>
+              )}
+
+              {/* Notes */}
+              {notes && (
+                <div className="flex items-start justify-between">
+                  <span className="text-sm text-gray-600">Notes</span>
+                  <span className="font-medium text-gray-700 text-right max-w-xs text-sm">{notes}</span>
                 </div>
               )}
 

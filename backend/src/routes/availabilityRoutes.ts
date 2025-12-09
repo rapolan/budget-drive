@@ -48,6 +48,23 @@ router.post(
   availabilityController.setInstructorSchedule
 );
 
+// =====================================================
+// SCHEDULING SETTINGS ROUTES
+// (Must be BEFORE /:id routes to avoid "settings" being matched as an ID)
+// =====================================================
+
+// Get scheduling settings
+router.get(
+  '/availability/settings',
+  availabilityController.getSchedulingSettings
+);
+
+// Update scheduling settings
+router.put(
+  '/availability/settings',
+  availabilityController.updateSchedulingSettings
+);
+
 // Update availability entry
 router.put(
   '/availability/:id',
@@ -93,22 +110,6 @@ router.delete(
   '/availability/time-off/:id',
   validateUUID('id'),
   availabilityController.deleteTimeOff
-);
-
-// =====================================================
-// SCHEDULING SETTINGS ROUTES
-// =====================================================
-
-// Get scheduling settings
-router.get(
-  '/availability/settings',
-  availabilityController.getSchedulingSettings
-);
-
-// Update scheduling settings
-router.put(
-  '/availability/settings',
-  availabilityController.updateSchedulingSettings
 );
 
 // =====================================================

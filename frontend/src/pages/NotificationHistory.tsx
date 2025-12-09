@@ -7,8 +7,12 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bell, RefreshCw, AlertCircle, CheckCircle, XCircle, Mail, Clock } from 'lucide-react';
 import { getNotificationHistory, processNotificationQueue } from '../api/notifications';
+import { BackButton } from '@/components/common';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 export default function NotificationHistory() {
+  // Enable swipe-to-go-back on mobile
+  useSwipeNavigation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | 'sent' | 'failed'>('all');
 
@@ -78,28 +82,29 @@ export default function NotificationHistory() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <BackButton />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2">
             <div className="flex items-center space-x-3">
-              <Bell className="w-8 h-8 text-blue-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Notification History</h1>
+              <Bell className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Notification History</h1>
             </div>
             <button
               onClick={handleProcessQueue}
               disabled={isProcessing}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all"
             >
-              <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 flex-shrink-0 ${isProcessing ? 'animate-spin' : ''}`} />
               <span>{isProcessing ? 'Processing...' : 'Process Queue'}</span>
             </button>
           </div>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-sm sm:text-base text-gray-600">
             View sent and failed email notifications. BDP fee: 1 satoshi per notification.
           </p>
         </div>
 
         {/* Stats Cards */}
         {data?.stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>

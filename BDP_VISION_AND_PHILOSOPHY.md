@@ -127,7 +127,7 @@ Every feature should have a **micro-fee** attached:
 - Book lesson = 5 sats
 - Issue certificate = 10 sats
 - Background check = 100 sats
-- Google Calendar sync = 2 sats/event
+- Calendar sync = 2 sats/event
 
 **Why:**
 - Aligns incentives (pay for what you use)
@@ -172,7 +172,7 @@ Every feature should have a **micro-fee** attached:
    - 1,000 schools × 500 certificates/month = 5M sats/month (~$2,350)
 
 4. **Premium Features** (Optional, NOT Required):
-   - Google Calendar sync: 2 sats per event
+   - Calendar sync: 2 sats per event (ICS feeds for any calendar app)
    - Background checks: 100 sats per check
    - Insurance verification: 50 sats per verification
 
@@ -206,7 +206,7 @@ No limits, no tiers, no artificial scarcity
 ❌ **WRONG:**
 ```
 Email notifications: Premium Plan only
-Google Calendar sync: Enterprise Plan only
+Calendar sync: Enterprise Plan only
 API access: $500/month
 ```
 
@@ -214,7 +214,7 @@ API access: $500/month
 ```
 All features available to everyone
 Email notification: 1 sat each
-Calendar sync: 2 sats per event
+Calendar sync: 2 sats per event (ICS feeds - works with any calendar app)
 API: Free (rate-limited by micropayments)
 ```
 

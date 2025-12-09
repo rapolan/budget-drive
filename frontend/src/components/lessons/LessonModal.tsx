@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, Clock, Hash } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson, CreateLessonInput } from '@/types';
 
@@ -21,6 +21,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     startTime: '',
     endTime: '',
     duration: 60,
+    lessonNumber: null,
     lessonType: 'behind_wheel',
     cost: 50,
     notes: '',
@@ -41,6 +42,24 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     queryKey: ['vehicles'],
     queryFn: () => vehiclesApi.getAll(),
   });
+
+  // Fetch all lessons to calculate student's lesson count
+  const { data: allLessonsData } = useQuery({
+    queryKey: ['lessons'],
+    queryFn: () => lessonsApi.getAll(1, 10000),
+  });
+
+  // Calculate how many lessons the selected student has (excluding current if editing)
+  const selectedStudent = studentsData?.data?.find(s => s.id === formData.studentId);
+  const studentLessons = allLessonsData?.data?.filter(l => 
+    l.studentId === formData.studentId && 
+    l.status !== 'cancelled' &&
+    (!isEditing || l.id !== lesson?.id)
+  ) || [];
+  const suggestedLessonNumber = studentLessons.length + 1;
+  const totalHoursRequired = selectedStudent?.hoursRequired || 6;
+  // Estimate total lessons based on 2-hour lessons (can be adjusted)
+  const estimatedTotalLessons = Math.ceil(totalHoursRequired / 2);
 
   // Fetch instructor's lessons for the selected date to check availability
   const { data: instructorLessonsData } = useQuery({
@@ -120,6 +139,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
         startTime: lesson.startTime.substring(0, 5), // Convert HH:MM:SS to HH:MM
         endTime: lesson.endTime.substring(0, 5),
         duration: lesson.duration,
+        lessonNumber: lesson.lessonNumber || null,
         lessonType: lesson.lessonType,
         cost: lesson.cost,
         notes: lesson.notes || '',
@@ -142,6 +162,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       }
     }
   }, [formData.startTime, formData.endTime]);
+
+  // Auto-suggest lesson number when student changes (only for new lessons)
+  useEffect(() => {
+    if (!isEditing && formData.studentId && suggestedLessonNumber > 0) {
+      setFormData(prev => ({ ...prev, lessonNumber: suggestedLessonNumber }));
+    }
+  }, [formData.studentId, suggestedLessonNumber, isEditing]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateLessonInput) => lessonsApi.create(data),
@@ -201,6 +228,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       vehicleId: formData.vehicleId,
       scheduledStart,
       scheduledEnd,
+      lessonNumber: formData.lessonNumber,
       lessonType: formData.lessonType,
       cost: formData.cost,
       notes: formData.notes,
@@ -252,6 +280,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 value={formData.studentId}
                 onChange={handleChange}
                 required
+                title="Select Student"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="">Select Student</option>
@@ -263,6 +292,38 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                     </option>
                   ))}
               </select>
+            </div>
+
+            {/* Lesson Number */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                <Hash className="inline h-4 w-4 mr-1" />
+                Lesson #
+              </label>
+              <div className="flex items-center gap-2 mt-1">
+                <select
+                  name="lessonNumber"
+                  value={formData.lessonNumber || ''}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    lessonNumber: e.target.value ? parseInt(e.target.value) : null 
+                  }))}
+                  title="Lesson Number"
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">--</option>
+                  {Array.from({ length: Math.max(estimatedTotalLessons, 10) }, (_, i) => i + 1).map(num => (
+                    <option key={num} value={num}>
+                      Lesson #{num}
+                    </option>
+                  ))}
+                </select>
+                {formData.studentId && (
+                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                    of ~{estimatedTotalLessons}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Instructor */}

@@ -8,6 +8,16 @@ import { query } from '../config/database';
 import { Student } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('StudentService');
+
+/**
+ * Helper to convert empty strings to null (for date fields)
+ */
+const emptyToNull = (value: any): any => {
+  return value === '' ? null : value;
+};
 
 /**
  * Get all students for a tenant (with pagination)
@@ -17,30 +27,47 @@ export const getAllStudents = async (
   page: number = 1,
   limit: number = 50
 ): Promise<{ students: Student[]; total: number; page: number; totalPages: number }> => {
-  const offset = (page - 1) * limit;
+  const startTime = Date.now();
+  logger.info('Fetching all students', { tenantId, page, limit });
 
-  // Get total count
-  const countResult = await query(
-    'SELECT COUNT(*) FROM students WHERE tenant_id = $1',
-    [tenantId]
-  );
-  const total = parseInt(countResult.rows[0].count);
+  try {
+    const offset = (page - 1) * limit;
 
-  // Get students
-  const result = await query(
-    `SELECT * FROM students
-     WHERE tenant_id = $1
-     ORDER BY created_at DESC
-     LIMIT $2 OFFSET $3`,
-    [tenantId, limit, offset]
-  );
+    // Get total count
+    const countResult = await query(
+      'SELECT COUNT(*) FROM students WHERE tenant_id = $1',
+      [tenantId]
+    );
+    const total = parseInt(countResult.rows[0].count);
 
-  return {
-    students: result.rows.map(keysToCamel) as Student[],
-    total,
-    page,
-    totalPages: Math.ceil(total / limit),
-  };
+    // Get students
+    const result = await query(
+      `SELECT * FROM students
+       WHERE tenant_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [tenantId, limit, offset]
+    );
+
+    const duration = Date.now() - startTime;
+    logger.info('Successfully fetched students', {
+      tenantId,
+      count: result.rows.length,
+      total,
+      page,
+      duration: `${duration}ms`,
+    });
+
+    return {
+      students: result.rows.map(keysToCamel) as Student[],
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  } catch (error) {
+    logger.error('Failed to fetch students', error as Error, { tenantId, page, limit });
+    throw error;
+  }
 };
 
 /**
@@ -50,12 +77,15 @@ export const getStudentById = async (
   id: string,
   tenantId: string
 ): Promise<Student | null> => {
+  logger.debug('Fetching student by ID', { tenantId, studentId: id });
+
   const result = await query(
     'SELECT * FROM students WHERE id = $1 AND tenant_id = $2',
     [id, tenantId]
   );
 
   if (result.rows.length === 0) {
+    logger.debug('Student not found', { tenantId, studentId: id });
     return null;
   }
 
@@ -71,46 +101,105 @@ export const createStudent = async (
     fullName: string;
     email: string;
     phone: string;
-    dateOfBirth: Date;
-    address: string;
-    emergencyContact: string;
-    licenseType: 'car' | 'motorcycle' | 'commercial';
-    hoursRequired: number;
+    dateOfBirth?: Date;
+    address?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    emergencyContact?: string; // Legacy field
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    emergencyContact2Name?: string;
+    emergencyContact2Phone?: string;
+    licenseType?: 'car' | 'motorcycle' | 'commercial';
+    hoursRequired?: number;
     assignedInstructorId?: string;
+    learnerPermitIssueDate?: Date;
   }
 ): Promise<Student> => {
-  // Check if email already exists for this tenant
-  const existing = await query(
-    'SELECT id FROM students WHERE email = $1 AND tenant_id = $2',
-    [data.email, tenantId]
-  );
+  logger.info('Creating new student', {
+    tenantId,
+    fullName: data.fullName,
+    email: data.email,
+    licenseType: data.licenseType || 'car',
+  });
 
-  if (existing.rows.length > 0) {
-    throw new AppError('Student with this email already exists', 400);
-  }
+  try {
+    // Check if email already exists for this tenant
+    const existing = await query(
+      'SELECT id FROM students WHERE email = $1 AND tenant_id = $2',
+      [data.email, tenantId]
+    );
 
-  const result = await query(
-    `INSERT INTO students (
-      tenant_id, full_name, email, phone, date_of_birth, address,
-      emergency_contact, license_type, enrollment_date, hours_required,
-      assigned_instructor_id, status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, 'active')
-    RETURNING *`,
-    [
+    if (existing.rows.length > 0) {
+      logger.warn('Duplicate student email detected', {
+        tenantId,
+        email: data.email,
+      });
+      throw new AppError('Student with this email already exists', 400);
+    }
+
+    // Handle emergency contact - prefer split fields, fall back to legacy field
+    const emergencyContact = data.emergencyContact ||
+      (data.emergencyContactName && data.emergencyContactPhone
+        ? `${data.emergencyContactName} - ${data.emergencyContactPhone}`
+        : '');
+
+    // Set defaults for optional fields
+    const licenseType = data.licenseType || 'car';
+    const hoursRequired = data.hoursRequired ?? 6; // Default to 6 hours (California requirement for under 18)
+
+    const result = await query(
+      `INSERT INTO students (
+        tenant_id, full_name, email, phone, date_of_birth, address,
+        address_line1, address_line2, city, state, zip_code,
+        emergency_contact, emergency_contact_name, emergency_contact_phone,
+        emergency_contact_2_name, emergency_contact_2_phone,
+        license_type, enrollment_date, hours_required,
+        assigned_instructor_id, learner_permit_issue_date, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), $18, $19, $20, 'active')
+      RETURNING *`,
+      [
+        tenantId,
+        data.fullName,
+        data.email,
+        data.phone,
+        data.dateOfBirth || null,
+        data.address || null,
+        data.addressLine1 || null,
+        data.addressLine2 || null,
+        data.city || null,
+        data.state || null,
+        data.zipCode || null,
+        emergencyContact || null,
+        data.emergencyContactName || null,
+        data.emergencyContactPhone || null,
+        data.emergencyContact2Name || null,
+        data.emergencyContact2Phone || null,
+        licenseType,
+        hoursRequired,
+        data.assignedInstructorId || null,
+        data.learnerPermitIssueDate || null,
+      ]
+    );
+
+    const newStudent = keysToCamel(result.rows[0]) as Student;
+    logger.info('Successfully created student', {
       tenantId,
-      data.fullName,
-      data.email,
-      data.phone,
-      data.dateOfBirth,
-      data.address,
-      data.emergencyContact,
-      data.licenseType,
-      data.hoursRequired,
-      data.assignedInstructorId || null,
-    ]
-  );
+      studentId: newStudent.id,
+      fullName: newStudent.fullName,
+    });
 
-  return keysToCamel(result.rows[0]) as Student;
+    return newStudent;
+  } catch (error) {
+    logger.error('Failed to create student', error as Error, {
+      tenantId,
+      email: data.email,
+    });
+    throw error;
+  }
 };
 
 /**
@@ -142,9 +231,57 @@ export const updateStudent = async (
     fields.push(`address = $${paramCount++}`);
     values.push(data.address);
   }
+  if (data.addressLine1 !== undefined) {
+    fields.push(`address_line1 = $${paramCount++}`);
+    values.push(data.addressLine1);
+  }
+  if (data.addressLine2 !== undefined) {
+    fields.push(`address_line2 = $${paramCount++}`);
+    values.push(data.addressLine2);
+  }
+  if (data.city !== undefined) {
+    fields.push(`city = $${paramCount++}`);
+    values.push(data.city);
+  }
+  if (data.state !== undefined) {
+    fields.push(`state = $${paramCount++}`);
+    values.push(data.state);
+  }
+  if (data.zipCode !== undefined) {
+    fields.push(`zip_code = $${paramCount++}`);
+    values.push(data.zipCode);
+  }
   if (data.emergencyContact !== undefined) {
     fields.push(`emergency_contact = $${paramCount++}`);
     values.push(data.emergencyContact);
+  }
+  if (data.emergencyContactName !== undefined) {
+    fields.push(`emergency_contact_name = $${paramCount++}`);
+    values.push(data.emergencyContactName);
+  }
+  if (data.emergencyContactPhone !== undefined) {
+    fields.push(`emergency_contact_phone = $${paramCount++}`);
+    values.push(data.emergencyContactPhone);
+  }
+  if (data.emergencyContact2Name !== undefined) {
+    fields.push(`emergency_contact_2_name = $${paramCount++}`);
+    values.push(data.emergencyContact2Name);
+  }
+  if (data.emergencyContact2Phone !== undefined) {
+    fields.push(`emergency_contact_2_phone = $${paramCount++}`);
+    values.push(data.emergencyContact2Phone);
+  }
+  if (data.learnerPermitIssueDate !== undefined) {
+    fields.push(`learner_permit_issue_date = $${paramCount++}`);
+    values.push(emptyToNull(data.learnerPermitIssueDate));
+  }
+  if (data.licenseType !== undefined) {
+    fields.push(`license_type = $${paramCount++}`);
+    values.push(data.licenseType);
+  }
+  if (data.hoursRequired !== undefined) {
+    fields.push(`hours_required = $${paramCount++}`);
+    values.push(data.hoursRequired);
   }
   if (data.status !== undefined) {
     fields.push(`status = $${paramCount++}`);
@@ -173,6 +310,10 @@ export const updateStudent = async (
   if (data.notes !== undefined) {
     fields.push(`notes = $${paramCount++}`);
     values.push(data.notes);
+  }
+  if (data.lastContactedAt !== undefined) {
+    fields.push(`last_contacted_at = $${paramCount++}`);
+    values.push(emptyToNull(data.lastContactedAt));
   }
 
   if (fields.length === 0) {
@@ -205,15 +346,25 @@ export const deleteStudent = async (
   id: string,
   tenantId: string
 ): Promise<void> => {
-  const result = await query(
-    `DELETE FROM students
-     WHERE id = $1 AND tenant_id = $2
-     RETURNING id`,
-    [id, tenantId]
-  );
+  logger.info('Deleting student', { tenantId, studentId: id });
 
-  if (result.rows.length === 0) {
-    throw new AppError('Student not found', 404);
+  try {
+    const result = await query(
+      `DELETE FROM students
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING id`,
+      [id, tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      logger.warn('Student not found for deletion', { tenantId, studentId: id });
+      throw new AppError('Student not found', 404);
+    }
+
+    logger.info('Successfully deleted student', { tenantId, studentId: id });
+  } catch (error) {
+    logger.error('Failed to delete student', error as Error, { tenantId, studentId: id });
+    throw error;
   }
 };
 

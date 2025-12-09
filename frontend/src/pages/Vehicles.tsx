@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Car } from 'lucide-react';
 import { vehiclesApi } from '@/api';
 import type { Vehicle } from '@/types';
 import { VehicleModal } from '@/components/vehicles/VehicleModal';
+import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 export const VehiclesPage: React.FC = () => {
+  // Enable swipe-to-go-back on mobile
+  useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -74,25 +78,26 @@ export const VehiclesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Vehicles</h1>
+          <BackButton />
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Vehicles</h1>
           <p className="mt-1 text-sm text-gray-500">
             Manage your driving school vehicles
           </p>
         </div>
         <button
           onClick={handleAddNew}
-          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+          className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
         >
-          <Plus className="mr-2 h-5 w-5" />
+          <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
           Add Vehicle
         </button>
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
-        <Search className="h-5 w-5 text-gray-400" />
+      <div className="flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+        <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
         <input
           type="text"
           placeholder="Search vehicles by make, model, or plate..."
@@ -103,8 +108,9 @@ export const VehiclesPage: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="rounded-lg bg-white shadow">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -130,14 +136,32 @@ export const VehiclesPage: React.FC = () => {
           <tbody className="divide-y divide-gray-200 bg-white">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                  Loading...
+                <td colSpan={6} className="py-12">
+                  <LoadingSpinner />
                 </td>
               </tr>
             ) : filteredVehicles?.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                  No vehicles found
+                <td colSpan={6} className="py-2">
+                  <EmptyState
+                    icon={<Car className="h-12 w-12" />}
+                    title="No vehicles found"
+                    description={
+                      searchTerm
+                        ? `No vehicles match your search for "${searchTerm}"`
+                        : "Get started by adding your first vehicle to the fleet"
+                    }
+                    action={
+                      <button
+                        type="button"
+                        onClick={handleAddNew}
+                        className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Vehicle
+                      </button>
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -194,6 +218,7 @@ export const VehiclesPage: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Modal */}

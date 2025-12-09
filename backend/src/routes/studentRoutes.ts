@@ -41,11 +41,6 @@ router.post(
     'fullName',
     'email',
     'phone',
-    'dateOfBirth',
-    'address',
-    'emergencyContact',
-    'licenseType',
-    'hoursRequired',
   ]),
   studentController.createStudent
 );

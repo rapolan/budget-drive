@@ -1,274 +1,277 @@
-import React, { useState, useEffect } from 'react';
-import { calendarApi, CalendarSyncStatus, ExternalCalendarEvent } from '@/api/calendar';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Calendar, Copy, RefreshCw, Check, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { calendarFeedApi } from '@/api';
 
 interface CalendarSyncProps {
   instructorId: string;
 }
 
+/**
+ * Calendar Sync Component
+ * Allows instructors to subscribe to their lesson calendar via ICS feed.
+ * Works with any calendar app (Google, Apple, Outlook, etc.)
+ */
 export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
-  const [status, setStatus] = useState<CalendarSyncStatus | null>(null);
-  const [externalEvents, setExternalEvents] = useState<ExternalCalendarEvent[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (instructorId) {
-      loadStatus();
-    }
-  }, [instructorId]);
+  // Fetch calendar feed status
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['calendar-feed-status', instructorId],
+    queryFn: () => calendarFeedApi.getStatus(instructorId),
+    enabled: !!instructorId,
+  });
 
-  const loadStatus = async () => {
+  // Setup feed URL mutation
+  const setupMutation = useMutation({
+    mutationFn: () => calendarFeedApi.setup(instructorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-feed-status', instructorId] });
+    },
+  });
+
+  // Regenerate feed URL mutation
+  const regenerateMutation = useMutation({
+    mutationFn: () => calendarFeedApi.regenerate(instructorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-feed-status', instructorId] });
+    },
+  });
+
+  const feedUrl = data?.feedUrl || '';
+  const hasCalendarFeed = data?.hasCalendarFeed || false;
+
+  const copyToClipboard = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const statusData = await calendarApi.getSyncStatus(instructorId);
-      setStatus(statusData);
-
-      if (statusData.isConnected) {
-        const events = await calendarApi.getExternalEvents(instructorId);
-        setExternalEvents(events);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load calendar status');
-    } finally {
-      setLoading(false);
+      await navigator.clipboard.writeText(feedUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
     }
   };
 
-  const handleConnect = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const { authUrl } = await calendarApi.getAuthUrl(instructorId);
-
-      // Open OAuth URL in new window
-      window.open(authUrl, 'google-calendar-oauth', 'width=600,height=700');
-
-      // Poll for status change
-      const pollInterval = setInterval(async () => {
-        const newStatus = await calendarApi.getSyncStatus(instructorId);
-        if (newStatus.isConnected) {
-          clearInterval(pollInterval);
-          setStatus(newStatus);
-          setLoading(false);
-        }
-      }, 2000);
-
-      // Stop polling after 2 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        setLoading(false);
-      }, 120000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to initiate OAuth');
-      setLoading(false);
-    }
-  };
-
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
-      setError(null);
-      const result = await calendarApi.syncCalendar(instructorId);
-
-      // Reload status and events
-      await loadStatus();
-
-      alert(
-        `Sync complete!\n\n` +
-        `Events created in Google: ${result.toGoogle.eventsCreated}\n` +
-        `External events fetched: ${result.fromGoogle.externalEventsFetched}\n` +
-        `Duration: ${(result.durationMs / 1000).toFixed(2)}s`
-      );
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Sync failed');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Google Calendar?')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      await calendarApi.disconnectCalendar(instructorId);
-      setStatus(null);
-      setExternalEvents([]);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to disconnect');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading && !status) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+          <div className="h-10 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="text-red-600">
+          Failed to load calendar feed status. Please try again.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <div className="flex items-center">
-            <span className="text-xl mr-3">⚠️</span>
-            <div>
-              <strong className="font-medium">Error:</strong>
-              <p className="text-sm mt-1">{error}</p>
-            </div>
-          </div>
+    <div className="bg-white rounded-lg shadow p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-blue-100 rounded-lg">
+          <Calendar className="h-6 w-6 text-blue-600" />
         </div>
-      )}
-
-      {/* Connection Status */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Google Calendar Connection
-        </h3>
-
-        {status?.isConnected ? (
-          <div className="space-y-4">
-            {/* Connected State */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-sm font-medium text-gray-700">Connected</span>
-              </div>
-              <button
-                onClick={handleDisconnect}
-                disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-              >
-                Disconnect
-              </button>
-            </div>
-
-            {/* Calendar Info */}
-            {status.googleCalendarId && (
-              <div className="bg-gray-50 rounded p-3 text-sm">
-                <span className="text-gray-600">Calendar ID:</span>
-                <span className="ml-2 font-mono text-gray-900">{status.googleCalendarId}</span>
-              </div>
-            )}
-
-            {/* Last Sync Info */}
-            {status.lastSyncAt && (
-              <div className="flex items-center justify-between text-sm">
-                <div>
-                  <span className="text-gray-600">Last sync:</span>
-                  <span className="ml-2 text-gray-900">
-                    {new Date(status.lastSyncAt).toLocaleString()}
-                  </span>
-                </div>
-                <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    status.lastSyncStatus === 'success'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                >
-                  {status.lastSyncStatus}
-                </span>
-              </div>
-            )}
-
-            {/* Sync Button */}
-            <button
-              onClick={handleSync}
-              disabled={syncing || !status.syncEnabled}
-              className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {syncing ? (
-                <span className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Syncing...
-                </span>
-              ) : (
-                '🔄 Sync Now'
-              )}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Not Connected State */}
-            <div className="flex items-center space-x-3">
-              <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-              <span className="text-sm font-medium text-gray-700">Not Connected</span>
-            </div>
-
-            <p className="text-sm text-gray-600">
-              Connect Google Calendar to automatically sync lessons and detect conflicts with
-              external events.
-            </p>
-
-            <button
-              onClick={handleConnect}
-              disabled={loading}
-              className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Connecting...' : '🔗 Connect Google Calendar'}
-            </button>
-          </div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Calendar Subscription</h2>
+          <p className="text-sm text-gray-500">
+            Subscribe to lessons using any calendar app
+          </p>
+        </div>
+        {hasCalendarFeed && (
+          <span className="ml-auto text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+            ✓ Active
+          </span>
         )}
       </div>
 
-      {/* External Events */}
-      {status?.isConnected && externalEvents.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            External Calendar Events ({externalEvents.length})
-          </h3>
-          <p className="text-sm text-gray-600 mb-4">
-            These events from your Google Calendar will be considered when checking for conflicts.
-          </p>
+      {/* Description */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <p className="text-sm text-blue-800">
+          <strong>How it works:</strong> Generate a calendar feed URL, then subscribe to it in your preferred calendar app 
+          (Google Calendar, Apple Calendar, Outlook, etc.). All scheduled lessons will automatically appear in your calendar 
+          and stay updated.
+        </p>
+      </div>
 
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {externalEvents.map((event) => (
-              <div
-                key={event.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded border border-gray-200"
+      {hasCalendarFeed ? (
+        <>
+          {/* Feed URL */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Calendar Feed URL
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={feedUrl}
+                title="Calendar feed URL"
+                className="flex-1 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-sm text-gray-600 truncate"
+              />
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                title="Copy URL to clipboard"
+                className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-medium ${
+                  copied
+                    ? 'bg-green-500 text-white'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">{event.eventTitle}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {new Date(event.eventStart).toLocaleString()} →{' '}
-                    {new Date(event.eventEnd).toLocaleString()}
-                  </div>
-                </div>
-                <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${
-                    event.eventStatus === 'confirmed'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
-                >
-                  {event.eventStatus}
-                </span>
-              </div>
-            ))}
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy URL
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* Instructions Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowInstructions(!showInstructions)}
+            className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors mb-4"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <ExternalLink className="h-4 w-4" />
+              Setup Instructions for Calendar Apps
+            </span>
+            {showInstructions ? (
+              <ChevronUp className="h-5 w-5 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-500" />
+            )}
+          </button>
+
+          {/* Instructions */}
+          {showInstructions && (
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-4 mb-4">
+              <div>
+                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                  <span className="text-xl">📱</span> Google Calendar
+                </h4>
+                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1 ml-6">
+                  <li>Open Google Calendar in your browser</li>
+                  <li>Click the + next to "Other calendars" in the left sidebar</li>
+                  <li>Select "From URL"</li>
+                  <li>Paste the feed URL and click "Add calendar"</li>
+                </ol>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                  <span className="text-xl">🍎</span> Apple Calendar (Mac/iPhone)
+                </h4>
+                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1 ml-6">
+                  <li>Open the Calendar app</li>
+                  <li>Go to File → New Calendar Subscription (Mac) or Settings → Calendar → Accounts → Add Account → Other (iPhone)</li>
+                  <li>Paste the feed URL</li>
+                  <li>Click Subscribe</li>
+                </ol>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                  <span className="text-xl">📧</span> Microsoft Outlook
+                </h4>
+                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1 ml-6">
+                  <li>Open Outlook Calendar</li>
+                  <li>Click "Add Calendar" → "Subscribe from web"</li>
+                  <li>Paste the feed URL</li>
+                  <li>Give it a name and click "Import"</li>
+                </ol>
+              </div>
+              
+              <div className="pt-3 border-t border-gray-200">
+                <p className="text-xs text-gray-500 flex items-start gap-2">
+                  <span className="text-lg">💡</span>
+                  <span>
+                    <strong>Note:</strong> Calendar apps typically refresh subscribed calendars every 15-60 minutes. 
+                    New lessons will appear automatically after the next refresh.
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Regenerate URL */}
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+            <div className="text-sm text-gray-500">
+              Need a new URL? Regenerating will invalidate the old one.
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Are you sure? The instructor will need to re-subscribe with the new URL.')) {
+                  regenerateMutation.mutate();
+                }
+              }}
+              disabled={regenerateMutation.isPending}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <RefreshCw className={`h-4 w-4 ${regenerateMutation.isPending ? 'animate-spin' : ''}`} />
+              Regenerate URL
+            </button>
+          </div>
+
+          {regenerateMutation.isSuccess && (
+            <div className="mt-3 text-sm text-amber-600 bg-amber-50 rounded-lg p-3 border border-amber-200">
+              ⚠️ URL has been regenerated. The instructor will need to re-subscribe with the new URL.
+            </div>
+          )}
+        </>
+      ) : (
+        /* No feed set up yet */
+        <div className="text-center py-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+            <Calendar className="h-8 w-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Calendar sync not set up
+          </h3>
+          <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+            Enable calendar sync to generate a feed URL that the instructor can subscribe to in their calendar app.
+          </p>
+          <button
+            type="button"
+            onClick={() => setupMutation.mutate()}
+            disabled={setupMutation.isPending}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto font-medium"
+          >
+            {setupMutation.isPending ? (
+              <>
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                Setting up...
+              </>
+            ) : (
+              <>
+                <Calendar className="h-5 w-5" />
+                Enable Calendar Sync
+              </>
+            )}
+          </button>
         </div>
       )}
-
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-sm font-medium text-blue-900 mb-2">How it works:</h4>
-        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-          <li>Lessons are automatically synced to Google Calendar</li>
-          <li>External events are fetched for conflict detection</li>
-          <li>Sync happens automatically every 30 minutes (or manually)</li>
-          <li>Only future lessons are synced (past lessons are ignored)</li>
-        </ul>
-      </div>
     </div>
   );
 };
+
+export default CalendarSync;

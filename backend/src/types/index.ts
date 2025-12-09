@@ -7,6 +7,8 @@
 // TENANT SYSTEM TYPES
 // =====================================================
 
+export type TenantType = 'school' | 'independent';
+
 export interface Tenant {
   id: string;
   name: string;
@@ -14,11 +16,20 @@ export interface Tenant {
   domain: string | null;
   email: string;
   phone: string | null;
+  tenantType: TenantType;
   status: 'active' | 'suspended' | 'cancelled' | 'trial';
   planTier: 'basic' | 'professional' | 'enterprise';
   trialEndsAt: Date | null;
   subscriptionStartsAt: Date | null;
   subscriptionEndsAt: Date | null;
+  // Public profile fields
+  publicProfileEnabled: boolean;
+  publicSlug: string | null;
+  publicDescription: string | null;
+  publicPhotoUrl: string | null;
+  publicBookingEnabled: boolean;
+  publicShowRates: boolean;
+  publicRequirePaymentUpfront: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,6 +71,9 @@ export interface TenantSettings {
   enableInstructorPortal: boolean;
   enableSmsNotifications: boolean;
   enableEmailNotifications: boolean;
+
+  // Student Defaults
+  defaultHoursRequired: number;
 
   // Localization
   timezone: string;
@@ -120,6 +134,11 @@ export interface Instructor {
   phone: string;
   dateOfBirth: Date | null;
   address: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
 
   // Employment
   employmentType: 'w2_employee' | 'independent_contractor';
@@ -187,13 +206,25 @@ export interface Student {
   email: string;
   phone: string;
   dateOfBirth: Date;
-  address: string;
-  emergencyContact: string;
+  address: string; // Legacy combined address field
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  emergencyContact: string; // Legacy field - deprecated in favor of split fields
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  emergencyContact2Name: string | null;
+  emergencyContact2Phone: string | null;
 
   // Program
   licenseType: 'car' | 'motorcycle' | 'commercial';
   enrollmentDate: Date;
-  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  status: 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'permit_expired';
+  learnerPermitNumber: string | null;
+  learnerPermitIssueDate: Date | null;
+  learnerPermitExpiration: Date | null;
 
   // Progress
   totalHoursCompleted: number;
@@ -208,6 +239,9 @@ export interface Student {
   // Blockchain
   bsvCertificateHash: string | null;
   codaRowId: string | null;
+
+  // Follow-up tracking
+  lastContactedAt: Date | null;  // Timestamp of last contact attempt for follow-up
 
   notes: string | null;
   createdAt: Date;
@@ -431,13 +465,14 @@ export interface Lesson {
   tenantId: string;
   studentId: string;
   instructorId: string;
-  vehicleId: string;
+  vehicleId: string | null;
 
   // Scheduling
   date: Date;
   startTime: string;
   endTime: string;
   duration: number;
+  lessonNumber: number | null;
 
   // Details
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
@@ -659,10 +694,15 @@ export interface CreateStudentDTO {
   phone: string;
   dateOfBirth: Date;
   address: string;
-  emergencyContact: string;
+  emergencyContact?: string; // Legacy field - kept for backward compatibility
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
   licenseType: 'car' | 'motorcycle' | 'commercial';
   hoursRequired: number;
   assignedInstructorId?: string;
+  learnerPermitIssueDate?: Date;
 }
 
 export interface UpdateStudentDTO {
@@ -670,9 +710,14 @@ export interface UpdateStudentDTO {
   email?: string;
   phone?: string;
   address?: string;
-  emergencyContact?: string;
+  emergencyContact?: string; // Legacy field - kept for backward compatibility
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
   status?: 'active' | 'completed' | 'inactive' | 'suspended';
   assignedInstructorId?: string;
+  learnerPermitIssueDate?: Date;
   notes?: string;
 }
 
@@ -707,7 +752,7 @@ export interface UpdateInstructorDTO {
 export interface CreateLessonDTO {
   studentId: string;
   instructorId: string;
-  vehicleId: string;
+  vehicleId?: string | null;
   date: Date;
   startTime: string;
   endTime: string;
@@ -747,6 +792,7 @@ export interface InstructorAvailability {
   dayOfWeek: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   startTime: string; // HH:MM:SS format
   endTime: string; // HH:MM:SS format
+  maxStudents: number | null; // Override for max students (null = use tenant default)
   isActive: boolean;
   notes: string | null;
   createdAt: Date;

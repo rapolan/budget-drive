@@ -1,6 +1,6 @@
 # Budget Drive Protocol (BDP) - Driving School Management System
 
-A comprehensive multi-tenant driving school management platform with **smart scheduling**, **Google Calendar sync**, **recurring lessons**, and **blockchain-verified treasury** (Craig Wright aligned).
+A comprehensive multi-tenant driving school management platform with **smart scheduling**, **universal calendar sync** (ICS feeds), **recurring lessons**, and **blockchain-verified treasury** (Craig Wright aligned).
 
 ## Current Status
 
@@ -26,11 +26,11 @@ A comprehensive multi-tenant driving school management platform with **smart sch
 - Availability calendar + time-off system
 - 3-step booking wizard with capacity indicators
 
-**Phase 4B: Google Calendar Integration**
-- OAuth 2.0 two-way sync
-- Automatic lesson push to Google Calendar
-- External event conflict detection
-- Sync status monitoring
+**Phase 4B: Universal Calendar Integration**
+- ICS calendar feed for any calendar app (Google Calendar, Apple Calendar, Outlook, etc.)
+- Email invites with ICS attachments for instant calendar updates
+- Secure token-based feed URLs per instructor
+- No OAuth required - works with any calendar that supports ICS subscriptions
 
 **Phase 4C: Recurring Lessons**
 - Pattern-based lesson generation (daily, weekly, biweekly, monthly)

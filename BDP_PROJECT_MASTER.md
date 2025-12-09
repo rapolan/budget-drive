@@ -1,8 +1,8 @@
 # Budget Drive Protocol (BDP) - Project Master Document
 
-**Last Updated:** November 18, 2025
-**Version:** 1.0
-**Status:** Phase 1 Complete (75%) - BSV Integration Next
+**Last Updated:** December 2, 2025
+**Version:** 1.1
+**Status:** Phase 1 Complete (80%) - UI/UX Polished, BSV Integration Next
 
 ---
 
@@ -42,7 +42,7 @@ This is the first real Bitcoin business. We are building it right now. It's work
 
 ## 📊 Current Status
 
-### ✅ Phase 1 Complete (75%)
+### ✅ Phase 1 Complete (80%)
 
 **Working Features:**
 - ✅ Multi-tenant database architecture (PostgreSQL)
@@ -56,7 +56,18 @@ This is the first real Bitcoin business. We are building it right now. It's work
 - ✅ Real-time statistics and analytics
 - ✅ Notion-style UI (rounded corners, subtle shadows, clean)
 
-**Recently Completed (Session 14 - Nov 18):**
+**Recently Completed (Session 15 - Dec 2):**
+- ✅ Weekly Schedule View - major UI overhaul
+  - Stats bar (lessons, available slots, completed, utilization)
+  - Compact instructor selector with avatars
+  - Enhanced today column highlighting
+  - Capacity progress bars per day
+  - Better slot styling with hover effects
+- ✅ Lessons page stats cards with clickable behavior
+- ✅ Students page stats cards with comparison toggle
+- ✅ Bug fixes (payment_date column, availabilityData order)
+
+**Previously Completed (Session 14 - Nov 18):**
 - ✅ Codebase cleanup and organization
 - ✅ Payment recording system (PaymentModal)
 - ✅ Lesson scheduling with conflict detection
@@ -130,7 +141,7 @@ All queries filter by `tenant_id` to ensure complete data isolation between driv
 - `notification_queue` - Scheduled notifications
 
 **Future (Phase 2+):**
-- `calendar_integrations` - Google Calendar OAuth
+- `calendar_feed_tokens` - ICS calendar feed tokens (per instructor)
 - `recurring_lesson_patterns` - Pattern-based scheduling
 
 ---
@@ -221,7 +232,7 @@ All queries filter by `tenant_id` to ensure complete data isolation between driv
 |-------|---------|--------|-------|
 | 1-3 | Core System | ✅ 100% | DB, API, Frontend complete |
 | 4A | Smart Scheduling | ✅ 100% | 6D conflict detection, availability |
-| 4B | Google Calendar | ⏸️ Deferred | OAuth integration ready to implement |
+| 4B | Universal Calendar | ✅ 100% | ICS feeds + email invites (no OAuth needed) |
 | 4C | Recurring Lessons | ⏸️ Deferred | Pattern generation ready |
 | BDP-1 | Treasury | ✅ 90% | DB tracking complete, BSV pending |
 | BDP-1 | Notifications | ✅ 80% | Queue working, Gmail setup pending |

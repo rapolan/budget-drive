@@ -6,6 +6,9 @@
 import { query } from '../config/database';
 import { InstructorAvailability, InstructorTimeOff, SchedulingSettings } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('AvailabilityService');
 
 // =====================================================
 // HELPER FUNCTIONS
@@ -21,6 +24,7 @@ const transformAvailability = (row: any): InstructorAvailability => ({
   dayOfWeek: row.day_of_week,
   startTime: row.start_time,
   endTime: row.end_time,
+  maxStudents: row.max_students,
   isActive: row.is_active,
   notes: row.notes,
   createdAt: row.created_at,
@@ -35,24 +39,41 @@ export const getInstructorAvailability = async (
   instructorId: string,
   tenantId: string
 ): Promise<InstructorAvailability[]> => {
+  logger.debug('Fetching instructor availability', { tenantId, instructorId });
+
   const result = await query(
     `SELECT * FROM instructor_availability
      WHERE instructor_id = $1 AND tenant_id = $2 AND is_active = true
      ORDER BY day_of_week, start_time`,
     [instructorId, tenantId]
   );
+
+  logger.debug('Successfully fetched instructor availability', {
+    tenantId,
+    instructorId,
+    count: result.rows.length,
+  });
+
   return result.rows.map(transformAvailability);
 };
 
 export const getAllInstructorsAvailability = async (
   tenantId: string
 ): Promise<InstructorAvailability[]> => {
+  logger.debug('Fetching all instructors availability', { tenantId });
+
   const result = await query(
     `SELECT * FROM instructor_availability
      WHERE tenant_id = $1 AND is_active = true
      ORDER BY instructor_id, day_of_week, start_time`,
     [tenantId]
   );
+
+  logger.debug('Successfully fetched all instructors availability', {
+    tenantId,
+    count: result.rows.length,
+  });
+
   return result.rows.map(transformAvailability);
 };
 
@@ -63,37 +84,68 @@ export const createAvailability = async (
     dayOfWeek: number;
     startTime: string;
     endTime: string;
+    maxStudents?: number | null;
     notes?: string;
   }
 ): Promise<InstructorAvailability> => {
+  logger.info('Creating instructor availability', {
+    tenantId,
+    instructorId,
+    dayOfWeek: data.dayOfWeek,
+    startTime: data.startTime,
+    endTime: data.endTime,
+  });
+
   // Validate instructor belongs to tenant
   const instructorCheck = await query(
     'SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2',
     [instructorId, tenantId]
   );
   if (instructorCheck.rows.length === 0) {
+    logger.error('Instructor not found for availability creation', undefined, {
+      tenantId,
+      instructorId,
+    });
     throw new AppError('Instructor not found or does not belong to this organization', 404);
   }
 
   // Validate day of week
   if (data.dayOfWeek < 0 || data.dayOfWeek > 6) {
+    logger.warn('Invalid day of week for availability', {
+      tenantId,
+      instructorId,
+      dayOfWeek: data.dayOfWeek,
+    });
     throw new AppError('dayOfWeek must be between 0 (Sunday) and 6 (Saturday)', 400);
   }
 
   // Validate time format and logic
   if (data.startTime >= data.endTime) {
+    logger.warn('Invalid time range for availability', {
+      tenantId,
+      instructorId,
+      startTime: data.startTime,
+      endTime: data.endTime,
+    });
     throw new AppError('startTime must be before endTime', 400);
   }
 
   const result = await query(
     `INSERT INTO instructor_availability (
-      tenant_id, instructor_id, day_of_week, start_time, end_time, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6)
+      tenant_id, instructor_id, day_of_week, start_time, end_time, max_students, notes
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *`,
-    [tenantId, instructorId, data.dayOfWeek, data.startTime, data.endTime, data.notes || null]
+    [tenantId, instructorId, data.dayOfWeek, data.startTime, data.endTime, data.maxStudents ?? null, data.notes || null]
   );
 
-  return transformAvailability(result.rows[0]);
+  const availability = transformAvailability(result.rows[0]);
+  logger.info('Successfully created instructor availability', {
+    tenantId,
+    instructorId,
+    availabilityId: availability.id,
+  });
+
+  return availability;
 };
 
 export const updateAvailability = async (
@@ -103,16 +155,28 @@ export const updateAvailability = async (
     dayOfWeek: number;
     startTime: string;
     endTime: string;
+    maxStudents: number | null;
     isActive: boolean;
     notes: string;
   }>
 ): Promise<InstructorAvailability> => {
+  logger.debug('Updating instructor availability', {
+    tenantId,
+    availabilityId: id,
+    updates: Object.keys(data),
+  });
+
   const fields: string[] = [];
   const values: any[] = [];
   let paramCount = 1;
 
   if (data.dayOfWeek !== undefined) {
     if (data.dayOfWeek < 0 || data.dayOfWeek > 6) {
+      logger.warn('Invalid day of week for availability update', {
+        tenantId,
+        availabilityId: id,
+        dayOfWeek: data.dayOfWeek,
+      });
       throw new AppError('dayOfWeek must be between 0 (Sunday) and 6 (Saturday)', 400);
     }
     fields.push(`day_of_week = $${paramCount++}`);
@@ -126,6 +190,10 @@ export const updateAvailability = async (
     fields.push(`end_time = $${paramCount++}`);
     values.push(data.endTime);
   }
+  if (data.maxStudents !== undefined) {
+    fields.push(`max_students = $${paramCount++}`);
+    values.push(data.maxStudents);
+  }
   if (data.isActive !== undefined) {
     fields.push(`is_active = $${paramCount++}`);
     values.push(data.isActive);
@@ -136,6 +204,10 @@ export const updateAvailability = async (
   }
 
   if (fields.length === 0) {
+    logger.warn('No fields provided for availability update', {
+      tenantId,
+      availabilityId: id,
+    });
     throw new AppError('No fields to update', 400);
   }
 
@@ -149,8 +221,17 @@ export const updateAvailability = async (
   );
 
   if (result.rows.length === 0) {
+    logger.warn('Availability not found for update', {
+      tenantId,
+      availabilityId: id,
+    });
     throw new AppError('Availability not found', 404);
   }
+
+  logger.info('Successfully updated instructor availability', {
+    tenantId,
+    availabilityId: id,
+  });
 
   return transformAvailability(result.rows[0]);
 };
@@ -159,6 +240,11 @@ export const deleteAvailability = async (
   id: string,
   tenantId: string
 ): Promise<void> => {
+  logger.info('Deleting instructor availability (soft delete)', {
+    tenantId,
+    availabilityId: id,
+  });
+
   // Soft delete - set is_active to false
   const result = await query(
     `UPDATE instructor_availability SET is_active = false
@@ -168,8 +254,17 @@ export const deleteAvailability = async (
   );
 
   if (result.rows.length === 0) {
+    logger.warn('Availability not found for deletion', {
+      tenantId,
+      availabilityId: id,
+    });
     throw new AppError('Availability not found', 404);
   }
+
+  logger.info('Successfully deleted instructor availability', {
+    tenantId,
+    availabilityId: id,
+  });
 };
 
 export const setInstructorSchedule = async (
@@ -182,12 +277,22 @@ export const setInstructorSchedule = async (
     notes?: string;
   }>
 ): Promise<InstructorAvailability[]> => {
+  logger.info('Setting instructor schedule', {
+    tenantId,
+    instructorId,
+    scheduleEntries: schedule.length,
+  });
+
   // Validate instructor
   const instructorCheck = await query(
     'SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2',
     [instructorId, tenantId]
   );
   if (instructorCheck.rows.length === 0) {
+    logger.error('Instructor not found for schedule setting', undefined, {
+      tenantId,
+      instructorId,
+    });
     throw new AppError('Instructor not found or does not belong to this organization', 404);
   }
 
@@ -209,6 +314,12 @@ export const setInstructorSchedule = async (
     );
     availabilities.push(transformAvailability(result.rows[0]));
   }
+
+  logger.info('Successfully set instructor schedule', {
+    tenantId,
+    instructorId,
+    createdEntries: availabilities.length,
+  });
 
   return availabilities;
 };
@@ -243,6 +354,13 @@ export const getInstructorTimeOff = async (
   startDate?: Date,
   endDate?: Date
 ): Promise<InstructorTimeOff[]> => {
+  logger.debug('Fetching instructor time off', {
+    tenantId,
+    instructorId,
+    startDate: startDate?.toISOString(),
+    endDate: endDate?.toISOString(),
+  });
+
   let queryText = `
     SELECT * FROM instructor_time_off
     WHERE instructor_id = $1 AND tenant_id = $2
@@ -262,6 +380,13 @@ export const getInstructorTimeOff = async (
   queryText += ' ORDER BY start_date, start_time';
 
   const result = await query(queryText, params);
+
+  logger.debug('Successfully fetched instructor time off', {
+    tenantId,
+    instructorId,
+    count: result.rows.length,
+  });
+
   return result.rows.map(transformTimeOff);
 };
 
@@ -279,17 +404,35 @@ export const createTimeOff = async (
     approvedBy?: string;
   }
 ): Promise<InstructorTimeOff> => {
+  logger.info('Creating instructor time off', {
+    tenantId,
+    instructorId,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    reason: data.reason,
+  });
+
   // Validate instructor
   const instructorCheck = await query(
     'SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2',
     [instructorId, tenantId]
   );
   if (instructorCheck.rows.length === 0) {
+    logger.error('Instructor not found for time off creation', undefined, {
+      tenantId,
+      instructorId,
+    });
     throw new AppError('Instructor not found or does not belong to this organization', 404);
   }
 
   // Validate dates
   if (data.startDate > data.endDate) {
+    logger.warn('Invalid date range for time off', {
+      tenantId,
+      instructorId,
+      startDate: data.startDate,
+      endDate: data.endDate,
+    });
     throw new AppError('startDate must be before or equal to endDate', 400);
   }
 
@@ -314,7 +457,15 @@ export const createTimeOff = async (
     ]
   );
 
-  return transformTimeOff(result.rows[0]);
+  const timeOff = transformTimeOff(result.rows[0]);
+  logger.info('Successfully created instructor time off', {
+    tenantId,
+    instructorId,
+    timeOffId: timeOff.id,
+    isApproved: timeOff.isApproved,
+  });
+
+  return timeOff;
 };
 
 export const updateTimeOff = async (
@@ -322,6 +473,12 @@ export const updateTimeOff = async (
   tenantId: string,
   data: Partial<InstructorTimeOff>
 ): Promise<InstructorTimeOff> => {
+  logger.debug('Updating instructor time off', {
+    tenantId,
+    timeOffId: id,
+    updates: Object.keys(data),
+  });
+
   const fields: string[] = [];
   const values: any[] = [];
   let paramCount = 1;
@@ -363,6 +520,10 @@ export const updateTimeOff = async (
   }
 
   if (fields.length === 0) {
+    logger.warn('No fields provided for time off update', {
+      tenantId,
+      timeOffId: id,
+    });
     throw new AppError('No fields to update', 400);
   }
 
@@ -376,8 +537,17 @@ export const updateTimeOff = async (
   );
 
   if (result.rows.length === 0) {
+    logger.warn('Time off not found for update', {
+      tenantId,
+      timeOffId: id,
+    });
     throw new AppError('Time off not found', 404);
   }
+
+  logger.info('Successfully updated instructor time off', {
+    tenantId,
+    timeOffId: id,
+  });
 
   return transformTimeOff(result.rows[0]);
 };
@@ -386,14 +556,28 @@ export const deleteTimeOff = async (
   id: string,
   tenantId: string
 ): Promise<void> => {
+  logger.info('Deleting instructor time off', {
+    tenantId,
+    timeOffId: id,
+  });
+
   const result = await query(
     'DELETE FROM instructor_time_off WHERE id = $1 AND tenant_id = $2 RETURNING id',
     [id, tenantId]
   );
 
   if (result.rows.length === 0) {
+    logger.warn('Time off not found for deletion', {
+      tenantId,
+      timeOffId: id,
+    });
     throw new AppError('Time off not found', 404);
   }
+
+  logger.info('Successfully deleted instructor time off', {
+    tenantId,
+    timeOffId: id,
+  });
 };
 
 // =====================================================
@@ -429,12 +613,15 @@ const transformSchedulingSettings = (row: any): SchedulingSettings => ({
 export const getSchedulingSettings = async (
   tenantId: string
 ): Promise<SchedulingSettings> => {
+  logger.debug('Fetching scheduling settings', { tenantId });
+
   const result = await query(
     'SELECT * FROM scheduling_settings WHERE tenant_id = $1',
     [tenantId]
   );
 
   if (result.rows.length === 0) {
+    logger.info('Creating default scheduling settings', { tenantId });
     // Create default settings if none exist
     const createResult = await query(
       `INSERT INTO scheduling_settings (tenant_id)
@@ -442,9 +629,11 @@ export const getSchedulingSettings = async (
        RETURNING *`,
       [tenantId]
     );
+    logger.info('Successfully created default scheduling settings', { tenantId });
     return transformSchedulingSettings(createResult.rows[0]);
   }
 
+  logger.debug('Successfully fetched scheduling settings', { tenantId });
   return transformSchedulingSettings(result.rows[0]);
 };
 
@@ -452,6 +641,11 @@ export const updateSchedulingSettings = async (
   tenantId: string,
   data: Partial<SchedulingSettings>
 ): Promise<SchedulingSettings> => {
+  logger.info('Updating scheduling settings', {
+    tenantId,
+    updates: Object.keys(data),
+  });
+
   const fields: string[] = [];
   const values: any[] = [];
   let paramCount = 1;
@@ -498,6 +692,7 @@ export const updateSchedulingSettings = async (
   }
 
   if (fields.length === 0) {
+    logger.warn('No fields provided for scheduling settings update', { tenantId });
     throw new AppError('No fields to update', 400);
   }
 
@@ -511,8 +706,11 @@ export const updateSchedulingSettings = async (
   );
 
   if (result.rows.length === 0) {
+    logger.warn('Scheduling settings not found for update', { tenantId });
     throw new AppError('Scheduling settings not found', 404);
   }
+
+  logger.info('Successfully updated scheduling settings', { tenantId });
 
   return transformSchedulingSettings(result.rows[0]);
 };

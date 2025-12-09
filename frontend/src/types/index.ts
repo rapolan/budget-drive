@@ -1,14 +1,58 @@
 // Core API Types matching backend schema
 
+export type TenantType = 'school' | 'independent';
+
 export interface Tenant {
   id: string;
   businessName: string;
   subdomain: string;
+  tenantType: TenantType;
   planTier: 'basic' | 'pro' | 'enterprise';
   status: 'active' | 'suspended' | 'trial';
   trialEndsAt?: Date;
+  // Public profile settings
+  publicProfileEnabled: boolean;
+  publicSlug?: string;
+  publicDescription?: string;
+  publicPhotoUrl?: string;
+  publicBookingEnabled: boolean;
+  publicShowRates: boolean;
+  publicRequirePaymentUpfront: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// User account (can belong to multiple tenants)
+export interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  phone?: string;
+  profilePhotoUrl?: string;
+  status: 'active' | 'suspended' | 'pending_verification';
+  emailVerified: boolean;
+  lastLoginAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// User's membership in a tenant (for account switching)
+export interface UserTenantMembership {
+  id: string;
+  userId: string;
+  tenantId: string;
+  role: 'owner' | 'admin' | 'instructor' | 'staff' | 'viewer';
+  instructorId?: string;
+  status: 'active' | 'suspended' | 'invited' | 'declined';
+  isDefaultTenant: boolean;
+  lastAccessedAt?: Date;
+  // Joined fields for display
+  tenantName?: string;
+  tenantSlug?: string;
+  tenantType?: TenantType;
+  businessName?: string;
+  logoUrl?: string;
+  primaryColor?: string;
 }
 
 export interface TenantSettings {
@@ -26,10 +70,22 @@ export interface TenantSettings {
   timezone: string;
   currency: string;
   language: string;
+  defaultHoursRequired: number; // State-specific training hours requirement
   enableBlockchainPayments: boolean;
   enableGoogleCalendar: boolean;
   enableCertificates: boolean;
   enableFollowUpTracker: boolean;
+  // Independent instructor specific fields
+  independentInstructorId?: string;
+  acceptsNewStudents: boolean;
+  serviceAreaDescription?: string;
+  serviceAreaRadiusMiles?: number;
+  serviceZipCodes?: string[];
+  specializations?: string[];
+  languagesSpoken: string[];
+  yearsExperience?: number;
+  bio?: string;
+  teachingPhilosophy?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,11 +98,21 @@ export interface Student {
   phone: string;
   dateOfBirth?: Date;
   address?: string;
-  emergencyContact?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  emergencyContact?: string; // Legacy field - deprecated in favor of split fields
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
   licenseType?: 'car' | 'motorcycle' | 'commercial';
   learnerPermitNumber?: string;
+  learnerPermitIssueDate?: Date;
   learnerPermitExpiration?: Date;
-  status: 'active' | 'completed' | 'dropped' | 'suspended';
+  status: 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'permit_expired';
   enrollmentDate: Date;
   completionDate?: Date;
   totalHoursCompleted: number;
@@ -55,6 +121,7 @@ export interface Student {
   paymentStatus?: 'paid' | 'partial' | 'unpaid' | 'overdue';
   totalPaid?: number;
   outstandingBalance?: number;
+  lastContactedAt?: Date;  // Timestamp of last contact attempt for follow-up
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -68,6 +135,11 @@ export interface Instructor {
   phone: string;
   dateOfBirth?: Date;
   address?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
   licenseNumber?: string;
   licenseExpiration?: Date;
   certifications?: string[];
@@ -108,19 +180,24 @@ export interface Lesson {
   tenantId: string;
   studentId: string;
   instructorId: string;
-  vehicleId: string;
+  vehicleId: string | null;
   date: Date;
   startTime: string;
   endTime: string;
   duration: number;
+  lessonNumber?: number | null;
   lessonType: 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
   cost: number;
+  pickupAddress?: string | null;
+  skillsPracticed?: string[] | null;
   studentPerformance?: string;
   instructorRating?: number;
   notes?: string;
   completionVerified: boolean;
   googleCalendarEventId?: string;
+  bsvRecordHash?: string | null;
+  codaRowId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -214,11 +291,21 @@ export interface CreateStudentInput {
   phone: string;
   dateOfBirth: string;
   address: string;
-  emergencyContact: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  emergencyContact?: string; // Legacy field - kept for backward compatibility
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
   licenseType: 'car' | 'motorcycle' | 'commercial';
-  hoursRequired: number;
+  hoursRequired?: number; // Made optional as it's being removed from UI
   assignedInstructorId?: string;
   learnerPermitNumber?: string;
+  learnerPermitIssueDate?: string;
   learnerPermitExpiration?: string;
   notes?: string;
 }
@@ -229,6 +316,11 @@ export interface CreateInstructorInput {
   phone: string;
   dateOfBirth?: string;
   address?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
   licenseNumber?: string;
   licenseExpiration?: string;
   certifications?: string[];
@@ -258,11 +350,12 @@ export interface CreateVehicleInput {
 export interface CreateLessonInput {
   studentId: string;
   instructorId: string;
-  vehicleId: string;
+  vehicleId?: string | null;
   date: string;
   startTime: string;
   endTime: string;
   duration: number;
+  lessonNumber?: number | null;
   lessonType?: 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
   cost?: number;
   notes?: string;
@@ -290,6 +383,7 @@ export interface InstructorAvailability {
   dayOfWeek: number; // 0 = Sunday, 6 = Saturday
   startTime: string; // HH:MM format
   endTime: string; // HH:MM format
+  maxStudents: number | null; // Override for max students (null = use tenant default)
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -348,6 +442,7 @@ export interface CreateAvailabilityInput {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  maxStudents?: number | null; // Override for max students (null = use tenant default)
   isActive?: boolean;
 }
 
@@ -378,4 +473,143 @@ export interface CheckConflictsRequest {
   date: string;
   startTime: string;
   endTime: string;
+}
+
+// ===================================================================
+// REFERRAL SYSTEM TYPES
+// ===================================================================
+
+export type ReferralSourceType = 'student' | 'instructor' | 'partner_school' | 'affiliate' | 'employee' | 'custom';
+export type ReferralRewardType = 'credit' | 'cash' | 'free_lesson' | 'percentage' | 'commission';
+export type ReferralRecipientType = 'referrer' | 'referee' | 'both';
+export type ReferralStatus = 'pending' | 'converted' | 'qualified' | 'rewarded' | 'expired' | 'cancelled';
+export type RewardStatus = 'pending' | 'active' | 'partially_used' | 'fully_used' | 'paid_out' | 'expired' | 'cancelled';
+
+export interface ReferralSource {
+  id: string;
+  tenantId: string;
+  name: string;
+  sourceType: ReferralSourceType;
+  referringStudentId?: string;
+  referringInstructorId?: string;
+  referralCode?: string;
+  isActive: boolean;
+  totalReferrals: number;
+  successfulConversions: number;
+  totalRewardsPaid: number;
+  totalCommissionsPaid: number;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Joined fields
+  referringStudentName?: string;
+  referringInstructorName?: string;
+}
+
+export interface ReferralRewardConfig {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  rewardType: ReferralRewardType;
+  recipientType: ReferralRecipientType;
+  referrerRewardAmount?: number;
+  referrerRewardPercentage?: number;
+  refereeRewardAmount?: number;
+  refereeRewardPercentage?: number;
+  commissionDurationMonths?: number;
+  commissionMaxAmount?: number;
+  minPurchaseAmount?: number;
+  maxRewardsPerReferrer?: number;
+  requiresCompletion: boolean;
+  isActive: boolean;
+  validFrom?: Date;
+  validUntil?: Date;
+  totalBudget?: number;
+  totalSpent: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Referral {
+  id: string;
+  tenantId: string;
+  referralSourceId: string;
+  rewardConfigId?: string;
+  referredStudentId?: string;
+  referredLeadId?: string;
+  status: ReferralStatus;
+  referralCodeUsed?: string;
+  referralDate: Date;
+  conversionDate?: Date;
+  qualificationDate?: Date;
+  firstLessonId?: string;
+  firstPaymentId?: string;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Joined fields
+  referredStudentName?: string;
+  sourceName?: string;
+}
+
+export interface ReferralReward {
+  id: string;
+  tenantId: string;
+  referralId: string;
+  recipientType: 'referrer' | 'referee';
+  recipientStudentId?: string;
+  recipientInstructorId?: string;
+  rewardType: ReferralRewardType;
+  amount: number;
+  creditBalanceRemaining?: number;
+  expiresAt?: Date;
+  status: RewardStatus;
+  totalUsed: number;
+  payoutMethod?: 'check' | 'bank_transfer' | 'paypal' | 'bsv' | 'credit_applied';
+  payoutDate?: Date;
+  payoutReference?: string;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  // Joined fields
+  recipientName?: string;
+}
+
+// Form inputs for referral system
+export interface CreateReferralSourceInput {
+  name: string;
+  sourceType: ReferralSourceType;
+  referringStudentId?: string;
+  referringInstructorId?: string;
+  referralCode?: string;
+  notes?: string;
+}
+
+export interface CreateReferralRewardConfigInput {
+  name: string;
+  description?: string;
+  rewardType: ReferralRewardType;
+  recipientType: ReferralRecipientType;
+  referrerRewardAmount?: number;
+  referrerRewardPercentage?: number;
+  refereeRewardAmount?: number;
+  refereeRewardPercentage?: number;
+  commissionDurationMonths?: number;
+  commissionMaxAmount?: number;
+  minPurchaseAmount?: number;
+  maxRewardsPerReferrer?: number;
+  requiresCompletion?: boolean;
+  validFrom?: string;
+  validUntil?: string;
+  totalBudget?: number;
+}
+
+export interface CreateReferralInput {
+  referralSourceId: string;
+  rewardConfigId?: string;
+  referredStudentId?: string;
+  referredLeadId?: string;
+  referralCodeUsed?: string;
+  notes?: string;
 }

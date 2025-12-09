@@ -8,11 +8,15 @@ import { useQuery } from '@tanstack/react-query';
 import { treasuryApi } from '../api';
 import { useTenant } from '@/contexts/TenantContext';
 import { Coins, TrendingUp, Activity, Check, Clock, AlertCircle, ExternalLink } from 'lucide-react';
+import { BackButton } from '@/components/common';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 const BSV_PRICE = 47; // Current BSV price in USD
 const BSV_NETWORK = 'testnet'; // Change to 'mainnet' when ready
 
 const Treasury: React.FC = () => {
+  // Enable swipe-to-go-back on mobile
+  useSwipeNavigation();
   const { settings } = useTenant();
   // NOTE: Backend returns snake_case field names from database (enable_blockchain_payments)
   // Frontend TypeScript types expect camelCase (enableBlockchainPayments)
@@ -93,22 +97,23 @@ const Treasury: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Treasury Dashboard</h1>
+          <BackButton />
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mt-2">Treasury Dashboard</h1>
           {showBlockchainDetails && (
-            <p className="text-gray-600 mt-1">
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
               Satoshi-level transaction fees • Craig Wright aligned
             </p>
           )}
           {!showBlockchainDetails && (
-            <p className="text-gray-600 mt-1">
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
               Platform fee collection and financial overview
             </p>
           )}
         </div>
         {showBlockchainDetails && (
-          <div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg border border-green-200">
+          <div className="flex items-center justify-center space-x-2 bg-green-50 px-4 py-2 rounded-lg border border-green-200">
             <Check className="h-5 w-5 text-green-600" />
             <span className="text-sm font-medium text-green-900">Wright-Aligned</span>
           </div>
@@ -135,7 +140,7 @@ const Treasury: React.FC = () => {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Current Balance */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between">

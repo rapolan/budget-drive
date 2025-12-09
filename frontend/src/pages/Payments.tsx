@@ -4,8 +4,12 @@ import { DollarSign, CreditCard, TrendingUp, Search, Plus, Check, X } from 'luci
 import { studentsApi } from '@/api';
 import { PaymentModal, PaymentHistoryModal } from '@/components/payments';
 import type { Student } from '@/types';
+import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 export const PaymentsPage: React.FC = () => {
+  // Enable swipe-to-go-back on mobile
+  useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -23,8 +27,8 @@ export const PaymentsPage: React.FC = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="h-64">
+        <LoadingSpinner className="h-64" />
       </div>
     );
   }
@@ -171,9 +175,10 @@ export const PaymentsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Payments & Balances</h1>
+          <BackButton />
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Payments & Balances</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track student payments and account balances
           </p>
@@ -183,15 +188,15 @@ export const PaymentsPage: React.FC = () => {
             setSelectedStudent(null);
             setIsPaymentModalOpen(true);
           }}
-          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+          className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
         >
-          <Plus className="mr-2 h-5 w-5" />
+          <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
           Record Payment
         </button>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {/* Total Revenue */}
         <div className="rounded-lg bg-white p-6 shadow">
           <div className="flex items-center justify-between">
@@ -234,7 +239,7 @@ export const PaymentsPage: React.FC = () => {
 
       {/* Filters */}
       <div className="rounded-lg bg-white p-4 shadow">
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {/* Search */}
           <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
             <Search className="h-5 w-5 text-gray-400" />
@@ -293,8 +298,18 @@ export const PaymentsPage: React.FC = () => {
             <tbody className="divide-y divide-gray-200 bg-white">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    No students found
+                  <td colSpan={7} className="py-2">
+                    <EmptyState
+                      icon={<DollarSign className="h-12 w-12" />}
+                      title="No payment records found"
+                      description={
+                        filterStatus !== 'all'
+                          ? `No students match the selected payment status filter. Try changing the filter.`
+                          : searchTerm
+                          ? `No payment records match your search for "${searchTerm}"`
+                          : "No student payment records available"
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

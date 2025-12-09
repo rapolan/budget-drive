@@ -261,6 +261,12 @@ export const updateTenantSettings = async (
     values.push(data.enableMultiPayment);
   }
 
+  // Student Defaults
+  if (data.defaultHoursRequired !== undefined) {
+    fields.push(`default_hours_required = $${paramCount++}`);
+    values.push(data.defaultHoursRequired);
+  }
+
   // Localization
   if (data.timezone !== undefined) {
     fields.push(`timezone = $${paramCount++}`);

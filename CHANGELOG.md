@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2025-12-09
+
+### Added - Lesson Number Tracking & Calendar Improvements
+
+**Lesson Number Feature:**
+- Added `lesson_number` column to lessons table (migration 025)
+- LessonModal now includes lesson number dropdown (#1, #2, #3, etc.)
+- Auto-suggests next lesson number based on student's previous lessons
+- Shows "of ~X" estimated total based on student's hours required
+- Lesson number displayed in ICS calendar events and email invites
+
+**Instructor Availability Improvements:**
+- Added `max_students` column to instructor_availability (migration 024)
+- AvailabilityEditor now has Max Students dropdown (1-5 or Default)
+- AvailabilityCalendar shows actual bookable slots (not raw availability)
+- Calendar view starts at 7 AM instead of midnight
+
+**Student Management Fixes:**
+- Fixed "Internal server error" when editing students (empty string date handling)
+- Added `hoursRequired` and `licenseType` to updateStudent function
+- Empty date strings now properly converted to NULL for PostgreSQL
+
+**UI/UX Consistency:**
+- Instructors page and modal now match Students/Lessons styling
+- Purple gradient icon headers for instructor sections
+- Stats cards with filter dropdowns
+- Removed unused notes section from InstructorModal
+
+### Removed - Code Cleanup
+
+**Dead Code Removal:**
+- Removed `googleCalendarAuth.ts` - Unused OAuth implementation
+- Removed `googleCalendarSync.ts` - Unused sync service
+- Removed `calendarRoutes.ts` - Unused API routes
+
+**Calendar Architecture Simplified:**
+- Now using only ICS feeds (universal calendar subscription)
+- Works with Google Calendar, Apple Calendar, Outlook, any ICS app
+- No OAuth complexity - simple URL subscription
+
+---
+
 ## [0.4.1] - 2025-11-08
 
 ### Added - Phase 4A Frontend: Smart Scheduling UI

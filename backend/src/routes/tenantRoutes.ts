@@ -15,6 +15,14 @@ const router = Router();
 // MULTI-TENANT ROUTES (require authentication + tenant context)
 // =====================================================
 
+// Get current tenant info (full tenant details including type)
+router.get(
+  '/tenant/current',
+  authenticate,
+  requireTenantContext,
+  tenantController.getCurrentTenant
+);
+
 // Get current tenant settings (scoped to authenticated user's tenant)
 router.get(
   '/tenant/settings',

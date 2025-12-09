@@ -1,11 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { schedulingApi } from '@/api';
-import { InstructorAvailability, Instructor } from '@/types';
+import { InstructorAvailability } from '@/types';
 
 interface AvailabilityCalendarProps {
   instructorId: string;
   onSlotClick?: (dayOfWeek: number, startTime: string, endTime: string) => void;
   editable?: boolean;
+}
+
+interface BookableSlot {
+  startTime: string;
+  endTime: string;
+  slotNumber: number;
+}
+
+interface SchedulingSettings {
+  defaultLessonDuration: number;
+  bufferTimeBetweenLessons: number;
+  defaultMaxStudentsPerDay: number;
 }
 
 const DAYS_OF_WEEK = [
@@ -18,10 +30,26 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Saturday', short: 'Sat' },
 ];
 
-const TIME_SLOTS = Array.from({ length: 24 }, (_, i) => {
-  const hour = i.toString().padStart(2, '0');
+// Time slots from 7 AM to 9 PM (practical hours for driving lessons)
+const START_HOUR = 7;
+const END_HOUR = 21;
+const TIME_SLOTS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => {
+  const hour = (START_HOUR + i).toString().padStart(2, '0');
   return `${hour}:00`;
 });
+
+// Convert minutes to HH:MM format
+const minutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// Convert HH:MM to minutes
+const timeToMinutes = (time: string): number => {
+  const [hours, mins] = time.split(':').map(Number);
+  return hours * 60 + mins;
+};
 
 export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   instructorId,
@@ -29,19 +57,43 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   editable = false,
 }) => {
   const [availability, setAvailability] = useState<InstructorAvailability[]>([]);
+  const [schedulingSettings, setSchedulingSettings] = useState<SchedulingSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadAvailability();
+    loadData();
   }, [instructorId]);
 
-  const loadAvailability = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await schedulingApi.getInstructorAvailability(instructorId);
-      setAvailability(data);
+      
+      // Load both availability and scheduling settings
+      const [availData, settingsResponse] = await Promise.all([
+        schedulingApi.getInstructorAvailability(instructorId),
+        fetch('http://localhost:3000/api/v1/availability/settings', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
+          },
+        }),
+      ]);
+      
+      setAvailability(availData);
+      
+      if (settingsResponse.ok) {
+        const settingsResult = await settingsResponse.json();
+        setSchedulingSettings(settingsResult.data);
+      } else {
+        // Use defaults if settings can't be loaded
+        setSchedulingSettings({
+          defaultLessonDuration: 120,
+          bufferTimeBetweenLessons: 30,
+          defaultMaxStudentsPerDay: 3,
+        });
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load availability');
       console.error('Error loading availability:', err);
@@ -50,23 +102,79 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
     }
   };
 
-  const getAvailabilityForSlot = (dayOfWeek: number, timeSlot: string): InstructorAvailability | null => {
-    return availability.find((slot) => {
-      if (!slot.isActive || slot.dayOfWeek !== dayOfWeek) return false;
+  // Calculate bookable slots for each availability entry
+  const bookableSlotsByDay = useMemo(() => {
+    if (!schedulingSettings) return new Map<number, BookableSlot[]>();
+    
+    const slotsByDay = new Map<number, BookableSlot[]>();
+    
+    availability.forEach((avail) => {
+      if (!avail.isActive) return;
+      
+      const lessonDuration = schedulingSettings.defaultLessonDuration;
+      const buffer = schedulingSettings.bufferTimeBetweenLessons;
+      // Use slot-specific maxStudents or fall back to default
+      const maxStudents = avail.maxStudents ?? schedulingSettings.defaultMaxStudentsPerDay;
+      
+      const startMinutes = timeToMinutes(avail.startTime);
+      const slots: BookableSlot[] = [];
+      
+      for (let i = 0; i < maxStudents; i++) {
+        const slotStartMinutes = startMinutes + (i * (lessonDuration + buffer));
+        const slotEndMinutes = slotStartMinutes + lessonDuration;
+        
+        slots.push({
+          startTime: minutesToTime(slotStartMinutes),
+          endTime: minutesToTime(slotEndMinutes),
+          slotNumber: i + 1,
+        });
+      }
+      
+      const existingSlots = slotsByDay.get(avail.dayOfWeek) || [];
+      slotsByDay.set(avail.dayOfWeek, [...existingSlots, ...slots]);
+    });
+    
+    return slotsByDay;
+  }, [availability, schedulingSettings]);
 
-      const slotHour = parseInt(timeSlot.split(':')[0]);
-      const startHour = parseInt(slot.startTime.split(':')[0]);
-      const endHour = parseInt(slot.endTime.split(':')[0]);
+  // Check if a time slot hour falls within a bookable slot
+  const getBookableSlotForTime = (dayOfWeek: number, timeSlot: string): BookableSlot | null => {
+    const daySlots = bookableSlotsByDay.get(dayOfWeek) || [];
+    const timeHour = parseInt(timeSlot.split(':')[0]);
+    
+    return daySlots.find((slot) => {
+      const slotStartHour = parseInt(slot.startTime.split(':')[0]);
+      const slotStartMin = parseInt(slot.startTime.split(':')[1]);
+      const slotEndHour = parseInt(slot.endTime.split(':')[0]);
+      const slotEndMin = parseInt(slot.endTime.split(':')[1]);
+      
+      // Check if the timeHour falls within this slot
+      const startInMinutes = slotStartHour * 60 + slotStartMin;
+      const endInMinutes = slotEndHour * 60 + slotEndMin;
+      const timeInMinutes = timeHour * 60;
+      
+      return timeInMinutes >= startInMinutes && timeInMinutes < endInMinutes;
+    }) || null;
+  };
 
-      return slotHour >= startHour && slotHour < endHour;
+  // Check if this is the start of a bookable slot
+  const isSlotStart = (dayOfWeek: number, timeSlot: string): BookableSlot | null => {
+    const daySlots = bookableSlotsByDay.get(dayOfWeek) || [];
+    const timeHour = parseInt(timeSlot.split(':')[0]);
+    
+    return daySlots.find((slot) => {
+      const slotStartHour = parseInt(slot.startTime.split(':')[0]);
+      return slotStartHour === timeHour;
     }) || null;
   };
 
   const handleSlotClick = (dayOfWeek: number, timeSlot: string) => {
     if (!editable || !onSlotClick) return;
-
-    const nextHour = (parseInt(timeSlot.split(':')[0]) + 1).toString().padStart(2, '0');
-    onSlotClick(dayOfWeek, timeSlot, `${nextHour}:00`);
+    
+    const bookableSlot = isSlotStart(dayOfWeek, timeSlot);
+    if (bookableSlot) {
+      onSlotClick(dayOfWeek, bookableSlot.startTime, bookableSlot.endTime);
+    }
   };
 
   if (loading) {
@@ -82,7 +190,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <p className="text-red-800">{error}</p>
         <button
-          onClick={loadAvailability}
+          onClick={loadData}
           className="mt-2 text-red-600 hover:text-red-800 font-medium"
         >
           Try Again
@@ -93,6 +201,21 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Legend */}
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 bg-green-500 rounded"></div>
+          <span>Lesson Start</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-4 h-4 bg-green-100 rounded"></div>
+          <span>Lesson Time</span>
+        </div>
+        <div className="text-gray-500">
+          ({schedulingSettings?.defaultLessonDuration || 120} min lessons, {schedulingSettings?.bufferTimeBetweenLessons || 30} min buffer)
+        </div>
+      </div>
+      
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -118,24 +241,27 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
                   {timeSlot}
                 </td>
                 {DAYS_OF_WEEK.map((day) => {
-                  const slot = getAvailabilityForSlot(day.value, timeSlot);
-                  const isAvailable = slot !== null;
+                  const bookableSlot = getBookableSlotForTime(day.value, timeSlot);
+                  const slotStart = isSlotStart(day.value, timeSlot);
+                  const isInSlot = bookableSlot !== null;
 
                   return (
                     <td
                       key={`${day.value}-${timeSlot}`}
                       onClick={() => handleSlotClick(day.value, timeSlot)}
                       className={`px-3 py-2 text-center text-sm ${
-                        editable ? 'cursor-pointer' : ''
+                        editable && slotStart ? 'cursor-pointer' : ''
                       } ${
-                        isAvailable
-                          ? 'bg-green-100 hover:bg-green-200'
-                          : 'bg-gray-50 hover:bg-gray-100'
+                        slotStart
+                          ? 'bg-green-500 hover:bg-green-600'
+                          : isInSlot
+                          ? 'bg-green-100'
+                          : 'bg-gray-50'
                       }`}
                     >
-                      {isAvailable && (
-                        <div className="text-xs text-green-700 font-medium">
-                          Available
+                      {slotStart && (
+                        <div className="text-xs text-white font-medium">
+                          Slot {slotStart.slotNumber}
                         </div>
                       )}
                     </td>

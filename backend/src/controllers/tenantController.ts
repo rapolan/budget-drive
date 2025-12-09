@@ -120,6 +120,30 @@ export const deleteTenant = asyncHandler(async (req: Request, res: Response) => 
 });
 
 /**
+ * @route   GET /api/v1/tenant/current
+ * @desc    Get current tenant info (full details including type)
+ * @access  Private
+ */
+export const getCurrentTenant = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const tenant = await tenantService.getTenantById(tenantId);
+
+  if (!tenant) {
+    res.status(404).json({
+      success: false,
+      error: 'Tenant not found',
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: tenant,
+  });
+});
+
+/**
  * @route   GET /api/v1/tenant/settings
  * @desc    Get current tenant settings
  * @access  Private

@@ -1,19 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Edit, X, CheckCircle, List, Calendar, RefreshCw, Trash2, CalendarDays, MapPin, Car as CarIcon } from 'lucide-react';
+import { Plus, Search, Edit, X, CheckCircle, List, Calendar, RefreshCw, Trash2, CalendarDays, MapPin, Car as CarIcon, CalendarRange, Clock, Users, TrendingUp, AlertCircle } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi, schedulingApi } from '@/api';
-import type { Lesson } from '@/types';
+import type { Lesson, Instructor } from '@/types';
 import { LessonModal } from '@/components/lessons/LessonModal';
 import { LessonsCalendarView } from '@/components/lessons/LessonsCalendarView';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
-import { EmptyState, LoadingSpinner, FilterButton } from '@/components/common';
+import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
+import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
+import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
-type ViewMode = 'table' | 'calendar';
+type ViewMode = 'table' | 'calendar' | 'weekly';
 type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
 
 export const LessonsPage: React.FC = () => {
   const location = useLocation();
+
+  // Enable swipe-to-go-back on mobile
+  useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
@@ -26,12 +31,39 @@ export const LessonsPage: React.FC = () => {
   const [preselectedTime, setPreselectedTime] = useState<{ start: string; end: string } | null>(null);
   const [preselectedStudentId, setPreselectedStudentId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  // Handle navigation state to open SmartBooking
+  // Scroll to table with smooth animation (fallback to instant for reduced motion)
+  const scrollToTable = () => {
+    if (tableRef.current) {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      tableRef.current.scrollIntoView({ 
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
+  // Handle stat card click - set filter and scroll to table
+  const handleStatCardClick = (filter: StatusFilter) => {
+    setStatusFilter(filter);
+    setViewMode('table'); // Switch to table view when clicking stats
+    setTimeout(scrollToTable, 100);
+  };
+
+  // Handle navigation state to open SmartBooking or scroll to table
   useEffect(() => {
     if (location.state?.openSmartBooking) {
       setIsSmartBookingOpen(true);
       // Clear the state after opening
+      window.history.replaceState({}, document.title);
+    }
+    if (location.state?.scrollToTable) {
+      setViewMode('table');
+      setStatusFilter('scheduled');
+      // Delay scroll to ensure table is rendered
+      setTimeout(scrollToTable, 200);
+      // Clear the state after handling
       window.history.replaceState({}, document.title);
     }
   }, [location]);
@@ -144,13 +176,32 @@ export const LessonsPage: React.FC = () => {
     setIsSmartBookingOpen(true);
   };
 
-  const handleBookingComplete = (lessonId: string) => {
+  const handleWeeklyBookSlot = (instructor: Instructor, date: Date, time: string) => {
+    const [hours, minutes] = time.split(':');
+    const endDateTime = new Date(date);
+    endDateTime.setHours(parseInt(hours) + 2, parseInt(minutes), 0, 0);
+    const endTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
+
+    setPreselectedInstructorId(instructor.id.toString());
+    setPreselectedStudentId(null);
+    setPreselectedDate(date);
+    setPreselectedTime({ start: time, end: endTime });
+    setIsSmartBookingOpen(true);
+  };
+
+  const handleViewLessonFromWeekly = (lesson: Lesson) => {
+    setSelectedLesson(lesson);
+    setIsModalOpen(true);
+  };
+
+  const handleBookingComplete = async (lessonId: string) => {
     setIsSmartBookingOpen(false);
     setPreselectedInstructorId(null);
     setPreselectedStudentId(null);
     setPreselectedDate(null);
     setPreselectedTime(null);
-    queryClient.invalidateQueries({ queryKey: ['lessons'] });
+    // Invalidate and refetch all lesson queries immediately
+    await queryClient.invalidateQueries({ queryKey: ['lessons'], refetchType: 'active' });
   };
 
   // Helper functions to get names from IDs
@@ -195,6 +246,65 @@ export const LessonsPage: React.FC = () => {
       else if (lesson.status === 'no_show') counts.no_show++;
     });
     return counts;
+  }, [data?.data]);
+
+  // Calculate stats for dashboard cards
+  const stats = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    let todayLessons = 0;
+    let upcomingToday = 0;
+    let thisWeekLessons = 0;
+    let completedThisMonth = 0;
+    let totalHoursThisMonth = 0;
+
+    data?.data?.forEach((lesson) => {
+      const lessonDate = new Date(lesson.date);
+      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+
+      // Today's lessons
+      if (lessonDay.getTime() === today.getTime()) {
+        todayLessons++;
+        if (lesson.status === 'scheduled') {
+          const [hours, minutes] = lesson.startTime.split(':');
+          const lessonTime = new Date(today);
+          lessonTime.setHours(parseInt(hours), parseInt(minutes), 0);
+          if (lessonTime > now) {
+            upcomingToday++;
+          }
+        }
+      }
+
+      // This week's lessons (scheduled only)
+      if (lessonDay >= weekStart && lessonDay < weekEnd && lesson.status === 'scheduled') {
+        thisWeekLessons++;
+      }
+
+      // Completed this month
+      if (lessonDay >= monthStart && lessonDay <= monthEnd && lesson.status === 'completed') {
+        completedThisMonth++;
+        // Calculate hours from start and end time
+        const [startH, startM] = lesson.startTime.split(':').map(Number);
+        const [endH, endM] = lesson.endTime.split(':').map(Number);
+        const hours = (endH - startH) + (endM - startM) / 60;
+        totalHoursThisMonth += hours;
+      }
+    });
+
+    return {
+      todayLessons,
+      upcomingToday,
+      thisWeekLessons,
+      completedThisMonth,
+      totalHoursThisMonth: Math.round(totalHoursThisMonth * 10) / 10,
+    };
   }, [data?.data]);
 
   const filteredLessons = data?.data?.filter((lesson) => {
@@ -295,10 +405,13 @@ export const LessonsPage: React.FC = () => {
     return (
       <tr
         key={lesson.id}
-        className={`hover:bg-gray-50 ${upcoming ? 'border-l-4 border-l-yellow-400 bg-yellow-50' : ''}`}
+        className={`hover:bg-gray-50 transition-colors ${upcoming ? 'border-l-4 border-l-amber-400 bg-amber-50/50' : ''}`}
       >
         <td className="whitespace-nowrap px-6 py-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${upcoming ? 'bg-amber-100' : 'bg-blue-50'}`}>
+              <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-blue-600'}`} />
+            </div>
             <div>
               <div className="text-sm font-medium text-gray-900">
                 {formatDate(lesson.date)}
@@ -308,17 +421,28 @@ export const LessonsPage: React.FC = () => {
               </div>
             </div>
             {upcoming && (
-              <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 animate-pulse">
+                <AlertCircle className="h-3 w-3 mr-1" />
                 Soon
               </span>
             )}
           </div>
         </td>
         <td className="whitespace-nowrap px-6 py-4">
-          <div className="text-sm text-gray-900">{getStudentName(lesson.studentId)}</div>
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium">
+              {getStudentName(lesson.studentId).split(' ').map(n => n[0]).join('').slice(0, 2)}
+            </div>
+            <div className="text-sm font-medium text-gray-900">{getStudentName(lesson.studentId)}</div>
+          </div>
         </td>
         <td className="whitespace-nowrap px-6 py-4">
-          <div className="text-sm text-gray-900">{getInstructorName(lesson.instructorId)}</div>
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium">
+              {getInstructorName(lesson.instructorId).split(' ').map(n => n[0]).join('').slice(0, 2)}
+            </div>
+            <div className="text-sm text-gray-900">{getInstructorName(lesson.instructorId)}</div>
+          </div>
         </td>
         <td className="px-6 py-4">
           {lesson.pickupAddress ? (
@@ -329,60 +453,54 @@ export const LessonsPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            <span className="text-sm text-gray-400">Not specified</span>
+            <span className="text-sm text-gray-400 italic">Not specified</span>
           )}
         </td>
         <td className="whitespace-nowrap px-6 py-4">
-          {lesson.vehicleId ? (
-            <div className="flex items-center gap-2">
-              <CarIcon className="h-4 w-4 text-gray-400" />
-              <div className="text-sm text-gray-900">{getVehicleInfo(lesson.vehicleId)}</div>
-            </div>
-          ) : (
-            <span className="text-sm text-gray-400">Not assigned</span>
-          )}
-        </td>
-        <td className="whitespace-nowrap px-6 py-4">
-          <div className="text-sm text-gray-900 capitalize">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 capitalize">
             {lesson.lessonType.replace(/_/g, ' ')}
-          </div>
+          </span>
         </td>
         <td className="whitespace-nowrap px-6 py-4">
           <span
-            className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 capitalize ${getStatusColor(
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusColor(
               lesson.status
             )}`}
           >
+            {lesson.status === 'scheduled' && <Clock className="h-3 w-3 mr-1" />}
+            {lesson.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
+            {lesson.status === 'cancelled' && <X className="h-3 w-3 mr-1" />}
+            {lesson.status === 'no_show' && <AlertCircle className="h-3 w-3 mr-1" />}
             {lesson.status.replace(/_/g, ' ')}
           </span>
         </td>
         <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-1">
             {lesson.status === 'scheduled' && (
               <>
                 <button
                   type="button"
                   onClick={() => handleEdit(lesson)}
-                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                   title="Edit lesson"
                 >
-                  <Edit className="h-5 w-5" />
+                  <Edit className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleComplete(lesson.id)}
-                  className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
+                  className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-all hover:scale-110"
                   title="Mark as completed"
                 >
-                  <CheckCircle className="h-5 w-5" />
+                  <CheckCircle className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCancel(lesson.id)}
-                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
                   title="Cancel lesson"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
               </>
             )}
@@ -391,23 +509,23 @@ export const LessonsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleReschedule(lesson)}
-                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                   title="Reschedule lesson"
                 >
-                  <RefreshCw className="h-5 w-5" />
+                  <RefreshCw className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDelete(lesson.id)}
-                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
                   title="Delete lesson"
                 >
-                  <Trash2 className="h-5 w-5" />
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </>
             )}
             {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
-              <span className="text-gray-400 text-xs">No actions</span>
+              <span className="text-gray-400 text-xs italic">—</span>
             )}
           </div>
         </td>
@@ -418,53 +536,145 @@ export const LessonsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Lessons</h1>
+          <BackButton />
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Lessons</h1>
           <p className="mt-1 text-sm text-gray-500">
             Manage driving lessons and appointments
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* View Toggle */}
-          <div className="flex rounded-md border border-gray-300 bg-white">
+          <div className="flex rounded-lg border border-gray-300 bg-white overflow-hidden">
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'table'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <List className="mr-2 h-4 w-4" />
+              <List className="mr-2 h-4 w-4 flex-shrink-0" />
               Table
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`flex items-center px-3 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'calendar'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <Calendar className="mr-2 h-4 w-4" />
-              Calendar
+              <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
+              Month
+            </button>
+            <button
+              onClick={() => setViewMode('weekly')}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
+                viewMode === 'weekly'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <CalendarRange className="mr-2 h-4 w-4 flex-shrink-0" />
+              Weekly
             </button>
           </div>
 
           <button
             onClick={handleAddNew}
-            className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
           >
-            <Plus className="mr-2 h-5 w-5" />
+            <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
             Book New Lesson
           </button>
         </div>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Today's Lessons */}
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          onClick={() => handleStatCardClick('scheduled')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+              <CalendarDays className="h-5 w-5 text-blue-600" />
+            </div>
+            {stats.upcomingToday > 0 && (
+              <span className="flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                <Clock className="h-3 w-3 mr-1" />
+                {stats.upcomingToday} upcoming
+              </span>
+            )}
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-gray-900">{stats.todayLessons}</p>
+            <p className="text-sm text-gray-500">Today's Lessons</p>
+          </div>
+        </div>
+
+        {/* This Week */}
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          onClick={() => {
+            setStatusFilter('scheduled');
+            setViewMode('weekly');
+            setTimeout(scrollToTable, 100);
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
+              <CalendarRange className="h-5 w-5 text-purple-600" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-gray-900">{stats.thisWeekLessons}</p>
+            <p className="text-sm text-gray-500">Scheduled This Week</p>
+          </div>
+        </div>
+
+        {/* Completed This Month */}
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          onClick={() => handleStatCardClick('completed')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+            <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+              {stats.totalHoursThisMonth} hrs
+            </span>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-gray-900">{stats.completedThisMonth}</p>
+            <p className="text-sm text-gray-500">Completed This Month</p>
+          </div>
+        </div>
+
+        {/* Active Bookings */}
+        <div 
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          onClick={() => handleStatCardClick('scheduled')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
+              <TrendingUp className="h-5 w-5 text-amber-600" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-gray-900">{statusCounts.scheduled}</p>
+            <p className="text-sm text-gray-500">Active Bookings</p>
+          </div>
+        </div>
+      </div>
+
       {/* Search - Show in both views */}
-      <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
-        <Search className="h-5 w-5 text-gray-400" />
+      <div className="flex items-center rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+        <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
         <input
           type="text"
           placeholder={
@@ -474,14 +684,23 @@ export const LessonsPage: React.FC = () => {
           }
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="ml-2 flex-1 border-none bg-transparent outline-none"
+          className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
         />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            title="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Status Filter - Only show in table view */}
       {viewMode === 'table' && (
-        <div className="flex items-center gap-3 rounded-lg bg-white p-4 shadow">
-          <span className="text-sm font-medium text-gray-700">Filter:</span>
+        <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
+          <span className="text-sm font-medium text-gray-700">Status:</span>
           <div className="flex flex-wrap gap-2">
             <FilterButton
               label="All"
@@ -535,35 +754,41 @@ export const LessonsPage: React.FC = () => {
         />
       )}
 
-      {/* Table View */}
-      {viewMode === 'table' && (
-        <div className="rounded-lg bg-white shadow">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Date & Time
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Student
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Instructor
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+      {/* Weekly Schedule View */}
+      {viewMode === 'weekly' && (
+        <InstructorWeeklySchedule
+          onBookSlot={handleWeeklyBookSlot}
+          onViewLesson={handleViewLessonFromWeekly}
+        />
+      )}
+
+      {/* Table View - scroll target */}
+      <div ref={tableRef}>
+        {viewMode === 'table' && (
+          <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50/80">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                  Date & Time
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                  Student
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                  Instructor
+                </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Pickup Location
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                Vehicle
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Type
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Status
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Actions
               </th>
             </tr>
@@ -571,13 +796,13 @@ export const LessonsPage: React.FC = () => {
           <tbody className="divide-y divide-gray-200 bg-white">
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="py-12">
+                <td colSpan={7} className="py-12">
                   <LoadingSpinner />
                 </td>
               </tr>
             ) : filteredLessons?.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-2">
+                <td colSpan={7} className="py-2">
                   <EmptyState
                     icon={<CalendarDays className="h-12 w-12" />}
                     title="No lessons found"
@@ -606,9 +831,15 @@ export const LessonsPage: React.FC = () => {
                 {/* Today's Lessons */}
                 {groupedLessons?.today && groupedLessons.today.length > 0 && (
                   <>
-                    <tr className="bg-blue-50">
-                      <td colSpan={8} className="px-6 py-3">
-                        <h3 className="text-sm font-semibold text-blue-900">Today</h3>
+                    <tr className="bg-gradient-to-r from-blue-50 to-blue-100/50">
+                      <td colSpan={7} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-blue-600" />
+                          <h3 className="text-sm font-semibold text-blue-900">Today</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-blue-200 text-blue-800 text-xs font-medium rounded-full">
+                            {groupedLessons.today.length}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                     {groupedLessons.today.map((lesson) => renderLessonRow(lesson))}
@@ -618,9 +849,15 @@ export const LessonsPage: React.FC = () => {
                 {/* Tomorrow's Lessons */}
                 {groupedLessons?.tomorrow && groupedLessons.tomorrow.length > 0 && (
                   <>
-                    <tr className="bg-green-50">
-                      <td colSpan={8} className="px-6 py-3">
-                        <h3 className="text-sm font-semibold text-green-900">Tomorrow</h3>
+                    <tr className="bg-gradient-to-r from-green-50 to-green-100/50">
+                      <td colSpan={7} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-green-600" />
+                          <h3 className="text-sm font-semibold text-green-900">Tomorrow</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-green-200 text-green-800 text-xs font-medium rounded-full">
+                            {groupedLessons.tomorrow.length}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                     {groupedLessons.tomorrow.map((lesson) => renderLessonRow(lesson))}
@@ -630,9 +867,15 @@ export const LessonsPage: React.FC = () => {
                 {/* This Week's Lessons */}
                 {groupedLessons?.thisWeek && groupedLessons.thisWeek.length > 0 && (
                   <>
-                    <tr className="bg-purple-50">
-                      <td colSpan={8} className="px-6 py-3">
-                        <h3 className="text-sm font-semibold text-purple-900">This Week</h3>
+                    <tr className="bg-gradient-to-r from-purple-50 to-purple-100/50">
+                      <td colSpan={7} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <CalendarRange className="h-4 w-4 text-purple-600" />
+                          <h3 className="text-sm font-semibold text-purple-900">This Week</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-purple-200 text-purple-800 text-xs font-medium rounded-full">
+                            {groupedLessons.thisWeek.length}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                     {groupedLessons.thisWeek.map((lesson) => renderLessonRow(lesson))}
@@ -642,9 +885,15 @@ export const LessonsPage: React.FC = () => {
                 {/* Later Lessons */}
                 {groupedLessons?.later && groupedLessons.later.length > 0 && (
                   <>
-                    <tr className="bg-gray-50">
-                      <td colSpan={8} className="px-6 py-3">
-                        <h3 className="text-sm font-semibold text-gray-700">Later</h3>
+                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
+                      <td colSpan={7} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-gray-600" />
+                          <h3 className="text-sm font-semibold text-gray-700">Later</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-full">
+                            {groupedLessons.later.length}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                     {groupedLessons.later.map((lesson) => renderLessonRow(lesson))}
@@ -654,9 +903,15 @@ export const LessonsPage: React.FC = () => {
                 {/* Past Lessons */}
                 {groupedLessons?.past && groupedLessons.past.length > 0 && (
                   <>
-                    <tr className="bg-gray-100">
-                      <td colSpan={8} className="px-6 py-3">
-                        <h3 className="text-sm font-semibold text-gray-600">Past</h3>
+                    <tr className="bg-gradient-to-r from-gray-100 to-gray-200/50">
+                      <td colSpan={7} className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-gray-500" />
+                          <h3 className="text-sm font-semibold text-gray-600">Past</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-gray-300 text-gray-600 text-xs font-medium rounded-full">
+                            {groupedLessons.past.length}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                     {groupedLessons.past.map((lesson) => renderLessonRow(lesson))}
@@ -669,6 +924,7 @@ export const LessonsPage: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* Pagination - Only show in table view */}
       {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (

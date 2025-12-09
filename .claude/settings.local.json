@@ -32,7 +32,10 @@
       "Bash(powershell -Command \"(Get-Content Settings.tsx) -replace ''bg-primary'', ''bg-blue-600'' | Set-Content Settings.tsx\")",
       "Bash(git checkout:*)",
       "Bash(curl:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(powershell -Command \"Stop-Process -Name node -Force\")",
+      "Bash(node:*)",
+      "Bash(tasklist:*)"
     ],
     "deny": [],
     "ask": []

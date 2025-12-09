@@ -281,7 +281,8 @@ USE CASES:
 
 ### **Future (Phase 2 - Production)**
 ```
-⏳ Google Calendar 2-Way Sync
+✓ Universal Calendar Sync (ICS feeds for any calendar app)
+✓ Email Invites with ICS attachments
 ⏳ Instructor Login Portal
 ⏳ Student Self-Booking Portal
 ⏳ Automated Reminder Emails/SMS
@@ -321,7 +322,7 @@ USE CASES:
 - Manages own instructors
 - Sets own scheduling rules
 - Configures own buffer times
-- Independent Google Calendar sync
+- Independent ICS calendar feeds per instructor
 - Isolated data (security)
 
 ### **Tenant Isolation:**
