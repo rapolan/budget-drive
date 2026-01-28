@@ -35,7 +35,16 @@
       "Bash(timeout:*)",
       "Bash(powershell -Command \"Stop-Process -Name node -Force\")",
       "Bash(node:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(git diff:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(del \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\backend\\src\\services\\googleCalendarSync.ts\")",
+      "Bash(powershell -Command:*)",
+      "Bash(netstat:*)",
+      "Bash(head:*)"
     ],
     "deny": [],
     "ask": []

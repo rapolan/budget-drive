@@ -115,6 +115,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.make}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 placeholder="e.g., Toyota"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -131,6 +132,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.model}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 placeholder="e.g., Corolla"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -147,6 +149,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.year}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 min="1900"
                 max={new Date().getFullYear() + 1}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
@@ -163,6 +166,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 name="color"
                 value={formData.color}
                 onChange={handleChange}
+                autoComplete="nope"
                 placeholder="e.g., Silver"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -179,6 +183,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.licensePlate}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 placeholder="e.g., ABC 1234"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -195,6 +200,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.vin}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 placeholder="Vehicle Identification Number"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -228,6 +234,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.currentMileage}
                 onChange={handleChange}
                 min="0"
+                autoComplete="nope"
                 placeholder="e.g., 50000"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -244,6 +251,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.registrationExpiration}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -259,6 +267,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.insuranceExpiration}
                 onChange={handleChange}
                 required
+                autoComplete="nope"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -273,6 +282,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 name="insuranceProvider"
                 value={formData.insuranceProvider}
                 onChange={handleChange}
+                autoComplete="nope"
                 placeholder="e.g., State Farm"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -288,6 +298,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 name="insurancePolicyNumber"
                 value={formData.insurancePolicyNumber}
                 onChange={handleChange}
+                autoComplete="nope"
                 placeholder="Policy #"
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />

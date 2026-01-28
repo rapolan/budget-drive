@@ -1,7 +1,7 @@
 -- Migration: Split emergency_contact into separate name and phone fields
--- Purpose: Better data structure for validation, SMS notifications, and UI
+-- Purpose: Better data structure for Parent/Guardian contact - validation, SMS notifications, and UI
 
--- Add new columns
+-- Add new columns for Parent/Guardian contact
 ALTER TABLE students
   ADD COLUMN emergency_contact_name VARCHAR(255),
   ADD COLUMN emergency_contact_phone VARCHAR(20);

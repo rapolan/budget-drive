@@ -14,9 +14,11 @@ import {
   errorLoggingMiddleware,
   slowRequestMiddleware,
 } from './middleware/loggingMiddleware';
+import authRoutes from './routes/authRoutes';
 import tenantRoutes from './routes/tenantRoutes';
 import studentRoutes from './routes/studentRoutes';
 import instructorRoutes from './routes/instructorRoutes';
+import userRoutes from './routes/userRoutes';
 import vehicleRoutes from './routes/vehicleRoutes';
 import lessonRoutes from './routes/lessonRoutes';
 import paymentRoutes from './routes/paymentRoutes';
@@ -78,11 +80,13 @@ app.get('/health', (_req: Request, res: Response) => {
 const API_PREFIX = `/api/${config.API_VERSION}`;
 
 // API Routes
+app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (public)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
 app.use(API_PREFIX, instructorRoutes);
 app.use(API_PREFIX, vehicleRoutes);
 app.use(API_PREFIX, lessonRoutes);
+app.use(`${API_PREFIX}/users`, userRoutes); // User management routes
 app.use(API_PREFIX, paymentRoutes);
 app.use(API_PREFIX, availabilityRoutes);
 app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);

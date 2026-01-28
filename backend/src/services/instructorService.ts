@@ -49,7 +49,8 @@ export const getInstructorById = async (
 
 export const createInstructor = async (
   tenantId: string,
-  data: any
+  data: any,
+  userId?: string
 ): Promise<Instructor> => {
   logger.info('Creating new instructor', {
     tenantId,
@@ -63,8 +64,9 @@ export const createInstructor = async (
       `INSERT INTO instructors (
         tenant_id, full_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
-        employment_type, hire_date, status, hourly_rate
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14)
+        employment_type, hire_date, status, hourly_rate,
+        created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $15)
       RETURNING *`,
       [
         tenantId,
@@ -81,6 +83,7 @@ export const createInstructor = async (
         data.employmentType || 'w2_employee',
         data.hireDate || new Date(),
         data.hourlyRate || null,
+        userId || null,
       ]
     );
 
@@ -104,7 +107,8 @@ export const createInstructor = async (
 export const updateInstructor = async (
   id: string,
   tenantId: string,
-  data: Partial<Instructor>
+  data: Partial<Instructor>,
+  userId?: string
 ): Promise<Instructor> => {
   logger.info('Updating instructor', {
     tenantId,
@@ -160,6 +164,10 @@ export const updateInstructor = async (
     if (data.zipCode !== undefined) {
       fields.push(`zip_code = $${paramCount++}`);
       values.push(data.zipCode);
+    }
+    if (userId) {
+      fields.push(`updated_by = $${paramCount++}`);
+      values.push(userId);
     }
 
     if (fields.length === 0) {

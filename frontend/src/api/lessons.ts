@@ -60,4 +60,9 @@ export const lessonsApi = {
     const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/complete`);
     return response.data;
   },
+
+  noShow: async (id: string) => {
+    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/no-show`);
+    return response.data;
+  },
 };

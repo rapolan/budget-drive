@@ -70,9 +70,9 @@ export const DashboardPage: React.FC = () => {
     });
   }, [students, lessons]);
 
-  // Students needing follow-up
-  const studentsNeedingFollowup = useMemo(() => {
-    return students.filter(s => studentNeedsFollowup(s, lessons));
+  // Students needing attention
+  const studentsNeedingAttention = useMemo(() => {
+    return students.filter(s => computeStudentStatus(s, lessons).status === 'needs_attention');
   }, [students, lessons]);
 
   // Permits expiring within 30 days
@@ -307,13 +307,13 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* Alerts Section */}
-        {(studentsNeedingFollowup.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0) && (
+        {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0) && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-            {/* Follow-up Needed */}
-            {studentsNeedingFollowup.length > 0 && (
+            {/* Needs Attention */}
+            {studentsNeedingAttention.length > 0 && (
               <button
                 type="button"
-                onClick={() => navigate('/students', { state: { filter: 'needsFollowup' } })}
+                onClick={() => navigate('/students', { state: { filter: 'needs_attention' } })}
                 className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border-2 border-amber-200 p-5 hover:border-amber-400 hover:shadow-md transition-all text-left group"
               >
                 <div className="flex items-start gap-4">
@@ -322,15 +322,15 @@ export const DashboardPage: React.FC = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-amber-900">Follow-up Needed</p>
+                      <p className="font-semibold text-amber-900">Needs Attention</p>
                       <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs font-bold rounded-full">
-                        {studentsNeedingFollowup.length}
+                        {studentsNeedingAttention.length}
                       </span>
                     </div>
                     <p className="text-sm text-amber-700 mt-1">
-                      {studentsNeedingFollowup.length === 1 
-                        ? `${studentsNeedingFollowup[0].fullName} needs contact`
-                        : `${studentsNeedingFollowup.length} students haven't been contacted recently`
+                      {studentsNeedingAttention.length === 1 
+                        ? `${studentsNeedingAttention[0].fullName} needs attention`
+                        : `${studentsNeedingAttention.length} students need attention`
                       }
                     </p>
                   </div>

@@ -100,9 +100,9 @@ export class NotificationProcessor {
       const result = await client.query(
         `SELECT * FROM notification_queue
          WHERE status = 'pending'
-         AND scheduled_send_time <= NOW()
-         AND attempt_count < $1
-         ORDER BY scheduled_send_time ASC
+         AND scheduled_for <= NOW()
+         AND retry_count < $1
+         ORDER BY scheduled_for ASC
          LIMIT $2`,
         [this.maxRetries, this.batchSize]
       );

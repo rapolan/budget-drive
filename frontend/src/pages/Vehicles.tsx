@@ -103,6 +103,7 @@ export const VehiclesPage: React.FC = () => {
           placeholder="Search vehicles by make, model, or plate..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          autoComplete="nope"
           className="ml-2 flex-1 border-none bg-transparent outline-none"
         />
       </div>

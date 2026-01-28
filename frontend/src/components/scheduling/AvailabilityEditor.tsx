@@ -40,8 +40,11 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
   });
 
   useEffect(() => {
-    loadAvailability();
-    loadSchedulingSettings();
+    if (instructorId) {
+      console.log('📝 AvailabilityEditor: Loading data for instructor:', instructorId);
+      loadAvailability();
+      loadSchedulingSettings();
+    }
   }, [instructorId]);
 
   const loadSchedulingSettings = async () => {
@@ -55,24 +58,45 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
       });
       if (response.ok) {
         const result = await response.json();
+        console.log('⚙️ AvailabilityEditor: Settings loaded:', result.data);
         setSchedulingSettings(result.data);
       }
     } catch (err) {
-      console.error('Error loading scheduling settings:', err);
+      console.error('❌ AvailabilityEditor: Error loading scheduling settings:', err);
     } finally {
       setLoadingSettings(false);
     }
   };
 
   const loadAvailability = async () => {
+    if (!instructorId) {
+      console.log('⚠️ AvailabilityEditor: No instructor ID provided');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
+
+      console.log('🔄 AvailabilityEditor: Fetching availability for instructor:', instructorId);
       const data = await schedulingApi.getInstructorAvailability(instructorId);
-      setAvailability(data.sort((a, b) => a.dayOfWeek - b.dayOfWeek));
+
+      console.log('📊 AvailabilityEditor: Received availability data:', data);
+      console.log('📊 AvailabilityEditor: Data count:', data.length);
+
+      // Normalize time format (remove seconds if present)
+      const normalizedData = data.map(slot => ({
+        ...slot,
+        startTime: slot.startTime.substring(0, 5), // HH:MM:SS -> HH:MM
+        endTime: slot.endTime.substring(0, 5),     // HH:MM:SS -> HH:MM
+      }));
+
+      console.log('✅ AvailabilityEditor: Normalized data:', normalizedData);
+      setAvailability(normalizedData.sort((a, b) => a.dayOfWeek - b.dayOfWeek));
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load availability');
-      console.error('Error loading availability:', err);
+      console.error('❌ AvailabilityEditor: Error loading availability:', err);
     } finally {
       setLoading(false);
     }
@@ -244,6 +268,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 type="time"
                 value={formData.startTime}
                 onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />

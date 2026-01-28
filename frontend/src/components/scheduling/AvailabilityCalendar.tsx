@@ -62,14 +62,25 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadData();
+    if (instructorId) {
+      console.log('📅 AvailabilityCalendar: Loading data for instructor:', instructorId);
+      loadData();
+    }
   }, [instructorId]);
 
   const loadData = async () => {
+    if (!instructorId) {
+      console.log('⚠️ AvailabilityCalendar: No instructor ID provided');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      
+
+      console.log('🔄 AvailabilityCalendar: Fetching availability for instructor:', instructorId);
+
       // Load both availability and scheduling settings
       const [availData, settingsResponse] = await Promise.all([
         schedulingApi.getInstructorAvailability(instructorId),
@@ -80,13 +91,26 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
           },
         }),
       ]);
-      
-      setAvailability(availData);
-      
+
+      console.log('📊 AvailabilityCalendar: Received availability data:', availData);
+      console.log('📊 AvailabilityCalendar: Data count:', availData.length);
+
+      // Normalize time format (remove seconds if present)
+      const normalizedAvailData = availData.map(slot => ({
+        ...slot,
+        startTime: slot.startTime.substring(0, 5), // HH:MM:SS -> HH:MM
+        endTime: slot.endTime.substring(0, 5),     // HH:MM:SS -> HH:MM
+      }));
+
+      console.log('✅ AvailabilityCalendar: Normalized data:', normalizedAvailData);
+      setAvailability(normalizedAvailData);
+
       if (settingsResponse.ok) {
         const settingsResult = await settingsResponse.json();
+        console.log('⚙️ AvailabilityCalendar: Settings loaded:', settingsResult.data);
         setSchedulingSettings(settingsResult.data);
       } else {
+        console.log('⚠️ AvailabilityCalendar: Using default settings');
         // Use defaults if settings can't be loaded
         setSchedulingSettings({
           defaultLessonDuration: 120,
@@ -95,8 +119,8 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
         });
       }
     } catch (err: any) {
+      console.error('❌ AvailabilityCalendar: Error loading availability:', err);
       setError(err.response?.data?.error || 'Failed to load availability');
-      console.error('Error loading availability:', err);
     } finally {
       setLoading(false);
     }
@@ -104,36 +128,53 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   // Calculate bookable slots for each availability entry
   const bookableSlotsByDay = useMemo(() => {
-    if (!schedulingSettings) return new Map<number, BookableSlot[]>();
-    
+    console.log('🔄 AvailabilityCalendar: Calculating bookable slots');
+    console.log('   - Scheduling settings:', schedulingSettings);
+    console.log('   - Availability count:', availability.length);
+
+    if (!schedulingSettings) {
+      console.log('⚠️ AvailabilityCalendar: No scheduling settings, returning empty map');
+      return new Map<number, BookableSlot[]>();
+    }
+
     const slotsByDay = new Map<number, BookableSlot[]>();
-    
+
     availability.forEach((avail) => {
-      if (!avail.isActive) return;
-      
+      console.log(`   - Processing slot for day ${avail.dayOfWeek}:`, avail);
+
+      if (!avail.isActive) {
+        console.log(`     ⚠️ Slot is inactive, skipping`);
+        return;
+      }
+
       const lessonDuration = schedulingSettings.defaultLessonDuration;
       const buffer = schedulingSettings.bufferTimeBetweenLessons;
       // Use slot-specific maxStudents or fall back to default
       const maxStudents = avail.maxStudents ?? schedulingSettings.defaultMaxStudentsPerDay;
-      
+
+      console.log(`     ✓ Lesson: ${lessonDuration}min, Buffer: ${buffer}min, Max students: ${maxStudents}`);
+
       const startMinutes = timeToMinutes(avail.startTime);
       const slots: BookableSlot[] = [];
-      
+
       for (let i = 0; i < maxStudents; i++) {
         const slotStartMinutes = startMinutes + (i * (lessonDuration + buffer));
         const slotEndMinutes = slotStartMinutes + lessonDuration;
-        
+
         slots.push({
           startTime: minutesToTime(slotStartMinutes),
           endTime: minutesToTime(slotEndMinutes),
           slotNumber: i + 1,
         });
       }
-      
+
+      console.log(`     ✓ Created ${slots.length} bookable slots:`, slots);
+
       const existingSlots = slotsByDay.get(avail.dayOfWeek) || [];
       slotsByDay.set(avail.dayOfWeek, [...existingSlots, ...slots]);
     });
-    
+
+    console.log('✅ AvailabilityCalendar: Final slots by day:', slotsByDay);
     return slotsByDay;
   }, [availability, schedulingSettings]);
 

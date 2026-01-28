@@ -34,24 +34,18 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     document.documentElement.style.setProperty('--color-secondary', newSettings.secondaryColor);
     document.documentElement.style.setProperty('--color-accent', newSettings.accentColor);
 
-    // Update document title
-    const tenantName = newSettings.businessName || localStorage.getItem('tenant_name') || 'Driving School';
+    // Update document title - use tenant.businessName or localStorage fallback
+    const tenantName = tenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
     document.title = `${tenantName} - Management System`;
   };
 
   const refreshTenant = async () => {
     try {
-      console.log('🔐 TENANT CONTEXT - REFRESHING TENANT INFO');
       const response = await tenantsApi.getCurrentTenant();
-
       if (response.success && response.data) {
-        console.log('✅ Tenant loaded successfully:');
-        console.log('   - Name:', response.data.name);
-        console.log('   - Type:', response.data.tenantType);
         setTenant(response.data);
       }
     } catch (err: any) {
-      console.error('❌ Failed to load tenant:', err);
       // Don't set error - tenant info is optional, settings are primary
     }
   };
@@ -61,14 +55,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      // DEBUG: Check localStorage for auth credentials
-      console.log('='.repeat(50));
-      console.log('🔐 TENANT CONTEXT - REFRESHING SETTINGS');
-      console.log('='.repeat(50));
-      console.log('AUTH_TOKEN:', localStorage.getItem('auth_token') ? 'Present ✓' : 'MISSING ✗');
-      console.log('TENANT_ID:', localStorage.getItem('tenant_id') || 'MISSING ✗');
-      console.log('='.repeat(50));
-
       // Fetch tenant info and settings in parallel
       const [tenantResponse, settingsResponse] = await Promise.all([
         tenantsApi.getCurrentTenant().catch(() => null),
@@ -77,22 +63,15 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
 
       // Handle tenant info
       if (tenantResponse?.success && tenantResponse.data) {
-        console.log('✅ Tenant info loaded:');
-        console.log('   - Name:', tenantResponse.data.name);
-        console.log('   - Type:', tenantResponse.data.tenantType);
         setTenant(tenantResponse.data);
       }
 
       // Handle settings
       if (settingsResponse.success && settingsResponse.data) {
-        console.log('✅ Settings loaded successfully from API:');
-        console.log('   - enable_blockchain_payments:', settingsResponse.data.enableBlockchainPayments);
         setSettings(settingsResponse.data);
         updateTheme(settingsResponse.data);
       }
     } catch (err: any) {
-      console.error('❌ Failed to load tenant settings:', err);
-      console.error('Error response:', err.response);
       setError(err.response?.data?.error || 'Failed to load tenant settings');
       // Don't throw - allow app to continue with no settings
     } finally {

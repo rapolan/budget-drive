@@ -161,6 +161,7 @@ const GeneralSettings: React.FC = () => {
             min="1"
             max="100"
             step="0.5"
+            autoComplete="nope"
             className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <span className="text-gray-700">hours</span>
@@ -357,6 +358,7 @@ const SchedulingSettings: React.FC = () => {
               min="30"
               max="240"
               step="30"
+              autoComplete="nope"
               className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <span className="text-gray-700">minutes</span>
@@ -413,6 +415,7 @@ const SchedulingSettings: React.FC = () => {
               min="0"
               max="60"
               step="15"
+              autoComplete="nope"
               className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <span className="text-gray-700">minutes</span>
@@ -465,6 +468,7 @@ const SchedulingSettings: React.FC = () => {
               onChange={(e) => setDefaultMaxStudentsPerDay(parseInt(e.target.value) || 0)}
               min="1"
               max="10"
+              autoComplete="nope"
               className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <span className="text-gray-700">students</span>

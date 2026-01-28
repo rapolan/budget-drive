@@ -145,7 +145,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.fullName}
                   onChange={handleChange}
                   required
-                  autoComplete="off"
+                  autoComplete="nope"
                   placeholder="John Smith"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
@@ -164,6 +164,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     value={formData.email}
                     onChange={handleChange}
                     required
+                    autoComplete="nope"
                     placeholder="instructor@email.com"
                     className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
@@ -183,6 +184,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     value={formData.phone}
                     onChange={handleChange}
                     required
+                    autoComplete="nope"
                     placeholder="(555) 123-4567"
                     className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
@@ -199,6 +201,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="dateOfBirth"
                   value={formData.dateOfBirth}
                   onChange={handleChange}
+                  autoComplete="nope"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
@@ -222,6 +225,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="licenseNumber"
                   value={formData.licenseNumber}
                   onChange={handleChange}
+                  autoComplete="nope"
                   placeholder="DL123456789"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
@@ -237,6 +241,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="licenseExpiration"
                   value={formData.licenseExpiration}
                   onChange={handleChange}
+                  autoComplete="nope"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
@@ -277,6 +282,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="hireDate"
                   value={formData.hireDate}
                   onChange={handleChange}
+                  autoComplete="nope"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
@@ -295,6 +301,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     onChange={handleChange}
                     min="0"
                     step="0.01"
+                    autoComplete="nope"
                     placeholder="35.00"
                     className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
@@ -320,6 +327,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="addressLine1"
                   value={formData.addressLine1}
                   onChange={handleChange}
+                  autoComplete="nope"
                   placeholder="123 Main St"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
@@ -335,6 +343,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="addressLine2"
                   value={formData.addressLine2}
                   onChange={handleChange}
+                  autoComplete="nope"
                   placeholder="Apt 4B"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
@@ -350,6 +359,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="city"
                   value={formData.city}
                   onChange={handleChange}
+                  autoComplete="nope"
                   placeholder="San Diego"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
@@ -365,6 +375,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="state"
                   value={formData.state}
                   onChange={handleChange}
+                  autoComplete="nope"
                   placeholder="CA"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
@@ -380,6 +391,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="zipCode"
                   value={formData.zipCode}
                   onChange={handleChange}
+                  autoComplete="nope"
                   placeholder="92101"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />

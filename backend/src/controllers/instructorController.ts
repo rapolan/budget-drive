@@ -57,8 +57,9 @@ export const getInstructor = asyncHandler(async (req: Request, res: Response) =>
  */
 export const createInstructor = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
 
-  const instructor = await instructorService.createInstructor(tenantId, req.body);
+  const instructor = await instructorService.createInstructor(tenantId, req.body, userId);
 
   res.status(201).json({
     success: true,
@@ -74,9 +75,10 @@ export const createInstructor = asyncHandler(async (req: Request, res: Response)
  */
 export const updateInstructor = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const instructor = await instructorService.updateInstructor(id, tenantId, req.body);
+  const instructor = await instructorService.updateInstructor(id, tenantId, req.body, userId);
 
   res.json({
     success: true,

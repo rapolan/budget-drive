@@ -1,0 +1,108 @@
+{
+  "schema": "bsv-app",
+  "schemaVersion": "1.0",
+  "name": "Budget Drive Protocol",
+  "description": "Multi-tenant driving school management platform with BSV micropayments",
+  "version": "0.6.0",
+
+  "topicManagers": {
+    "tm_bdp_lessons": "./backend/src/overlay/topic-managers/lessons.ts",
+    "tm_bdp_payments": "./backend/src/overlay/topic-managers/payments.ts",
+    "tm_bdp_certs": "./backend/src/overlay/topic-managers/certificates.ts",
+    "tm_bdp_treasury": "./backend/src/overlay/topic-managers/treasury.ts"
+  },
+
+  "lookupServices": {
+    "ls_bdp_lessons": {
+      "serviceFactory": "./backend/src/overlay/lookup-services/lessons.ts",
+      "hydrateWith": "mongo"
+    },
+    "ls_bdp_payments": {
+      "serviceFactory": "./backend/src/overlay/lookup-services/payments.ts",
+      "hydrateWith": "mongo"
+    },
+    "ls_bdp_certs": {
+      "serviceFactory": "./backend/src/overlay/lookup-services/certificates.ts",
+      "hydrateWith": "mongo"
+    },
+    "ls_bdp_treasury": {
+      "serviceFactory": "./backend/src/overlay/lookup-services/treasury.ts",
+      "hydrateWith": "knex"
+    }
+  },
+
+  "frontend": {
+    "language": "react",
+    "sourceDirectory": "./frontend",
+    "buildCommand": "npm run build",
+    "outputDirectory": "./frontend/dist"
+  },
+
+  "backend": {
+    "language": "typescript",
+    "sourceDirectory": "./backend",
+    "entryPoint": "./backend/src/index.ts"
+  },
+
+  "databases": {
+    "postgresql": {
+      "migrationsDirectory": "./backend/database/migrations",
+      "seedsDirectory": "./backend/database/seeds"
+    }
+  },
+
+  "configs": [
+    {
+      "name": "Local Development",
+      "network": "testnet",
+      "provider": "LARS",
+      "run": ["backend", "frontend"],
+      "ports": {
+        "overlay": 8080,
+        "api": 3000,
+        "frontend": 5173
+      },
+      "databases": {
+        "knex": "postgresql://postgres:password@localhost:5432/driving_school",
+        "mongo": "mongodb://localhost:27017/bdp_overlay"
+      }
+    },
+    {
+      "name": "Staging",
+      "network": "testnet",
+      "provider": "CARS",
+      "projectId": "bdp-staging",
+      "frontendHostingMethod": "HTTPS",
+      "run": ["backend", "frontend"]
+    },
+    {
+      "name": "Production",
+      "network": "mainnet",
+      "provider": "CARS",
+      "projectId": "bdp-production",
+      "frontendHostingMethod": "HTTPS",
+      "run": ["backend", "frontend"],
+      "scaling": {
+        "minInstances": 2,
+        "maxInstances": 10
+      }
+    }
+  ],
+
+  "protocolFees": {
+    "BDP_BOOK": 5,
+    "BDP_PAY": 3,
+    "BDP_CERT": 10,
+    "BDP_NOTIFY": 1,
+    "BDP_PROGRESS": 2,
+    "BDP_AVAIL": 1,
+    "BDP_SYNC": 1
+  },
+
+  "overlayConfig": {
+    "enableGASPSync": true,
+    "enableSHIP": true,
+    "enableSLAP": true,
+    "adminTokenRequired": true
+  }
+}

@@ -312,10 +312,21 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
       // Parse date and times from the selected slot
       // Backend expects scheduledStart and scheduledEnd as ISO datetime strings
-      // We create datetime strings without timezone conversion to preserve local time
+      // Handle both ISO datetime strings and HH:MM time format from the slot
       const dateStr = selectedSlot.date; // Already in YYYY-MM-DD format
-      const scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
-      const scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
+      
+      let scheduledStart: string;
+      let scheduledEnd: string;
+      
+      if (selectedSlot.startTime.includes('T')) {
+        // startTime is already an ISO datetime string - use it directly
+        scheduledStart = selectedSlot.startTime;
+        scheduledEnd = selectedSlot.endTime;
+      } else {
+        // startTime is HH:MM format - construct datetime string
+        scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
+        scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
+      }
 
       const lessonData: any = {
         studentId: selectedStudentId,
@@ -466,6 +477,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     }}
                     onFocus={() => setShowStudentDropdown(true)}
                     placeholder="Search by name or email..."
+                    autoComplete="nope"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                   {showStudentDropdown && studentSearch && filteredStudents.length > 0 && (
@@ -552,9 +564,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     }}
                     onFocus={() => setShowInstructorDropdown(true)}
                     placeholder="Search by name or email..."
+                    autoComplete="nope"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                   />
-                  {showInstructorDropdown && instructorSearch && filteredInstructors.length > 0 && (
+                  {showInstructorDropdown && filteredInstructors.length > 0 && (
                     <div className="absolute z-20 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
                       {targetZipCode && (
                         <div className="px-4 py-2 bg-green-50 border-b border-green-100 text-xs text-green-700 flex items-center gap-1">
@@ -641,10 +654,9 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   onChange={(e) => setLessonType(e.target.value as any)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 >
-                  <option value="behind_wheel">Behind the Wheel</option>
-                  <option value="classroom">Classroom</option>
-                  <option value="observation">Observation</option>
-                  <option value="road_test">Road Test</option>
+                  <option value="behind_wheel">Driving Lesson</option>
+                  <option value="classroom">Driver's Ed (Classroom)</option>
+                  <option value="road_test_prep">Road Test Prep</option>
                 </select>
               </div>
 
@@ -661,6 +673,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   onChange={(e) => setCost(parseFloat(e.target.value))}
                   min="0"
                   step="0.01"
+                  autoComplete="nope"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 />
               </div>

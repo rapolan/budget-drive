@@ -14,22 +14,42 @@ import { getTenantId } from '../middleware/tenantContext';
  * @access  Private
  */
 export const getAllLessons = asyncHandler(async (req: Request, res: Response) => {
+  const { createLogger } = require('../utils/logger');
+  const logger = createLogger('LessonController');
   const tenantId = getTenantId(req);
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 50;
 
-  const result = await lessonService.getAllLessons(tenantId, page, limit);
-
-  res.json({
-    success: true,
-    data: result.lessons,
-    pagination: {
-      page: result.page,
+  try {
+    const result = await lessonService.getAllLessons(tenantId, page, limit);
+    logger.info('Fetched lessons', {
+      tenantId,
+      page,
       limit,
+      resultCount: result.lessons.length,
       total: result.total,
-      totalPages: result.totalPages,
-    },
-  });
+    });
+    res.json({
+      success: true,
+      data: result.lessons,
+      pagination: {
+        page: result.page,
+        limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to fetch lessons', error, {
+      tenantId,
+      page,
+      limit,
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch lessons',
+    });
+  }
 });
 
 /**
@@ -64,8 +84,9 @@ export const getLesson = asyncHandler(async (req: Request, res: Response) => {
  */
 export const createLesson = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
 
-  const lesson = await lessonService.createLesson(tenantId, req.body);
+  const lesson = await lessonService.createLesson(tenantId, req.body, userId);
 
   res.status(201).json({
     success: true,
@@ -81,9 +102,10 @@ export const createLesson = asyncHandler(async (req: Request, res: Response) => 
  */
 export const updateLesson = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const lesson = await lessonService.updateLesson(id, tenantId, req.body);
+  const lesson = await lessonService.updateLesson(id, tenantId, req.body, userId);
 
   res.json({
     success: true,
@@ -211,5 +233,18 @@ export const completeLesson = asyncHandler(async (req: Request, res: Response) =
     success: true,
     data: lesson,
     message: 'Lesson marked as completed',
+  });
+});
+
+export const noShowLesson = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const lesson = await lessonService.noShowLesson(id, tenantId);
+
+  res.json({
+    success: true,
+    data: lesson,
+    message: 'Lesson marked as no-show',
   });
 });

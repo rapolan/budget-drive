@@ -11,6 +11,7 @@ import { Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import treasuryService from './treasuryService';
 import lessonInviteService from './lessonInviteService';
+import { validateLessonBooking } from './schedulingService';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 
@@ -35,11 +36,16 @@ export const getAllLessons = async (
     const total = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(total / limit);
 
-    // Get paginated lessons
+    // Get paginated lessons with creator/editor names
     const result = await query(
-      `SELECT * FROM lessons
-       WHERE tenant_id = $1
-       ORDER BY date DESC, start_time DESC
+      `SELECT l.*,
+              u1.full_name as created_by_name,
+              u2.full_name as updated_by_name
+       FROM lessons l
+       LEFT JOIN users u1 ON l.created_by = u1.id
+       LEFT JOIN users u2 ON l.updated_by = u2.id
+       WHERE l.tenant_id = $1
+       ORDER BY l.date DESC, l.start_time DESC
        LIMIT $2 OFFSET $3`,
       [tenantId, limit, offset]
     );
@@ -72,7 +78,13 @@ export const getLessonById = async (
   logger.debug('Fetching lesson by ID', { tenantId, lessonId: id });
 
   const result = await query(
-    'SELECT * FROM lessons WHERE id = $1 AND tenant_id = $2',
+    `SELECT l.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM lessons l
+     LEFT JOIN users u1 ON l.created_by = u1.id
+     LEFT JOIN users u2 ON l.updated_by = u2.id
+     WHERE l.id = $1 AND l.tenant_id = $2`,
     [id, tenantId]
   );
 
@@ -91,9 +103,14 @@ export const getLessonsByStudent = async (
   logger.debug('Fetching lessons for student', { tenantId, studentId });
 
   const result = await query(
-    `SELECT * FROM lessons
-     WHERE tenant_id = $1 AND student_id = $2
-     ORDER BY date DESC, start_time DESC`,
+    `SELECT l.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM lessons l
+     LEFT JOIN users u1 ON l.created_by = u1.id
+     LEFT JOIN users u2 ON l.updated_by = u2.id
+     WHERE l.tenant_id = $1 AND l.student_id = $2
+     ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, studentId]
   );
 
@@ -113,9 +130,14 @@ export const getLessonsByInstructor = async (
   logger.debug('Fetching lessons for instructor', { tenantId, instructorId });
 
   const result = await query(
-    `SELECT * FROM lessons
-     WHERE tenant_id = $1 AND instructor_id = $2
-     ORDER BY date DESC, start_time DESC`,
+    `SELECT l.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM lessons l
+     LEFT JOIN users u1 ON l.created_by = u1.id
+     LEFT JOIN users u2 ON l.updated_by = u2.id
+     WHERE l.tenant_id = $1 AND l.instructor_id = $2
+     ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, instructorId]
   );
 
@@ -135,9 +157,14 @@ export const getLessonsByStatus = async (
   logger.debug('Fetching lessons by status', { tenantId, status });
 
   const result = await query(
-    `SELECT * FROM lessons
-     WHERE tenant_id = $1 AND status = $2
-     ORDER BY date DESC, start_time DESC`,
+    `SELECT l.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM lessons l
+     LEFT JOIN users u1 ON l.created_by = u1.id
+     LEFT JOIN users u2 ON l.updated_by = u2.id
+     WHERE l.tenant_id = $1 AND l.status = $2
+     ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, status]
   );
 
@@ -158,11 +185,16 @@ export const getLessonsByDateRange = async (
   logger.debug('Fetching lessons by date range', { tenantId, startDate, endDate });
 
   const result = await query(
-    `SELECT * FROM lessons
-     WHERE tenant_id = $1
-     AND date >= $2
-     AND date <= $3
-     ORDER BY date ASC, start_time ASC`,
+    `SELECT l.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM lessons l
+     LEFT JOIN users u1 ON l.created_by = u1.id
+     LEFT JOIN users u2 ON l.updated_by = u2.id
+     WHERE l.tenant_id = $1
+     AND l.date >= $2
+     AND l.date <= $3
+     ORDER BY l.date ASC, l.start_time ASC`,
     [tenantId, startDate, endDate]
   );
 
@@ -178,7 +210,8 @@ export const getLessonsByDateRange = async (
 
 export const createLesson = async (
   tenantId: string,
-  data: any
+  data: any,
+  userId?: string
 ): Promise<Lesson> => {
   const startTime = Date.now();
   logger.info('Creating new lesson', {
@@ -193,8 +226,8 @@ export const createLesson = async (
     pickupAddress: data.pickupAddress,
   });
 
-  try {
 
+  try {
     // Validate that student, instructor, and vehicle belong to the same tenant
     const studentCheck = await query(
       'SELECT id FROM students WHERE id = $1 AND tenant_id = $2',
@@ -233,11 +266,11 @@ export const createLesson = async (
 
     // Extract date and time from scheduledStart/scheduledEnd if provided (ISO format)
     // Otherwise use separate date/startTime/endTime fields
-    let lessonDate, lessonStartTime, endTime, duration;
+    let lessonDate, lessonStartTime, endTime, duration, startDate, endDate;
 
     if (data.scheduledStart && data.scheduledEnd) {
-      const startDate = new Date(data.scheduledStart);
-      const endDate = new Date(data.scheduledEnd);
+      startDate = new Date(data.scheduledStart);
+      endDate = new Date(data.scheduledEnd);
 
       lessonDate = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
       lessonStartTime = startDate.toTimeString().substring(0, 8); // HH:MM:SS
@@ -258,6 +291,9 @@ export const createLesson = async (
       lessonStartTime = data.startTime;
       endTime = data.endTime;
       duration = data.duration;
+      // Fallback: create Date objects for validation
+      startDate = new Date(`${lessonDate}T${lessonStartTime}`);
+      endDate = new Date(`${lessonDate}T${endTime}`);
 
       logger.debug('Using provided lesson schedule', {
         tenantId,
@@ -268,12 +304,27 @@ export const createLesson = async (
       });
     }
 
+    // Check for scheduling conflicts before booking
+    const { valid, conflicts } = await validateLessonBooking(
+      tenantId,
+      data.instructorId,
+      data.studentId,
+      data.vehicleId || null,
+      startDate,
+      endDate
+    );
+    if (!valid) {
+      logger.warn('Scheduling conflict detected', { tenantId, conflicts });
+      throw new AppError('Scheduling conflict: ' + conflicts.map((c: any) => c.message).join('; '), 409);
+    }
+
     logger.debug('Inserting lesson into database', { tenantId });
     const result = await query(
       `INSERT INTO lessons (
         tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time,
-        duration, lesson_number, lesson_type, cost, status, pickup_address, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'scheduled', $12, $13)
+        duration, lesson_number, lesson_type, cost, status, pickup_address, notes,
+        created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'scheduled', $12, $13, $14, $14)
       RETURNING *`,
       [
         tenantId,
@@ -289,6 +340,7 @@ export const createLesson = async (
         data.cost || 0,
         data.pickupAddress || null,
         data.notes || null,
+        userId || null,
       ]
     );
 
@@ -502,7 +554,8 @@ export const createLesson = async (
 export const updateLesson = async (
   id: string,
   tenantId: string,
-  data: Partial<Lesson>
+  data: Partial<Lesson>,
+  userId?: string
 ): Promise<Lesson> => {
   logger.info('Updating lesson', {
     tenantId,
@@ -597,8 +650,12 @@ export const updateLesson = async (
     fields.push(`completion_verified = $${paramCount++}`);
     values.push(data.completionVerified);
   }
+  if (userId) {
+    fields.push(`updated_by = $${paramCount++}`);
+    values.push(userId);
+  }
 
-    if (fields.length === 0) {
+  if (fields.length === 0) {
       logger.warn('No fields to update in lesson', { tenantId, lessonId: id });
       throw new AppError('No fields to update', 400);
     }
@@ -751,6 +808,38 @@ export const completeLesson = async (
     return keysToCamel(result.rows[0]) as Lesson;
   } catch (error) {
     logger.error('Failed to complete lesson', error as Error, {
+      tenantId,
+      lessonId: id,
+    });
+    throw error;
+  }
+};
+
+export const noShowLesson = async (
+  id: string,
+  tenantId: string
+): Promise<Lesson> => {
+  logger.info('Marking lesson as no-show', { tenantId, lessonId: id });
+
+  try {
+    const result = await query(
+      `UPDATE lessons
+       SET status = 'no_show'
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      logger.warn('Lesson not found for no-show', { tenantId, lessonId: id });
+      throw new AppError('Lesson not found', 404);
+    }
+
+    logger.info('Lesson marked as no-show successfully', { tenantId, lessonId: id });
+
+    return keysToCamel(result.rows[0]) as Lesson;
+  } catch (error) {
+    logger.error('Failed to mark lesson as no-show', error as Error, {
       tenantId,
       lessonId: id,
     });

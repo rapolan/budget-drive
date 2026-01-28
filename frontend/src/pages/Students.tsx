@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, Clock, X, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X } from 'lucide-react';
 import { studentsApi, lessonsApi } from '@/api';
 import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
-import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
-import { computeStudentStatus, studentNeedsFollowup as checkNeedsFollowup, getFollowupReason } from '@/utils/studentStatus';
+import { SmartBookingFormV2 } from '@/components/scheduling/SmartBookingFormV2';
+import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
+import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
-type StatusFilter = 'all' | 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'needs_followup';
+type StatusFilter = 'all' | 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'needs_attention';
 type ViewMode = 'table' | 'cards';
 
 export const StudentsPage: React.FC = () => {
@@ -50,8 +51,10 @@ export const StudentsPage: React.FC = () => {
 
   // Check for filter from navigation state
   useEffect(() => {
-    if (location.state?.filter === 'needsFollowup') {
-      setStatusFilter('needs_followup');
+    if (location.state?.filter === 'needs_attention') {
+      setStatusFilter('needs_attention');
+      // Scroll to table after filter is applied
+      setTimeout(scrollToTable, 100);
     }
   }, [location.state]);
 
@@ -102,7 +105,7 @@ export const StudentsPage: React.FC = () => {
     setIsSmartBookingOpen(true);
   };
 
-  const handleBookingComplete = (lessonId: string) => {
+  const handleBookingComplete = (_lessonId: string) => {
     setIsSmartBookingOpen(false);
     setStudentForBooking(null);
     queryClient.invalidateQueries({ queryKey: ['lessons'] });
@@ -118,12 +121,6 @@ export const StudentsPage: React.FC = () => {
     return computeStudentStatus(student, lessons);
   };
 
-  // Helper to check if student needs followup
-  const studentNeedsFollowup = (student: Student): boolean => {
-    const lessons = lessonsData?.data || [];
-    return checkNeedsFollowup(student, lessons);
-  };
-
   // Calculate status counts for filter buttons
   const statusCounts = React.useMemo(() => {
     const counts = {
@@ -133,7 +130,7 @@ export const StudentsPage: React.FC = () => {
       completed: 0,
       dropped: 0,
       suspended: 0,
-      needs_followup: 0,
+      needs_attention: 0,
     };
 
     data?.data?.forEach((student) => {
@@ -145,11 +142,7 @@ export const StudentsPage: React.FC = () => {
       else if (statusInfo.status === 'completed') counts.completed++;
       else if (statusInfo.status === 'dropped') counts.dropped++;
       else if (statusInfo.status === 'suspended') counts.suspended++;
-
-      // Count students who need followup (can be in any status)
-      if (studentNeedsFollowup(student)) {
-        counts.needs_followup++;
-      }
+      else if (statusInfo.status === 'needs_attention') counts.needs_attention++;
     });
 
     return counts;
@@ -198,8 +191,8 @@ export const StudentsPage: React.FC = () => {
       }
 
       totalHoursCompleted += student.totalHoursCompleted || 0;
-      if (student.hoursRequired > 0) {
-        avgProgress += (student.totalHoursCompleted / student.hoursRequired) * 100;
+      if ((student.hoursRequired ?? 0) > 0) {
+        avgProgress += (student.totalHoursCompleted / (student.hoursRequired ?? 1)) * 100;
       }
     });
 
@@ -226,12 +219,7 @@ export const StudentsPage: React.FC = () => {
     const statusInfo = getStudentStatus(student);
 
     // Status filter
-    if (statusFilter === 'needs_followup') {
-      // Special filter: show only students who need followup
-      if (!studentNeedsFollowup(student)) {
-        return false;
-      }
-    } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
+    if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
       return false;
     }
 
@@ -239,7 +227,7 @@ export const StudentsPage: React.FC = () => {
     return (
       student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.phone.includes(searchTerm)
+      (student.phone?.includes(searchTerm) ?? false)
     );
   });
 
@@ -257,6 +245,8 @@ export const StudentsPage: React.FC = () => {
         return 'bg-red-100 text-red-800';
       case 'permit_expired':
         return 'bg-orange-100 text-orange-800';
+      case 'needs_attention':
+        return 'bg-amber-100 text-amber-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -336,22 +326,22 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Needs Followup */}
+        {/* Needs Attention */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
-             onClick={() => handleStatCardClick('needs_followup')}>
+             onClick={() => handleStatCardClick('needs_attention')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
               <AlertCircle className="h-5 w-5 text-amber-600" />
             </div>
-            {statusCounts.needs_followup > 0 && (
+            {statusCounts.needs_attention > 0 && (
               <span className="flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full animate-pulse">
                 Action needed
               </span>
             )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.needs_followup}</p>
-            <p className="text-sm text-gray-500">Need Follow-up</p>
+            <p className="text-2xl font-bold text-gray-900">{statusCounts.needs_attention}</p>
+            <p className="text-sm text-gray-500">Need Attention</p>
           </div>
         </div>
 
@@ -381,6 +371,7 @@ export const StudentsPage: React.FC = () => {
           placeholder="Search students by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          autoComplete="nope"
           className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
         />
         {searchTerm && (
@@ -441,18 +432,18 @@ export const StudentsPage: React.FC = () => {
             variant="success"
           />
           <FilterButton
+            label="Needs Attention"
+            isActive={statusFilter === 'needs_attention'}
+            onClick={() => setStatusFilter('needs_attention')}
+            count={statusCounts.needs_attention}
+            variant="warning"
+          />
+          <FilterButton
             label="Completed"
             isActive={statusFilter === 'completed'}
             onClick={() => setStatusFilter('completed')}
             count={statusCounts.completed}
             variant="info"
-          />
-          <FilterButton
-            label="Followup"
-            isActive={statusFilter === 'needs_followup'}
-            onClick={() => setStatusFilter('needs_followup')}
-            count={statusCounts.needs_followup}
-            variant="warning"
           />
           {/* Desktop view toggle */}
           <div className="hidden sm:flex items-center gap-1 ml-auto border-l pl-3">
@@ -512,16 +503,15 @@ export const StudentsPage: React.FC = () => {
           ) : (
             filteredStudents?.map((student) => {
               const statusInfo = getStudentStatus(student);
-              const progressPercent = student.hoursRequired > 0 
-                ? Math.min(100, (student.totalHoursCompleted / student.hoursRequired) * 100)
+              const progressPercent = (student.hoursRequired ?? 0) > 0
+                ? Math.min(100, (student.totalHoursCompleted / (student.hoursRequired ?? 1)) * 100)
                 : 0;
-              const needsFollowup = studentNeedsFollowup(student);
               
               return (
                 <div
                   key={student.id}
                   className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all ${
-                    needsFollowup ? 'border-amber-300' : 'border-gray-200 hover:border-blue-300'
+                    statusInfo.status === 'needs_attention' ? 'border-amber-300' : 'border-gray-200 hover:border-blue-300'
                   }`}
                 >
                   {/* Header */}
@@ -537,9 +527,9 @@ export const StudentsPage: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    {needsFollowup && (
+                    {statusInfo.status === 'needs_attention' && (
                       <span className="flex-shrink-0 px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                        Follow up
+                        Needs Attention
                       </span>
                     )}
                   </div>
@@ -592,7 +582,7 @@ export const StudentsPage: React.FC = () => {
                     >
                       <Edit className="h-4 w-4" />
                     </button>
-                    {needsFollowup && (
+                    {statusInfo.status === 'needs_attention' && (
                       <button
                         type="button"
                         onClick={() => handleMarkAsContacted(student.id)}
@@ -628,6 +618,9 @@ export const StudentsPage: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                   Progress
                 </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell">
+                  History
+                </th>
                 <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-600 min-w-[120px]">
                   Actions
                 </th>
@@ -636,13 +629,13 @@ export const StudentsPage: React.FC = () => {
             <tbody className="divide-y divide-gray-200 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12">
+                  <td colSpan={6} className="py-12">
                     <LoadingSpinner />
                   </td>
                 </tr>
               ) : filteredStudents?.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-2">
+                  <td colSpan={6} className="py-2">
                     <EmptyState
                       icon={<Users className="h-12 w-12" />}
                       title="No students found"
@@ -669,13 +662,12 @@ export const StudentsPage: React.FC = () => {
               ) : (
                 filteredStudents?.map((student) => {
                   const statusInfo = getStudentStatus(student);
-                  const progressPercent = student.hoursRequired > 0 
-                    ? Math.min(100, (student.totalHoursCompleted / student.hoursRequired) * 100)
+                  const progressPercent = (student.hoursRequired ?? 0) > 0
+                    ? Math.min(100, (student.totalHoursCompleted / (student.hoursRequired ?? 1)) * 100)
                     : 0;
-                  const needsFollowup = studentNeedsFollowup(student);
                   
                   return (
-                    <tr key={student.id} className={`hover:bg-gray-50 ${needsFollowup ? 'bg-amber-50/50' : ''}`}>
+                    <tr key={student.id} className={`hover:bg-gray-50 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-amber-50/50' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -693,21 +685,17 @@ export const StudentsPage: React.FC = () => {
                         <div className="text-sm text-gray-900">{student.email}</div>
                         <div className="text-sm text-gray-500">{student.phone}</div>
                       </td>
-                      {/* Status */}
+                      {/* Status - hover for reason */}
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1">
                           <span
-                            className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(statusInfo.status)}`}
-                            title={statusInfo.reason}
+                            className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold cursor-help ${getStatusColor(statusInfo.status)}`}
+                            title={statusInfo.status === 'needs_attention'
+                              ? getFollowupReason(student, lessonsData?.data || [])
+                              : statusInfo.reason}
                           >
                             {statusInfo.displayStatus}
                           </span>
-                          {needsFollowup && (
-                            <span className="inline-flex w-fit items-center gap-1 text-xs text-amber-600 font-medium">
-                              <Clock className="h-3 w-3" />
-                              Needs contact
-                            </span>
-                          )}
                         </div>
                       </td>
                       {/* Progress with visual bar */}
@@ -729,10 +717,19 @@ export const StudentsPage: React.FC = () => {
                           </div>
                         </div>
                       </td>
+                      {/* History - Hidden on mobile */}
+                      <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <AuditColumn
+                          createdByName={student.createdByName}
+                          updatedByName={student.updatedByName}
+                          createdAt={student.createdAt}
+                          updatedAt={student.updatedAt}
+                        />
+                      </td>
                       {/* Actions */}
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
-                          {needsFollowup && (
+                          {statusInfo.status === 'needs_attention' && (
                             <button
                               type="button"
                               onClick={() => handleMarkAsContacted(student.id)}
@@ -744,7 +741,10 @@ export const StudentsPage: React.FC = () => {
                           )}
                           <button
                             type="button"
-                            onClick={() => handleBookLesson(student)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBookLesson(student);
+                            }}
                             className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-all hover:scale-110"
                             title="Book lesson"
                           >
@@ -752,7 +752,10 @@ export const StudentsPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleEdit(student)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(student);
+                            }}
                             className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                             title="Edit student"
                           >
@@ -760,7 +763,10 @@ export const StudentsPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(student.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(student.id);
+                            }}
                             className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
                             title="Delete student"
                           >
@@ -821,7 +827,7 @@ export const StudentsPage: React.FC = () => {
       {isSmartBookingOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <SmartBookingForm
+            <SmartBookingFormV2
               preselectedStudent={studentForBooking || undefined}
               onBookingComplete={handleBookingComplete}
               onCancel={() => {

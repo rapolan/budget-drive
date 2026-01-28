@@ -1,158 +1,201 @@
-# Budget Drive Protocol (BDP) - Driving School Management System
+# Budget Drive Protocol (BDP)
 
-A comprehensive multi-tenant driving school management platform with **smart scheduling**, **universal calendar sync** (ICS feeds), **recurring lessons**, and **blockchain-verified treasury** (Craig Wright aligned).
+A multi-tenant driving school management platform built on **BSV Blockchain** with micropayment economics.
 
-## Current Status
+**Version:** 0.6.0
+**Status:** Phase 1 Complete (80%) | Phase 2 (Overlay Services) In Progress
 
-**Phase:** BDP Phase 1 (Treasury + Notifications)
-**Version:** 0.5.1
-**Last Updated:** November 28, 2025
+---
 
-### ✅ Completed Features
-**Phase 1-3: Core System**
+## Vision
+
+BDP is **free forever software** for the driving instruction industry, funded by satoshi-level micropayments (1-10 sats per action). No subscriptions, no artificial limits, no rent-seeking.
+
+**Core Principles:**
+- Massive volume of microtransactions (not high-fee, low-volume)
+- No chokepoints (peer-to-peer architecture)
+- On-chain transparency (verifiable, auditable records)
+- Horizontal scalability (unlimited growth)
+
+---
+
+## Features
+
+### Operational (Phase 1 - Complete)
 - Multi-tenant architecture with complete data isolation
+- Smart scheduling with 6D conflict detection
 - Student, instructor, vehicle, and lesson management
 - Payment tracking and history
-- RESTful API with 60+ endpoints
+- ICS calendar feeds (works with any calendar app)
+- Recurring lesson patterns
+- 60+ REST API endpoints
 - React admin dashboard
 
-**Phase 4A: Smart Scheduling**
-- 6-dimensional conflict detection (Patent Claim #1)
-- **Capacity-based scheduling** - Generate exact N slots per day (not time ranges)
-- Intelligent slot finding algorithm
-- Auto-calculated end times (instructors set start time only)
-- Configurable buffer times and lesson durations
-- Vehicle ownership tracking (school vs instructor-owned)
-- Availability calendar + time-off system
-- 3-step booking wizard with capacity indicators
+### Blockchain (Phase 2 - In Progress)
+- BSV Overlay Services architecture
+- BRC-100 wallet integration
+- Topic Managers for lessons, payments, certificates
+- Lookup Services for querying overlay data
+- Treasury micropayments (5 sats per booking)
+- BRC-52 identity certificates
 
-**Phase 4B: Universal Calendar Integration**
-- ICS calendar feed for any calendar app (Google Calendar, Apple Calendar, Outlook, etc.)
-- Email invites with ICS attachments for instant calendar updates
-- Secure token-based feed URLs per instructor
-- No OAuth required - works with any calendar that supports ICS subscriptions
-
-**Phase 4C: Recurring Lessons**
-- Pattern-based lesson generation (daily, weekly, biweekly, monthly)
-- Bulk scheduling with conflict detection
-- Series management (pause, resume, cancel)
-
-**BDP Treasury (Nov 11, 2025):**
-- Satoshi-level transaction fees (Patent Claim #2)
-- Cost-based pricing: 5 sats per booking (~$0.000002 USD)
-- Craig Wright philosophy alignment
-- Treasury balance tracking
-- BDP action logging (BDP_BOOK, BDP_PAY, etc.)
-
-### 🔄 In Progress
-**BDP Phase 1 - Week 1 (Nov 11-15):**
-1. Treasury testing with lesson bookings
-2. Twilio SMS notifications
-3. SendGrid email notifications
-
-**BDP Phase 1 - Week 2 (Nov 18-22):**
-4. Instructor earnings reports
-5. Public booking widget (embeddable)
-
-### 📅 Upcoming
-- **BDP Phase 2:** MNEE engagement rewards (Dec 2025)
-- **BDP Phase 3:** BSV blockchain integration (Q1 2026)
-- **BDP Phase 4:** Multi-school expansion + gig mode (Q2 2026)
+---
 
 ## Tech Stack
 
-### Backend
-- **Runtime:** Node.js 18+
-- **Framework:** Express.js with TypeScript
-- **Database:** PostgreSQL 14+
-- **Auth:** JWT tokens
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 18 + TypeScript + Vite + Tailwind CSS |
+| **Backend** | Node.js 18 + Express + TypeScript |
+| **Database** | PostgreSQL 14+ (multi-tenant) |
+| **Blockchain** | BSV + @bsv/sdk + @bsv/overlay-express |
+| **Development** | LARS (Local Automated Runtime System) |
 
-### Frontend
-- **Framework:** React 18 with TypeScript
-- **Build Tool:** Vite
-- **Styling:** Tailwind CSS
-- **Routing:** React Router
+---
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18 or higher
-- PostgreSQL 14 or higher
-- Git
+- Node.js 18+
+- PostgreSQL 14+
+- Docker (for overlay services)
 
 ### Installation
 
-**1. Clone and setup database:**
-\`\`\`bash
-git clone https://github.com/rapolan/budget-drive.git
-cd budget-drive
-createdb budget_driving_school
-\`\`\`
+```bash
+# Clone repository
+git clone https://github.com/your-org/budget-drive-protocol.git
+cd budget-drive-protocol
 
-**2. Configure backend:**
-\`\`\`bash
+# Backend setup
 cd backend
 npm install
 cp .env.example .env
 # Edit .env with your database credentials
-\`\`\`
 
-**3. Run migrations:**
-\`\`\`bash
-node database/setup-db.js
-node database/run-migration.js 001
-node database/run-migration.js 002
-\`\`\`
+# Run migrations
+node database/run-all-migrations.js
 
-**4. Install frontend:**
-\`\`\`bash
+# Frontend setup
 cd ../frontend
 npm install
-\`\`\`
+```
 
 ### Running
 
-**Backend** (port 3000):
-\`\`\`bash
+```bash
+# Terminal 1: Backend (port 3000)
 cd backend && npm run dev
-\`\`\`
 
-**Frontend** (port 5173):
-\`\`\`bash
+# Terminal 2: Frontend (port 5173)
 cd frontend && npm run dev
-\`\`\`
+```
+
+### Overlay Services (Phase 2)
+
+```bash
+# Install LARS globally
+npm install -g @bsv/lars
+
+# Start overlay environment
+npx lars
+```
+
+---
 
 ## Documentation
 
-- **[PROJECT_SCHEMA_REFERENCE.md](PROJECT_SCHEMA_REFERENCE.md)** - Comprehensive schema reference (for future sessions)
-- **[DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md)** - Complete project history (1000+ lines)
-- **[PATENT_DOCUMENTATION.md](PATENT_DOCUMENTATION.md)** - Patent claims and technical disclosure
-- **[TREASURY_TEST_GUIDE.md](TREASURY_TEST_GUIDE.md)** - Testing guide for satoshi-level fees
-- **[BLOCKCHAIN_ROADMAP.md](BLOCKCHAIN_ROADMAP.md)** - BSV integration roadmap
-- **[MOBILE_APP_ROADMAP.md](MOBILE_APP_ROADMAP.md)** - Instructor mobile app vision (command center)
-- **[docs/SESSION_CAPACITY_SCHEDULING.md](docs/SESSION_CAPACITY_SCHEDULING.md)** - Latest session: Capacity-based scheduling
-- **[docs/archived_phases/](docs/archived_phases/)** - Completed phase documentation
+### Essential Reading
 
-## Key Features
+| Document | Description |
+|----------|-------------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **Technical architecture** - BSV standards, overlay services, data flow |
+| [BLOCKCHAIN_ROADMAP.md](BLOCKCHAIN_ROADMAP.md) | Implementation plan for blockchain integration |
+| [BDP_VISION_AND_PHILOSOPHY.md](BDP_VISION_AND_PHILOSOPHY.md) | Core principles and decision-making framework |
 
-### Smart Scheduling
-- **Capacity-based slot generation** - Exactly N slots per day (not time ranges)
-- Intelligent slot finding with gap detection
-- 6 types of conflict detection (instructor, vehicle, student, time-off, hours, buffer)
-- Configurable buffer times and lesson durations
-- Auto-calculated instructor end times
-- Visual capacity indicators ("3 avail" badges)
-- Vehicle ownership tracking
+### Guides
 
-### API Highlights
-- 60+ RESTful endpoints
-- JWT authentication
-- Multi-tenant isolation
-- Input validation & sanitization
+| Document | Description |
+|----------|-------------|
+| [CALENDAR_MANAGEMENT_GUIDE.md](CALENDAR_MANAGEMENT_GUIDE.md) | Scheduling and calendar integration |
+| [NOTIFICATION_SETUP_GUIDE.md](NOTIFICATION_SETUP_GUIDE.md) | Email and SMS notification setup |
+| [TREASURY_TEST_GUIDE.md](TREASURY_TEST_GUIDE.md) | Testing satoshi-level fees |
+| [PROJECT_SCHEMA_REFERENCE.md](PROJECT_SCHEMA_REFERENCE.md) | Database schema reference |
+
+### Development
+
+| Document | Description |
+|----------|-------------|
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
+| [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | Complete project history |
+| [deployment-info.json](deployment-info.json) | LARS/CARS deployment configuration |
+
+---
 
 ## Project Structure
 
-See [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) for complete file structure.
+```
+budget-drive-protocol/
+├── backend/
+│   ├── src/
+│   │   ├── controllers/     # HTTP request handlers
+│   │   ├── services/        # Business logic
+│   │   ├── routes/          # API routes
+│   │   ├── middleware/      # Auth, validation
+│   │   └── overlay/         # Topic Managers, Lookup Services (Phase 2)
+│   └── database/
+│       └── migrations/      # PostgreSQL migrations
+├── frontend/
+│   ├── src/
+│   │   ├── components/      # React components
+│   │   ├── pages/           # Page components
+│   │   ├── api/             # API client
+│   │   └── lib/             # Wallet integration (Phase 2)
+│   └── ...
+├── docs/
+│   └── ARCHITECTURE.md      # Technical reference
+├── deployment-info.json     # LARS/CARS config
+└── README.md
+```
+
+---
+
+## BSV Standards
+
+BDP uses the following BSV standards:
+
+| Standard | Name | Purpose |
+|----------|------|---------|
+| **BRC-100** | Wallet Interface | App-to-wallet communication |
+| **BRC-52** | Identity Certificates | Verifiable credentials |
+| **BRC-22** | SHIP Protocol | Transaction broadcasting |
+| **BRC-24** | SLAP Protocol | Service discovery |
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete technical details.
+
+---
+
+## Protocol Fees
+
+| Action | Fee (sats) | ~USD |
+|--------|------------|------|
+| Lesson booking | 5 | $0.0000025 |
+| Payment record | 3 | $0.0000015 |
+| Certificate | 10 | $0.0000050 |
+| Notification | 1 | $0.0000005 |
+
+Revenue comes from volume, not extraction. 1 million lessons = 5 million sats (~$250 at $50/BSV).
+
+---
+
+## Contributing
+
+1. Read [BDP_VISION_AND_PHILOSOPHY.md](BDP_VISION_AND_PHILOSOPHY.md)
+2. Check [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical standards
+3. Follow existing code patterns
+4. Submit PR with clear description
+
+---
 
 ## License
 
@@ -160,4 +203,4 @@ Proprietary - All rights reserved
 
 ---
 
-**Status:** Phase 4A Complete | Backend & Frontend Running | Ready for Calendar UI
+**We are building the first real Bitcoin business. Every driving instructor on the planet will use this software because it's free and the best.**

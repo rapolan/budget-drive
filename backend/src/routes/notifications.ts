@@ -1,8 +1,14 @@
 import express from 'express';
 import pool from '../config/database';
 import { notificationProcessor } from '../services/notificationProcessor';
+import { authenticate } from '../middleware/auth';
+import { requireTenantContext } from '../middleware/tenantContext';
 
 const router = express.Router();
+
+// All notification routes require authentication and tenant context
+router.use(authenticate);
+router.use(requireTenantContext);
 
 /**
  * GET /api/notifications/queue
@@ -12,7 +18,7 @@ router.get('/queue', async (req, res) => {
   const client = await pool.connect();
   try {
     const { status, limit = '100', offset = '0' } = req.query;
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
 
     let query = `
       SELECT
@@ -100,7 +106,7 @@ router.get('/queue', async (req, res) => {
 router.get('/history', async (req, res) => {
   const client = await pool.connect();
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     const { startDate, endDate, limit = '100', offset = '0' } = req.query;
 
     // Get sent notifications
@@ -262,7 +268,7 @@ router.post('/:id/retry', async (req, res) => {
 router.post('/test', async (req, res) => {
   const client = await pool.connect();
   try {
-    const tenantId = req.headers['x-tenant-id'] as string;
+    const tenantId = req.tenantId;
     const { email, sendImmediately = false } = req.body;
 
     if (!email) {

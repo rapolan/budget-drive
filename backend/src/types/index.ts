@@ -124,6 +124,57 @@ export interface TenantFullInfo extends Tenant {
 // USER & INSTRUCTOR TYPES
 // =====================================================
 
+export type UserRole = 'owner' | 'admin' | 'instructor' | 'staff' | 'viewer';
+
+export interface User {
+  id: string;
+  email: string;
+  fullName?: string | null;
+  phone?: string | null;
+  profilePhotoUrl?: string | null;
+  emailVerified?: boolean;
+  lastLoginAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserTenantMembership {
+  id: string;
+  userId: string;
+  tenantId: string;
+  role: UserRole;
+  status: 'active' | 'invited' | 'suspended' | 'declined';
+  instructorId?: string | null;
+  invitedAt?: Date | null;
+  acceptedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserWithMembership extends User {
+  membershipId: string;
+  role: UserRole;
+  membershipStatus: 'active' | 'suspended' | 'invited' | 'declined';
+  instructorId?: string | null;
+  invitedAt?: Date | null;
+  acceptedAt?: Date | null;
+}
+
+export interface CreateUserInput {
+  email: string;
+  fullName?: string;
+  phone?: string;
+  role?: UserRole;
+  password?: string | null;
+}
+
+export interface UpdateMembershipInput {
+  role?: UserRole;
+  status?: 'active' | 'suspended' | 'invited' | 'declined';
+  instructorId?: string | null;
+}
+
+
 export interface Instructor {
   id: string;
   tenantId: string;
@@ -173,6 +224,10 @@ export interface Instructor {
   googleCalendarConnected: boolean;
 
   notes: string | null;
+
+  // Audit trail
+  createdBy: string | null; // User ID who created this record
+  updatedBy: string | null; // User ID who last modified this record
   createdAt: Date;
   updatedAt: Date;
 }
@@ -203,8 +258,11 @@ export interface Student {
 
   // Personal
   fullName: string;
+  firstName: string | null;
+  lastName: string | null;
+  middleName: string | null;
   email: string;
-  phone: string;
+  phone: string | null; // Student phone (optional - Parent/Guardian can be primary contact)
   dateOfBirth: Date;
   address: string; // Legacy combined address field
   addressLine1: string | null;
@@ -213,10 +271,10 @@ export interface Student {
   state: string | null;
   zipCode: string | null;
   emergencyContact: string; // Legacy field - deprecated in favor of split fields
-  emergencyContactName: string | null;
-  emergencyContactPhone: string | null;
-  emergencyContact2Name: string | null;
-  emergencyContact2Phone: string | null;
+  emergencyContactName: string | null; // Parent/Guardian name
+  emergencyContactPhone: string | null; // Parent/Guardian phone
+  emergencyContact2Name: string | null; // Secondary contact name
+  emergencyContact2Phone: string | null; // Secondary contact phone
 
   // Program
   licenseType: 'car' | 'motorcycle' | 'commercial';
@@ -244,6 +302,12 @@ export interface Student {
   lastContactedAt: Date | null;  // Timestamp of last contact attempt for follow-up
 
   notes: string | null;
+
+  // Audit trail
+  createdBy: string | null; // User ID who created this record
+  updatedBy: string | null; // User ID who last modified this record
+  createdByName?: string | null; // Name of user who created this record
+  updatedByName?: string | null; // Name of user who last modified this record
   createdAt: Date;
   updatedAt: Date;
 }
@@ -352,6 +416,10 @@ export interface Vehicle {
   nextOilChangeMileage: number | null;
 
   notes: string | null;
+
+  // Audit trail
+  createdBy: string | null; // User ID who created this record
+  updatedBy: string | null; // User ID who last modified this record
   createdAt: Date;
   updatedAt: Date;
 }
@@ -493,6 +561,11 @@ export interface Lesson {
   bsvRecordHash: string | null;
   codaRowId: string | null;
 
+  // Audit trail
+  createdBy: string | null; // User ID who created this record
+  updatedBy: string | null; // User ID who last modified this record
+  createdByName?: string | null; // Name of user who created this record
+  updatedByName?: string | null; // Name of user who last modified this record
   createdAt: Date;
   updatedAt: Date;
 }
@@ -525,6 +598,9 @@ export interface Payment {
 
   codaRowId: string | null;
 
+  // Audit trail
+  createdBy: string | null; // User ID who created this record
+  updatedBy: string | null; // User ID who last modified this record
   createdAt: Date;
   updatedAt: Date;
 }
@@ -689,35 +765,81 @@ export interface PaginatedResponse<T> {
 // =====================================================
 
 export interface CreateStudentDTO {
+  // Required fields
   fullName: string;
+  firstName?: string;
+  lastName?: string;
+  middleName?: string;
   email: string;
-  phone: string;
-  dateOfBirth: Date;
-  address: string;
+  
+  // Contact - at least one required (student phone OR Parent/Guardian phone)
+  phone?: string; // Student phone (optional - Parent/Guardian can be primary contact)
+  
+  // Optional fields (form order: Name → DOB → Address → Phone → Parent/Guardian → Email → Permit → Notes)
+  dateOfBirth?: Date;
+  address?: string; // Legacy combined address field
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  
+  // Parent/Guardian contact
   emergencyContact?: string; // Legacy field - kept for backward compatibility
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  emergencyContact2Name?: string;
-  emergencyContact2Phone?: string;
-  licenseType: 'car' | 'motorcycle' | 'commercial';
-  hoursRequired: number;
+  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactPhone?: string; // Parent/Guardian phone
+  emergencyContact2Name?: string; // Secondary contact name (optional)
+  emergencyContact2Phone?: string; // Secondary contact phone (optional)
+  
+  // Program details (defaults applied if not provided)
+  licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car'
+  hoursRequired?: number; // Default: 6 (California requirement)
   assignedInstructorId?: string;
+  
+  // Learner's permit
+  learnerPermitNumber?: string;
   learnerPermitIssueDate?: Date;
+  learnerPermitExpiration?: Date;
+  
+  notes?: string;
 }
 
 export interface UpdateStudentDTO {
+  // Personal info
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  middleName?: string;
   email?: string;
-  phone?: string;
-  address?: string;
+  phone?: string | null; // Student phone (can be null if Parent/Guardian is primary contact)
+  dateOfBirth?: Date;
+  
+  // Address
+  address?: string; // Legacy combined address field
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  
+  // Parent/Guardian contact
   emergencyContact?: string; // Legacy field - kept for backward compatibility
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  emergencyContact2Name?: string;
-  emergencyContact2Phone?: string;
+  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactPhone?: string; // Parent/Guardian phone
+  emergencyContact2Name?: string; // Secondary contact name (optional)
+  emergencyContact2Phone?: string; // Secondary contact phone (optional)
+  
+  // Program details
+  licenseType?: 'car' | 'motorcycle' | 'commercial';
+  hoursRequired?: number;
   status?: 'active' | 'completed' | 'inactive' | 'suspended';
   assignedInstructorId?: string;
+  
+  // Learner's permit
+  learnerPermitNumber?: string;
   learnerPermitIssueDate?: Date;
+  learnerPermitExpiration?: Date;
+  
   notes?: string;
 }
 

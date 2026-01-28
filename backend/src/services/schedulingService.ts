@@ -61,9 +61,8 @@ export const findAvailableSlots = async (
     for (const instId of instructorsToCheck) {
       // Get instructor's capacity and availability for this day of week
       const instructorResult = await query(
-        `SELECT ia.start_time, i.max_students_per_day, i.prefers_own_vehicle, i.default_vehicle_id
+        `SELECT ia.start_time, ia.max_students
          FROM instructor_availability ia
-         JOIN instructors i ON i.id = ia.instructor_id
          WHERE ia.instructor_id = $1 AND ia.tenant_id = $2 AND ia.day_of_week = $3 AND ia.is_active = true
          ORDER BY ia.start_time
          LIMIT 1`,
@@ -77,8 +76,9 @@ export const findAvailableSlots = async (
       const instructorData = instructorResult.rows[0];
       const blockStart = timeToMinutes(instructorData.start_time);
 
-      // Determine max students per day (instructor override or tenant default)
-      const maxSlotsPerDay = instructorData.max_students_per_day || settings.defaultMaxStudentsPerDay;
+      // Determine max students per day (availability record override or tenant default)
+      // Note: max_students on instructor_availability can be null to use tenant default
+      const maxSlotsPerDay = instructorData.max_students ?? settings.defaultMaxStudentsPerDay;
 
       // Check for time off
       const timeOffResult = await query(
@@ -95,7 +95,7 @@ export const findAvailableSlots = async (
 
       // Get existing lessons for this instructor on this day
       const lessonsResult = await query(
-        `SELECT date, start_time, end_time, buffer_time_after
+        `SELECT date, start_time, end_time
          FROM lessons
          WHERE instructor_id = $1 AND tenant_id = $2
          AND date = $3
@@ -106,13 +106,8 @@ export const findAvailableSlots = async (
 
       const existingLessons = lessonsResult.rows;
 
-      // Get vehicle for this instructor (if they use their own)
+      // Vehicle ID is provided via request parameter or can be null
       let vehicleForLesson: string | null = vehicleId || null;
-      if (!vehicleId) {
-        if (instructorData.prefers_own_vehicle && instructorData.default_vehicle_id) {
-          vehicleForLesson = instructorData.default_vehicle_id;
-        }
-      }
 
       // Generate capacity-based slots
       const slots = findSlotsInBlock(
@@ -358,7 +353,7 @@ export const checkSchedulingConflicts = async (
   // 5. Check vehicle availability (if vehicle is school-owned)
   if (vehicleId) {
     const vehicleCheck = await query(
-      `SELECT ownership_type, instructor_id FROM vehicles WHERE id = $1 AND tenant_id = $2`,
+      `SELECT ownership_type, owner_instructor_id FROM vehicles WHERE id = $1 AND tenant_id = $2`,
       [vehicleId, tenantId]
     );
 
@@ -366,7 +361,7 @@ export const checkSchedulingConflicts = async (
       const vehicle = vehicleCheck.rows[0];
 
       // Only check availability for school-owned vehicles
-      if (vehicle.ownership_type === 'school_owned' || !vehicle.instructor_id) {
+      if (vehicle.ownership_type === 'school_owned' || !vehicle.owner_instructor_id) {
         let vehicleLessonQuery = `
           SELECT id FROM lessons
           WHERE vehicle_id = $1 AND tenant_id = $2 AND date = $3

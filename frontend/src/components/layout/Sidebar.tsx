@@ -18,6 +18,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { AccountSwitcher } from './AccountSwitcher';
 import clsx from 'clsx';
 import type { TenantType } from '@/types';
@@ -88,6 +89,7 @@ const groupLabels: Record<string, string> = {
 export const Sidebar: React.FC = () => {
   const location = useLocation();
   const { settings, tenant, tenantType } = useTenant();
+  const { logout } = useAuth();
 
   // Filter navigation based on tenant type and feature flags
   const filteredNavigation = allNavigation.filter((item) => {
@@ -150,9 +152,7 @@ export const Sidebar: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // TODO: Implement logout
-    localStorage.clear();
-    window.location.href = '/login';
+    logout();
   };
 
   return (

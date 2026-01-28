@@ -64,8 +64,9 @@ export const getPayment = asyncHandler(async (req: Request, res: Response) => {
  */
 export const createPayment = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
 
-  const payment = await paymentService.createPayment(tenantId, req.body);
+  const payment = await paymentService.createPayment(tenantId, req.body, userId);
 
   res.status(201).json({
     success: true,
@@ -81,9 +82,10 @@ export const createPayment = asyncHandler(async (req: Request, res: Response) =>
  */
 export const updatePayment = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const payment = await paymentService.updatePayment(id, tenantId, req.body);
+  const payment = await paymentService.updatePayment(id, tenantId, req.body, userId);
 
   res.json({
     success: true,

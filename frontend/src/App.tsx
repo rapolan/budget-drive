@@ -1,7 +1,8 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TenantProvider } from '@/contexts/TenantContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ErrorBoundary } from '@/components/common';
 import { DashboardPage } from '@/pages/Dashboard';
@@ -16,6 +17,7 @@ import { NotificationSettingsPage } from '@/pages/NotificationSettings';
 import { PaymentsPage } from '@/pages/Payments';
 import NotificationHistory from '@/pages/NotificationHistory';
 import { SettingsPage } from '@/pages/Settings';
+import { LoginPage } from '@/pages/Login';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -27,133 +29,203 @@ const queryClient = new QueryClient({
   },
 });
 
+// Protected route wrapper
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  // Check for dev mode bypass
+  const isDev = import.meta.env.DEV;
+  const hasDevToken = localStorage.getItem('auth_token') === 'dev-token-bypassed-in-development-mode';
+
+  // In development with dev token, allow access
+  if (isDev && hasDevToken) {
+    return <>{children}</>;
+  }
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public route - Login */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Protected routes */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <DashboardPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/students"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <StudentsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instructors"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <InstructorsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vehicles"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <VehiclesPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/lessons"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <LessonsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/scheduling"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <SchedulingPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instructor-earnings"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <InstructorEarningsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payments"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <PaymentsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/treasury"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <TreasuryPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/certificates"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <div className="text-center text-gray-500">Certificates page - Coming soon</div>
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/follow-ups"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <div className="text-center text-gray-500">Follow-ups page - Coming soon</div>
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <NotificationSettingsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notification-history"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <NotificationHistory />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <SettingsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      {/* Catch all - redirect to dashboard */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <TenantProvider>
-          <BrowserRouter>
-            <Routes>
-            <Route
-              path="/"
-              element={
-                <AppLayout>
-                  <DashboardPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/students"
-              element={
-                <AppLayout>
-                  <StudentsPage />
-                </AppLayout>
-              }
-            />
-            {/* Placeholder routes - will create these pages next */}
-            <Route
-              path="/instructors"
-              element={
-                <AppLayout>
-                  <InstructorsPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/vehicles"
-              element={
-                <AppLayout>
-                  <VehiclesPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/lessons"
-              element={
-                <AppLayout>
-                  <LessonsPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/scheduling"
-              element={
-                <AppLayout>
-                  <SchedulingPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/instructor-earnings"
-              element={
-                <AppLayout>
-                  <InstructorEarningsPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/payments"
-              element={
-                <AppLayout>
-                  <PaymentsPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/treasury"
-              element={
-                <AppLayout>
-                  <TreasuryPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/certificates"
-              element={
-                <AppLayout>
-                  <div className="text-center text-gray-500">Certificates page - Coming soon</div>
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/follow-ups"
-              element={
-                <AppLayout>
-                  <div className="text-center text-gray-500">Follow-ups page - Coming soon</div>
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <AppLayout>
-                  <NotificationSettingsPage />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/notification-history"
-              element={
-                <AppLayout>
-                  <NotificationHistory />
-                </AppLayout>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <AppLayout>
-                  <SettingsPage />
-                </AppLayout>
-              }
-            />
-            {/* Catch all - redirect to dashboard */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </TenantProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
+        <AuthProvider>
+          <TenantProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </TenantProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

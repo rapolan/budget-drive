@@ -227,6 +227,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     onChange={handleChange}
                     step="0.01"
                     min="0"
+                    autoComplete="nope"
                     className="block w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="0.00"
                   />
@@ -298,6 +299,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     name="date"
                     value={formData.date}
                     onChange={handleChange}
+                    autoComplete="nope"
                     className="block w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>

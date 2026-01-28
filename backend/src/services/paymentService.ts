@@ -161,7 +161,8 @@ export const getPaymentsByPaymentMethod = async (
 
 export const createPayment = async (
   tenantId: string,
-  data: any
+  data: any,
+  userId?: string
 ): Promise<Payment> => {
   logger.info('Creating new payment', {
     tenantId,
@@ -203,8 +204,8 @@ export const createPayment = async (
     const result = await query(
       `INSERT INTO payments (
         tenant_id, student_id, amount, payment_method, payment_type,
-        date, status, bsv_transaction_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        date, status, bsv_transaction_id, notes, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
       RETURNING *`,
       [
         tenantId,
@@ -216,6 +217,7 @@ export const createPayment = async (
         data.status || 'confirmed',
         data.bsvTransactionId || null,
         data.notes || null,
+        userId || null,
       ]
     );
 
@@ -241,7 +243,8 @@ export const createPayment = async (
 export const updatePayment = async (
   id: string,
   tenantId: string,
-  data: Partial<Payment>
+  data: Partial<Payment>,
+  userId?: string
 ): Promise<Payment> => {
   logger.info('Updating payment', {
     tenantId,
@@ -277,6 +280,10 @@ export const updatePayment = async (
     if (data.notes !== undefined) {
       fields.push(`notes = $${paramCount++}`);
       values.push(data.notes);
+    }
+    if (userId) {
+      fields.push(`updated_by = $${paramCount++}`);
+      values.push(userId);
     }
 
     if (fields.length === 0) {

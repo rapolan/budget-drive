@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, AlertTriangle, CheckCircle, Clock, Hash } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, Clock, Hash, Calendar, User, FileText } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson, CreateLessonInput } from '@/types';
 
@@ -16,7 +16,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   const [formData, setFormData] = useState<CreateLessonInput>({
     studentId: '',
     instructorId: '',
-    vehicleId: '',
+    vehicleId: '', // Will be auto-assigned to first available vehicle
     date: '',
     startTime: '',
     endTime: '',
@@ -43,6 +43,16 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     queryFn: () => vehiclesApi.getAll(),
   });
 
+  // Auto-select first available vehicle
+  useEffect(() => {
+    if (vehiclesData?.data && vehiclesData.data.length > 0 && !formData.vehicleId) {
+      const activeVehicle = vehiclesData.data.find(v => v.status === 'active');
+      if (activeVehicle) {
+        setFormData(prev => ({ ...prev, vehicleId: activeVehicle.id }));
+      }
+    }
+  }, [vehiclesData, formData.vehicleId]);
+
   // Fetch all lessons to calculate student's lesson count
   const { data: allLessonsData } = useQuery({
     queryKey: ['lessons'],
@@ -51,8 +61,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
   // Calculate how many lessons the selected student has (excluding current if editing)
   const selectedStudent = studentsData?.data?.find(s => s.id === formData.studentId);
-  const studentLessons = allLessonsData?.data?.filter(l => 
-    l.studentId === formData.studentId && 
+  const studentLessons = allLessonsData?.data?.filter(l =>
+    l.studentId === formData.studentId &&
     l.status !== 'cancelled' &&
     (!isEditing || l.id !== lesson?.id)
   ) || [];
@@ -192,7 +202,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
     // Validate required fields
     if (!formData.studentId || !formData.instructorId || !formData.vehicleId) {
-      alert('Please select student, instructor, and vehicle');
+      alert('Please select student and instructor');
       return;
     }
 
@@ -206,16 +216,10 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       return;
     }
 
-    // Check for time conflicts
+    // Conflict is already shown inline and blocks submission via disabled button
+    // No need to proceed if there's a conflict
     if (conflict) {
-      const confirmed = window.confirm(
-        `The instructor is already booked during this time. ${
-          nextAvailable
-            ? `The next available slot is at ${nextAvailable}. `
-            : ''
-        }Do you want to proceed anyway?`
-      );
-      if (!confirmed) return;
+      return;
     }
 
     // Transform frontend fields to backend format
@@ -252,28 +256,45 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
         {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">
-            {isEditing ? 'Edit Lesson' : 'Add New Lesson'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-6 w-6" />
-          </button>
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
+                <Calendar className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {isEditing ? 'Edit Lesson' : 'Add New Lesson'}
+                </h2>
+                <p className="text-sm text-gray-500">
+                  {isEditing ? 'Update lesson details' : 'Schedule a new driving lesson'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              aria-label="Close modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Student & Lesson Number Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Student */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Student *
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <User className="h-4 w-4 text-blue-600" />
+                Student
+                <span className="text-red-500">*</span>
               </label>
               <select
                 name="studentId"
@@ -281,7 +302,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Student"
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               >
                 <option value="">Select Student</option>
                 {studentsData?.data
@@ -296,20 +317,20 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
             {/* Lesson Number */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                <Hash className="inline h-4 w-4 mr-1" />
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <Hash className="h-4 w-4 text-blue-600" />
                 Lesson #
               </label>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2">
                 <select
                   name="lessonNumber"
                   value={formData.lessonNumber || ''}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    lessonNumber: e.target.value ? parseInt(e.target.value) : null 
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    lessonNumber: e.target.value ? parseInt(e.target.value) : null
                   }))}
                   title="Lesson Number"
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="flex-1 px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option value="">--</option>
                   {Array.from({ length: Math.max(estimatedTotalLessons, 10) }, (_, i) => i + 1).map(num => (
@@ -325,18 +346,24 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 )}
               </div>
             </div>
+          </div>
 
+          {/* Instructor & Type Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Instructor */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Instructor *
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <User className="h-4 w-4 text-blue-600" />
+                Instructor
+                <span className="text-red-500">*</span>
               </label>
               <select
                 name="instructorId"
                 value={formData.instructorId}
                 onChange={handleChange}
                 required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                title="Select Instructor"
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               >
                 <option value="">Select Instructor</option>
                 {instructorsData?.data
@@ -349,66 +376,55 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               </select>
             </div>
 
-            {/* Vehicle */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Vehicle *
-              </label>
-              <select
-                name="vehicleId"
-                value={formData.vehicleId}
-                onChange={handleChange}
-                required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">Select Vehicle</option>
-                {vehiclesData?.data
-                  ?.filter((v) => v.status === 'active')
-                  .map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.year} {vehicle.make} {vehicle.model} - {vehicle.licensePlate}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Date *
-              </label>
-              <input
-                type="date"
-                name="date"
-                value={formData.date}
-                onChange={handleChange}
-                required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
             {/* Lesson Type */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Lesson Type *
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <FileText className="h-4 w-4 text-blue-600" />
+                Lesson Type
+                <span className="text-red-500">*</span>
               </label>
               <select
                 name="lessonType"
                 value={formData.lessonType}
                 onChange={handleChange}
                 required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                title="Select Lesson Type"
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               >
                 <option value="behind_wheel">Behind the Wheel</option>
                 <option value="classroom">Classroom</option>
                 <option value="road_test_prep">Road Test Prep</option>
               </select>
             </div>
+          </div>
 
+          {/* Date Row */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+              <Calendar className="h-4 w-4 text-blue-600" />
+              Date
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              onChange={handleChange}
+              required
+              autoComplete="off"
+              title="Select Date"
+              className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            />
+          </div>
+
+          {/* Time Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Start Time */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Start Time *
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <Clock className="h-4 w-4 text-blue-600" />
+                Start Time
+                <span className="text-red-500">*</span>
               </label>
               <input
                 type="time"
@@ -416,14 +432,18 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 value={formData.startTime}
                 onChange={handleChange}
                 required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                autoComplete="off"
+                title="Select Start Time"
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
 
             {/* End Time */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                End Time *
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <Clock className="h-4 w-4 text-blue-600" />
+                End Time
+                <span className="text-red-500">*</span>
               </label>
               <input
                 type="time"
@@ -431,33 +451,35 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 value={formData.endTime}
                 onChange={handleChange}
                 required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                autoComplete="off"
+                title="Select End Time"
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
 
             {/* Duration (auto-calculated) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Duration (minutes)
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <Clock className="h-4 w-4 text-gray-400" />
+                Duration
               </label>
               <input
-                type="number"
-                name="duration"
-                value={formData.duration}
-                onChange={handleChange}
-                min="0"
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                type="text"
+                value={`${formData.duration} min`}
                 readOnly
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                title="Auto-calculated from start and end times"
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Auto-calculated from start and end times
-              </p>
             </div>
+          </div>
 
-            {/* Cost */}
+          {/* Cost Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Cost ($) *
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+                <span className="text-blue-600">$</span>
+                Cost
+                <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -467,45 +489,48 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 min="0"
                 step="0.01"
                 required
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            {/* Notes */}
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Notes
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                rows={3}
-                placeholder="Additional notes about this lesson..."
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                autoComplete="off"
+                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="50.00"
               />
             </div>
           </div>
 
+          {/* Notes */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
+              <FileText className="h-4 w-4 text-blue-600" />
+              Notes
+            </label>
+            <textarea
+              name="notes"
+              value={formData.notes}
+              onChange={handleChange}
+              rows={3}
+              placeholder="Additional notes about this lesson..."
+              className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+            />
+          </div>
+
           {/* Availability Indicator */}
           {formData.instructorId && formData.date && (
-            <div className="mt-4">
+            <div className="space-y-3">
               {sameDayLessons.length === 0 ? (
-                <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
-                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
+                <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-green-900">
                       Instructor is available all day
                     </p>
-                    <p className="mt-0.5 text-xs text-green-700">
+                    <p className="text-xs text-green-700 mt-0.5">
                       No other lessons scheduled for this date
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                    <Clock className="h-5 w-5 flex-shrink-0 text-blue-600" />
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <Clock className="h-5 w-5 flex-shrink-0 text-blue-600 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-blue-900">
                         Instructor's schedule for this day:
@@ -521,13 +546,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                   </div>
 
                   {conflict && (
-                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                    <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium text-red-900">
                           Time conflict detected
                         </p>
-                        <p className="mt-0.5 text-xs text-red-700">
+                        <p className="text-xs text-red-700 mt-0.5">
                           The instructor is already booked during this time.
                           {nextAvailable && (
                             <span className="ml-1 font-medium">
@@ -540,13 +565,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                   )}
 
                   {!conflict && formData.startTime && formData.endTime && (
-                    <div className="flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
-                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600" />
+                    <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium text-green-900">
                           Selected time is available
                         </p>
-                        <p className="mt-0.5 text-xs text-green-700">
+                        <p className="text-xs text-green-700 mt-0.5">
                           No conflicts with existing lessons
                         </p>
                       </div>
@@ -559,7 +584,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
           {/* BDP Info Banner */}
           {!isEditing && (
-            <div className="rounded-md bg-blue-50 border border-blue-200 p-3">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
               <p className="text-xs text-blue-800">
                 <strong>Note:</strong> Creating this lesson will automatically record a 5 satoshi treasury fee
                 and queue email notifications (booking confirmation, 24hr reminder, 1hr reminder) for both
@@ -569,23 +594,23 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           )}
 
           {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
+          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending || updateMutation.isPending}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={conflict || createMutation.isPending || updateMutation.isPending}
+              className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
             >
               {createMutation.isPending || updateMutation.isPending
                 ? 'Saving...'
                 : isEditing
-                ? 'Update Lesson'
+                ? 'Save Changes'
                 : 'Create Lesson'}
             </button>
           </div>

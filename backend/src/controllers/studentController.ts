@@ -64,8 +64,9 @@ export const getStudent = asyncHandler(async (req: Request, res: Response) => {
  */
 export const createStudent = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
 
-  const student = await studentService.createStudent(tenantId, req.body);
+  const student = await studentService.createStudent(tenantId, req.body, userId);
 
   res.status(201).json({
     success: true,
@@ -81,9 +82,10 @@ export const createStudent = asyncHandler(async (req: Request, res: Response) =>
  */
 export const updateStudent = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const student = await studentService.updateStudent(id, tenantId, req.body);
+  const student = await studentService.updateStudent(id, tenantId, req.body, userId);
 
   res.json({
     success: true,

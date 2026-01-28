@@ -48,9 +48,10 @@ CREATE TABLE IF NOT EXISTS tenants (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_tenants_slug ON tenants(slug);
-CREATE INDEX idx_tenants_status ON tenants(status);
+CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+CREATE INDEX IF NOT EXISTS idx_tenants_status ON tenants(status);
 
+DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
 CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON tenants
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -126,8 +127,9 @@ CREATE TABLE IF NOT EXISTS tenant_settings (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_tenant_settings_tenant_id ON tenant_settings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_settings_tenant_id ON tenant_settings(tenant_id);
 
+DROP TRIGGER IF EXISTS update_tenant_settings_updated_at ON tenant_settings;
 CREATE TRIGGER update_tenant_settings_updated_at BEFORE UPDATE ON tenant_settings
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -179,11 +181,12 @@ CREATE TABLE IF NOT EXISTS instructors (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_instructors_tenant ON instructors(tenant_id);
-CREATE INDEX idx_instructors_email ON instructors(email);
-CREATE INDEX idx_instructors_status ON instructors(status);
-CREATE UNIQUE INDEX idx_instructors_email_tenant ON instructors(tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_instructors_tenant ON instructors(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_instructors_email ON instructors(email);
+CREATE INDEX IF NOT EXISTS idx_instructors_status ON instructors(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_instructors_email_tenant ON instructors(tenant_id, email);
 
+DROP TRIGGER IF EXISTS update_instructors_updated_at ON instructors;
 CREATE TRIGGER update_instructors_updated_at BEFORE UPDATE ON instructors
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -224,12 +227,13 @@ CREATE TABLE IF NOT EXISTS students (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_students_tenant ON students(tenant_id);
-CREATE INDEX idx_students_email ON students(email);
-CREATE INDEX idx_students_status ON students(status);
-CREATE INDEX idx_students_assigned_instructor ON students(assigned_instructor_id);
-CREATE UNIQUE INDEX idx_students_email_tenant ON students(tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_students_tenant ON students(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_students_email ON students(email);
+CREATE INDEX IF NOT EXISTS idx_students_status ON students(status);
+CREATE INDEX IF NOT EXISTS idx_students_assigned_instructor ON students(assigned_instructor_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_email_tenant ON students(tenant_id, email);
 
+DROP TRIGGER IF EXISTS update_students_updated_at ON students;
 CREATE TRIGGER update_students_updated_at BEFORE UPDATE ON students
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -274,11 +278,12 @@ CREATE TABLE IF NOT EXISTS vehicles (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_vehicles_tenant ON vehicles(tenant_id);
-CREATE INDEX idx_vehicles_ownership ON vehicles(ownership_type, owner_instructor_id);
-CREATE INDEX idx_vehicles_status ON vehicles(status);
-CREATE UNIQUE INDEX idx_vehicles_license_plate_tenant ON vehicles(tenant_id, license_plate);
+CREATE INDEX IF NOT EXISTS idx_vehicles_tenant ON vehicles(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_ownership ON vehicles(ownership_type, owner_instructor_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vehicles_license_plate_tenant ON vehicles(tenant_id, license_plate);
 
+DROP TRIGGER IF EXISTS update_vehicles_updated_at ON vehicles;
 CREATE TRIGGER update_vehicles_updated_at BEFORE UPDATE ON vehicles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -318,13 +323,14 @@ CREATE TABLE IF NOT EXISTS lessons (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_lessons_tenant ON lessons(tenant_id);
-CREATE INDEX idx_lessons_student ON lessons(student_id);
-CREATE INDEX idx_lessons_instructor ON lessons(instructor_id);
-CREATE INDEX idx_lessons_vehicle ON lessons(vehicle_id);
-CREATE INDEX idx_lessons_date ON lessons(date);
-CREATE INDEX idx_lessons_status ON lessons(status);
+CREATE INDEX IF NOT EXISTS idx_lessons_tenant ON lessons(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lessons_student ON lessons(student_id);
+CREATE INDEX IF NOT EXISTS idx_lessons_instructor ON lessons(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_lessons_vehicle ON lessons(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(date);
+CREATE INDEX IF NOT EXISTS idx_lessons_status ON lessons(status);
 
+DROP TRIGGER IF EXISTS update_lessons_updated_at ON lessons;
 CREATE TRIGGER update_lessons_updated_at BEFORE UPDATE ON lessons
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -364,11 +370,12 @@ CREATE TABLE IF NOT EXISTS leads (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_leads_tenant ON leads(tenant_id);
-CREATE INDEX idx_leads_status ON leads(status);
-CREATE INDEX idx_leads_assigned_to ON leads(assigned_to_instructor_id);
-CREATE INDEX idx_leads_next_follow_up ON leads(next_follow_up_date);
+CREATE INDEX IF NOT EXISTS idx_leads_tenant ON leads(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON leads(assigned_to_instructor_id);
+CREATE INDEX IF NOT EXISTS idx_leads_next_follow_up ON leads(next_follow_up_date);
 
+DROP TRIGGER IF EXISTS update_leads_updated_at ON leads;
 CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON leads
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -402,13 +409,14 @@ CREATE TABLE IF NOT EXISTS follow_ups (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_follow_ups_tenant ON follow_ups(tenant_id);
-CREATE INDEX idx_follow_ups_lead ON follow_ups(lead_id);
-CREATE INDEX idx_follow_ups_student ON follow_ups(student_id);
-CREATE INDEX idx_follow_ups_assigned_to ON follow_ups(assigned_to);
-CREATE INDEX idx_follow_ups_status ON follow_ups(status);
-CREATE INDEX idx_follow_ups_scheduled_date ON follow_ups(scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_tenant ON follow_ups(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_lead ON follow_ups(lead_id);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_student ON follow_ups(student_id);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_assigned_to ON follow_ups(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_status ON follow_ups(status);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_scheduled_date ON follow_ups(scheduled_date);
 
+DROP TRIGGER IF EXISTS update_follow_ups_updated_at ON follow_ups;
 CREATE TRIGGER update_follow_ups_updated_at BEFORE UPDATE ON follow_ups
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -451,11 +459,12 @@ CREATE TABLE IF NOT EXISTS payments (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_payments_tenant ON payments(tenant_id);
-CREATE INDEX idx_payments_student ON payments(student_id);
-CREATE INDEX idx_payments_date ON payments(date);
-CREATE INDEX idx_payments_status ON payments(status);
+CREATE INDEX IF NOT EXISTS idx_payments_tenant ON payments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payments_student ON payments(student_id);
+CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 
+DROP TRIGGER IF EXISTS update_payments_updated_at ON payments;
 CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -493,13 +502,14 @@ CREATE TABLE IF NOT EXISTS invoices (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_invoices_tenant ON invoices(tenant_id);
-CREATE INDEX idx_invoices_student ON invoices(student_id);
-CREATE INDEX idx_invoices_number ON invoices(invoice_number);
-CREATE INDEX idx_invoices_status ON invoices(status);
-CREATE INDEX idx_invoices_due_date ON invoices(due_date);
-CREATE UNIQUE INDEX idx_invoices_number_tenant ON invoices(tenant_id, invoice_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_student ON invoices(student_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_number_tenant ON invoices(tenant_id, invoice_number);
 
+DROP TRIGGER IF EXISTS update_invoices_updated_at ON invoices;
 CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -520,7 +530,7 @@ CREATE TABLE IF NOT EXISTS invoice_line_items (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_invoice_line_items_invoice ON invoice_line_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_line_items_invoice ON invoice_line_items(invoice_id);
 
 -- Payment Plans
 CREATE TABLE IF NOT EXISTS payment_plans (
@@ -547,10 +557,11 @@ CREATE TABLE IF NOT EXISTS payment_plans (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_payment_plans_tenant ON payment_plans(tenant_id);
-CREATE INDEX idx_payment_plans_student ON payment_plans(student_id);
-CREATE INDEX idx_payment_plans_status ON payment_plans(status);
+CREATE INDEX IF NOT EXISTS idx_payment_plans_tenant ON payment_plans(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payment_plans_student ON payment_plans(student_id);
+CREATE INDEX IF NOT EXISTS idx_payment_plans_status ON payment_plans(status);
 
+DROP TRIGGER IF EXISTS update_payment_plans_updated_at ON payment_plans;
 CREATE TRIGGER update_payment_plans_updated_at BEFORE UPDATE ON payment_plans
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -576,10 +587,11 @@ CREATE TABLE IF NOT EXISTS installments (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_installments_payment_plan ON installments(payment_plan_id);
-CREATE INDEX idx_installments_due_date ON installments(due_date);
-CREATE INDEX idx_installments_status ON installments(status);
+CREATE INDEX IF NOT EXISTS idx_installments_payment_plan ON installments(payment_plan_id);
+CREATE INDEX IF NOT EXISTS idx_installments_due_date ON installments(due_date);
+CREATE INDEX IF NOT EXISTS idx_installments_status ON installments(status);
 
+DROP TRIGGER IF EXISTS update_installments_updated_at ON installments;
 CREATE TRIGGER update_installments_updated_at BEFORE UPDATE ON installments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -607,11 +619,12 @@ CREATE TABLE IF NOT EXISTS instructor_vehicle_assignments (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_instructor_vehicle_assignments_instructor ON instructor_vehicle_assignments(instructor_id);
-CREATE INDEX idx_instructor_vehicle_assignments_vehicle ON instructor_vehicle_assignments(vehicle_id);
-CREATE INDEX idx_instructor_vehicle_assignments_active ON instructor_vehicle_assignments(instructor_id, vehicle_id)
+CREATE INDEX IF NOT EXISTS idx_instructor_vehicle_assignments_instructor ON instructor_vehicle_assignments(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_vehicle_assignments_vehicle ON instructor_vehicle_assignments(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_vehicle_assignments_active ON instructor_vehicle_assignments(instructor_id, vehicle_id)
     WHERE unassigned_date IS NULL;
 
+DROP TRIGGER IF EXISTS update_instructor_vehicle_assignments_updated_at ON instructor_vehicle_assignments;
 CREATE TRIGGER update_instructor_vehicle_assignments_updated_at BEFORE UPDATE ON instructor_vehicle_assignments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -663,11 +676,12 @@ CREATE TABLE IF NOT EXISTS vehicle_mileage_log (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_vehicle_mileage_log_vehicle ON vehicle_mileage_log(vehicle_id);
-CREATE INDEX idx_vehicle_mileage_log_instructor ON vehicle_mileage_log(instructor_id);
-CREATE INDEX idx_vehicle_mileage_log_date ON vehicle_mileage_log(trip_date);
-CREATE INDEX idx_vehicle_mileage_log_reimbursement ON vehicle_mileage_log(reimbursement_status);
+CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_log_vehicle ON vehicle_mileage_log(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_log_instructor ON vehicle_mileage_log(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_log_date ON vehicle_mileage_log(trip_date);
+CREATE INDEX IF NOT EXISTS idx_vehicle_mileage_log_reimbursement ON vehicle_mileage_log(reimbursement_status);
 
+DROP TRIGGER IF EXISTS update_vehicle_mileage_log_updated_at ON vehicle_mileage_log;
 CREATE TRIGGER update_vehicle_mileage_log_updated_at BEFORE UPDATE ON vehicle_mileage_log
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -705,9 +719,10 @@ CREATE TABLE IF NOT EXISTS mileage_reimbursement_reports (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_mileage_reimbursement_reports_instructor ON mileage_reimbursement_reports(instructor_id, period_start);
-CREATE INDEX idx_mileage_reimbursement_reports_status ON mileage_reimbursement_reports(status);
+CREATE INDEX IF NOT EXISTS idx_mileage_reimbursement_reports_instructor ON mileage_reimbursement_reports(instructor_id, period_start);
+CREATE INDEX IF NOT EXISTS idx_mileage_reimbursement_reports_status ON mileage_reimbursement_reports(status);
 
+DROP TRIGGER IF EXISTS update_mileage_reimbursement_reports_updated_at ON mileage_reimbursement_reports;
 CREATE TRIGGER update_mileage_reimbursement_reports_updated_at BEFORE UPDATE ON mileage_reimbursement_reports
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -739,10 +754,11 @@ CREATE TABLE IF NOT EXISTS vehicle_maintenance (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_vehicle_maintenance_vehicle ON vehicle_maintenance(vehicle_id);
-CREATE INDEX idx_vehicle_maintenance_date ON vehicle_maintenance(service_date);
-CREATE INDEX idx_vehicle_maintenance_type ON vehicle_maintenance(maintenance_type);
+CREATE INDEX IF NOT EXISTS idx_vehicle_maintenance_vehicle ON vehicle_maintenance(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_maintenance_date ON vehicle_maintenance(service_date);
+CREATE INDEX IF NOT EXISTS idx_vehicle_maintenance_type ON vehicle_maintenance(maintenance_type);
 
+DROP TRIGGER IF EXISTS update_vehicle_maintenance_updated_at ON vehicle_maintenance;
 CREATE TRIGGER update_vehicle_maintenance_updated_at BEFORE UPDATE ON vehicle_maintenance
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -772,10 +788,11 @@ CREATE TABLE IF NOT EXISTS instructor_certifications (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_instructor_certifications_instructor ON instructor_certifications(instructor_id);
-CREATE INDEX idx_instructor_certifications_expiration ON instructor_certifications(expiration_date);
-CREATE INDEX idx_instructor_certifications_status ON instructor_certifications(status);
+CREATE INDEX IF NOT EXISTS idx_instructor_certifications_instructor ON instructor_certifications(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_certifications_expiration ON instructor_certifications(expiration_date);
+CREATE INDEX IF NOT EXISTS idx_instructor_certifications_status ON instructor_certifications(status);
 
+DROP TRIGGER IF EXISTS update_instructor_certifications_updated_at ON instructor_certifications;
 CREATE TRIGGER update_instructor_certifications_updated_at BEFORE UPDATE ON instructor_certifications
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -810,10 +827,10 @@ CREATE TABLE IF NOT EXISTS blockchain_records (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_blockchain_records_tenant ON blockchain_records(tenant_id);
-CREATE INDEX idx_blockchain_records_hash ON blockchain_records(transaction_hash);
-CREATE INDEX idx_blockchain_records_type ON blockchain_records(transaction_type);
-CREATE INDEX idx_blockchain_records_payment ON blockchain_records(payment_id);
+CREATE INDEX IF NOT EXISTS idx_blockchain_records_tenant ON blockchain_records(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_blockchain_records_hash ON blockchain_records(transaction_hash);
+CREATE INDEX IF NOT EXISTS idx_blockchain_records_type ON blockchain_records(transaction_type);
+CREATE INDEX IF NOT EXISTS idx_blockchain_records_payment ON blockchain_records(payment_id);
 
 -- Certificates
 CREATE TABLE IF NOT EXISTS certificates (
@@ -848,10 +865,10 @@ CREATE TABLE IF NOT EXISTS certificates (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_certificates_tenant ON certificates(tenant_id);
-CREATE INDEX idx_certificates_student ON certificates(student_id);
-CREATE INDEX idx_certificates_number ON certificates(certificate_number);
-CREATE UNIQUE INDEX idx_certificates_number_tenant ON certificates(tenant_id, certificate_number);
+CREATE INDEX IF NOT EXISTS idx_certificates_tenant ON certificates(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_certificates_student ON certificates(student_id);
+CREATE INDEX IF NOT EXISTS idx_certificates_number ON certificates(certificate_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_certificates_number_tenant ON certificates(tenant_id, certificate_number);
 
 -- =====================================================
 -- 7. CALENDAR INTEGRATION
@@ -876,9 +893,10 @@ CREATE TABLE IF NOT EXISTS instructor_availability (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_instructor_availability_instructor ON instructor_availability(instructor_id);
-CREATE INDEX idx_instructor_availability_day ON instructor_availability(day_of_week);
+CREATE INDEX IF NOT EXISTS idx_instructor_availability_instructor ON instructor_availability(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_availability_day ON instructor_availability(day_of_week);
 
+DROP TRIGGER IF EXISTS update_instructor_availability_updated_at ON instructor_availability;
 CREATE TRIGGER update_instructor_availability_updated_at BEFORE UPDATE ON instructor_availability
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -904,8 +922,9 @@ CREATE TABLE IF NOT EXISTS instructor_calendar_auth (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_instructor_calendar_auth_instructor ON instructor_calendar_auth(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_calendar_auth_instructor ON instructor_calendar_auth(instructor_id);
 
+DROP TRIGGER IF EXISTS update_instructor_calendar_auth_updated_at ON instructor_calendar_auth;
 CREATE TRIGGER update_instructor_calendar_auth_updated_at BEFORE UPDATE ON instructor_calendar_auth
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -931,9 +950,10 @@ CREATE TABLE IF NOT EXISTS instructor_ical_feeds (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_instructor_ical_feeds_instructor ON instructor_ical_feeds(instructor_id);
-CREATE INDEX idx_instructor_ical_feeds_token ON instructor_ical_feeds(feed_token);
+CREATE INDEX IF NOT EXISTS idx_instructor_ical_feeds_instructor ON instructor_ical_feeds(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_instructor_ical_feeds_token ON instructor_ical_feeds(feed_token);
 
+DROP TRIGGER IF EXISTS update_instructor_ical_feeds_updated_at ON instructor_ical_feeds;
 CREATE TRIGGER update_instructor_ical_feeds_updated_at BEFORE UPDATE ON instructor_ical_feeds
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -956,9 +976,10 @@ CREATE TABLE IF NOT EXISTS lesson_calendar_events (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_lesson_calendar_events_lesson ON lesson_calendar_events(lesson_id);
-CREATE INDEX idx_lesson_calendar_events_instructor ON lesson_calendar_events(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_calendar_events_lesson ON lesson_calendar_events(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_calendar_events_instructor ON lesson_calendar_events(instructor_id);
 
+DROP TRIGGER IF EXISTS update_lesson_calendar_events_updated_at ON lesson_calendar_events;
 CREATE TRIGGER update_lesson_calendar_events_updated_at BEFORE UPDATE ON lesson_calendar_events
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

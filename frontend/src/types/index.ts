@@ -94,21 +94,24 @@ export interface Student {
   id: string;
   tenantId: string;
   fullName: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  middleName?: string | null;
   email: string;
-  phone: string;
+  phone?: string | null; // Student phone (optional - Parent/Guardian can be primary contact)
   dateOfBirth?: Date;
-  address?: string;
+  address?: string; // Legacy combined address field
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
   state?: string;
   zipCode?: string;
   emergencyContact?: string; // Legacy field - deprecated in favor of split fields
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  emergencyContact2Name?: string;
-  emergencyContact2Phone?: string;
-  licenseType?: 'car' | 'motorcycle' | 'commercial';
+  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactPhone?: string; // Parent/Guardian phone
+  emergencyContact2Name?: string; // Secondary contact name
+  emergencyContact2Phone?: string; // Secondary contact phone
+  licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car' (hidden in form)
   learnerPermitNumber?: string;
   learnerPermitIssueDate?: Date;
   learnerPermitExpiration?: Date;
@@ -116,13 +119,17 @@ export interface Student {
   enrollmentDate: Date;
   completionDate?: Date;
   totalHoursCompleted: number;
-  hoursRequired?: number;
+  hoursRequired?: number; // Default: 6 (hidden in form)
   assignedInstructorId?: string;
   paymentStatus?: 'paid' | 'partial' | 'unpaid' | 'overdue';
   totalPaid?: number;
   outstandingBalance?: number;
   lastContactedAt?: Date;  // Timestamp of last contact attempt for follow-up
   notes?: string;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdByName?: string | null;
+  updatedByName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -198,6 +205,10 @@ export interface Lesson {
   googleCalendarEventId?: string;
   bsvRecordHash?: string | null;
   codaRowId?: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdByName?: string | null;
+  updatedByName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -286,27 +297,45 @@ export interface PaginatedResponse<T> {
 
 // Form Input Types
 export interface CreateStudentInput {
+  // Required fields
   fullName: string;
+  firstName?: string;
+  lastName?: string;
+  middleName?: string;
   email: string;
-  phone: string;
-  dateOfBirth: string;
-  address: string;
+  
+  // Contact - at least one required (student phone OR Parent/Guardian phone)
+  phone?: string; // Student phone (optional - Parent/Guardian can be primary contact)
+  
+  // Optional fields (form order: Name → DOB → Address → Phone → Parent/Guardian → Email → Permit → Notes)
+  dateOfBirth?: string;
+  address?: string; // Legacy combined address field
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
   state?: string;
   zipCode?: string;
+  
+  // Parent/Guardian contact
   emergencyContact?: string; // Legacy field - kept for backward compatibility
-  emergencyContactName?: string;
-  emergencyContactPhone?: string;
-  emergencyContact2Name?: string;
-  emergencyContact2Phone?: string;
-  licenseType: 'car' | 'motorcycle' | 'commercial';
-  hoursRequired?: number; // Made optional as it's being removed from UI
+  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactPhone?: string; // Parent/Guardian phone
+  emergencyContact2Name?: string; // Secondary contact name (optional)
+  emergencyContact2Phone?: string; // Secondary contact phone (optional)
+  
+  // Program details (defaults applied by backend if not provided)
+  licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car' (hidden in form)
+  hoursRequired?: number; // Default: 6 (hidden in form)
   assignedInstructorId?: string;
+  
+  // Learner's permit
   learnerPermitNumber?: string;
   learnerPermitIssueDate?: string;
   learnerPermitExpiration?: string;
+
+  // Follow-up tracking
+  lastContactedAt?: Date;
+
   notes?: string;
 }
 

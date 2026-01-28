@@ -58,6 +58,21 @@ router.post(
   tenantController.createTenant
 );
 
+// =====================================================
+// PUBLIC ROUTES
+// =====================================================
+
+// IMPORTANT: This must be BEFORE /tenants/:id to prevent "slug" being matched as an ID
+// Get tenant by slug (public - for white-label sites)
+router.get(
+  '/tenants/slug/:slug',
+  tenantController.getTenantBySlug
+);
+
+// =====================================================
+// PROTECTED ID-BASED ROUTES (must come after specific routes)
+// =====================================================
+
 // Get tenant by ID
 router.get(
   '/tenants/:id',
@@ -80,16 +95,6 @@ router.delete(
   authenticate,
   validateUUID('id'),
   tenantController.deleteTenant
-);
-
-// =====================================================
-// PUBLIC ROUTES
-// =====================================================
-
-// Get tenant by slug (public - for white-label sites)
-router.get(
-  '/tenants/slug/:slug',
-  tenantController.getTenantBySlug
 );
 
 export default router;

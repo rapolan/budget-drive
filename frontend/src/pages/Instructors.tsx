@@ -296,6 +296,7 @@ export const InstructorsPage: React.FC = () => {
           placeholder="Search by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          autoComplete="nope"
           className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
         />
         {searchTerm && (
@@ -405,7 +406,7 @@ export const InstructorsPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredInstructors?.map((instructor) => (
-                  <tr key={instructor.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={instructor.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleEdit(instructor)}>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
@@ -458,14 +459,20 @@ export const InstructorsPage: React.FC = () => {
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                       <div className="flex justify-end gap-1">
                         <button
-                          onClick={() => handleEdit(instructor)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(instructor);
+                          }}
                           className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                           title="Edit instructor"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(instructor.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(instructor.id);
+                          }}
                           className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
                           title="Delete instructor"
                         >

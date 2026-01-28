@@ -45,24 +45,37 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
       setLoading(true);
       setError(null);
 
+      console.log('⏰ TimeOffManager: Loading time offs');
+      console.log('   - Instructor ID:', instructorId);
+      console.log('   - Show all instructors:', showAllInstructors);
+      console.log('   - Filter status:', filterStatus);
+
       let data: InstructorTimeOff[];
 
       if (showAllInstructors) {
+        console.log('⚠️ TimeOffManager: getAllTimeOff not implemented, returning empty array');
         // getAllTimeOff endpoint may not be implemented - use getInstructorTimeOff for now
         data = [];
       } else if (instructorId) {
+        console.log('🔄 TimeOffManager: Fetching time off for instructor:', instructorId);
         data = await schedulingApi.getInstructorTimeOff(instructorId);
+        console.log('📊 TimeOffManager: Received time off data:', data);
+        console.log('📊 TimeOffManager: Data count:', data.length);
+
         if (filterStatus !== 'all') {
           data = data.filter((t) => getStatus(t) === filterStatus);
+          console.log(`   - Filtered to ${filterStatus}:`, data.length, 'items');
         }
       } else {
+        console.log('⚠️ TimeOffManager: No instructor ID provided');
         data = [];
       }
 
+      console.log('✅ TimeOffManager: Setting', data.length, 'time off requests');
       setTimeOffs(data.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()));
     } catch (err: any) {
+      console.error('❌ TimeOffManager: Error loading time offs:', err);
       setError(err.response?.data?.error || 'Failed to load time off requests');
-      console.error('Error loading time offs:', err);
     } finally {
       setLoading(false);
     }
@@ -211,6 +224,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 type="date"
                 value={formData.startDate}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -224,6 +238,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 type="date"
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -239,6 +254,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 type="time"
                 value={formData.startTime}
                 onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -251,6 +267,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 type="time"
                 value={formData.endTime}
                 onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -264,6 +281,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
               type="text"
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+              autoComplete="nope"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="e.g., Vacation, Sick leave, Personal"
               required

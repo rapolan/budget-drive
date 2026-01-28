@@ -279,7 +279,7 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
 
       const dateKey = date.toDateString();
       const dayOfWeek = date.getDay();
-      const dayTimeSlots = generateTimeSlots(availabilityData, dayOfWeek);
+      const dayTimeSlots = generateTimeSlots(availabilityData ?? [], dayOfWeek);
       const maxSlots = dayTimeSlots.length;
 
       // Count booked lessons for this day
@@ -306,7 +306,7 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
       date.setHours(0, 0, 0, 0);
 
       const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-      const dayTimeSlots = generateTimeSlots(availabilityData, dayOfWeek);
+      const dayTimeSlots = generateTimeSlots(availabilityData ?? [], dayOfWeek);
       const dayTimeSlotsSet = new Set(dayTimeSlots);
 
       const daySchedule: DaySchedule = {

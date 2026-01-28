@@ -40,11 +40,16 @@ export const getAllStudents = async (
     );
     const total = parseInt(countResult.rows[0].count);
 
-    // Get students
+    // Get students with creator/editor names
     const result = await query(
-      `SELECT * FROM students
-       WHERE tenant_id = $1
-       ORDER BY created_at DESC
+      `SELECT s.*,
+              u1.full_name as created_by_name,
+              u2.full_name as updated_by_name
+       FROM students s
+       LEFT JOIN users u1 ON s.created_by = u1.id
+       LEFT JOIN users u2 ON s.updated_by = u2.id
+       WHERE s.tenant_id = $1
+       ORDER BY s.created_at DESC
        LIMIT $2 OFFSET $3`,
       [tenantId, limit, offset]
     );
@@ -80,7 +85,13 @@ export const getStudentById = async (
   logger.debug('Fetching student by ID', { tenantId, studentId: id });
 
   const result = await query(
-    'SELECT * FROM students WHERE id = $1 AND tenant_id = $2',
+    `SELECT s.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM students s
+     LEFT JOIN users u1 ON s.created_by = u1.id
+     LEFT JOIN users u2 ON s.updated_by = u2.id
+     WHERE s.id = $1 AND s.tenant_id = $2`,
     [id, tenantId]
   );
 
@@ -94,30 +105,39 @@ export const getStudentById = async (
 
 /**
  * Create new student
+ * Form order: Name → DOB → Address → Student Phone → Parent/Guardian → Email → Permit → Notes
+ * Business rule: At least one contact method required (student phone OR Parent/Guardian)
  */
 export const createStudent = async (
   tenantId: string,
   data: {
     fullName: string;
+    firstName?: string;
+    lastName?: string;
+    middleName?: string;
     email: string;
-    phone: string;
+    phone?: string; // Student phone (optional - can use Parent/Guardian instead)
     dateOfBirth?: Date;
-    address?: string;
+    address?: string; // Legacy combined address
     addressLine1?: string;
     addressLine2?: string;
     city?: string;
     state?: string;
     zipCode?: string;
     emergencyContact?: string; // Legacy field
-    emergencyContactName?: string;
-    emergencyContactPhone?: string;
-    emergencyContact2Name?: string;
-    emergencyContact2Phone?: string;
-    licenseType?: 'car' | 'motorcycle' | 'commercial';
-    hoursRequired?: number;
+    emergencyContactName?: string; // Parent/Guardian name
+    emergencyContactPhone?: string; // Parent/Guardian phone
+    emergencyContact2Name?: string; // Secondary contact name
+    emergencyContact2Phone?: string; // Secondary contact phone
+    licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car'
+    hoursRequired?: number; // Default: 6 (California requirement)
     assignedInstructorId?: string;
+    learnerPermitNumber?: string;
     learnerPermitIssueDate?: Date;
-  }
+    learnerPermitExpiration?: Date;
+    notes?: string;
+  },
+  userId?: string
 ): Promise<Student> => {
   logger.info('Creating new student', {
     tenantId,
@@ -127,6 +147,14 @@ export const createStudent = async (
   });
 
   try {
+    // Validate: At least one contact method required (student phone OR Parent/Guardian)
+    const hasStudentPhone = data.phone && data.phone.trim().length > 0;
+    const hasParentContact = data.emergencyContactPhone && data.emergencyContactPhone.trim().length > 0;
+    
+    if (!hasStudentPhone && !hasParentContact) {
+      throw new AppError('At least one contact phone is required (Student Phone or Parent/Guardian)', 400);
+    }
+
     // Check if email already exists for this tenant
     const existing = await query(
       'SELECT id FROM students WHERE email = $1 AND tenant_id = $2',
@@ -153,19 +181,24 @@ export const createStudent = async (
 
     const result = await query(
       `INSERT INTO students (
-        tenant_id, full_name, email, phone, date_of_birth, address,
+        tenant_id, full_name, first_name, last_name, middle_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
         emergency_contact, emergency_contact_name, emergency_contact_phone,
         emergency_contact_2_name, emergency_contact_2_phone,
         license_type, enrollment_date, hours_required,
-        assigned_instructor_id, learner_permit_issue_date, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), $18, $19, $20, 'active')
+        assigned_instructor_id,
+        learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
+        notes, status, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $21, $22, $23, $24, $25, $26, 'active', $27, $27)
       RETURNING *`,
       [
         tenantId,
         data.fullName,
+        data.firstName || null,
+        data.lastName || null,
+        data.middleName || null,
         data.email,
-        data.phone,
+        data.phone || null, // Allow null phone
         data.dateOfBirth || null,
         data.address || null,
         data.addressLine1 || null,
@@ -181,7 +214,11 @@ export const createStudent = async (
         licenseType,
         hoursRequired,
         data.assignedInstructorId || null,
+        data.learnerPermitNumber || null,
         data.learnerPermitIssueDate || null,
+        data.learnerPermitExpiration || null,
+        data.notes || null,
+        userId || null,
       ]
     );
 
@@ -208,7 +245,8 @@ export const createStudent = async (
 export const updateStudent = async (
   id: string,
   tenantId: string,
-  data: Partial<Student>
+  data: Partial<Student>,
+  userId?: string
 ): Promise<Student> => {
   const fields: string[] = [];
   const values: any[] = [];
@@ -218,6 +256,18 @@ export const updateStudent = async (
   if (data.fullName !== undefined) {
     fields.push(`full_name = $${paramCount++}`);
     values.push(data.fullName);
+  }
+  if (data.firstName !== undefined) {
+    fields.push(`first_name = $${paramCount++}`);
+    values.push(data.firstName);
+  }
+  if (data.lastName !== undefined) {
+    fields.push(`last_name = $${paramCount++}`);
+    values.push(data.lastName);
+  }
+  if (data.middleName !== undefined) {
+    fields.push(`middle_name = $${paramCount++}`);
+    values.push(data.middleName);
   }
   if (data.email !== undefined) {
     fields.push(`email = $${paramCount++}`);
@@ -271,9 +321,17 @@ export const updateStudent = async (
     fields.push(`emergency_contact_2_phone = $${paramCount++}`);
     values.push(data.emergencyContact2Phone);
   }
+  if (data.learnerPermitNumber !== undefined) {
+    fields.push(`learner_permit_number = $${paramCount++}`);
+    values.push(emptyToNull(data.learnerPermitNumber));
+  }
   if (data.learnerPermitIssueDate !== undefined) {
     fields.push(`learner_permit_issue_date = $${paramCount++}`);
     values.push(emptyToNull(data.learnerPermitIssueDate));
+  }
+  if (data.learnerPermitExpiration !== undefined) {
+    fields.push(`learner_permit_expiration = $${paramCount++}`);
+    values.push(emptyToNull(data.learnerPermitExpiration));
   }
   if (data.licenseType !== undefined) {
     fields.push(`license_type = $${paramCount++}`);
@@ -314,6 +372,10 @@ export const updateStudent = async (
   if (data.lastContactedAt !== undefined) {
     fields.push(`last_contacted_at = $${paramCount++}`);
     values.push(emptyToNull(data.lastContactedAt));
+  }
+  if (userId) {
+    fields.push(`updated_by = $${paramCount++}`);
+    values.push(userId);
   }
 
   if (fields.length === 0) {
@@ -376,7 +438,14 @@ export const getStudentsByStatus = async (
   status: 'active' | 'completed' | 'inactive' | 'suspended'
 ): Promise<Student[]> => {
   const result = await query(
-    'SELECT * FROM students WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC',
+    `SELECT s.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM students s
+     LEFT JOIN users u1 ON s.created_by = u1.id
+     LEFT JOIN users u2 ON s.updated_by = u2.id
+     WHERE s.tenant_id = $1 AND s.status = $2
+     ORDER BY s.created_at DESC`,
     [tenantId, status]
   );
 
@@ -391,9 +460,14 @@ export const getStudentsByInstructor = async (
   instructorId: string
 ): Promise<Student[]> => {
   const result = await query(
-    `SELECT * FROM students
-     WHERE tenant_id = $1 AND assigned_instructor_id = $2
-     ORDER BY created_at DESC`,
+    `SELECT s.*,
+            u1.full_name as created_by_name,
+            u2.full_name as updated_by_name
+     FROM students s
+     LEFT JOIN users u1 ON s.created_by = u1.id
+     LEFT JOIN users u2 ON s.updated_by = u2.id
+     WHERE s.tenant_id = $1 AND s.assigned_instructor_id = $2
+     ORDER BY s.created_at DESC`,
     [tenantId, instructorId]
   );
 

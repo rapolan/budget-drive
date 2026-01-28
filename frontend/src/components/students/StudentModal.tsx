@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { 
   X, User, TrendingUp, History, Phone, Mail, MapPin, Calendar as CalendarIcon,
-  CheckCircle, AlertCircle, FileText, Users, Car, CreditCard, StickyNote, Clock
+  CheckCircle, AlertCircle, FileText, Users, CreditCard, StickyNote
 } from 'lucide-react';
 import { studentsApi, lessonsApi, instructorsApi } from '@/api';
 import type { Student, CreateStudentInput } from '@/types';
@@ -46,6 +46,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   const [formData, setFormData] = useState<CreateStudentInput>({
     fullName: '',
+    firstName: '',
+    lastName: '',
+    middleName: '',
     email: '',
     phone: '',
     dateOfBirth: '',
@@ -79,8 +82,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     if (student) {
       setFormData({
         fullName: student.fullName,
+        firstName: student.firstName || '',
+        lastName: student.lastName || '',
+        middleName: student.middleName || '',
         email: student.email,
-        phone: student.phone,
+        phone: student.phone || undefined,
         dateOfBirth: student.dateOfBirth ? new Date(student.dateOfBirth).toISOString().split('T')[0] : '',
         address: student.address || '',
         addressLine1: student.addressLine1 || '',
@@ -143,12 +149,24 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted!', formData);
+
+    // Generate fullName from structured fields
+    const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    const submitData = {
+      ...formData,
+      fullName: generatedFullName,
+    };
+
+    console.log('Form submitted!', submitData);
 
     if (isEditing) {
-      await updateMutation.mutateAsync(formData);
+      await updateMutation.mutateAsync(submitData);
     } else {
-      await createMutation.mutateAsync(formData);
+      await createMutation.mutateAsync(submitData);
     }
   };
 
@@ -165,7 +183,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Calculate form completion percentage
   const formProgress = useMemo(() => {
     const fields = [
-      { filled: !!formData.fullName, weight: 20 },
+      { filled: !!(formData.firstName && formData.lastName), weight: 20 },
       { filled: !!formData.phone, weight: 20 },
       { filled: !!formData.email, weight: 20 },
       { filled: !!formData.dateOfBirth, weight: 10 },
@@ -178,7 +196,25 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   // Validation helpers
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const isValidPhone = (phone: string) => phone.length >= 10;
+  const isValidPhone = (phone: string) => phone && phone.replace(/\D/g, '').length >= 10;
+
+  // Check if at least one contact phone is provided (student OR parent/guardian)
+  const hasAtLeastOnePhone = isValidPhone(formData.phone || '') || isValidPhone(formData.emergencyContactPhone || '');
+
+  // Phone number formatter - converts to (XXX) XXX-XXXX format
+  const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 10 digits
+    const limited = digits.slice(0, 10);
+    
+    // Format based on length
+    if (limited.length === 0) return '';
+    if (limited.length <= 3) return `(${limited}`;
+    if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
+    return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
@@ -279,116 +315,115 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
         <div className="p-6">
           {/* Details Tab */}
           {activeTab === 'details' && (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Essential Information */}
+            <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-lpignore="true" data-form-type="other">
+              {/* Section 1: Name */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-900">Contact Information</span>
+                  <span className="text-sm font-medium text-gray-900">Student Name</span>
                   <span className="text-xs text-red-500">* Required</span>
                 </div>
-                
-                {/* Full Name with icon */}
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <User className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    required
-                    autoComplete="off"
-                    className={`w-full pl-10 pr-10 py-3 rounded-lg border transition-all ${
-                      formData.fullName 
-                        ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent' 
-                        : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                    }`}
-                    placeholder="Full name"
-                  />
-                  {formData.fullName && (
-                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+
+                {/* Name Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* First Name */}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-gray-400" />
                     </div>
-                  )}
+                    <input
+                      type="text"
+                      name="student_firstname_input"
+                      value={formData.firstName || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                      required
+                      autoComplete="given-name"
+                      className={`w-full pl-10 pr-10 py-3 rounded-lg border transition-all ${
+                        formData.firstName
+                          ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+                          : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                      }`}
+                      placeholder="First name"
+                    />
+                    {formData.firstName && (
+                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Middle Name */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="student_middlename_input"
+                      value={formData.middleName || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, middleName: e.target.value }))}
+                      autoComplete="additional-name"
+                      className="w-full pl-3 pr-3 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Middle name (optional)"
+                    />
+                  </div>
+
+                  {/* Last Name */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="student_lastname_input"
+                      value={formData.lastName || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                      required
+                      autoComplete="family-name"
+                      className={`w-full pl-3 pr-10 py-3 rounded-lg border transition-all ${
+                        formData.lastName
+                          ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent'
+                          : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                      }`}
+                      placeholder="Last name"
+                    />
+                    {formData.lastName && (
+                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Phone & Email row with icons */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      required
-                      className={`w-full pl-10 pr-10 py-3 rounded-lg border transition-all ${
-                        formData.phone && isValidPhone(formData.phone)
-                          ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent' 
-                          : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                      }`}
-                      placeholder="Phone number"
-                    />
-                    {formData.phone && isValidPhone(formData.phone) && (
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      </div>
-                    )}
+                {/* Full Name Display (auto-generated) */}
+                {(formData.firstName || formData.middleName || formData.lastName) && (
+                  <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                    Full name: <span className="font-medium">
+                      {[formData.firstName, formData.middleName, formData.lastName].filter(Boolean).join(' ')}
+                    </span>
                   </div>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Mail className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      className={`w-full pl-10 pr-10 py-3 rounded-lg border transition-all ${
-                        formData.email && isValidEmail(formData.email)
-                          ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent' 
-                          : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                      }`}
-                      placeholder="Email address"
-                    />
-                    {formData.email && isValidEmail(formData.email) && (
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
 
-              {/* Personal Details - Shows when essentials filled OR editing */}
+              {/* Section 2: Date of Birth & Age - Shows when name filled OR editing */}
               <div
                 className={`space-y-4 transition-all duration-500 ease-out ${
-                  isEditing || (formData.fullName && formData.phone && formData.email)
-                    ? 'opacity-100 max-h-[500px]'
+                  isEditing || (formData.firstName && formData.lastName)
+                    ? 'opacity-100 max-h-[200px]'
                     : 'opacity-0 max-h-0 overflow-hidden'
                 }`}
               >
                 <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                  <Car className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-900">Personal Details</span>
+                  <CalendarIcon className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-900">Date of Birth</span>
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                       <CalendarIcon className="h-4 w-4 text-gray-400" />
                     </div>
                     <input
                       type="date"
-                      name="dateOfBirth"
+                      name="student_dob_input"
                       value={formData.dateOfBirth}
-                      onChange={handleChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
                       title="Date of Birth"
+                      autoComplete="new-password"
                       className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-all ${
                         formData.dateOfBirth 
                           ? 'border-green-300 bg-green-50/30' 
@@ -396,129 +431,165 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                     />
                   </div>
+                  {/* Age display (auto-calculated) */}
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <CreditCard className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <select
-                      name="licenseType"
-                      value={formData.licenseType}
-                      onChange={handleChange}
-                      title="License Type"
-                      className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white"
-                    >
-                      <option value="car">🚗 Car License</option>
-                      <option value="motorcycle">🏍️ Motorcycle</option>
-                      <option value="commercial">🚛 Commercial</option>
-                    </select>
-                  </div>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Clock className="h-4 w-4 text-gray-400" />
+                      <User className="h-4 w-4 text-gray-400" />
                     </div>
                     <input
-                      type="number"
-                      name="hoursRequired"
-                      value={formData.hoursRequired || ''}
-                      onChange={handleChange}
-                      min="1"
-                      max="100"
-                      step="0.5"
-                      title="Hours Required"
-                      placeholder="Hours"
-                      className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      type="text"
+                      readOnly
+                      value={formData.dateOfBirth ? `${Math.floor((new Date().getTime() - new Date(formData.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} years old` : ''}
+                      className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-600"
+                      placeholder="Age (auto-calculated)"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">hrs</span>
                   </div>
                 </div>
-                
-                {/* Address Section - Structured Fields */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium text-gray-900">Home Address</span>
-                    <span className="text-xs text-gray-400">(used for pickup location)</span>
-                  </div>
-                  
-                  {/* Address Line 1 */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="addressLine1"
-                      value={formData.addressLine1}
-                      onChange={handleChange}
-                      className={`w-full px-4 py-3 rounded-lg border transition-all ${
-                        formData.addressLine1 
-                          ? 'border-green-300 bg-green-50/30' 
-                          : 'border-gray-200'
-                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      placeholder="Street address"
-                    />
-                    {formData.addressLine1 && (
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      </div>
-                    )}
-                  </div>
+              </div>
 
-                  {/* Address Line 2 */}
+              {/* Section 3: Address - Shows when DOB filled OR editing */}
+              <div
+                className={`space-y-4 transition-all duration-500 ease-out ${
+                  isEditing || formData.dateOfBirth
+                    ? 'opacity-100 max-h-[400px]'
+                    : 'opacity-0 max-h-0 overflow-hidden'
+                }`}
+              >
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-900">Home Address</span>
+                  <span className="text-xs text-gray-400">(used for pickup location)</span>
+                </div>
+                
+                {/* Address Line 1 */}
+                <div className="relative">
                   <input
                     type="text"
-                    name="addressLine2"
-                    value={formData.addressLine2}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Apt, Suite, Unit (optional)"
+                    name="student_street_input"
+                    value={formData.addressLine1}
+                    onChange={(e) => setFormData(prev => ({ ...prev, addressLine1: e.target.value }))}
+                    autoComplete="new-password"
+                    className={`w-full px-4 py-3 rounded-lg border transition-all ${
+                      formData.addressLine1 
+                        ? 'border-green-300 bg-green-50/30' 
+                        : 'border-gray-200'
+                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    placeholder="Street address"
                   />
+                  {formData.addressLine1 && (
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    </div>
+                  )}
+                </div>
 
-                  {/* City, State, ZIP row */}
-                  <div className="grid grid-cols-6 gap-3">
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      className={`col-span-3 px-4 py-3 rounded-lg border transition-all ${
-                        formData.city 
-                          ? 'border-green-300 bg-green-50/30' 
-                          : 'border-gray-200'
-                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      placeholder="City"
-                    />
-                    <input
-                      type="text"
-                      name="state"
-                      value={formData.state}
-                      onChange={handleChange}
-                      className={`col-span-1 px-3 py-3 rounded-lg border transition-all ${
-                        formData.state 
-                          ? 'border-green-300 bg-green-50/30' 
-                          : 'border-gray-200'
-                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      placeholder="State"
-                      maxLength={2}
-                    />
-                    <input
-                      type="text"
-                      name="zipCode"
-                      value={formData.zipCode}
-                      onChange={handleChange}
-                      className={`col-span-2 px-4 py-3 rounded-lg border transition-all ${
-                        formData.zipCode 
-                          ? 'border-green-300 bg-green-50/30' 
-                          : 'border-gray-200'
-                      } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      placeholder="ZIP Code"
-                      maxLength={10}
-                    />
-                  </div>
+                {/* Address Line 2 */}
+                <input
+                  type="text"
+                  name="student_unit_input"
+                  value={formData.addressLine2}
+                  onChange={(e) => setFormData(prev => ({ ...prev, addressLine2: e.target.value }))}
+                  autoComplete="new-password"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Apt, Suite, Unit (optional)"
+                />
+
+                {/* City, State, ZIP row */}
+                <div className="grid grid-cols-6 gap-3">
+                  <input
+                    type="text"
+                    name="student_city_input"
+                    value={formData.city}
+                    onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                    autoComplete="new-password"
+                    className={`col-span-3 px-4 py-3 rounded-lg border transition-all ${
+                      formData.city 
+                        ? 'border-green-300 bg-green-50/30' 
+                        : 'border-gray-200'
+                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    placeholder="City"
+                  />
+                  <input
+                    type="text"
+                    name="student_state_input"
+                    value={formData.state}
+                    onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
+                    autoComplete="new-password"
+                    className={`col-span-1 px-3 py-3 rounded-lg border transition-all ${
+                      formData.state 
+                        ? 'border-green-300 bg-green-50/30' 
+                        : 'border-gray-200'
+                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    placeholder="State"
+                    maxLength={2}
+                  />
+                  <input
+                    type="text"
+                    name="student_zip_input"
+                    value={formData.zipCode}
+                    onChange={(e) => setFormData(prev => ({ ...prev, zipCode: e.target.value }))}
+                    autoComplete="new-password"
+                    className={`col-span-2 px-4 py-3 rounded-lg border transition-all ${
+                      formData.zipCode 
+                        ? 'border-green-300 bg-green-50/30' 
+                        : 'border-gray-200'
+                    } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+                    placeholder="ZIP Code"
+                    maxLength={10}
+                  />
                 </div>
 
                 {/* Legacy address field - hidden but kept for backwards compatibility */}
                 <input type="hidden" name="address" value={formData.address} />
               </div>
 
-              {/* Emergency Contacts - Shows when addressLine1 filled OR editing */}
+              {/* Section 4: Student Phone - Shows when address filled OR editing */}
+              <div
+                className={`space-y-4 transition-all duration-500 ease-out ${
+                  isEditing || formData.addressLine1
+                    ? 'opacity-100 max-h-[200px]'
+                    : 'opacity-0 max-h-0 overflow-hidden'
+                }`}
+              >
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <Phone className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-900">Student Phone</span>
+                  <span className="text-xs text-gray-400">(or provide Parent/Guardian below)</span>
+                </div>
+                
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Phone className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    name="student_phone_input"
+                    value={formData.phone || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
+                    autoComplete="new-password"
+                    className={`w-full pl-10 pr-10 py-3 rounded-lg border transition-all ${
+                      formData.phone && isValidPhone(formData.phone)
+                        ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent' 
+                        : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    }`}
+                    placeholder="(555) 123-4567"
+                  />
+                  {formData.phone && isValidPhone(formData.phone) && (
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Skip option */}
+                {!formData.phone && (
+                  <p className="text-xs text-gray-500 italic">
+                    Leave blank if parent prefers to be the only contact
+                  </p>
+                )}
+              </div>
+
+              {/* Section 5: Parent/Guardian Contact - Shows when address filled OR editing */}
               <div
                 className={`space-y-4 transition-all duration-500 ease-out ${
                   isEditing || formData.addressLine1
@@ -528,12 +599,19 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               >
                 <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                   <Users className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-900">Emergency Contact</span>
+                  <span className="text-sm font-medium text-gray-900">Parent/Guardian</span>
+                  {!formData.phone && (
+                    <span className="text-xs text-red-500">* Phone required</span>
+                  )}
                 </div>
                 
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-amber-800">Emergency contacts are important for student safety during lessons.</p>
+                  <p className="text-xs text-amber-800">
+                    {!formData.phone 
+                      ? 'Parent/Guardian phone is required when student phone is not provided.'
+                      : 'Parent/Guardian contact is important for student safety during lessons.'}
+                  </p>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -543,15 +621,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     </div>
                     <input
                       type="text"
-                      name="emergencyContactName"
+                      name="guardian_name_input"
                       value={formData.emergencyContactName}
-                      onChange={handleChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactName: e.target.value }))}
+                      autoComplete="new-password"
                       className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-all ${
                         formData.emergencyContactName 
                           ? 'border-green-300 bg-green-50/30' 
                           : 'border-gray-200'
                       } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      placeholder="Contact name"
+                      placeholder="Parent/Guardian name"
                     />
                   </div>
                   <div className="relative">
@@ -560,15 +639,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     </div>
                     <input
                       type="tel"
-                      name="emergencyContactPhone"
+                      name="guardian_phone_input"
                       value={formData.emergencyContactPhone}
-                      onChange={handleChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
+                      autoComplete="new-password"
                       className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-all ${
                         formData.emergencyContactPhone 
                           ? 'border-green-300 bg-green-50/30' 
                           : 'border-gray-200'
                       } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                      placeholder="Contact phone"
+                      placeholder="(555) 123-4567"
                     />
                   </div>
                 </div>
@@ -581,28 +661,70 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                     <input
                       type="text"
-                      name="emergencyContact2Name"
+                      name="guardian2_name_input"
                       value={formData.emergencyContact2Name}
-                      onChange={handleChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Name: e.target.value }))}
+                      autoComplete="new-password"
                       className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
                       placeholder="Secondary contact name"
                     />
                     <input
                       type="tel"
-                      name="emergencyContact2Phone"
+                      name="guardian2_phone_input"
                       value={formData.emergencyContact2Phone}
-                      onChange={handleChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Phone: formatPhoneNumber(e.target.value) }))}
+                      autoComplete="new-password"
                       className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
-                      placeholder="Secondary contact phone"
+                      placeholder="(555) 123-4567"
                     />
                   </div>
                 </details>
               </div>
 
-              {/* Permit & Notes - Shows when emergency contact filled OR editing */}
+              {/* Section 6: Email - Shows when parent/guardian filled OR editing */}
               <div
                 className={`space-y-4 transition-all duration-500 ease-out ${
-                  isEditing || (formData.emergencyContactName && formData.emergencyContactPhone)
+                  isEditing || formData.emergencyContactName
+                    ? 'opacity-100 max-h-[150px]'
+                    : 'opacity-0 max-h-0 overflow-hidden'
+                }`}
+              >
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                  <Mail className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-gray-900">Email Address</span>
+                  <span className="text-xs text-red-500">* Required</span>
+                </div>
+                
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    name="student_email_input"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    required
+                    autoComplete="new-password"
+                    className={`w-full pl-10 pr-10 py-3 rounded-lg border transition-all ${
+                      formData.email && isValidEmail(formData.email)
+                        ? 'border-green-300 bg-green-50/30 focus:ring-2 focus:ring-green-500 focus:border-transparent' 
+                        : 'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    }`}
+                    placeholder="Email address"
+                  />
+                  {formData.email && isValidEmail(formData.email) && (
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 7: Permit & Notes - Shows when email filled OR editing */}
+              <div
+                className={`space-y-4 transition-all duration-500 ease-out ${
+                  isEditing || (formData.email && isValidEmail(formData.email))
                     ? 'opacity-100 max-h-[400px]'
                     : 'opacity-0 max-h-0 overflow-hidden'
                 }`}
@@ -620,27 +742,30 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     </div>
                     <input
                       type="text"
-                      name="learnerPermitNumber"
+                      name="permit_number_input"
                       value={formData.learnerPermitNumber}
-                      onChange={handleChange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitNumber: e.target.value }))}
+                      autoComplete="new-password"
                       className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       placeholder="Permit #"
                     />
                   </div>
                   <input
                     type="date"
-                    name="learnerPermitIssueDate"
+                    name="permit_issue_input"
                     value={formData.learnerPermitIssueDate}
-                    onChange={handleChange}
+                    onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitIssueDate: e.target.value }))}
                     title="Issue Date"
+                    autoComplete="new-password"
                     className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                   <input
                     type="date"
-                    name="learnerPermitExpiration"
+                    name="permit_expiry_input"
                     value={formData.learnerPermitExpiration}
-                    onChange={handleChange}
+                    onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitExpiration: e.target.value }))}
                     title="Expiration Date"
+                    autoComplete="new-password"
                     className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -650,10 +775,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     <StickyNote className="h-4 w-4 text-gray-400" />
                   </div>
                   <textarea
-                    name="notes"
+                    name="student_notes_input"
                     value={formData.notes}
-                    onChange={handleChange}
+                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={2}
+                    autoComplete="new-password"
                     className="w-full pl-10 pr-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     placeholder="Notes (learning preferences, special requirements...)"
                   />
@@ -680,7 +806,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending || !formData.fullName || !formData.phone || !formData.email}
+                    disabled={createMutation.isPending || updateMutation.isPending || !formData.fullName || !hasAtLeastOnePhone || !formData.email}
                     className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
                   >
                     {createMutation.isPending || updateMutation.isPending

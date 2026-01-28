@@ -8,8 +8,10 @@ import { LessonModal } from '@/components/lessons/LessonModal';
 import { LessonsCalendarView } from '@/components/lessons/LessonsCalendarView';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
-import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
+import { EmptyState, LoadingSpinner, FilterButton, BackButton, ToastContainer } from '@/components/common';
+import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { useToast } from '@/hooks/useToast';
 
 type ViewMode = 'table' | 'calendar' | 'weekly';
 type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
@@ -19,6 +21,10 @@ export const LessonsPage: React.FC = () => {
 
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
+
+  // Toast notifications
+  const { toasts, success, removeToast } = useToast();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
@@ -92,14 +98,7 @@ export const LessonsPage: React.FC = () => {
   // Fetch availability data for calendar view
   const { data: availabilityData } = useQuery({
     queryKey: ['availability', 'all'],
-    queryFn: async () => {
-      console.log('=== FETCHING ALL INSTRUCTORS AVAILABILITY ===');
-      const result = await schedulingApi.getAllInstructorsAvailability();
-      console.log('API Result:', result);
-      console.log('Result is array?', Array.isArray(result));
-      console.log('Result length:', result?.length);
-      return result;
-    },
+    queryFn: () => schedulingApi.getAllInstructorsAvailability(),
     enabled: viewMode === 'calendar', // Only fetch when in calendar view
   });
 
@@ -112,6 +111,13 @@ export const LessonsPage: React.FC = () => {
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => lessonsApi.complete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+    },
+  });
+
+  const noShowMutation = useMutation({
+    mutationFn: (id: string) => lessonsApi.noShow(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lessons'] });
     },
@@ -160,6 +166,16 @@ export const LessonsPage: React.FC = () => {
     }
   };
 
+  const handleNoShow = async (id: string) => {
+    if (window.confirm('Mark this lesson as no-show? The student did not arrive for their scheduled lesson.')) {
+      await noShowMutation.mutateAsync(id);
+      // Automatically filter to scheduled lessons after marking no-show
+      if (statusFilter === 'all') {
+        setStatusFilter('scheduled');
+      }
+    }
+  };
+
   const handleAddNew = () => {
     setPreselectedInstructorId(null);
     setPreselectedStudentId(null);
@@ -202,6 +218,8 @@ export const LessonsPage: React.FC = () => {
     setPreselectedTime(null);
     // Invalidate and refetch all lesson queries immediately
     await queryClient.invalidateQueries({ queryKey: ['lessons'], refetchType: 'active' });
+    // Show success notification
+    success('Lesson booked successfully!', 'The lesson has been added to the schedule.');
   };
 
   // Helper functions to get names from IDs
@@ -405,7 +423,8 @@ export const LessonsPage: React.FC = () => {
     return (
       <tr
         key={lesson.id}
-        className={`hover:bg-gray-50 transition-colors ${upcoming ? 'border-l-4 border-l-amber-400 bg-amber-50/50' : ''}`}
+        className={`hover:bg-gray-50 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-amber-400 bg-amber-50/50' : ''}`}
+        onClick={() => handleEdit(lesson)}
       >
         <td className="whitespace-nowrap px-6 py-4">
           <div className="flex items-center gap-3">
@@ -474,13 +493,25 @@ export const LessonsPage: React.FC = () => {
             {lesson.status.replace(/_/g, ' ')}
           </span>
         </td>
+        {/* History - Hidden on mobile */}
+        <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+          <AuditColumn
+            createdByName={lesson.createdByName}
+            updatedByName={lesson.updatedByName}
+            createdAt={lesson.createdAt}
+            updatedAt={lesson.updatedAt}
+          />
+        </td>
         <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
           <div className="flex justify-end space-x-1">
             {lesson.status === 'scheduled' && (
               <>
                 <button
                   type="button"
-                  onClick={() => handleEdit(lesson)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(lesson);
+                  }}
                   className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                   title="Edit lesson"
                 >
@@ -488,7 +519,10 @@ export const LessonsPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleComplete(lesson.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleComplete(lesson.id);
+                  }}
                   className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-all hover:scale-110"
                   title="Mark as completed"
                 >
@@ -496,7 +530,21 @@ export const LessonsPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleCancel(lesson.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNoShow(lesson.id);
+                  }}
+                  className="p-2 text-orange-600 hover:text-orange-900 hover:bg-orange-50 rounded-lg transition-all hover:scale-110"
+                  title="Mark as no-show"
+                >
+                  <AlertCircle className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCancel(lesson.id);
+                  }}
                   className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
                   title="Cancel lesson"
                 >
@@ -508,7 +556,10 @@ export const LessonsPage: React.FC = () => {
               <>
                 <button
                   type="button"
-                  onClick={() => handleReschedule(lesson)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReschedule(lesson);
+                  }}
                   className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                   title="Reschedule lesson"
                 >
@@ -516,7 +567,10 @@ export const LessonsPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDelete(lesson.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(lesson.id);
+                  }}
                   className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
                   title="Delete lesson"
                 >
@@ -684,6 +738,7 @@ export const LessonsPage: React.FC = () => {
           }
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          autoComplete="nope"
           className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
         />
         {searchTerm && (
@@ -788,6 +843,9 @@ export const LessonsPage: React.FC = () => {
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Status
               </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell">
+                History
+              </th>
               <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Actions
               </th>
@@ -796,13 +854,13 @@ export const LessonsPage: React.FC = () => {
           <tbody className="divide-y divide-gray-200 bg-white">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="py-12">
+                <td colSpan={8} className="py-12">
                   <LoadingSpinner />
                 </td>
               </tr>
             ) : filteredLessons?.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-2">
+                <td colSpan={8} className="py-2">
                   <EmptyState
                     icon={<CalendarDays className="h-12 w-12" />}
                     title="No lessons found"
@@ -991,6 +1049,9 @@ export const LessonsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 };

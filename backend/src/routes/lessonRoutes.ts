@@ -61,6 +61,13 @@ router.post(
   lessonController.completeLesson
 );
 
+// Mark lesson as no-show
+router.post(
+  '/lessons/:id/no-show',
+  validateUUID('id'),
+  lessonController.noShowLesson
+);
+
 // Get lesson by ID
 router.get(
   '/lessons/:id',

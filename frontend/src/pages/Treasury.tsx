@@ -3,9 +3,10 @@
  * BDP Phase 1: Display satoshi-level transaction fees (Craig Wright aligned)
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { treasuryApi } from '../api';
+import type { TreasuryTransaction } from '../api/treasury';
 import { useTenant } from '@/contexts/TenantContext';
 import { Coins, TrendingUp, Activity, Check, Clock, AlertCircle, ExternalLink } from 'lucide-react';
 import { BackButton } from '@/components/common';
@@ -23,14 +24,6 @@ const Treasury: React.FC = () => {
   // Using type assertion to access the actual field from the API response
   const showBlockchainDetails = (settings as any)?.enable_blockchain_payments === true;
 
-  // Track settings changes
-  useEffect(() => {
-    console.log('🔄 TREASURY - SETTINGS CHANGED!');
-    console.log('   New settings:', settings);
-    console.log('   enable_blockchain_payments:', (settings as any)?.enable_blockchain_payments);
-    console.log('   showBlockchainDetails:', showBlockchainDetails);
-  }, [settings, showBlockchainDetails]);
-
   // Helper to generate WhatsOnChain URL
   const getWhatsOnChainUrl = (txid: string) => {
     const baseUrl = BSV_NETWORK === 'testnet'
@@ -44,31 +37,16 @@ const Treasury: React.FC = () => {
     queryKey: ['treasury', 'statistics'],
     queryFn: () => treasuryApi.getStatistics(),
     staleTime: 0, // Always consider data stale (refetch on mount)
-    cacheTime: 0, // Don't cache
+    gcTime: 0, // Don't cache (renamed from cacheTime in v5)
   });
 
   // Fetch recent transactions
-  const { data: transactions, isLoading: transactionsLoading, error: transactionsError } = useQuery({
+  const { data: transactions } = useQuery({
     queryKey: ['treasury', 'transactions'],
     queryFn: () => treasuryApi.getRecentTransactions(50),
     staleTime: 0, // Always consider data stale (refetch on mount)
-    cacheTime: 0, // Don't cache
+    gcTime: 0, // Don't cache (renamed from cacheTime in v5)
   });
-
-  // DEBUG: Log settings to console with detailed info (AFTER fetching data)
-  console.log('='.repeat(50));
-  console.log('🔧 TREASURY PAGE DEBUG');
-  console.log('='.repeat(50));
-  console.log('Settings loaded:', settings !== null);
-  console.log('Enable Blockchain Payments (camelCase - WRONG):', (settings as any)?.enableBlockchainPayments);
-  console.log('Enable Blockchain Payments (snake_case - CORRECT):', (settings as any)?.enable_blockchain_payments);
-  console.log('Show Blockchain Details (computed):', showBlockchainDetails);
-  console.log('Transactions loading:', transactionsLoading);
-  console.log('Transactions error:', transactionsError);
-  console.log('Transactions data:', transactions);
-  console.log('Transactions count:', transactions?.data?.length || 0, 'found');
-  console.log('Full settings object:', settings);
-  console.log('='.repeat(50));
 
   if (isLoading) {
     return (
@@ -86,8 +64,8 @@ const Treasury: React.FC = () => {
     );
   }
 
-  const balance = stats?.data?.balance;
-  const statistics = stats?.data?.statistics;
+  const balance = stats?.balance;
+  const statistics = stats?.statistics;
 
   // Calculate satoshi totals
   // Note: transactions is the array directly from React Query, not wrapped in {data: [...]}
@@ -267,7 +245,7 @@ const Treasury: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {transactionsArray && transactionsArray.length > 0 ? (
-                transactionsArray.map((tx) => (
+                transactionsArray.map((tx: TreasuryTransaction) => (
                   <tr key={tx.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Date(tx.created_at).toLocaleDateString()}

@@ -6,7 +6,7 @@
 import app from './app';
 import { config } from './config/env';
 import pool from './config/database';
-import { startNotificationCron, stopNotificationCron } from './jobs/notificationCron';
+// import { startNotificationCron, stopNotificationCron } from './jobs/notificationCron';
 
 const PORT = config.PORT;
 
@@ -21,8 +21,8 @@ const server = app.listen(PORT, () => {
   console.log(`Health Check: http://localhost:${PORT}/health`);
   console.log('==============================================');
 
-  // Start notification cron job
-  startNotificationCron();
+  // Start notification cron job (disabled for debugging)
+  // startNotificationCron();
 });
 
 // Graceful shutdown
@@ -30,7 +30,7 @@ const gracefulShutdown = async () => {
   console.log('\n🛑 Shutting down gracefully...');
 
   // Stop cron jobs
-  stopNotificationCron();
+  // stopNotificationCron();
 
   server.close(async () => {
     console.log('✅ HTTP server closed');

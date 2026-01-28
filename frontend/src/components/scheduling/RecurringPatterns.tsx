@@ -187,6 +187,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.patternName || ''}
                 onChange={(e) => setFormData({ ...formData, patternName: e.target.value })}
                 placeholder="e.g., Mike's Weekly Lessons"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -202,6 +203,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.studentId || ''}
                 onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
                 placeholder="Student UUID"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -217,6 +219,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.instructorId || ''}
                 onChange={(e) => setFormData({ ...formData, instructorId: e.target.value })}
                 placeholder="Instructor UUID"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -232,6 +235,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.vehicleId || ''}
                 onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
                 placeholder="Vehicle UUID"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -268,6 +272,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
                 min="30"
                 step="30"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -284,6 +289,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
                 min="0"
                 step="0.01"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -298,6 +304,7 @@ export const RecurringPatterns: React.FC = () => {
                 type="time"
                 value={formData.timeOfDay || ''}
                 onChange={(e) => setFormData({ ...formData, timeOfDay: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -312,6 +319,7 @@ export const RecurringPatterns: React.FC = () => {
                 type="date"
                 value={formData.startDate || ''}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -326,6 +334,7 @@ export const RecurringPatterns: React.FC = () => {
                 type="date"
                 value={formData.endDate || ''}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -343,6 +352,7 @@ export const RecurringPatterns: React.FC = () => {
                 }
                 min="1"
                 placeholder="Unlimited if empty"
+                autoComplete="nope"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>

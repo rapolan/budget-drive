@@ -69,7 +69,8 @@ export const getAvailableVehicles = async (
 
 export const createVehicle = async (
   tenantId: string,
-  data: any
+  data: any,
+  userId?: string
 ): Promise<Vehicle> => {
   logger.info('Creating new vehicle', {
     tenantId,
@@ -84,8 +85,8 @@ export const createVehicle = async (
       `INSERT INTO vehicles (
         tenant_id, ownership_type, make, model, year, license_plate, vin, color,
         registration_expiration, insurance_provider, insurance_policy_number,
-        insurance_expiration, current_mileage, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active')
+        insurance_expiration, current_mileage, status, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $14)
       RETURNING *`,
       [
         tenantId,
@@ -101,6 +102,7 @@ export const createVehicle = async (
         data.insurancePolicyNumber || null,
         data.insuranceExpiration,
         data.currentMileage || 0,
+        userId || null,
       ]
     );
 
@@ -125,7 +127,8 @@ export const createVehicle = async (
 export const updateVehicle = async (
   id: string,
   tenantId: string,
-  data: Partial<Vehicle>
+  data: Partial<Vehicle>,
+  userId?: string
 ): Promise<Vehicle> => {
   logger.info('Updating vehicle', {
     tenantId,
@@ -185,6 +188,10 @@ export const updateVehicle = async (
     if (data.registrationExpiration !== undefined) {
       fields.push(`registration_expiration = $${paramCount++}`);
       values.push(data.registrationExpiration);
+    }
+    if (userId) {
+      fields.push(`updated_by = $${paramCount++}`);
+      values.push(userId);
     }
 
     if (fields.length === 0) {
