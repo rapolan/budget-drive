@@ -2,8 +2,8 @@
 
 A multi-tenant driving school management platform built on **BSV Blockchain** with micropayment economics.
 
-**Version:** 0.6.0
-**Status:** Phase 1 Complete (80%) | Phase 2 (Overlay Services) In Progress
+**Version:** 1.0.0-beta  
+**Status:** Beta Implementation
 
 ---
 
@@ -21,23 +21,19 @@ BDP is **free forever software** for the driving instruction industry, funded by
 
 ## Features
 
-### Operational (Phase 1 - Complete)
-- Multi-tenant architecture with complete data isolation
-- Smart scheduling with 6D conflict detection
-- Student, instructor, vehicle, and lesson management
-- Payment tracking and history
-- ICS calendar feeds (works with any calendar app)
-- Recurring lesson patterns
-- 60+ REST API endpoints
-- React admin dashboard
+### Core Operations
+- **Multi-Tenant Architecture:** Complete data isolation for individual schools.
+- **Smart Scheduling:** Proprietary 6D conflict detection engine.
+- **Resource Management:** Unified tracking for students, instructors, and vehicles.
+- **Lesson Lifecycle:** From booking to payment and recurring patterns.
+- **External Integration:** Live ICS calendar feeds for global compatibility.
+- **Developer Tools:** 60+ REST API endpoints and a React-based admin dashboard.
 
-### Blockchain (Phase 2 - In Progress)
-- BSV Overlay Services architecture
-- BRC-100 wallet integration
-- Topic Managers for lessons, payments, certificates
-- Lookup Services for querying overlay data
-- Treasury micropayments (5 sats per booking)
-- BRC-52 identity certificates
+### Blockchain & Financials (Beta)
+- **Hybrid Data Layer:** PostgreSQL for operations, BSV for immutability.
+- **Micropayment Treasury:** Satoshi-level fees (e.g., 5 sats) for sustainable funding.
+- **Protocol Standards:** Implementation of BRC-100, BRC-52, and BRC-24.
+- **Verifiable Records:** Audit trails for payments and certifications.
 
 ---
 
@@ -91,14 +87,12 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-### Overlay Services (Phase 2)
+### Enhanced Services
+The protocol incorporates advanced overlay services for blockchain integration. Use the integrated toolkit to manage these services.
 
 ```bash
-# Install LARS globally
-npm install -g @bsv/lars
-
-# Start overlay environment
-npx lars
+# Start local environment
+./start-dev.ps1
 ```
 
 ---

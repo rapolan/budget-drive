@@ -1,27 +1,26 @@
 # Budget Drive Protocol (BDP) - Blockchain Implementation Manual
 
-**Status:** Phase 2 Implementation Guide  
+**Status:** Protocol Specification & Integration Guide
 **Primary Standards:** BRC-100, BRC-52, BRC-22 (SHIP), BRC-24 (SLAP)
 
 ---
 
-## 1. Implementation Roadmap
+## 1. Integration Progress
 
-### Phase 2: Foundation (Current)
-- **Infrastructure:** Set up Overlay Express with MongoDB.
-- **Topic Managers:** Implement `tm_bdp_lessons` and `tm_bdp_payments` to admit transactions.
-- **Lookup Services:** Create query layer for students and instructors.
-- **Wallet:** Integrate BRC-100 wallet for user authentication and signing.
+### Core Protocol (Beta)
+- **Infrastructure:** Overlay Express with MongoDB integration.
+- **Topic Managers:** Production-ready `tm_bdp_lessons` and `tm_bdp_payments`.
+- **Lookup Services:** Multi-tenant query layer for operational audit.
+- **Wallet Integration:** BRC-100 compliant authentication and signing.
 
-### Phase 2.5: AI & Micropayments (Q3 2026)
-- **Structured Data:** Implement Schema.org JSON-LD profiles for instructors.
-- **Query APIs:** Turn on 0.5 - 2 satoshi fees for AI queries.
-- **Certificates:** Mint BRC-52 certificates for all verified instructors.
+### Extended Functionality
+- **Structured Data:** Schema.org JSON-LD profiles for global AI discoverability.
+- **Active Micropayments:** Sub-satoshi fee models for agentic queries.
+- **Verifiable Identity:** BRC-52 digital certificates for certified instruction.
 
-### Phase 3: Agentic Commerce (2027)
-- **Payment Channels:** Infrastructure for high-volume, automated AI queries.
-- **Autonomous Booking:** Enable AI agents to book lessons via signed protocol messages.
-- **Revenue Scale:** Targeted 10,000 schools and $1M+ annual passive income.
+### Automated Commerce
+- **Agentic Booking:** Secure lesson booking via autonomous AI agents.
+- **Network Growth:** Optimized for 10,000+ school nodes and high-frequency queries.
 
 ---
 

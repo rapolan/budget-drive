@@ -39,16 +39,16 @@ To enable sustainable micropayments (1-10 satoshis) without losing revenue to mi
 
 ---
 
-## 3. Scale-Up Roadmap
+## 3. Future Ecosystem
 
-### Phase 2: Essential Onboarding (Current)
-- **Self-Service:** Automated sign-up, email verification, and wallet generation.
-- **Branding:** Tenant-specific subdomains and custom-branded portals.
+### Advanced Onboarding
+- **Automated Verification:** Self-service registration with automated wallet generation.
+- **Dynamic Portals:** White-label, tenant-specific subdomains with custom branding.
 
-### Phase 3: Marketplace & AI
-- **Student Portal:** A global marketplace where students discover schools via AI agents.
-- **ACO (Agentic Commerce Optimization):** Machine-readable availability and pricing feeds for digital assistants (Siri, Alexa, ChatGPT).
-- **Incentives:** Stable engagement credits (MNEE) to reward student retention.
+### Agentic Marketplace
+- **Global Discovery:** AI-driven student-to-school matching.
+- **ACO (Agentic Commerce Optimization):** Machine-readable protocol feeds.
+- **Engagement Rewards:** Stable credit tokens (MNEE) for retention.
 
 ---
 

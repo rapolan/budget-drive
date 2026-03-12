@@ -1,7 +1,7 @@
 # Budget Drive Protocol (BDP) - Operational Guide
 
-**Status:** Phase 1 Ready  
-**Version:** 1.0  
+**Status:** Beta Release
+**Version:** 1.0.0-beta
 **Last Updated:** March 2026
 
 ---

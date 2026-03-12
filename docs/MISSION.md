@@ -27,24 +27,24 @@ Budget Drive Protocol (BDP) is a **free-forever software protocol** for the driv
 
 ---
 
-## 🚀 Strategic Roadmap
+## 🚀 Product Roadmap
 
-### Phase 1: Operational Foundation (Target: Spring 2026) ✅
+### Operational Foundation (Implemented)
 - **Multi-Tenant Core:** Complete isolation for individual driving schools.
 - **Smart Scheduling:** Conflict-free booking with integrated instructor availability.
 - **Admin Tools:** Management suites for students, instructors, vehicles, and payments.
 - **Authentication:** Secure login and role-based access control.
 
-### Phase 2: Blockchain Integration (Current) 🔄
-- **BSV Overlay Services:** Moving financial and audit records to the BSV blockchain.
-- **Treasury System:** Real-time micropayment collection and disbursement.
+### Blockchain Integration (Available in Beta)
+- **BSV Overlay Services:** Immutable financial and audit records on the BSV blockchain.
+- **Treasury System:** Integrated micropayment collection and disbursement.
 - **Identity (BRC-52):** Verifiable instructor and student digital certificates.
-- **Wallet Integration:** Seamless, "invisible" wallet management for schools.
+- **Seamless Wallets:** Infrastructure-level wallet management for schools.
 
-### Phase 3: Marketplace & Network Effects (Planned) ⏳
+### Network Ecosystem (Future)
 - **Student Marketplace:** Direct booking portal connecting students with verified schools.
 - **AI-Driven Optimization:** Automated route planning and resource allocation.
-- **Insurance Integration:** Direct data feeds to insurance providers for lower rates based on verified training history.
+- **Enterprise Integration:** Direct data feeds to insurance and regulatory providers.
 
 ---
 
