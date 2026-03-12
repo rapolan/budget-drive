@@ -7,6 +7,318 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.7] - 2026-02-02
+
+### Added - Instructor-Student Pairing Enhancements
+
+**Database Schema Updates:**
+- Added `home_zip_code` field to instructors table for home base location tracking
+- Added `service_zip_codes` field to instructors table (comma-separated ZIP codes or prefixes)
+- New migration: `039_add_instructor_location_fields.sql`
+
+**Smart Booking Improvements:**
+- **Assigned Instructor Priority**: Student's assigned instructor now appears first in dropdown with blue "Assigned" badge
+- **Service Area Filtering**: Instructors are filtered based on their `service_zip_codes` - only shows instructors who serve the student's area
+- **Home Base Proximity**: Uses instructor's `home_zip_code` as primary location for proximity matching (falls back to last lesson location)
+- **Proximity Indicators with Emojis**: Modern badge system in instructor dropdown:
+  - 🏠 "Very Close" (90+ score) - Same ZIP or very near
+  - 📍 "Same Area" (70+ score) - Same region
+  - 🚗 "Nearby" (50+ score) - Adjacent regions
+  - 🗺️ "Far" (< 50 score) - Different regions
+- Assigned instructor gets highlighted row with blue left border
+
+**Sorting Logic:**
+1. Assigned instructor appears first (if student has one)
+2. Remaining instructors sorted by proximity score (closest first)
+3. Instructors who don't serve the area are filtered out
+
+**Files Modified:**
+- `backend/database/migrations/039_add_instructor_location_fields.sql` (NEW)
+- `frontend/src/types/index.ts` - Added `homeZipCode` and `serviceZipCodes` to Instructor type
+- `frontend/src/components/scheduling/SmartBookingForm.tsx` - Enhanced instructor filtering and sorting
+
+**Future Enhancement (Saved for Later):**
+- Auto-assignment algorithm based on proximity, availability, and workload balance
+
+---
+
+## [0.5.6] - 2026-02-01
+
+### Changed - StudentModal UI/UX Improvements
+
+**Existing Student View Enhancements:**
+- Added prominent "Book Lesson" button in modal header for quick access
+- Circular avatar with initials replaces gradient icon box
+- Tabs changed to modern pill/segment control style (white active tab with shadow)
+- Simplified Quick Actions in Progress tab (removed duplicate Book Lesson)
+
+**New Student Form Simplification:**
+- Removed progressive disclosure wizard - all essential fields visible upfront
+- Reordered fields: Name → Contact (email + phone) → Date of Birth + Hours Required
+- Optional sections now use collapsible `<details>` elements:
+  - Home Address (used for pickup)
+  - Parent/Guardian (with conditional phone requirement)
+  - Learner's Permit & Notes
+- Cleaner styling: gray-50 backgrounds, rounded-xl borders, consistent text-sm
+- Removed excessive green validation feedback on every field
+- Simplified action buttons (solid blue instead of gradients)
+- Added "Book First Lesson" button after successful student creation
+
+**Code Cleanup:**
+- Removed unused imports: `CalendarIcon`, `CreditCard`, `StickyNote`, `Clock`
+- Removed unused `handleChange` and `isValidEmail` functions
+- Inline arrow functions used directly for form field onChange handlers
+
+**Files Modified:**
+- `frontend/src/components/students/StudentModal.tsx`
+
+---
+
+## [0.5.5] - 2026-01-29
+
+### Added - Responsive Mobile Layout
+
+**Responsive Sidebar with Hamburger Menu:**
+- App is now fully usable on mobile devices and tablets
+- Hamburger menu button appears in header on screens < 1024px
+- Sidebar slides in from left with smooth animation
+- Tap outside or X button to close sidebar
+- Sidebar auto-closes when navigating to a new page
+- Desktop experience unchanged (sidebar always visible)
+
+**Mobile-Optimized Header:**
+- Compact header height on mobile (56px vs 64px)
+- User name/email hidden on mobile (icons only)
+- Reduced spacing for better mobile layout
+
+**Responsive Content Area:**
+- Main content padding reduced on mobile (16px vs 24px)
+- Better use of screen real estate on smaller devices
+
+**Breakpoints:**
+- `lg:` (1024px+) - Desktop: sidebar always visible
+- `sm:` (640px+) - Tablet: slightly larger spacing
+- Below 640px - Mobile: compact view
+
+**Files Modified:**
+- `frontend/src/components/layout/AppLayout.tsx` - Sidebar state, overlay backdrop
+- `frontend/src/components/layout/Header.tsx` - Hamburger button, responsive styling
+- `frontend/src/components/layout/Sidebar.tsx` - Mobile slide-in/out, close button
+
+---
+
+## [0.5.4] - 2026-01-29
+
+### Added - Quick Win UX Improvements
+
+**Calendar Day Hover Previews:**
+- Hover over any day in the Calendar view to see a tooltip preview
+- Shows lesson count by status (scheduled vs completed)
+- Lists instructor names with lessons that day (up to 3)
+- Shows available slot count
+- 200ms delay to prevent flickering
+- Smart positioning to stay within viewport
+
+**Keyboard Shortcuts:**
+- `←` / `→` - Navigate to previous/next month (Calendar) or week (Weekly)
+- `T` - Jump to today
+- `N` - Open new lesson booking modal
+- `1` / `2` / `3` - Switch between Table, Month, and Weekly views
+- `?` - Show keyboard shortcuts help modal
+- `Esc` - Close modals
+- New KeyboardShortcutsHelp modal with all available shortcuts
+- Keyboard icon button in header to access shortcuts help
+
+**Compare Instructors Mode (Weekly View):**
+- New Single/Compare toggle in the Weekly view header
+- Compare mode allows selecting 2-3 instructors simultaneously
+- Color-coded instructor badges (blue, purple, emerald)
+- Side-by-side weekly comparison grid showing:
+  - Lesson counts per day per instructor
+  - Scheduled vs completed breakdown
+  - Today column highlighting
+- Easy visual comparison of instructor workloads
+
+**Files Added:**
+- `frontend/src/components/common/KeyboardShortcutsHelp.tsx`
+
+**Files Modified:**
+- `frontend/src/pages/Lessons.tsx` - Keyboard shortcuts, refs, help modal
+- `frontend/src/components/lessons/LessonsCalendarView.tsx` - Hover tooltips, forwardRef
+- `frontend/src/components/scheduling/InstructorWeeklySchedule.tsx` - Compare mode, forwardRef
+- `frontend/src/components/common/index.ts` - KeyboardShortcutsHelp export
+- `frontend/src/components/lessons/index.ts` - LessonsCalendarViewRef type export
+
+---
+
+## [0.5.3] - 2026-01-29
+
+### Added - Lessons Page Enhanced Filtering & Today's Schedule Widget
+
+**Search & Filter in All Views:**
+- Filter bar (status filters) now visible in Calendar and Weekly views (was table-only)
+- Search highlighting in Calendar view: days with matching lessons show amber ring
+- Search match count badge on calendar days
+- Non-matching days dimmed when search is active
+- DayDetailModal highlights lessons matching the search term
+
+**Date Range Filter:**
+- New DateRangeFilter component with preset buttons
+- Presets: All Time, Today, This Week, This Month, Custom
+- Custom date inputs appear when "Custom" is selected
+- Works across all view modes (Table, Calendar, Weekly)
+
+**Today's Schedule Widget:**
+- New collapsible widget at top of Lessons page
+- Shows today's lessons with quick stats (X done, Y remaining)
+- Progress bar for completion tracking
+- Current lesson highlight (blue, shows "Now")
+- Next lesson highlight with countdown (e.g., "in 2h 30m")
+- Quick action buttons: View details, Mark complete
+- Collapse state persists to localStorage
+- Shows "All done!" celebration when all lessons completed
+
+**Files Added:**
+- `frontend/src/components/common/DateRangeFilter.tsx`
+- `frontend/src/components/lessons/TodaysScheduleWidget.tsx`
+
+**Files Modified:**
+- `frontend/src/pages/Lessons.tsx` - Integrated new components
+- `frontend/src/components/lessons/LessonsCalendarView.tsx` - Search highlighting
+- `frontend/src/components/lessons/DayDetailModal.tsx` - Search highlighting
+- `frontend/src/components/common/index.ts` - New exports
+- `frontend/src/components/lessons/index.ts` - New exports
+
+---
+
+## [0.5.2] - 2026-01-28
+
+### Changed - Lessons Page Improvements
+
+**Sorting & Filtering:**
+- Lessons now sorted by start time within each date group (Today, Tomorrow, This Week, etc.)
+- Past lessons sorted with most recent first for easier reference
+- Added "Today" filter button to quickly see all of today's lessons (any status)
+- "Today's Lessons" stat card now filters to today only (was filtering to all 'scheduled')
+
+**User Feedback:**
+- Added toast notifications for lesson status changes:
+  - "Lesson cancelled successfully"
+  - "Lesson marked as completed"
+  - "Lesson marked as no-show"
+
+**Code Cleanup:**
+- Removed unused imports (CarIcon, Trash2, vehiclesApi)
+- Removed unused code (getVehicleInfo, deleteMutation, handleDelete)
+- Fixed colSpan from 7 to 8 in table group headers
+- Updated pagination to show "X of Y lessons (filtered)"
+- Fixed unused lessonId parameter (prefixed with underscore)
+
+---
+
+### Changed - Workflow-Based Student Status System
+
+**Student Status Overhaul:**
+- Replaced lifecycle-based statuses with workflow-based statuses
+- Old: Enrolled → Active → Completed (lifecycle stages)
+- New: Actionable workflow states for daily operations
+
+**New Status Definitions:**
+| Status | Meaning | Use Case |
+|--------|---------|----------|
+| **Scheduled** | Has upcoming lesson(s) | Active learners on calendar |
+| **Ready to Book** | No upcoming lesson, not completed | Needs scheduling outreach |
+| **Needs Attention** | Urgent issues (permit expired, no-shows, 14-60 day gaps) | Action items |
+| **Completed** | Finished all required hours | Graduates |
+| **Inactive** | Dropped, suspended, or 60+ days no activity | Archive |
+
+**Filter Updates:**
+- Students page now defaults to "All" filter
+- Replaced "Enrolled" and "Active" filters with "Scheduled" and "Ready to Book"
+- Added "Inactive" filter for archived students
+- Color-coded badges: green (scheduled), blue (ready to book), amber (attention), purple (completed), gray (inactive)
+
+**Stat Cards Updates:**
+- Replaced old "Active Students" card with "Scheduled" and "Ready to Book" cards
+- Now 5 stat cards: New This Month, Scheduled, Ready to Book, Needs Attention, Completed
+- Updated grid layout from 4-column to 5-column on large screens
+- "Completed" card now shows "+X this month" instead of avg progress percentage
+- Each card is clickable to filter the student table
+- "New This Month" card now filters to students enrolled this month (was showing all)
+
+**Sorting Options:**
+- Added sort dropdown to Students page filter bar
+- Sort options: Name A-Z, Newest First, Oldest First, Longest Since Lesson, Closest to Done
+- "Longest Since Lesson" prioritizes students who haven't had a lesson recently
+- "Closest to Done" shows students nearest to completing their required hours
+
+**Card View Improvements:**
+- Status reason now visible below status badge in card view
+- Shows context like "Next lesson: 1/30/2026" or "Enrolled 10 days ago, no lessons booked"
+- Matches tooltip info shown on hover in table view
+
+**Pagination Improvements:**
+- Now shows total student count: "X of Y students"
+- Indicates when results are filtered: "(filtered)"
+- Updated styling to match other UI elements
+
+**Dashboard Updates:**
+- "Active Students" stat now counts "Scheduled" + "Ready to Book" students
+- Represents students actively in the training pipeline
+
+---
+
+## [0.5.1] - 2026-01-27
+
+### Added - UX Improvements & Age-Based Training Hours
+
+**Student Management:**
+- Age-based training hours auto-detection in StudentModal
+  - Under 18: Defaults to 6 hours (CA requirement from settings)
+  - 18 and over: Defaults to 2 hours (adult learners)
+  - Shows hint badge: "Adult (25y) - 2hr default" or "Under 18 (16y) - 6hr required (CA)"
+  - Admin can still manually adjust hours as needed
+- Added Training Hours Required section to StudentModal form
+- Added Clock icon import for training hours UI
+
+**Lesson Booking:**
+- Removed "Proceed Anyway" conflict bypass dialog in LessonModal
+- Submit button now disabled when time conflict exists
+- Cleaner UX: users must select a non-conflicting time to proceed
+- Conflict warning still displays inline with next available slot suggestion
+
+**Dashboard & Navigation:**
+- Fixed "Needs Attention" navigation from Dashboard to Students page
+- Changed filter parameter from `needsAttention` (camelCase) to `needs_attention` (snake_case)
+- Added auto-scroll to student table after filter is applied
+
+**Students Page:**
+- Removed separate "Attention Reason" column from table
+- Status badge now shows reason on hover (tooltip)
+- Added `cursor-help` class to indicate hoverable status badges
+- Simplified table to 6 columns (was conditionally 7)
+
+### Fixed
+- Dashboard → Students "Needs Attention" stat card now correctly filters students
+- LessonModal no longer allows bypassing conflict detection
+- Students table colspan values updated for consistent layout
+- StudentModal submit button now checks firstName/lastName instead of fullName
+- Fixed SQL parameter order in createStudent (license_type was in wrong position)
+- Fixed emergency_contact NOT NULL constraint (now defaults to empty string)
+
+### Changed
+- StudentModal sections renumbered (Section 7: Training Hours, Section 8: Permit & Notes)
+
+### Removed
+- Removed `license_type` field from entire codebase (migration 038)
+  - No longer needed as we only teach car driving
+  - Removed from database schema (made nullable, deprecated)
+  - Removed from backend studentService (createStudent, updateStudent)
+  - Removed from frontend types (Student, CreateStudentInput)
+  - Removed from StudentModal form
+
+---
+
 ## [0.5.0] - 2025-12-09
 
 ### Added - Lesson Number Tracking & Calendar Improvements
@@ -303,6 +615,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Phase | Status | Date | Key Feature |
 |---------|-------|--------|------|-------------|
+| 0.5.1 | 4A | ✅ Complete | 2026-01-27 | Age-Based Training Hours & UX Fixes |
+| 0.5.0 | 4A | ✅ Complete | 2025-12-09 | Lesson Tracking & Calendar Improvements |
 | 0.4.0 | 4A | ✅ Complete | 2025-11-08 | Smart Scheduling Foundation |
 | 0.3.0 | 3 | ✅ Complete | 2025-11-XX | Frontend Application |
 | 0.2.0 | 2 | ✅ Complete | 2025-11-XX | Backend API |

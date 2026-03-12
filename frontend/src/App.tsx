@@ -34,15 +34,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
-  // Check for dev mode bypass
-  const isDev = import.meta.env.DEV;
-  const hasDevToken = localStorage.getItem('auth_token') === 'dev-token-bypassed-in-development-mode';
-
-  // In development with dev token, allow access
-  if (isDev && hasDevToken) {
-    return <>{children}</>;
-  }
-
   // Show loading while checking auth
   if (isLoading) {
     return (
@@ -58,6 +49,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
 
   return <>{children}</>;
+};
+
+// AuthenticatedApp wraps TenantProvider INSIDE the auth check so it only
+// fetches tenant data when the user is actually logged in.
+const AuthenticatedApp: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <>{children}</>;
+  return <TenantProvider>{children}</TenantProvider>;
 };
 
 function AppRoutes() {
@@ -217,13 +216,13 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TenantProvider>
-            <BrowserRouter>
+        <BrowserRouter>
+          <AuthProvider>
+            <AuthenticatedApp>
               <AppRoutes />
-            </BrowserRouter>
-          </TenantProvider>
-        </AuthProvider>
+            </AuthenticatedApp>
+          </AuthProvider>
+        </BrowserRouter>
       </QueryClientProvider>
     </ErrorBoundary>
   );

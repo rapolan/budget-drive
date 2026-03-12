@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { schedulingApi } from '@/api';
 import { InstructorAvailability } from '@/types';
 
+const API_BASE = 'http://127.0.0.1:4000/api/v1';
+
+
 interface AvailabilityCalendarProps {
   instructorId: string;
   onSlotClick?: (dayOfWeek: number, startTime: string, endTime: string) => void;
@@ -84,7 +87,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       // Load both availability and scheduling settings
       const [availData, settingsResponse] = await Promise.all([
         schedulingApi.getInstructorAvailability(instructorId),
-        fetch('http://localhost:3000/api/v1/availability/settings', {
+        fetch(`${API_BASE}/availability/settings`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
             'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
@@ -182,18 +185,18 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   const getBookableSlotForTime = (dayOfWeek: number, timeSlot: string): BookableSlot | null => {
     const daySlots = bookableSlotsByDay.get(dayOfWeek) || [];
     const timeHour = parseInt(timeSlot.split(':')[0]);
-    
+
     return daySlots.find((slot) => {
       const slotStartHour = parseInt(slot.startTime.split(':')[0]);
       const slotStartMin = parseInt(slot.startTime.split(':')[1]);
       const slotEndHour = parseInt(slot.endTime.split(':')[0]);
       const slotEndMin = parseInt(slot.endTime.split(':')[1]);
-      
+
       // Check if the timeHour falls within this slot
       const startInMinutes = slotStartHour * 60 + slotStartMin;
       const endInMinutes = slotEndHour * 60 + slotEndMin;
       const timeInMinutes = timeHour * 60;
-      
+
       return timeInMinutes >= startInMinutes && timeInMinutes < endInMinutes;
     }) || null;
   };
@@ -202,7 +205,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   const isSlotStart = (dayOfWeek: number, timeSlot: string): BookableSlot | null => {
     const daySlots = bookableSlotsByDay.get(dayOfWeek) || [];
     const timeHour = parseInt(timeSlot.split(':')[0]);
-    
+
     return daySlots.find((slot) => {
       const slotStartHour = parseInt(slot.startTime.split(':')[0]);
       return slotStartHour === timeHour;
@@ -211,7 +214,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   const handleSlotClick = (dayOfWeek: number, timeSlot: string) => {
     if (!editable || !onSlotClick) return;
-    
+
     const bookableSlot = isSlotStart(dayOfWeek, timeSlot);
     if (bookableSlot) {
       onSlotClick(dayOfWeek, bookableSlot.startTime, bookableSlot.endTime);
@@ -256,7 +259,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
           ({schedulingSettings?.defaultLessonDuration || 120} min lessons, {schedulingSettings?.bufferTimeBetweenLessons || 30} min buffer)
         </div>
       </div>
-      
+
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -290,15 +293,13 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
                     <td
                       key={`${day.value}-${timeSlot}`}
                       onClick={() => handleSlotClick(day.value, timeSlot)}
-                      className={`px-3 py-2 text-center text-sm ${
-                        editable && slotStart ? 'cursor-pointer' : ''
-                      } ${
-                        slotStart
+                      className={`px-3 py-2 text-center text-sm ${editable && slotStart ? 'cursor-pointer' : ''
+                        } ${slotStart
                           ? 'bg-green-500 hover:bg-green-600'
                           : isInSlot
-                          ? 'bg-green-100'
-                          : 'bg-gray-50'
-                      }`}
+                            ? 'bg-green-100'
+                            : 'bg-gray-50'
+                        }`}
                     >
                       {slotStart && (
                         <div className="text-xs text-white font-medium">

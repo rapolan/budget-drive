@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, CalendarDays, Clock, CheckCircle, TrendingUp } from 'lucide-react';
 import type { Lesson, InstructorAvailability, Instructor } from '@/types';
 import { DayDetailModal } from './DayDetailModal';
@@ -11,9 +11,16 @@ interface LessonsCalendarViewProps {
   onAvailabilityClick?: (instructorId: string, date: Date, startTime: string, endTime: string) => void;
   getStudentName: (id: string) => string;
   getInstructorName: (id: string) => string;
+  searchTerm?: string;
 }
 
-export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
+export interface LessonsCalendarViewRef {
+  goToPrevious: () => void;
+  goToNext: () => void;
+  goToToday: () => void;
+}
+
+export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCalendarViewProps>(({
   lessons,
   availability,
   instructors,
@@ -21,26 +28,18 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
   onAvailabilityClick,
   getStudentName,
   getInstructorName,
-}) => {
+  searchTerm = '',
+}, ref) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<{ date: Date; rect: DOMRect } | null>(null);
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // Get current month/year
+  // Get current month/year for navigation
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
 
-  // Get first day of month and number of days
-  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
-
-  // Month names
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  // Navigate months
+  // Navigation functions
   const previousMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
   };
@@ -52,6 +51,24 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
   const goToToday = () => {
     setCurrentDate(new Date());
   };
+
+  // Expose navigation methods via ref
+  useImperativeHandle(ref, () => ({
+    goToPrevious: previousMonth,
+    goToNext: nextMonth,
+    goToToday,
+  }));
+
+  // Get first day of month and number of days
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+  // Month names
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
 
   // Calculate monthly stats
   const monthlyStats = useMemo(() => {
@@ -103,6 +120,27 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
         lessonDate.getFullYear() === date.getFullYear()
       );
     });
+  };
+
+  // Check if a lesson matches the search term
+  const lessonMatchesSearch = (lesson: Lesson): boolean => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    const studentName = getStudentName(lesson.studentId).toLowerCase();
+    const instructorName = getInstructorName(lesson.instructorId).toLowerCase();
+    return (
+      studentName.includes(search) ||
+      instructorName.includes(search) ||
+      lesson.lessonType.toLowerCase().includes(search) ||
+      lesson.status.toLowerCase().includes(search)
+    );
+  };
+
+  // Get count of matching lessons for a date (for search highlighting)
+  const getMatchingLessonsCount = (date: Date): number => {
+    if (!searchTerm) return 0;
+    const dayLessons = getLessonsForDate(date);
+    return dayLessons.filter(lessonMatchesSearch).length;
   };
 
   // Get availability slots for a specific date
@@ -207,6 +245,47 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
       date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear()
     );
+  };
+
+  // Hover handlers with delay
+  const handleMouseEnter = (date: Date, e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const timeout = setTimeout(() => {
+      setHoveredDay({ date, rect });
+    }, 200); // 200ms delay before showing tooltip
+    setHoverTimeout(timeout);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      setHoverTimeout(null);
+    }
+    setHoveredDay(null);
+  };
+
+  // Get hover tooltip data for a date
+  const getHoverData = (date: Date) => {
+    const dayLessons = getLessonsForDate(date);
+    const dayAvailability = getAvailabilityForDate(date);
+    const dayInstructors = getInstructorsForDay(date);
+
+    const scheduled = dayLessons.filter(l => l.status === 'scheduled').length;
+    const completed = dayLessons.filter(l => l.status === 'completed').length;
+    const cancelled = dayLessons.filter(l => l.status === 'cancelled').length;
+    const noShow = dayLessons.filter(l => l.status === 'no_show').length;
+    const availableSlots = Math.max(0, dayAvailability.length - scheduled);
+
+    return {
+      total: dayLessons.length,
+      scheduled,
+      completed,
+      cancelled,
+      noShow,
+      availableSlots,
+      instructors: dayInstructors.slice(0, 3),
+      moreInstructors: Math.max(0, dayInstructors.length - 3),
+    };
   };
 
   return (
@@ -329,6 +408,11 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
           const scheduledCount = dayLessons.filter(l => l.status === 'scheduled').length;
           const availableSlots = totalSlots - scheduledCount;
 
+          // Search highlighting
+          const matchingCount = calendarDay.isCurrentMonth ? getMatchingLessonsCount(calendarDay.date) : 0;
+          const hasSearchMatches = searchTerm && matchingCount > 0;
+          const noSearchMatches = searchTerm && dayLessons.length > 0 && matchingCount === 0;
+
           // Determine background color based on availability
           let bgColor = 'bg-white';
           let borderColor = '';
@@ -347,12 +431,18 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
             }
           }
 
+          // Search match highlighting overrides
+          const searchHighlight = hasSearchMatches ? 'ring-2 ring-amber-400 ring-offset-1' : '';
+          const searchDim = noSearchMatches ? 'opacity-50' : '';
+
           return (
             <button
               key={idx}
               type="button"
               onClick={() => calendarDay.isCurrentMonth && hasActivity && setSelectedDate(calendarDay.date)}
-              className={`min-h-[110px] p-3 text-left transition-all duration-200 ${
+              onMouseEnter={(e) => calendarDay.isCurrentMonth && hasActivity && handleMouseEnter(calendarDay.date, e)}
+              onMouseLeave={handleMouseLeave}
+              className={`min-h-[110px] p-3 text-left transition-all duration-200 relative ${
                 !calendarDay.isCurrentMonth
                   ? 'bg-gray-50/50 cursor-default opacity-40'
                   : isTodayDate
@@ -364,7 +454,7 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
                 calendarDay.isCurrentMonth && hasActivity
                   ? 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
                   : 'cursor-default'
-              }`}
+              } ${searchHighlight} ${searchDim}`}
             >
               {/* Today indicator bar */}
               {isTodayDate && (
@@ -402,6 +492,13 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
                 {isTodayDate && (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-600 text-white animate-pulse">
                     TODAY
+                  </span>
+                )}
+
+                {/* Search match badge */}
+                {hasSearchMatches && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">
+                    {matchingCount} match{matchingCount > 1 ? 'es' : ''}
                   </span>
                 )}
               </div>
@@ -458,6 +555,109 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
         </div>
       </div>
 
+      {/* Hover Tooltip */}
+      {hoveredDay && (() => {
+        const data = getHoverData(hoveredDay.date);
+        const tooltipWidth = 220;
+        const tooltipHeight = 180;
+
+        // Calculate position - show below by default, above if near bottom
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - hoveredDay.rect.bottom;
+        const showAbove = spaceBelow < tooltipHeight + 20;
+
+        // Center horizontally relative to the cell
+        let left = hoveredDay.rect.left + (hoveredDay.rect.width / 2) - (tooltipWidth / 2);
+        // Keep tooltip on screen
+        left = Math.max(8, Math.min(left, window.innerWidth - tooltipWidth - 8));
+
+        const top = showAbove
+          ? hoveredDay.rect.top - tooltipHeight - 8
+          : hoveredDay.rect.bottom + 8;
+
+        return (
+          <div
+            className="fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 pointer-events-none"
+            style={{
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${tooltipWidth}px`,
+            }}
+          >
+            {/* Date header */}
+            <div className="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-100">
+              {hoveredDay.date.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+              })}
+            </div>
+
+            {/* Lesson stats */}
+            {data.total > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Lessons</p>
+                <div className="flex flex-wrap gap-2">
+                  {data.scheduled > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                      {data.scheduled} scheduled
+                    </span>
+                  )}
+                  {data.completed > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                      {data.completed} completed
+                    </span>
+                  )}
+                  {data.cancelled > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+                      {data.cancelled} cancelled
+                    </span>
+                  )}
+                  {data.noShow > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                      {data.noShow} no-show
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Available slots */}
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Availability</p>
+              <span className={`text-sm font-bold ${
+                data.availableSlots === 0 ? 'text-red-600' :
+                data.availableSlots <= 2 ? 'text-amber-600' : 'text-green-600'
+              }`}>
+                {data.availableSlots === 0 ? 'Fully booked' : `${data.availableSlots} open slot${data.availableSlots > 1 ? 's' : ''}`}
+              </span>
+            </div>
+
+            {/* Instructors */}
+            {data.instructors.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Instructors</p>
+                <div className="flex flex-wrap gap-1">
+                  {data.instructors.map(instructor => (
+                    <span key={instructor.id} className="text-xs text-gray-700">
+                      {instructor.fullName.split(' ')[0]}
+                    </span>
+                  ))}
+                  {data.moreInstructors > 0 && (
+                    <span className="text-xs text-gray-500">+{data.moreInstructors} more</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Click hint */}
+            <p className="text-[10px] text-gray-400 mt-2 pt-2 border-t border-gray-100">
+              Click to view details
+            </p>
+          </div>
+        );
+      })()}
+
       {/* Day Detail Modal */}
       {selectedDate && (
         <DayDetailModal
@@ -470,8 +670,9 @@ export const LessonsCalendarView: React.FC<LessonsCalendarViewProps> = ({
           onAvailabilityClick={onAvailabilityClick}
           getStudentName={getStudentName}
           getInstructorName={getInstructorName}
+          searchTerm={searchTerm}
         />
       )}
     </div>
   );
-};
+});

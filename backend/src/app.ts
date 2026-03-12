@@ -24,7 +24,8 @@ import lessonRoutes from './routes/lessonRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import availabilityRoutes from './routes/availabilityRoutes';
 import recurringPatternRoutes from './routes/recurringPatternRoutes';
-import treasuryRoutes from './routes/treasuryRoutes';
+// import treasuryRoutes from './routes/treasuryRoutes'; // BSV Phase — re-enable when blockchain is implemented
+
 import notificationRoutes from './routes/notifications';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
 
@@ -38,8 +39,10 @@ const app: Application = express();
 // CORS - Allow requests from frontend
 app.use(
   cors({
-    origin: config.ALLOWED_ORIGINS,
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3001', 'http://127.0.0.1:3001'],
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
+    exposedHeaders: ['X-Tenant-ID'],
   })
 );
 
@@ -90,7 +93,8 @@ app.use(`${API_PREFIX}/users`, userRoutes); // User management routes
 app.use(API_PREFIX, paymentRoutes);
 app.use(API_PREFIX, availabilityRoutes);
 app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
-app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
+// app.use(`${API_PREFIX}/treasury`, treasuryRoutes); // BSV Phase — re-enable when blockchain is implemented
+
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
 

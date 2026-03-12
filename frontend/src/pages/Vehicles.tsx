@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, Car } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Car, LayoutGrid, LayoutList, Gauge, Hash, Calendar } from 'lucide-react';
 import { vehiclesApi } from '@/api';
 import type { Vehicle } from '@/types';
 import { VehicleModal } from '@/components/vehicles/VehicleModal';
 import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
+type ViewMode = 'table' | 'cards';
+
 export const VehiclesPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const queryClient = useQueryClient();
@@ -86,13 +89,35 @@ export const VehiclesPage: React.FC = () => {
             Manage your driving school vehicles
           </p>
         </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
-        >
-          <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
-          Add Vehicle
-        </button>
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Table view"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Card view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddNew}
+            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+          >
+            <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
+            Add Vehicle
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -108,7 +133,126 @@ export const VehiclesPage: React.FC = () => {
         />
       </div>
 
+      {/* Card View - Mobile Friendly */}
+      {viewMode === 'cards' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isLoading ? (
+            <div className="col-span-full py-12">
+              <LoadingSpinner />
+            </div>
+          ) : filteredVehicles?.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                icon={<Car className="h-12 w-12" />}
+                title="No vehicles found"
+                description={
+                  searchTerm
+                    ? `No vehicles match your search for "${searchTerm}"`
+                    : "Get started by adding your first vehicle to the fleet"
+                }
+                action={
+                  <button
+                    type="button"
+                    onClick={handleAddNew}
+                    className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Vehicle
+                  </button>
+                }
+              />
+            </div>
+          ) : (
+            filteredVehicles?.map((vehicle) => (
+              <div
+                key={vehicle.id}
+                onClick={() => handleEdit(vehicle)}
+                className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
+                  vehicle.status === 'active' ? 'border-green-200 hover:border-green-300' :
+                  vehicle.status === 'maintenance' ? 'border-yellow-200' :
+                  vehicle.status === 'retired' ? 'border-red-200' :
+                  'border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                {/* Header - Vehicle Name & Status */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white flex-shrink-0">
+                      <Car className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {vehicle.year} {vehicle.make}
+                      </h3>
+                      <p className="text-sm text-gray-500 truncate">{vehicle.model}</p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(vehicle.status)}`}>
+                    {vehicle.status}
+                  </span>
+                </div>
+
+                {/* Vehicle Details */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Hash className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span className="font-medium text-gray-900">{vehicle.licensePlate}</span>
+                  </div>
+                  {vehicle.color && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div
+                        className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0"
+                        style={{ backgroundColor: vehicle.color.toLowerCase() }}
+                      />
+                      <span className="capitalize">{vehicle.color}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Gauge className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    <span>{vehicle.currentMileage?.toLocaleString() || 0} mi</span>
+                  </div>
+                </div>
+
+                {/* Ownership Badge */}
+                <div className="mb-4">
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
+                    {getOwnershipLabel(vehicle.ownershipType)}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(vehicle);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(vehicle.id);
+                    }}
+                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Table */}
+      {viewMode === 'table' && (
       <div className="rounded-lg bg-white shadow">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -199,6 +343,7 @@ export const VehiclesPage: React.FC = () => {
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                     <div className="flex justify-end gap-2">
                       <button
+                        type="button"
                         onClick={() => handleEdit(vehicle)}
                         className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
                         title="Edit vehicle"
@@ -206,6 +351,7 @@ export const VehiclesPage: React.FC = () => {
                         <Edit className="h-5 w-5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(vehicle.id)}
                         className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
                         title="Delete vehicle"
@@ -221,6 +367,7 @@ export const VehiclesPage: React.FC = () => {
         </table>
         </div>
       </div>
+      )}
 
       {/* Modal */}
       {isModalOpen && (

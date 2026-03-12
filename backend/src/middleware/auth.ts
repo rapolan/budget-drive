@@ -6,7 +6,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from './errorHandler';
 import { verifyToken, extractTokenFromHeader, JwtPayload } from '../utils/jwt';
-import { config } from '../config/env';
 
 // Extend Express Request to include user data
 declare global {
@@ -27,21 +26,6 @@ export const authenticate = async (
   next: NextFunction
 ) => {
   try {
-    // DEVELOPMENT MODE: Bypass authentication with hardcoded tenant ID
-    if (config.NODE_ENV === 'development') {
-      // Use hardcoded UUID for development - matches first seeded tenant
-      // This avoids database dependency issues during auth
-      const tenantId = '55654b9d-6d7f-46e0-ade2-be606abfe00a';
-
-      req.user = {
-        userId: '00000000-0000-0000-0000-000000000001',
-        tenantId: tenantId,
-        email: 'dev@budgetdrivingschool.com',
-        role: 'admin',
-      };
-      return next();
-    }
-
     // PRODUCTION MODE: Require authentication
     // Extract token from Authorization header
     const token = extractTokenFromHeader(req.headers.authorization);
@@ -57,9 +41,9 @@ export const authenticate = async (
     req.user = decoded;
 
     next();
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
+  } catch (_error) {
+    if (_error instanceof AppError) {
+      throw _error;
     }
     throw new AppError('Invalid or expired authentication token', 401);
   }
@@ -82,7 +66,7 @@ export const optionalAuth = (
     }
 
     next();
-  } catch (error) {
+  } catch (_error) {
     // Silently fail - user just won't be authenticated
     next();
   }

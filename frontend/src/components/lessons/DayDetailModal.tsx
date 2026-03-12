@@ -14,6 +14,7 @@ interface DayDetailModalProps {
   getInstructorName: (id: string) => string;
   lessonDuration?: number; // in minutes, defaults to 120
   bufferTime?: number; // in minutes, defaults to 30
+  searchTerm?: string;
 }
 
 export const DayDetailModal: React.FC<DayDetailModalProps> = ({
@@ -28,6 +29,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   getInstructorName,
   lessonDuration = 120,
   bufferTime = 30,
+  searchTerm = '',
 }) => {
   const formatTime = (time: string) => {
     const [hours, minutes] = time.split(':');
@@ -74,6 +76,20 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
       default:
         return null;
     }
+  };
+
+  // Check if a lesson matches the search term
+  const lessonMatchesSearch = (lesson: Lesson): boolean => {
+    if (!searchTerm) return false;
+    const search = searchTerm.toLowerCase();
+    const studentName = getStudentName(lesson.studentId).toLowerCase();
+    const instructorName = getInstructorName(lesson.instructorId).toLowerCase();
+    return (
+      studentName.includes(search) ||
+      instructorName.includes(search) ||
+      lesson.lessonType.toLowerCase().includes(search) ||
+      lesson.status.toLowerCase().includes(search)
+    );
   };
 
   // Helper to convert time string to minutes since midnight
@@ -239,12 +255,16 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                   {/* Booked Lessons */}
                   {schedule.lessons
                     .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                    .map((lesson) => (
+                    .map((lesson) => {
+                    const isMatch = lessonMatchesSearch(lesson);
+                    return (
                     <button
                       key={lesson.id}
                       type="button"
                       onClick={() => onLessonClick(lesson)}
-                      className="w-full px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                      className={`w-full px-4 py-3 hover:bg-gray-50 transition-colors text-left ${
+                        isMatch ? 'bg-amber-50 ring-1 ring-amber-300' : ''
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3 flex-1">
@@ -266,7 +286,8 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                         </div>
                       </div>
                     </button>
-                  ))}
+                  );
+                  })}
 
                   {/* Available Slots */}
                   {schedule.availableSlots

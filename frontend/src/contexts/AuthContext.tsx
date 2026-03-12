@@ -27,18 +27,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check if we have a stored token and fetch user info
   const refreshUser = useCallback(async () => {
     const token = localStorage.getItem('auth_token');
-    if (!token || token === 'dev-token-bypassed-in-development-mode') {
+    if (!token) {
       setIsLoading(false);
       return;
     }
 
+    // Add a 5-second timeout so we never hang forever
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Auth check timed out')), 5000)
+    );
+
     try {
-      const response = await authApi.getCurrentUser();
+      const response = await Promise.race([authApi.getCurrentUser(), timeout]);
       if (response.success && response.data) {
         setUser(response.data);
+      } else {
+        // Non-success response (shouldn't happen, but be safe)
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('tenant_id');
+        setUser(null);
       }
     } catch (err) {
-      // Token invalid or expired - clear it
+      // Token invalid, expired, network error, or timeout — clear and show login
       localStorage.removeItem('auth_token');
       localStorage.removeItem('tenant_id');
       setUser(null);
@@ -54,7 +64,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setError(null);
-    setIsLoading(true);
+    // NOTE: Do NOT set isLoading here — that shows the full-page spinner.
+    // The Login page manages its own isSubmitting state for the button.
 
     try {
       const response = await authApi.login({ email, password });
@@ -64,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('auth_token', response.data.token);
         localStorage.setItem('tenant_id', response.data.tenantId);
 
-        // Fetch full user info
+        // Fetch full user info (loads user into state)
         await refreshUser();
         return true;
       } else {
@@ -72,22 +83,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Login failed';
+      // Extract the most useful error message from the response
+      const serverError = err.response?.data?.error;
+      const serverMessage = err.response?.data?.message;
+      const status = err.response?.status;
+      const errorMessage = serverError || serverMessage ||
+        (status === 500 ? 'Server error — please try again' : err.message) ||
+        'Login failed';
       setError(errorMessage);
       return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const logout = () => {
-    // Clear stored tokens
     localStorage.removeItem('auth_token');
     localStorage.removeItem('tenant_id');
     setUser(null);
     setError(null);
 
-    // Optionally call server logout endpoint
     authApi.logout().catch(() => {
       // Ignore errors - we're logging out anyway
     });

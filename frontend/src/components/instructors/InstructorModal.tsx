@@ -24,6 +24,8 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
     city: '',
     state: '',
     zipCode: '',
+    homeZipCode: '',
+    serviceZipCodes: '',
     licenseNumber: '',
     licenseExpiration: '',
     employmentType: 'w2_employee',
@@ -44,6 +46,8 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
         city: instructor.city || '',
         state: instructor.state || '',
         zipCode: instructor.zipCode || '',
+        homeZipCode: instructor.homeZipCode || '',
+        serviceZipCodes: instructor.serviceZipCodes || '',
         licenseNumber: instructor.licenseNumber || '',
         licenseExpiration: instructor.licenseExpiration
           ? new Date(instructor.licenseExpiration).toISOString().split('T')[0]
@@ -395,6 +399,55 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   placeholder="92101"
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Service Area Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <MapPin className="h-4 w-4 text-purple-600" />
+              <h3 className="text-sm font-semibold text-gray-900">Service Area</h3>
+              <span className="text-xs text-gray-500">(for proximity matching)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Home ZIP Code */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Home Base ZIP Code
+                </label>
+                <input
+                  type="text"
+                  name="homeZipCode"
+                  value={formData.homeZipCode}
+                  onChange={handleChange}
+                  autoComplete="nope"
+                  placeholder="92101"
+                  maxLength={10}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Starting location for calculating proximity to students
+                </p>
+              </div>
+
+              {/* Service ZIP Codes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Service ZIP Codes
+                </label>
+                <input
+                  type="text"
+                  name="serviceZipCodes"
+                  value={formData.serviceZipCodes}
+                  onChange={handleChange}
+                  autoComplete="nope"
+                  placeholder="92101,92102,921"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Comma-separated ZIP codes or prefixes (e.g., "92101,92102" or "920,921")
+                </p>
               </div>
             </div>
           </div>

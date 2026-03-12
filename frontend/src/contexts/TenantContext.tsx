@@ -51,6 +51,14 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   };
 
   const refreshSettings = async () => {
+    // Skip if not authenticated — TenantProvider should only mount after login,
+    // but guard here as a safety net.
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);

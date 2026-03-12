@@ -5,7 +5,7 @@
 
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000/api/v1';
 const TENANT_ID = import.meta.env.VITE_TENANT_ID || 'test-tenant-123';
 
 const api = axios.create({

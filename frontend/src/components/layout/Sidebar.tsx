@@ -16,6 +16,7 @@ import {
   History,
   Share2,
   Globe,
+  X,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,7 +87,12 @@ const groupLabels: Record<string, string> = {
   system: 'System',
 };
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const location = useLocation();
   const { settings, tenant, tenantType } = useTenant();
   const { logout } = useAuth();
@@ -156,9 +162,27 @@ export const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col bg-gray-900 text-white">
+    <div className={clsx(
+      'flex h-full w-64 flex-col bg-gray-900 text-white',
+      // Mobile: fixed positioning with slide animation
+      'fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out',
+      // Desktop: relative positioning, always visible
+      'lg:relative lg:translate-x-0',
+      // Mobile: slide in/out based on isOpen
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    )}>
+      {/* Mobile close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-2 top-2 p-2 text-gray-400 hover:text-white lg:hidden"
+        aria-label="Close menu"
+      >
+        <X className="h-6 w-6" />
+      </button>
+
       {/* Account Switcher */}
-      <div className="border-b border-gray-800 p-3">
+      <div className="border-b border-gray-800 p-3 pt-12 lg:pt-3">
         <AccountSwitcher
           currentTenant={{
             id: tenant?.id || '1',
@@ -192,6 +216,7 @@ export const Sidebar: React.FC = () => {
                   <Link
                     key={item.name + item.href}
                     to={item.href}
+                    onClick={() => onClose?.()}
                     className={clsx(
                       'flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
                       isActive

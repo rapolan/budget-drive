@@ -7,6 +7,9 @@ import React, { useState } from 'react';
 import { useTenant } from '@/contexts/TenantContext';
 import { Settings as SettingsIcon, Sparkles, Bell, Palette, Info, Calendar } from 'lucide-react';
 
+const API_BASE = 'http://127.0.0.1:4000/api/v1';
+
+
 type SettingsTab = 'general' | 'features' | 'scheduling' | 'branding' | 'notifications';
 
 export const SettingsPage: React.FC = () => {
@@ -42,10 +45,9 @@ export const SettingsPage: React.FC = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`
                   flex items-center border-b-2 py-4 px-1 text-sm font-medium transition-colors
-                  ${
-                    isActive
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  ${isActive
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                   }
                 `}
               >
@@ -90,7 +92,7 @@ const GeneralSettings: React.FC = () => {
       setSaving(true);
       setMessage(null);
 
-      const response = await fetch('http://localhost:3000/api/v1/tenant/settings', {
+      const response = await fetch(`${API_BASE}/tenant/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -135,9 +137,8 @@ const GeneralSettings: React.FC = () => {
       {/* Success/Error Message */}
       {message && (
         <div
-          className={`rounded-md p-4 ${
-            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-          }`}
+          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            }`}
         >
           {message.text}
         </div>
@@ -149,7 +150,7 @@ const GeneralSettings: React.FC = () => {
           Default Training Hours Required
         </label>
         <p className="text-sm text-gray-500 mb-4">
-          Set the default number of behind-the-wheel training hours required for new students. 
+          Set the default number of behind-the-wheel training hours required for new students.
           This varies by state (e.g., California requires 6 hours for students under 18).
         </p>
         <div className="flex items-center space-x-4">
@@ -234,7 +235,7 @@ const SchedulingSettings: React.FC = () => {
     const loadSettings = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:3000/api/v1/availability/settings', {
+        const response = await fetch(`${API_BASE}/availability/settings`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
             'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
@@ -262,7 +263,7 @@ const SchedulingSettings: React.FC = () => {
       setSaving(true);
       setMessage(null);
 
-      const response = await fetch('http://localhost:3000/api/v1/availability/settings', {
+      const response = await fetch(`${API_BASE}/availability/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -301,7 +302,7 @@ const SchedulingSettings: React.FC = () => {
   const calculateDayEndTime = () => {
     const startHour = 9; // Example: 9 AM
     const totalMinutes = (defaultLessonDuration * defaultMaxStudentsPerDay) +
-                        (bufferTimeBetweenLessons * (defaultMaxStudentsPerDay - 1));
+      (bufferTimeBetweenLessons * (defaultMaxStudentsPerDay - 1));
     const endTotalMinutes = (startHour * 60) + totalMinutes;
     const endHour = Math.floor(endTotalMinutes / 60);
     const endMinute = endTotalMinutes % 60;
@@ -331,9 +332,8 @@ const SchedulingSettings: React.FC = () => {
       {/* Success/Error Message */}
       {message && (
         <div
-          className={`rounded-md p-4 ${
-            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-          }`}
+          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            }`}
         >
           {message.text}
         </div>
@@ -580,7 +580,7 @@ const FeaturesSettings: React.FC = () => {
       setMessage(null);
 
       // Call backend to update settings
-      const response = await fetch('http://localhost:3000/api/v1/tenant/settings', {
+      const response = await fetch(`${API_BASE}/tenant/settings`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -629,9 +629,8 @@ const FeaturesSettings: React.FC = () => {
       {/* Success/Error Message */}
       {message && (
         <div
-          className={`rounded-md p-4 ${
-            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-          }`}
+          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            }`}
         >
           {message.text}
         </div>
@@ -726,7 +725,7 @@ const FeaturesSettings: React.FC = () => {
               <strong>How to set up:</strong> Go to Instructors → Edit an instructor → Expand "Calendar Sync" section → Enable and share the feed URL with the instructor.
             </p>
           </div>
-          <a 
+          <a
             href="/instructors"
             className="text-sm text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap"
           >

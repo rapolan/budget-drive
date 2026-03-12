@@ -37,12 +37,10 @@ class ApiClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Clear auth token but don't redirect (no login page implemented yet)
-          // TODO: Add redirect to /login when login page is implemented
+          // Clear stored credentials — AuthContext will detect the missing
+          // token and redirect to login via React Router (no hard page reload)
           localStorage.removeItem(API_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-          // if (window.location.pathname !== '/login') {
-          //   window.location.href = '/login';
-          // }
+          localStorage.removeItem(API_CONFIG.STORAGE_KEYS.TENANT_ID);
         }
         return Promise.reject(error);
       }

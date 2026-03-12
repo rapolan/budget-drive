@@ -3,6 +3,9 @@ import { schedulingApi } from '@/api';
 import { InstructorAvailability, CreateAvailabilityInput } from '@/types';
 import { Info } from 'lucide-react';
 
+const API_BASE = 'http://127.0.0.1:4000/api/v1';
+
+
 interface AvailabilityEditorProps {
   instructorId: string;
   onUpdate?: () => void;
@@ -50,7 +53,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
   const loadSchedulingSettings = async () => {
     try {
       setLoadingSettings(true);
-      const response = await fetch('http://localhost:3000/api/v1/availability/settings', {
+      const response = await fetch(`${API_BASE}/availability/settings`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
@@ -281,9 +284,9 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
               <select
                 value={formData.maxStudents ?? ''}
                 onChange={(e) =>
-                  setFormData({ 
-                    ...formData, 
-                    maxStudents: e.target.value === '' ? null : parseInt(e.target.value) 
+                  setFormData({
+                    ...formData,
+                    maxStudents: e.target.value === '' ? null : parseInt(e.target.value)
                   })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -346,54 +349,53 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
               {availability.map((slot) => {
                 const slotMaxStudents = slot.maxStudents ?? schedulingSettings?.defaultMaxStudentsPerDay ?? 3;
                 return (
-                <tr key={slot.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {getDayLabel(slot.dayOfWeek)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    {slot.startTime}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {slot.maxStudents === null ? (
-                      <span className="text-gray-500">{slotMaxStudents} <span className="text-xs">(default)</span></span>
-                    ) : (
-                      <span className={slot.maxStudents === 1 ? 'text-orange-600 font-medium' : ''}>
-                        {slot.maxStudents} {slot.maxStudents === 1 && <span className="text-xs">(single)</span>}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ~{slot.endTime}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        slot.isActive
+                  <tr key={slot.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {getDayLabel(slot.dayOfWeek)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                      {slot.startTime}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {slot.maxStudents === null ? (
+                        <span className="text-gray-500">{slotMaxStudents} <span className="text-xs">(default)</span></span>
+                      ) : (
+                        <span className={slot.maxStudents === 1 ? 'text-orange-600 font-medium' : ''}>
+                          {slot.maxStudents} {slot.maxStudents === 1 && <span className="text-xs">(single)</span>}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      ~{slot.endTime}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${slot.isActive
                           ? 'bg-green-100 text-green-800'
                           : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {slot.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => handleToggleActive(slot)}
-                        className="px-3 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                          }`}
                       >
-                        {slot.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(slot.id)}
-                        className="px-3 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
+                        {slot.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleToggleActive(slot)}
+                          className="px-3 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          {slot.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(slot.id)}
+                          className="px-3 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
               })}
             </tbody>
           </table>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
 import { studentsApi, lessonsApi } from '@/api';
 import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
@@ -11,8 +11,9 @@ import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/componen
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
-type StatusFilter = 'all' | 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'needs_attention';
+type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
 type ViewMode = 'table' | 'cards';
+type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
 
 export const StudentsPage: React.FC = () => {
   const location = useLocation();
@@ -20,7 +21,7 @@ export const StudentsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
@@ -28,6 +29,7 @@ export const StudentsPage: React.FC = () => {
   const [studentForBooking, setStudentForBooking] = useState<Student | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [comparisonMode, setComparisonMode] = useState<'month' | 'year'>('month');
+  const [sortBy, setSortBy] = useState<SortOption>('name');
   const queryClient = useQueryClient();
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -123,26 +125,34 @@ export const StudentsPage: React.FC = () => {
 
   // Calculate status counts for filter buttons
   const statusCounts = React.useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     const counts = {
       all: data?.data?.length || 0,
-      enrolled: 0,
-      active: 0,
-      completed: 0,
-      dropped: 0,
-      suspended: 0,
+      new_this_month: 0,
+      scheduled: 0,
+      ready_to_book: 0,
       needs_attention: 0,
+      completed: 0,
+      inactive: 0,
     };
 
     data?.data?.forEach((student) => {
       const statusInfo = getStudentStatus(student);
+      const createdAt = new Date(student.createdAt);
+
+      // Count new this month
+      if (createdAt >= monthStart) {
+        counts.new_this_month++;
+      }
 
       // Count by computed status
-      if (statusInfo.status === 'enrolled') counts.enrolled++;
-      else if (statusInfo.status === 'active') counts.active++;
-      else if (statusInfo.status === 'completed') counts.completed++;
-      else if (statusInfo.status === 'dropped') counts.dropped++;
-      else if (statusInfo.status === 'suspended') counts.suspended++;
+      if (statusInfo.status === 'scheduled') counts.scheduled++;
+      else if (statusInfo.status === 'ready_to_book') counts.ready_to_book++;
       else if (statusInfo.status === 'needs_attention') counts.needs_attention++;
+      else if (statusInfo.status === 'completed') counts.completed++;
+      else if (statusInfo.status === 'inactive') counts.inactive++;
     });
 
     return counts;
@@ -215,38 +225,86 @@ export const StudentsPage: React.FC = () => {
     };
   }, [data?.data]);
 
-  const filteredStudents = data?.data?.filter((student) => {
-    const statusInfo = getStudentStatus(student);
+  // Helper to get last lesson date for a student
+  const getLastLessonDate = (studentId: string): Date | null => {
+    const lessons = lessonsData?.data || [];
+    const studentLessons = lessons
+      .filter(l => l.studentId === studentId && l.status === 'completed')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return studentLessons.length > 0 ? new Date(studentLessons[0].date) : null;
+  };
 
-    // Status filter
-    if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
-      return false;
-    }
+  const filteredAndSortedStudents = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Search filter
-    return (
-      student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (student.phone?.includes(searchTerm) ?? false)
-    );
-  });
+    // First, filter
+    const filtered = data?.data?.filter((student) => {
+      const statusInfo = getStudentStatus(student);
+
+      // Status filter
+      if (statusFilter === 'new_this_month') {
+        const createdAt = new Date(student.createdAt);
+        if (createdAt < monthStart) return false;
+      } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
+        return false;
+      }
+
+      // Search filter
+      return (
+        student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.phone?.includes(searchTerm) ?? false)
+      );
+    }) || [];
+
+    // Then, sort
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.fullName.localeCompare(b.fullName);
+        case 'enrollment_newest':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'enrollment_oldest':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'last_lesson': {
+          const aLastLesson = getLastLessonDate(a.id);
+          const bLastLesson = getLastLessonDate(b.id);
+          // Students with no lessons go to the end
+          if (!aLastLesson && !bLastLesson) return 0;
+          if (!aLastLesson) return 1;
+          if (!bLastLesson) return -1;
+          // Most recent lesson first (for follow-up), or oldest first to prioritize who hasn't been seen
+          return aLastLesson.getTime() - bLastLesson.getTime(); // Oldest first
+        }
+        case 'progress': {
+          const aProgress = (a.hoursRequired ?? 0) > 0 ? a.totalHoursCompleted / (a.hoursRequired ?? 1) : 0;
+          const bProgress = (b.hoursRequired ?? 0) > 0 ? b.totalHoursCompleted / (b.hoursRequired ?? 1) : 0;
+          return bProgress - aProgress; // Closest to completion first
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [data?.data, lessonsData?.data, statusFilter, searchTerm, sortBy]);
+
+  // Keep old variable name for backward compatibility in the JSX
+  const filteredStudents = filteredAndSortedStudents;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'enrolled':
-        return 'bg-purple-100 text-purple-800';
-      case 'active':
+      case 'scheduled':
         return 'bg-green-100 text-green-800';
-      case 'completed':
+      case 'ready_to_book':
         return 'bg-blue-100 text-blue-800';
-      case 'dropped':
-        return 'bg-gray-100 text-gray-800';
-      case 'suspended':
-        return 'bg-red-100 text-red-800';
-      case 'permit_expired':
-        return 'bg-orange-100 text-orange-800';
       case 'needs_attention':
         return 'bg-amber-100 text-amber-800';
+      case 'completed':
+        return 'bg-purple-100 text-purple-800';
+      case 'inactive':
+        return 'bg-gray-100 text-gray-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -274,10 +332,10 @@ export const StudentsPage: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* New Students This Month */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
-             onClick={() => handleStatCardClick('all')}>
+             onClick={() => handleStatCardClick('new_this_month')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
               <Users className="h-5 w-5 text-blue-600" />
@@ -312,17 +370,41 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Active Students */}
+        {/* Scheduled - Students with upcoming lessons */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
-             onClick={() => handleStatCardClick('active')}>
+             onClick={() => handleStatCardClick('scheduled')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-              <UserCheck className="h-5 w-5 text-green-600" />
+              <Calendar className="h-5 w-5 text-green-600" />
             </div>
+            {statusCounts.scheduled > 0 && (
+              <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                On calendar
+              </span>
+            )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.active}</p>
-            <p className="text-sm text-gray-500">Active Students</p>
+            <p className="text-2xl font-bold text-gray-900">{statusCounts.scheduled}</p>
+            <p className="text-sm text-gray-500">Scheduled</p>
+          </div>
+        </div>
+
+        {/* Ready to Book - Students needing their next lesson */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+             onClick={() => handleStatCardClick('ready_to_book')}>
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+              <UserCheck className="h-5 w-5 text-blue-600" />
+            </div>
+            {statusCounts.ready_to_book > 0 && (
+              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                Book now
+              </span>
+            )}
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-gray-900">{statusCounts.ready_to_book}</p>
+            <p className="text-sm text-gray-500">Ready to Book</p>
           </div>
         </div>
 
@@ -352,13 +434,15 @@ export const StudentsPage: React.FC = () => {
             <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
               <GraduationCap className="h-5 w-5 text-purple-600" />
             </div>
-            <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-              {stats.avgProgress}% avg
-            </span>
+            {stats.completedThisMonth > 0 && (
+              <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                +{stats.completedThisMonth} this month
+              </span>
+            )}
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-gray-900">{statusCounts.completed}</p>
-            <p className="text-sm text-gray-500">Completed Training</p>
+            <p className="text-sm text-gray-500">Completed</p>
           </div>
         </div>
       </div>
@@ -385,7 +469,7 @@ export const StudentsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Status Filter */}
+      {/* Status Filter & Sort */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between sm:justify-start gap-3">
           <span className="text-sm font-medium text-gray-700">Filter:</span>
@@ -418,18 +502,25 @@ export const StudentsPage: React.FC = () => {
             variant="default"
           />
           <FilterButton
-            label="Enrolled"
-            isActive={statusFilter === 'enrolled'}
-            onClick={() => setStatusFilter('enrolled')}
-            count={statusCounts.enrolled}
-            variant="secondary"
+            label="New"
+            isActive={statusFilter === 'new_this_month'}
+            onClick={() => setStatusFilter('new_this_month')}
+            count={statusCounts.new_this_month}
+            variant="info"
           />
           <FilterButton
-            label="Active"
-            isActive={statusFilter === 'active'}
-            onClick={() => setStatusFilter('active')}
-            count={statusCounts.active}
+            label="Scheduled"
+            isActive={statusFilter === 'scheduled'}
+            onClick={() => setStatusFilter('scheduled')}
+            count={statusCounts.scheduled}
             variant="success"
+          />
+          <FilterButton
+            label="Ready to Book"
+            isActive={statusFilter === 'ready_to_book'}
+            onClick={() => setStatusFilter('ready_to_book')}
+            count={statusCounts.ready_to_book}
+            variant="info"
           />
           <FilterButton
             label="Needs Attention"
@@ -443,10 +534,34 @@ export const StudentsPage: React.FC = () => {
             isActive={statusFilter === 'completed'}
             onClick={() => setStatusFilter('completed')}
             count={statusCounts.completed}
-            variant="info"
+            variant="secondary"
           />
+          <FilterButton
+            label="Inactive"
+            isActive={statusFilter === 'inactive'}
+            onClick={() => setStatusFilter('inactive')}
+            count={statusCounts.inactive}
+            variant="default"
+          />
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-2 ml-auto border-l pl-3">
+            <ArrowUpDown className="h-4 w-4 text-gray-400" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              title="Sort students by"
+              aria-label="Sort students by"
+              className="text-sm border-none bg-transparent text-gray-700 focus:ring-0 cursor-pointer pr-6"
+            >
+              <option value="name">Name A-Z</option>
+              <option value="enrollment_newest">Newest First</option>
+              <option value="enrollment_oldest">Oldest First</option>
+              <option value="last_lesson">Longest Since Lesson</option>
+              <option value="progress">Closest to Done</option>
+            </select>
+          </div>
           {/* Desktop view toggle */}
-          <div className="hidden sm:flex items-center gap-1 ml-auto border-l pl-3">
+          <div className="hidden sm:flex items-center gap-1 border-l pl-3">
             <button
               type="button"
               onClick={() => setViewMode('table')}
@@ -525,13 +640,16 @@ export const StudentsPage: React.FC = () => {
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(statusInfo.status)}`}>
                           {statusInfo.displayStatus}
                         </span>
+                        {/* Status reason - visible on cards */}
+                        {statusInfo.reason && (
+                          <p className="text-xs text-gray-500 mt-1 truncate">
+                            {statusInfo.status === 'needs_attention'
+                              ? getFollowupReason(student, lessonsData?.data || [])
+                              : statusInfo.reason}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    {statusInfo.status === 'needs_attention' && (
-                      <span className="flex-shrink-0 px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
-                        Needs Attention
-                      </span>
-                    )}
                   </div>
 
                   {/* Progress */}
@@ -786,8 +904,16 @@ export const StudentsPage: React.FC = () => {
 
       {/* Pagination */}
       {data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-lg bg-white px-4 py-3 shadow">
+        <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-gray-100">
           <div className="text-sm text-gray-700">
+            <span className="font-medium">{filteredStudents?.length || 0}</span> of{' '}
+            <span className="font-medium">{data.pagination.total}</span> students
+            {statusFilter !== 'all' && (
+              <span className="text-gray-500 ml-1">
+                (filtered)
+              </span>
+            )}
+            <span className="text-gray-400 mx-2">•</span>
             Page {data.pagination.page} of {data.pagination.totalPages}
           </div>
           <div className="flex space-x-2">
@@ -795,7 +921,7 @@ export const StudentsPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
               Previous
             </button>
@@ -803,7 +929,7 @@ export const StudentsPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage === data.pagination.totalPages}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
               Next
             </button>
@@ -823,7 +949,7 @@ export const StudentsPage: React.FC = () => {
         />
       )}
 
-      {/* SmartBookingForm - for booking lessons */}
+      {/* SmartBookingFormV2 - for booking lessons */}
       {isSmartBookingOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">

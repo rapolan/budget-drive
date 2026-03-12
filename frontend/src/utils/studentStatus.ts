@@ -1,45 +1,93 @@
 /**
  * Student Status Computation Utilities
  *
- * Automatically computes student status based on lesson data and permit expiration.
- * Status is READ-ONLY and computed in real-time (except for 'suspended' and manual 'dropped').
+ * Workflow-based status system for driving school management.
+ * Statuses are designed around actionable workflow states:
+ * - scheduled: Has upcoming lesson(s) - active learners
+ * - ready_to_book: No upcoming lesson, not completed - needs scheduling
+ * - needs_attention: Issues requiring admin action (permit expired, no-shows, long gaps)
+ * - completed: Finished all required hours
+ * - inactive: Dropped, suspended, or 60+ days no activity
  */
 
 import type { Student, Lesson } from '@/types';
 
-export type ComputedStatus = 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'permit_expired' | 'needs_attention';
+export type ComputedStatus = 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
 
 export interface StatusInfo {
   status: ComputedStatus;
-  displayStatus: string; // Human-readable status (hides permit_expired from UI)
+  displayStatus: string; // Human-readable status for UI
   reason?: string; // Why the student has this status
   actionRequired?: boolean; // Does this status need admin action?
+  upcomingLessonCount?: number; // For scheduled students
 }
 
 /**
  * Compute the actual student status based on lessons and data
+ *
+ * Workflow priority:
+ * 1. Inactive (dropped/suspended/60+ days no activity) - archive
+ * 2. Completed - finished all hours
+ * 3. Needs Attention - issues requiring action
+ * 4. Scheduled - has upcoming lessons
+ * 5. Ready to Book - no upcoming lessons, needs scheduling
  */
 export function computeStudentStatus(student: Student, lessons: Lesson[]): StatusInfo {
-  // Suspended and manually dropped are admin-controlled, not computed
+  const studentLessons = lessons.filter(l => l.studentId === student.id);
+  const now = new Date();
+
+  // Get upcoming scheduled lessons
+  const upcomingLessons = studentLessons.filter(lesson => {
+    const lessonDate = new Date(lesson.date);
+    return lesson.status === 'scheduled' && lessonDate >= now;
+  });
+
+  // 1. INACTIVE: Dropped, suspended, or 60+ days no activity
   if (student.status === 'suspended') {
     return {
-      status: 'suspended',
+      status: 'inactive',
       displayStatus: 'Suspended',
       reason: 'Admin suspended',
-      actionRequired: true,
     };
   }
 
   if (student.status === 'dropped') {
     return {
-      status: 'dropped',
+      status: 'inactive',
       displayStatus: 'Dropped',
       reason: 'Student withdrew',
     };
   }
 
-  // Check if student needs follow-up (includes permit expired, cancelled/no-show, etc.)
-  if (studentNeedsFollowup(student, lessons)) {
+  // Check for 60+ days of inactivity (no lessons at all, or last lesson was 60+ days ago)
+  if (studentLessons.length > 0 && upcomingLessons.length === 0) {
+    const lastLesson = studentLessons
+      .filter(l => l.status === 'completed' || l.status === 'cancelled' || l.status === 'no_show')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+    if (lastLesson) {
+      const daysSinceLastLesson = (now.getTime() - new Date(lastLesson.date).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceLastLesson > 60) {
+        return {
+          status: 'inactive',
+          displayStatus: 'Inactive',
+          reason: `No activity for ${Math.floor(daysSinceLastLesson)} days`,
+        };
+      }
+    }
+  }
+
+  // 2. COMPLETED: Finished all required hours
+  if (student.totalHoursCompleted >= (student.hoursRequired || 0) && (student.hoursRequired || 0) > 0) {
+    return {
+      status: 'completed',
+      displayStatus: 'Completed',
+      reason: 'Finished all required hours',
+    };
+  }
+
+  // 3. NEEDS ATTENTION: Issues requiring admin action
+  if (studentNeedsFollowup(student, studentLessons)) {
     return {
       status: 'needs_attention',
       displayStatus: 'Needs Attention',
@@ -48,174 +96,160 @@ export function computeStudentStatus(student: Student, lessons: Lesson[]): Statu
     };
   }
 
-  // Check if permit is expired (but if follow-up needed, already handled above)
-  const permitExpired = student.learnerPermitExpiration &&
-    new Date(student.learnerPermitExpiration) < new Date();
+  // 4. SCHEDULED: Has upcoming lesson(s)
+  if (upcomingLessons.length > 0) {
+    const nextLesson = upcomingLessons.sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    )[0];
+    const nextLessonDate = new Date(nextLesson.date);
+    const isToday = nextLessonDate.toDateString() === now.toDateString();
 
-  if (permitExpired) {
-    // This shouldn't be reached if follow-up is needed, but fallback
     return {
-      status: 'permit_expired',
-      displayStatus: 'Active',
-      reason: 'Permit expired - needs renewal',
-      actionRequired: true,
+      status: 'scheduled',
+      displayStatus: 'Scheduled',
+      reason: isToday
+        ? `Lesson today at ${nextLesson.startTime}`
+        : `Next lesson: ${nextLessonDate.toLocaleDateString()}`,
+      upcomingLessonCount: upcomingLessons.length,
     };
   }
 
-  // Check if completed all required hours
-  if (student.totalHoursCompleted >= (student.hoursRequired || 0)) {
-    return {
-      status: 'completed',
-      displayStatus: 'Completed',
-      reason: 'Finished all required hours',
-    };
-  }
-
-  // Get student's lessons
-  const studentLessons = lessons.filter(l => l.studentId === student.id);
-
-  // If no lessons, student is enrolled but hasn't started
-  if (studentLessons.length === 0) {
-    return {
-      status: 'enrolled',
-      displayStatus: 'Enrolled',
-      reason: 'No lessons booked yet',
-    };
-  }
-
-  // Has lessons - student is active
+  // 5. READY TO BOOK: No upcoming lessons, needs scheduling
   return {
-    status: 'active',
-    displayStatus: 'Active',
-    reason: 'Currently learning',
+    status: 'ready_to_book',
+    displayStatus: 'Ready to Book',
+    reason: studentLessons.length === 0
+      ? 'New student - no lessons yet'
+      : 'No upcoming lessons scheduled',
+    actionRequired: true,
   };
 }
 
 /**
- * Check if student needs follow-up
- * Considers last_contacted_at to avoid constant nagging
+ * Check if student needs follow-up (attention required)
+ * This is for URGENT issues that need admin action:
+ * - Permit expired
+ * - Recent cancelled/no-show lessons
+ * - No lessons booked for 7+ days after enrollment
+ *
+ * Note: Students with no upcoming lessons but otherwise OK go to "Ready to Book"
  */
-export function studentNeedsFollowup(student: Student, lessons: Lesson[]): boolean {
-  // Don't follow up with completed, dropped, or suspended students (check raw status, not computed)
+export function studentNeedsFollowup(student: Student, studentLessons: Lesson[]): boolean {
+  // Don't flag completed, dropped, or suspended students
   if (['completed', 'dropped', 'suspended'].includes(student.status)) {
     return false;
   }
 
-  // Check if permit is expired
-  const permitExpired = student.learnerPermitExpiration &&
-    new Date(student.learnerPermitExpiration) < new Date();
+  const now = new Date();
 
-  // Permit expired students need urgent follow-up (ignore last_contacted_at)
+  // 1. URGENT: Permit expired
+  const permitExpired = student.learnerPermitExpiration &&
+    new Date(student.learnerPermitExpiration) < now;
+
   if (permitExpired) {
     return true;
   }
 
-  // Check if contacted recently (within last 7 days)
+  // Check if contacted recently (within last 7 days) - grace period
   if (student.lastContactedAt) {
-    const daysSinceContact = (Date.now() - new Date(student.lastContactedAt).getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceContact = (now.getTime() - new Date(student.lastContactedAt).getTime()) / (1000 * 60 * 60 * 24);
     if (daysSinceContact < 7) {
-      return false; // Give them a 7-day grace period
+      return false;
     }
   }
 
-  const studentLessons = lessons
-    .filter(l => l.studentId === student.id)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  // Enrolled but no lessons for 7+ days
+  // 2. New student with no lessons for 7+ days
   if (studentLessons.length === 0) {
-    const daysSinceEnrollment = (Date.now() - new Date(student.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceEnrollment = (now.getTime() - new Date(student.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceEnrollment > 7;
   }
 
-  // Check for upcoming lessons
-  const upcomingLessons = studentLessons.filter(lesson => {
-    const lessonDate = new Date(lesson.date);
-    return lesson.status === 'scheduled' && lessonDate > new Date();
-  });
-
-  // Has upcoming lessons - no follow-up needed
-  if (upcomingLessons.length > 0) {
-    return false;
-  }
-
-  // Check for recent cancelled or no-show lessons that need follow-up
+  // 3. Recent cancelled or no-show lessons (within 14 days)
   const recentCancelledOrNoShow = studentLessons.filter(lesson => {
     const lessonDate = new Date(lesson.date);
-    const daysSinceLesson = (Date.now() - lessonDate.getTime()) / (1000 * 60 * 60 * 24);
-    return (lesson.status === 'cancelled' || lesson.status === 'no_show') && daysSinceLesson <= 30; // Within last 30 days
+    const daysSinceLesson = (now.getTime() - lessonDate.getTime()) / (1000 * 60 * 60 * 24);
+    return (lesson.status === 'cancelled' || lesson.status === 'no_show') && daysSinceLesson <= 14;
   });
 
   if (recentCancelledOrNoShow.length > 0) {
     return true;
   }
 
-  // No upcoming lessons - check last lesson date
-  const lastLesson = studentLessons.find(lesson =>
-    lesson.status === 'completed' || lesson.status === 'scheduled'
+  // 4. Gap of 14-60 days since last completed lesson (and no upcoming)
+  const upcomingLessons = studentLessons.filter(l =>
+    l.status === 'scheduled' && new Date(l.date) >= now
   );
 
-  if (!lastLesson) {
-    // Only cancelled/no-show lessons
-    return true;
+  if (upcomingLessons.length === 0) {
+    const lastCompletedLesson = studentLessons
+      .filter(l => l.status === 'completed')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+    if (lastCompletedLesson) {
+      const daysSinceLastLesson = (now.getTime() - new Date(lastCompletedLesson.date).getTime()) / (1000 * 60 * 60 * 24);
+      // 14-60 day gap needs attention (60+ goes to inactive)
+      if (daysSinceLastLesson >= 14 && daysSinceLastLesson <= 60) {
+        return true;
+      }
+    }
   }
 
-  const daysSinceLastLesson = (Date.now() - new Date(lastLesson.date).getTime()) / (1000 * 60 * 60 * 24);
-
-  // Needs followup if last lesson was 14-60 days ago with no upcoming lessons
-  return daysSinceLastLesson >= 14 && daysSinceLastLesson <= 60;
+  return false;
 }
 
 /**
  * Get reason why student needs follow-up
  */
 export function getFollowupReason(student: Student, lessons: Lesson[]): string {
-  // Check if permit is expired
+  const studentLessons = lessons.filter(l => l.studentId === student.id);
+  const now = new Date();
+
+  // 1. Permit expired
   const permitExpired = student.learnerPermitExpiration &&
-    new Date(student.learnerPermitExpiration) < new Date();
+    new Date(student.learnerPermitExpiration) < now;
 
   if (permitExpired) {
     return 'Permit expired - urgent';
   }
 
-  const studentLessons = lessons.filter(l => l.studentId === student.id);
-
+  // 2. New student with no lessons
   if (studentLessons.length === 0) {
     const daysSinceEnrollment = Math.floor(
-      (Date.now() - new Date(student.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - new Date(student.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24)
     );
     return `Enrolled ${daysSinceEnrollment} days ago, no lessons booked`;
   }
 
-  // Check for recent cancelled or no-show lessons
+  // 3. Recent cancelled or no-show
   const recentCancelledOrNoShow = studentLessons
-    .filter(l => l.studentId === student.id)
     .filter(lesson => {
       const lessonDate = new Date(lesson.date);
-      const daysSinceLesson = (Date.now() - lessonDate.getTime()) / (1000 * 60 * 60 * 24);
-      return (lesson.status === 'cancelled' || lesson.status === 'no_show') && daysSinceLesson <= 30;
+      const daysSinceLesson = (now.getTime() - lessonDate.getTime()) / (1000 * 60 * 60 * 24);
+      return (lesson.status === 'cancelled' || lesson.status === 'no_show') && daysSinceLesson <= 14;
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   if (recentCancelledOrNoShow.length > 0) {
     const latest = recentCancelledOrNoShow[0];
+    const daysAgo = Math.floor((now.getTime() - new Date(latest.date).getTime()) / (1000 * 60 * 60 * 24));
     if (latest.status === 'cancelled') {
-      return 'Cancelled Lesson';
-    } else if (latest.status === 'no_show') {
-      return 'No Show';
+      return `Cancelled lesson ${daysAgo} days ago`;
+    } else {
+      return `No-show ${daysAgo} days ago`;
     }
   }
 
-  const lastLesson = studentLessons
-    .filter(l => l.status === 'completed' || l.status === 'scheduled')
+  // 4. Gap since last completed lesson
+  const lastCompletedLesson = studentLessons
+    .filter(l => l.status === 'completed')
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
-  if (lastLesson) {
+  if (lastCompletedLesson) {
     const daysSince = Math.floor(
-      (Date.now() - new Date(lastLesson.date).getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - new Date(lastCompletedLesson.date).getTime()) / (1000 * 60 * 60 * 24)
     );
-    return `Last lesson ${daysSince} days ago, no upcoming lessons`;
+    return `${daysSince} days since last lesson`;
   }
 
-  return 'No completed lessons';
+  return 'Needs scheduling';
 }

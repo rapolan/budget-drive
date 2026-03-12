@@ -56,7 +56,7 @@ export const requireTenantContext = (
  */
 export const getTenantId = (req: Request): string => {
   if (!req.tenantId) {
-    throw new AppError('Tenant context not found in request', 500);
+    throw new AppError('Tenant context not found in request', 403);
   }
   return req.tenantId;
 };

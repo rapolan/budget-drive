@@ -988,7 +988,7 @@ CREATE TRIGGER update_lesson_calendar_events_updated_at BEFORE UPDATE ON lesson_
 -- =====================================================
 
 -- Tenant Full Info View
-CREATE OR REPLACE VIEW tenant_full_info AS
+DROP VIEW IF EXISTS tenant_full_info; CREATE OR REPLACE VIEW tenant_full_info AS
 SELECT
     t.*,
     ts.business_name,

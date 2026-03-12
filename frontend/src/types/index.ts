@@ -111,7 +111,6 @@ export interface Student {
   emergencyContactPhone?: string; // Parent/Guardian phone
   emergencyContact2Name?: string; // Secondary contact name
   emergencyContact2Phone?: string; // Secondary contact phone
-  licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car' (hidden in form)
   learnerPermitNumber?: string;
   learnerPermitIssueDate?: Date;
   learnerPermitExpiration?: Date;
@@ -147,6 +146,8 @@ export interface Instructor {
   city?: string;
   state?: string;
   zipCode?: string;
+  homeZipCode?: string; // Instructor's home base ZIP code (used for proximity matching)
+  serviceZipCodes?: string; // Comma-separated ZIP codes or prefixes instructor serves (e.g., "90001,90002" or "920,921")
   licenseNumber?: string;
   licenseExpiration?: Date;
   certifications?: string[];
@@ -324,7 +325,6 @@ export interface CreateStudentInput {
   emergencyContact2Phone?: string; // Secondary contact phone (optional)
   
   // Program details (defaults applied by backend if not provided)
-  licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car' (hidden in form)
   hoursRequired?: number; // Default: 6 (hidden in form)
   assignedInstructorId?: string;
   
@@ -350,6 +350,8 @@ export interface CreateInstructorInput {
   city?: string;
   state?: string;
   zipCode?: string;
+  homeZipCode?: string; // Instructor's home base ZIP code
+  serviceZipCodes?: string; // Comma-separated ZIP codes or prefixes
   licenseNumber?: string;
   licenseExpiration?: string;
   certifications?: string[];

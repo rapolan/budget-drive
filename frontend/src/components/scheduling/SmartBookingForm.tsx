@@ -1,11 +1,164 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { TimeSlot, Student, Instructor, Lesson } from '@/types';
-import { ProgressStepper } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { getEffectiveZipCode, calculateProximityScore, extractZipCode } from '@/utils/zipCode';
+
+// Grouped Availability View Component
+interface GroupedAvailabilityViewProps {
+  slots: TimeSlot[];
+  onSelectSlot: (slot: TimeSlot) => void;
+  formatSlotDate: (dateStr: string) => string;
+  formatTime: (time: string) => string;
+}
+
+const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
+  slots,
+  onSelectSlot,
+  formatSlotDate,
+  formatTime,
+}) => {
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Group slots by date
+  const groupedSlots = useMemo(() => {
+    const groups: { [key: string]: TimeSlot[] } = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    slots.forEach(slot => {
+      const slotDate = new Date(slot.date);
+      slotDate.setHours(0, 0, 0, 0);
+
+      let groupKey: string;
+      let groupLabel: string;
+      let sortOrder: number;
+
+      if (slotDate.getTime() === today.getTime()) {
+        groupKey = 'today';
+        groupLabel = `Today (${formatSlotDate(slot.date).split(',')[0]})`;
+        sortOrder = 0;
+      } else if (slotDate.getTime() === tomorrow.getTime()) {
+        groupKey = 'tomorrow';
+        groupLabel = `Tomorrow (${formatSlotDate(slot.date).split(',')[0]})`;
+        sortOrder = 1;
+      } else if (slotDate < nextWeek) {
+        groupKey = `thisweek_${slot.date}`;
+        groupLabel = formatSlotDate(slot.date);
+        sortOrder = 2;
+      } else {
+        groupKey = `later_${slot.date}`;
+        groupLabel = formatSlotDate(slot.date);
+        sortOrder = 3;
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+        (groups[groupKey] as any).label = groupLabel;
+        (groups[groupKey] as any).sortOrder = sortOrder;
+      }
+      groups[groupKey].push(slot);
+    });
+
+    // Convert to array and sort
+    return Object.entries(groups)
+      .map(([key, slots]) => ({
+        key,
+        label: (slots as any).label,
+        sortOrder: (slots as any).sortOrder,
+        slots: slots.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [slots, formatSlotDate]);
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupKey)) {
+        newSet.delete(groupKey);
+      } else {
+        newSet.add(groupKey);
+      }
+      return newSet;
+    });
+  };
+
+  const MAX_PREVIEW_SLOTS = 3; // Show first 3 slots on mobile, 4 on desktop
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-500">{slots.length} slots available</p>
+      <div className="space-y-2 max-h-96 overflow-y-auto">
+        {groupedSlots.map(group => {
+          const isExpanded = expandedGroups.has(group.key);
+          const previewSlots = group.slots.slice(0, MAX_PREVIEW_SLOTS);
+          const hasMore = group.slots.length > MAX_PREVIEW_SLOTS;
+
+          return (
+            <div key={group.key} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              {/* Group Header */}
+              <div className="px-4 py-2.5 bg-white border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-gray-900">{group.label}</h4>
+                  <span className="text-xs text-gray-500">
+                    {group.slots.length} {group.slots.length === 1 ? 'slot' : 'slots'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Slots - Preview or Full List */}
+              <div className="p-3">
+                {/* Desktop: Grid layout, Mobile: Stacked */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {(isExpanded ? group.slots : previewSlots).map((slot, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => onSelectSlot(slot)}
+                      className="p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm transition-all text-left active:scale-95"
+                    >
+                      <div className="text-sm font-medium text-gray-900">
+                        {formatTime(slot.startTime)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {formatTime(slot.endTime)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Show More/Less Button */}
+                {hasMore && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    className="w-full mt-2 py-2 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    {isExpanded ? (
+                      <>
+                        Show Less <ChevronUp className="h-3 w-3" />
+                      </>
+                    ) : (
+                      <>
+                        Show {group.slots.length - MAX_PREVIEW_SLOTS} More <ChevronDown className="h-3 w-3" />
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -31,14 +184,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
-  const [checkingConflicts, setCheckingConflicts] = useState(false);
 
   // Form data
   const [selectedInstructorId, setSelectedInstructorId] = useState(preselectedInstructor?.id || '');
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
   const [duration, setDuration] = useState(120); // Default: 2 hours
   const [lessonType, setLessonType] = useState<'behind_wheel' | 'classroom' | 'observation' | 'road_test'>('behind_wheel');
-  const [cost, setCost] = useState(50);
+  const [cost, setCost] = useState(150);
   const [pickupAddress, setPickupAddress] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -108,33 +260,88 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return locationMap;
   }, [recentLessons]);
 
-  // Get the target zip code for proximity sorting (from selected student)
-  const targetZipCode = useMemo(() => {
+  // Get selected student and their assigned instructor
+  const selectedStudent = useMemo(() => {
     if (!selectedStudentId) return null;
-    const student = students.find((s: Student) => s.id === selectedStudentId);
-    if (!student) return null;
-    return getEffectiveZipCode(null, student.zipCode);
+    return students.find((s: Student) => s.id === selectedStudentId);
   }, [selectedStudentId, students]);
 
-  // Sort and filter instructors with proximity scoring
-  const filteredInstructors = useMemo(() => {
-    let filtered = instructors.filter((i: Instructor) =>
-      i.fullName.toLowerCase().includes(instructorSearch.toLowerCase()) ||
-      i.email.toLowerCase().includes(instructorSearch.toLowerCase())
-    );
+  // Get the target zip code for proximity sorting (from selected student)
+  const targetZipCode = useMemo(() => {
+    if (!selectedStudent) return null;
+    return getEffectiveZipCode(null, selectedStudent.zipCode);
+  }, [selectedStudent]);
 
-    // If we have a target zip code, sort by proximity
-    if (targetZipCode) {
-      filtered = filtered.map((instructor: Instructor) => {
-        const lastLocation = instructorLastLocations[instructor.id];
-        const lastZip = extractZipCode(lastLocation);
-        const proximityScore = calculateProximityScore(lastZip, targetZipCode);
-        return { ...instructor, proximityScore, lastLocation };
-      }).sort((a: any, b: any) => (b.proximityScore || 50) - (a.proximityScore || 50));
-    }
+  // Helper: Check if instructor serves the student's zip code
+  const instructorServesArea = (instructor: Instructor, studentZip: string | null): boolean => {
+    if (!studentZip || !instructor.serviceZipCodes) return true; // No restrictions
+
+    const serviceAreas = instructor.serviceZipCodes.split(',').map(z => z.trim());
+
+    // Check exact match or prefix match
+    return serviceAreas.some(serviceZip => {
+      // Exact match
+      if (serviceZip === studentZip) return true;
+      // Prefix match (e.g., "920" matches "92001")
+      if (studentZip.startsWith(serviceZip)) return true;
+      if (serviceZip.startsWith(studentZip)) return true;
+      return false;
+    });
+  };
+
+  // Helper: Get proximity indicator badge
+  const getProximityBadge = (proximityScore: number) => {
+    if (proximityScore >= 90) return { emoji: '🏠', text: 'Very Close', color: 'text-green-600 bg-green-50' };
+    if (proximityScore >= 70) return { emoji: '📍', text: 'Same Area', color: 'text-blue-600 bg-blue-50' };
+    if (proximityScore >= 50) return { emoji: '🚗', text: 'Nearby', color: 'text-gray-600 bg-gray-50' };
+    return { emoji: '🗺️', text: 'Far', color: 'text-orange-600 bg-orange-50' };
+  };
+
+  // Sort and filter instructors with proximity scoring and service area filtering
+  const filteredInstructors = useMemo(() => {
+    let filtered = instructors.filter((i: Instructor) => {
+      // Text search filter
+      const matchesSearch = i.fullName.toLowerCase().includes(instructorSearch.toLowerCase()) ||
+        i.email.toLowerCase().includes(instructorSearch.toLowerCase());
+      if (!matchesSearch) return false;
+
+      // Service area filter (only if student is selected and instructor has service areas defined)
+      if (selectedStudent && targetZipCode && i.serviceZipCodes) {
+        const servesArea = instructorServesArea(i, targetZipCode);
+        if (!servesArea) return false; // Filter out instructors who don't serve this area
+      }
+
+      return true;
+    });
+
+    // Calculate proximity score and add metadata
+    filtered = filtered.map((instructor: Instructor) => {
+      // Use home_zip_code if available, otherwise fall back to last lesson location
+      const instructorZip = instructor.homeZipCode || extractZipCode(instructorLastLocations[instructor.id]);
+      const proximityScore = calculateProximityScore(instructorZip, targetZipCode);
+      const badge = getProximityBadge(proximityScore);
+
+      return {
+        ...instructor,
+        proximityScore,
+        proximityBadge: badge,
+        instructorZip,
+        isAssignedInstructor: selectedStudent?.assignedInstructorId === instructor.id
+      };
+    });
+
+    // Sort: Assigned instructor first, then by proximity
+    filtered.sort((a: any, b: any) => {
+      // Assigned instructor always first
+      if (a.isAssignedInstructor && !b.isAssignedInstructor) return -1;
+      if (!a.isAssignedInstructor && b.isAssignedInstructor) return 1;
+
+      // Then sort by proximity score
+      return (b.proximityScore || 50) - (a.proximityScore || 50);
+    });
 
     return filtered;
-  }, [instructors, instructorSearch, targetZipCode, instructorLastLocations]);
+  }, [instructors, instructorSearch, targetZipCode, selectedStudent, instructorLastLocations]);
 
   const filteredStudents = students.filter((s: Student) =>
     s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
@@ -378,82 +585,72 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return formatShortDate(dateStr);
   };
 
-  const selectedStudent = students.find((s: Student) => s.id === selectedStudentId);
-  const selectedInstructor = instructors.find((i: Instructor) => i.id === selectedInstructorId);
-
-  const bookingSteps = [
-    { number: 1, label: 'Setup' },
-    { number: 2, label: 'Confirm' },
-  ];
-
-  const currentStepNumber = step === 'setup' ? 1 : 2;
-
   return (
-    <div className="bg-white rounded-lg shadow-xl max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="border-b border-gray-200 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Sparkles className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Book a Lesson</h2>
-              <p className="text-sm text-gray-500">Smart booking with availability</p>
-            </div>
+    <div className="bg-white rounded-2xl shadow-lg max-w-2xl mx-auto overflow-hidden">
+      {/* Header - Clean & Minimal */}
+      <div className="px-6 py-5 border-b border-gray-100">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Book a Lesson</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {step === 'setup' ? 'Select student, instructor & time' : 'Review and confirm'}
+            </p>
           </div>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 -mr-2 text-gray-400 hover:text-gray-600 rounded-full transition-colors"
+              aria-label="Close"
             >
-              <span className="text-2xl">×</span>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           )}
         </div>
 
-        {/* Progress Stepper */}
-        <ProgressStepper steps={bookingSteps} currentStep={currentStepNumber} />
+        {/* Minimal Step Indicator */}
+        <div className="flex items-center gap-2 mt-4">
+          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'setup' || step === 'confirm' ? 'bg-blue-600' : 'bg-gray-200'}`} />
+          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'confirm' ? 'bg-blue-600' : 'bg-gray-200'}`} />
+        </div>
       </div>
 
-      {/* Error Display */}
+      {/* Error Display - Minimal */}
       {error && (
-        <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">{error}</p>
+        <div className="mx-6 mt-4 bg-red-50 rounded-lg px-4 py-3">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
 
       {/* Step 1: Setup */}
       {step === 'setup' && (
-        <div className="p-6 space-y-6">
-          {/* Student & Instructor Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-6 space-y-5">
+          {/* Student & Instructor Selection - Clean Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Student Selection */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2 mb-3">
-                <User className="h-5 w-5 text-blue-600" />
-                <label className="block text-sm font-semibold text-gray-900">
-                  Student {!preselectedStudent && <span className="text-red-500">*</span>}
-                </label>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Student {!preselectedStudent && <span className="text-red-500">*</span>}
+              </label>
               {preselectedStudent ? (
-                <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                  <div className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(preselectedStudent.fullName)}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900">{preselectedStudent.fullName}</div>
-                    <div className="text-sm text-gray-600">{preselectedStudent.email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{preselectedStudent.fullName}</div>
+                    <div className="text-sm text-gray-500 truncate">{preselectedStudent.email}</div>
                   </div>
                 </div>
               ) : selectedStudentId && selectedStudent ? (
-                <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                  <div className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(selectedStudent.fullName)}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900">{selectedStudent.fullName}</div>
-                    <div className="text-sm text-gray-600">{selectedStudent.email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{selectedStudent.fullName}</div>
+                    <div className="text-sm text-gray-500 truncate">{selectedStudent.email}</div>
                   </div>
                   <button
                     type="button"
@@ -461,7 +658,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       setSelectedStudentId('');
                       setStudentSearch('');
                     }}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-white transition-colors"
                   >
                     Change
                   </button>
@@ -476,12 +673,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       setShowStudentDropdown(true);
                     }}
                     onFocus={() => setShowStudentDropdown(true)}
-                    placeholder="Search by name or email..."
+                    placeholder="Search students..."
                     autoComplete="nope"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
                   />
                   {showStudentDropdown && studentSearch && filteredStudents.length > 0 && (
-                    <div className="absolute z-20 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                       {filteredStudents.map((student) => (
                         <button
                           key={student.id}
@@ -495,14 +692,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                               setPickupAddress(fullAddress);
                             }
                           }}
-                          className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 flex items-center space-x-3"
+                          className="w-full px-3 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
                         >
-                          <div className="h-10 w-10 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-semibold text-sm">
+                          <div className="h-8 w-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-medium text-xs">
                             {getInitials(student.fullName)}
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-900">{student.fullName}</div>
-                            <div className="text-sm text-gray-500">{student.email}</div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 text-sm truncate">{student.fullName}</div>
+                            <div className="text-xs text-gray-500 truncate">{student.email}</div>
                           </div>
                         </button>
                       ))}
@@ -513,31 +710,28 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </div>
 
             {/* Instructor Selection */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2 mb-3">
-                <User className="h-5 w-5 text-green-600" />
-                <label className="block text-sm font-semibold text-gray-900">
-                  Instructor {!preselectedInstructor && <span className="text-red-500">*</span>}
-                </label>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Instructor {!preselectedInstructor && <span className="text-red-500">*</span>}
+              </label>
               {preselectedInstructor ? (
-                <div className="flex items-center space-x-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold">
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                  <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(preselectedInstructor.fullName)}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900">{preselectedInstructor.fullName}</div>
-                    <div className="text-sm text-gray-600">{preselectedInstructor.email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{preselectedInstructor.fullName}</div>
+                    <div className="text-sm text-gray-500 truncate">{preselectedInstructor.email}</div>
                   </div>
                 </div>
               ) : selectedInstructorId && selectedInstructor ? (
-                <div className="flex items-center space-x-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold">
+                <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(selectedInstructor.fullName)}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900">{selectedInstructor.fullName}</div>
-                    <div className="text-sm text-gray-600">{selectedInstructor.email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{selectedInstructor.fullName}</div>
+                    <div className="text-sm text-gray-500 truncate">{selectedInstructor.email}</div>
                   </div>
                   <button
                     type="button"
@@ -548,7 +742,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       setSelectedSlot(null);
                       setShowingSlots(false);
                     }}
-                    className="text-sm text-green-600 hover:text-green-800 font-medium"
+                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-white transition-colors"
                   >
                     Change
                   </button>
@@ -563,16 +757,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       setShowInstructorDropdown(true);
                     }}
                     onFocus={() => setShowInstructorDropdown(true)}
-                    placeholder="Search by name or email..."
+                    placeholder="Search instructors..."
                     autoComplete="nope"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
                   />
                   {showInstructorDropdown && filteredInstructors.length > 0 && (
-                    <div className="absolute z-20 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                       {targetZipCode && (
-                        <div className="px-4 py-2 bg-green-50 border-b border-green-100 text-xs text-green-700 flex items-center gap-1">
+                        <div className="px-3 py-2 bg-gray-50 text-xs text-gray-600 flex items-center gap-1 border-b border-gray-100">
                           <MapPin className="h-3 w-3" />
-                          Sorted by proximity to student location
+                          Sorted by proximity
                         </div>
                       )}
                       {filteredInstructors.map((instructor: any) => (
@@ -584,25 +778,31 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                             setInstructorSearch(getInstructorDisplay(instructor));
                             setShowInstructorDropdown(false);
                           }}
-                          className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-0 flex items-center space-x-3"
+                          className={`w-full px-3 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 ${
+                            instructor.isAssignedInstructor ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                          }`}
                         >
-                          <div className="h-10 w-10 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-semibold text-sm">
+                          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-medium text-xs ${
+                            instructor.isAssignedInstructor ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+                          }`}>
                             {getInitials(instructor.fullName)}
                           </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{instructor.fullName}</div>
-                            <div className="text-sm text-gray-500">{instructor.email}</div>
-                          </div>
-                          {targetZipCode && instructor.proximityScore !== undefined && (
-                            <div className={`text-xs px-2 py-1 rounded-full ${
-                              instructor.proximityScore >= 80 ? 'bg-green-100 text-green-700' :
-                              instructor.proximityScore >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {instructor.proximityScore >= 80 ? '📍 Nearby' :
-                               instructor.proximityScore >= 60 ? '~Close' :
-                               'Farther'}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium text-gray-900 text-sm truncate">{instructor.fullName}</span>
+                              {instructor.isAssignedInstructor && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                                  Assigned
+                                </span>
+                              )}
                             </div>
+                            <div className="text-xs text-gray-500 truncate">{instructor.email}</div>
+                          </div>
+                          {targetZipCode && instructor.proximityBadge && (
+                            <span className={`text-xs px-2 py-1 rounded-md font-medium ${instructor.proximityBadge.color} whitespace-nowrap`}>
+                              <span className="mr-1">{instructor.proximityBadge.emoji}</span>
+                              {instructor.proximityBadge.text}
+                            </span>
                           )}
                         </button>
                       ))}
@@ -613,86 +813,82 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </div>
           </div>
 
-          {/* Lesson Details */}
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Calendar className="h-5 w-5 text-purple-600 mr-2" />
-              Lesson Details
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="duration-select" className="block text-sm font-medium text-gray-700 mb-2">
-                  Duration
-                </label>
-                <select
-                  id="duration-select"
-                  title="Select lesson duration"
-                  value={duration}
-                  onChange={(e) => {
-                    setDuration(parseInt(e.target.value));
-                    setSelectedSlot(null);
-                    setAvailableSlots([]);
-                    setShowingSlots(false);
-                  }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                >
-                  <option value={30}>30 minutes</option>
-                  <option value={60}>1 hour</option>
-                  <option value={90}>1.5 hours</option>
-                  <option value={120}>2 hours</option>
-                </select>
-              </div>
+          {/* Lesson Details - Inline Row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label htmlFor="duration-select" className="block text-sm font-medium text-gray-700 mb-2">
+                Duration
+              </label>
+              <select
+                id="duration-select"
+                title="Select lesson duration"
+                value={duration}
+                onChange={(e) => {
+                  setDuration(parseInt(e.target.value));
+                  setSelectedSlot(null);
+                  setAvailableSlots([]);
+                  setShowingSlots(false);
+                }}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+              >
+                <option value={30}>30 min</option>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+              </select>
+            </div>
 
-              <div>
-                <label htmlFor="lesson-type-select" className="block text-sm font-medium text-gray-700 mb-2">
-                  Lesson Type
-                </label>
-                <select
-                  id="lesson-type-select"
-                  title="Select lesson type"
-                  value={lessonType}
-                  onChange={(e) => setLessonType(e.target.value as any)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                >
-                  <option value="behind_wheel">Driving Lesson</option>
-                  <option value="classroom">Driver's Ed (Classroom)</option>
-                  <option value="road_test_prep">Road Test Prep</option>
-                </select>
-              </div>
+            <div>
+              <label htmlFor="lesson-type-select" className="block text-sm font-medium text-gray-700 mb-2">
+                Type
+              </label>
+              <select
+                id="lesson-type-select"
+                title="Select lesson type"
+                value={lessonType}
+                onChange={(e) => setLessonType(e.target.value as any)}
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+              >
+                <option value="behind_wheel">Driving</option>
+                <option value="classroom">Classroom</option>
+                <option value="road_test_prep">Test Prep</option>
+              </select>
+            </div>
 
-              <div>
-                <label htmlFor="cost-input" className="block text-sm font-medium text-gray-700 mb-2">
-                  Cost ($)
-                </label>
+            <div>
+              <label htmlFor="cost-input" className="block text-sm font-medium text-gray-700 mb-2">
+                Cost
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                 <input
                   id="cost-input"
                   type="number"
                   title="Enter lesson cost"
-                  placeholder="50.00"
+                  placeholder="50"
                   value={cost}
                   onChange={(e) => setCost(parseFloat(e.target.value))}
                   min="0"
                   step="0.01"
                   autoComplete="nope"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                  className="w-full pl-7 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
                 />
               </div>
             </div>
           </div>
 
-          {/* Time Slot Selection */}
-          <div className="border-t border-gray-200 pt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                <Clock className="h-5 w-5 text-orange-600 mr-2" />
-                Select Time
-              </h3>
+          {/* Time Slot Selection - Clean */}
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-gray-700">
+                Date & Time <span className="text-red-500">*</span>
+              </label>
               {!selectedSlot && (
                 <button
                   type="button"
                   onClick={handleFindSlots}
                   disabled={loading || !selectedInstructorId}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-md hover:shadow-lg"
+                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {loading ? (
                     <span className="flex items-center">
@@ -703,158 +899,102 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       Finding...
                     </span>
                   ) : (
-                    'Find Available Times'
+                    'Find Times'
                   )}
                 </button>
               )}
             </div>
 
             {selectedSlot ? (
-              <div className="p-6 bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-300 rounded-lg">
-                <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                    <Calendar className="h-5 w-5" />
+                  </div>
                   <div>
-                    <div className="text-sm text-gray-600 mb-1">Selected Time</div>
-                    <div className="text-2xl font-bold text-gray-900">
+                    <div className="font-medium text-gray-900">
                       {formatSlotDate(selectedSlot.date)}
                     </div>
-                    <div className="text-lg text-gray-700 mt-1">
+                    <div className="text-sm text-gray-600">
                       {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSlot(null);
-                      setShowingSlots(true);
-                    }}
-                    className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-white rounded-lg transition-colors font-medium"
-                  >
-                    Change Time
-                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSlot(null);
+                    setShowingSlots(true);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-white transition-colors"
+                >
+                  Change
+                </button>
               </div>
             ) : showingSlots && availableSlots.length > 0 ? (
-              <div className="space-y-3">
-                <div className="text-sm text-gray-600">
-                  Found {availableSlots.length} available time slots
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto p-2">
-                  {availableSlots.slice(0, 30).map((slot, index) => {
-                    // Count how many slots are on the same date
-                    const slotsOnSameDate = availableSlots.filter(s => s.date === slot.date).length;
-                    const isFirstSlotOfDate = availableSlots.findIndex(s => s.date === slot.date) === index;
-
-                    return (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => handleSelectSlot(slot)}
-                        className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left group relative"
-                      >
-                        {isFirstSlotOfDate && slotsOnSameDate > 0 && (
-                          <div className="absolute top-2 right-2">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                              {slotsOnSameDate} avail
-                            </span>
-                          </div>
-                        )}
-                        <div className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 pr-16">
-                          {formatSlotDate(slot.date)}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-                {availableSlots.length > 30 && (
-                  <div className="text-sm text-center text-gray-500 pt-2">
-                    Showing first 30 slots. Select one to continue.
-                  </div>
-                )}
-              </div>
+              <GroupedAvailabilityView
+                slots={availableSlots}
+                onSelectSlot={handleSelectSlot}
+                formatSlotDate={formatSlotDate}
+                formatTime={formatTime}
+              />
             ) : showingSlots && availableSlots.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                <p className="font-medium">No available slots found</p>
-                <p className="text-sm mt-1">Try changing the duration or selecting a different instructor</p>
+              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl">
+                <p className="text-sm">No available slots found</p>
+                <p className="text-xs mt-1 text-gray-400">Try a different duration or instructor</p>
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                <Clock className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                <p className="font-medium">Click "Find Available Times" to see open slots</p>
+              <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Select an instructor, then find available times</p>
               </div>
             )}
           </div>
 
-          {/* Pickup Address */}
+          {/* Pickup & Notes - Compact */}
           {selectedSlot && (
-            <div className="border-t border-gray-200 pt-6">
-              <div className="flex items-center space-x-2 mb-3">
-                <MapPin className="h-5 w-5 text-amber-600" />
-                <label className="block text-sm font-semibold text-gray-900">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Pickup Location
                 </label>
+                <input
+                  type="text"
+                  value={pickupAddress}
+                  onChange={(e) => setPickupAddress(e.target.value)}
+                  placeholder="Enter pickup address..."
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                />
               </div>
-              <textarea
-                value={pickupAddress}
-                onChange={(e) => setPickupAddress(e.target.value)}
-                placeholder="Enter pickup address for this lesson..."
-                rows={2}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none transition-all"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                This is where the instructor will pick up the student. Defaults to student's home address.
-              </p>
-            </div>
-          )}
-
-          {/* Notes */}
-          {selectedSlot && (
-            <div className="border-t border-gray-200 pt-6">
-              <div className="flex items-center space-x-2 mb-3">
-                <FileText className="h-5 w-5 text-purple-600" />
-                <label className="block text-sm font-semibold text-gray-900">
-                  Lesson Notes
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <span className="text-xs text-gray-400">(optional)</span>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Focus areas, special requests..."
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                />
               </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes for the instructor (e.g., focus areas, special requests, student needs)..."
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none transition-all"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                📅 These notes will appear in the instructor's calendar event.
-              </p>
             </div>
           )}
 
-          {/* Conflict Warning */}
+          {/* Conflict Warning - Minimal */}
           {conflictWarning && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <svg className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-yellow-800">Scheduling Conflict</h4>
-                  <p className="mt-1 text-sm text-yellow-700">{conflictWarning}</p>
-                </div>
-              </div>
+            <div className="bg-amber-50 rounded-xl px-4 py-3">
+              <p className="text-amber-700 text-sm">{conflictWarning}</p>
             </div>
           )}
 
-          {/* Continue Button */}
-          <div className="border-t border-gray-200 pt-6 flex space-x-3">
+          {/* Continue Button - Clean */}
+          <div className="pt-4 border-t border-gray-100 flex gap-3">
             {onCancel && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
               >
                 Cancel
               </button>
@@ -862,127 +1002,99 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             <button
               type="button"
               onClick={handleContinueToConfirm}
-              disabled={!selectedStudentId || !selectedInstructorId || !selectedSlot || checkingConflicts}
-              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+              disabled={!selectedStudentId || !selectedInstructorId || !selectedSlot}
+              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
-              {checkingConflicts ? 'Checking...' : 'Continue to Confirm'}
+              Continue
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Confirm */}
+      {/* Step 2: Confirm - Clean Summary */}
       {step === 'confirm' && selectedSlot && (
-        <div className="p-6 space-y-6">
-          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-              Booking Summary
-            </h3>
-
-            <div className="space-y-4">
-              {/* Student */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Student</span>
-                <div className="flex items-center space-x-2">
-                  {selectedStudent && (
-                    <>
-                      <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-xs">
-                        {getInitials(selectedStudent.fullName)}
-                      </div>
-                      <span className="font-semibold text-gray-900">{selectedStudent.fullName}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Instructor */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Instructor</span>
-                <div className="flex items-center space-x-2">
-                  {selectedInstructor && (
-                    <>
-                      <div className="h-8 w-8 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-xs">
-                        {getInitials(selectedInstructor.fullName)}
-                      </div>
-                      <span className="font-semibold text-gray-900">{selectedInstructor.fullName}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Date & Time */}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                <span className="text-sm text-gray-600">Date & Time</span>
-                <div className="text-right">
-                  <div className="font-semibold text-gray-900">{formatSlotDate(selectedSlot.date)}</div>
-                  <div className="text-sm text-gray-600">
-                    {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
+        <div className="p-6 space-y-5">
+          {/* Summary Card */}
+          <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+            {/* People Row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {selectedStudent && (
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium text-xs">
+                      {getInitials(selectedStudent.fullName)}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{selectedStudent.fullName}</span>
                   </div>
+                )}
+                <span className="text-gray-300">→</span>
+                {selectedInstructor && (
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-xs">
+                      {getInitials(selectedInstructor.fullName)}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{selectedInstructor.fullName}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Date & Time */}
+            <div className="flex items-center gap-3 pt-3 border-t border-gray-200">
+              <div className="h-10 w-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-medium text-gray-900">{formatSlotDate(selectedSlot.date)}</div>
+                <div className="text-sm text-gray-500">
+                  {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)} ({duration} min)
                 </div>
               </div>
+            </div>
 
-              {/* Lesson Details */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Duration</span>
-                <span className="font-semibold text-gray-900">{duration} minutes</span>
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200 text-sm">
+              <div>
+                <span className="text-gray-500">Type</span>
+                <p className="font-medium text-gray-900 capitalize">{lessonType.replace(/_/g, ' ')}</p>
               </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Lesson Type</span>
-                <span className="font-semibold text-gray-900 capitalize">{lessonType.replace(/_/g, ' ')}</span>
+              <div>
+                <span className="text-gray-500">Cost</span>
+                <p className="font-semibold text-emerald-600">${cost.toFixed(2)}</p>
               </div>
-
-              {/* Pickup Address */}
               {pickupAddress && (
-                <div className="flex items-start justify-between">
-                  <span className="text-sm text-gray-600">Pickup Location</span>
-                  <span className="font-semibold text-gray-900 text-right max-w-xs">{pickupAddress}</span>
+                <div className="col-span-2">
+                  <span className="text-gray-500">Pickup</span>
+                  <p className="font-medium text-gray-900 truncate">{pickupAddress}</p>
                 </div>
               )}
-
-              {/* Notes */}
               {notes && (
-                <div className="flex items-start justify-between">
-                  <span className="text-sm text-gray-600">Notes</span>
-                  <span className="font-medium text-gray-700 text-right max-w-xs text-sm">{notes}</span>
+                <div className="col-span-2">
+                  <span className="text-gray-500">Notes</span>
+                  <p className="text-gray-700">{notes}</p>
                 </div>
               )}
-
-              {/* Cost */}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                <span className="text-sm text-gray-600">Lesson Cost</span>
-                <span className="text-2xl font-bold text-green-600">${cost.toFixed(2)}</span>
-              </div>
             </div>
           </div>
 
-          {/* Success Message */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-800 flex items-center text-sm">
-              <CheckCircle className="h-5 w-5 mr-2" />
-              Everything looks good! Ready to confirm this booking.
-            </p>
-          </div>
-
           {/* Action Buttons */}
-          <div className="flex space-x-3">
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setStep('setup')}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
             >
-              Go Back
+              Back
             </button>
             <button
               type="button"
               onClick={handleConfirmBooking}
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl"
+              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>

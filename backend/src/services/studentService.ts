@@ -129,7 +129,6 @@ export const createStudent = async (
     emergencyContactPhone?: string; // Parent/Guardian phone
     emergencyContact2Name?: string; // Secondary contact name
     emergencyContact2Phone?: string; // Secondary contact phone
-    licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car'
     hoursRequired?: number; // Default: 6 (California requirement)
     assignedInstructorId?: string;
     learnerPermitNumber?: string;
@@ -143,7 +142,6 @@ export const createStudent = async (
     tenantId,
     fullName: data.fullName,
     email: data.email,
-    licenseType: data.licenseType || 'car',
   });
 
   try {
@@ -170,13 +168,13 @@ export const createStudent = async (
     }
 
     // Handle emergency contact - prefer split fields, fall back to legacy field
+    // Use empty string instead of null because DB has NOT NULL constraint
     const emergencyContact = data.emergencyContact ||
       (data.emergencyContactName && data.emergencyContactPhone
         ? `${data.emergencyContactName} - ${data.emergencyContactPhone}`
-        : '');
+        : '') || '';
 
     // Set defaults for optional fields
-    const licenseType = data.licenseType || 'car';
     const hoursRequired = data.hoursRequired ?? 6; // Default to 6 hours (California requirement for under 18)
 
     const result = await query(
@@ -185,11 +183,11 @@ export const createStudent = async (
         address_line1, address_line2, city, state, zip_code,
         emergency_contact, emergency_contact_name, emergency_contact_phone,
         emergency_contact_2_name, emergency_contact_2_phone,
-        license_type, enrollment_date, hours_required,
+        enrollment_date, hours_required,
         assigned_instructor_id,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
         notes, status, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $21, $22, $23, $24, $25, $26, 'active', $27, $27)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $21, $22, $23, $24, $25, 'active', $26, $26)
       RETURNING *`,
       [
         tenantId,
@@ -206,12 +204,11 @@ export const createStudent = async (
         data.city || null,
         data.state || null,
         data.zipCode || null,
-        emergencyContact || null,
+        emergencyContact,
         data.emergencyContactName || null,
         data.emergencyContactPhone || null,
         data.emergencyContact2Name || null,
         data.emergencyContact2Phone || null,
-        licenseType,
         hoursRequired,
         data.assignedInstructorId || null,
         data.learnerPermitNumber || null,
@@ -332,10 +329,6 @@ export const updateStudent = async (
   if (data.learnerPermitExpiration !== undefined) {
     fields.push(`learner_permit_expiration = $${paramCount++}`);
     values.push(emptyToNull(data.learnerPermitExpiration));
-  }
-  if (data.licenseType !== undefined) {
-    fields.push(`license_type = $${paramCount++}`);
-    values.push(data.licenseType);
   }
   if (data.hoursRequired !== undefined) {
     fields.push(`hours_required = $${paramCount++}`);

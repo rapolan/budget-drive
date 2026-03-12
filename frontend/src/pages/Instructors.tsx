@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, UserCheck, Users, Calendar, TrendingUp, X, Mail, Phone, DollarSign, Clock, Briefcase } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, UserCheck, Users, Calendar, TrendingUp, X, Mail, Phone, DollarSign, Clock, Briefcase, LayoutGrid, LayoutList } from 'lucide-react';
 import { instructorsApi, lessonsApi } from '@/api';
 import type { Instructor } from '@/types';
 import { InstructorModal } from '@/components/instructors/InstructorModal';
@@ -8,12 +8,14 @@ import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/componen
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
 type StatusFilter = 'all' | 'active' | 'on_leave' | 'terminated';
+type ViewMode = 'table' | 'cards';
 
 export const InstructorsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null);
   const queryClient = useQueryClient();
@@ -204,13 +206,35 @@ export const InstructorsPage: React.FC = () => {
             Manage your driving school instructors
           </p>
         </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
-        >
-          <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
-          Add Instructor
-        </button>
+        <div className="flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Table view"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              title="Card view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddNew}
+            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+          >
+            <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
+            Add Instructor
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -301,6 +325,7 @@ export const InstructorsPage: React.FC = () => {
         />
         {searchTerm && (
           <button
+            type="button"
             onClick={() => setSearchTerm('')}
             className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
             title="Clear search"
@@ -345,7 +370,127 @@ export const InstructorsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Card View - Mobile Friendly */}
+      {viewMode === 'cards' && (
+        <div ref={tableRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isLoading ? (
+            <div className="col-span-full py-12">
+              <LoadingSpinner />
+            </div>
+          ) : filteredInstructors?.length === 0 ? (
+            <div className="col-span-full">
+              <EmptyState
+                icon={<UserCheck className="h-12 w-12" />}
+                title="No instructors found"
+                description={
+                  searchTerm
+                    ? `No instructors match your search for "${searchTerm}"`
+                    : statusFilter !== 'all'
+                    ? `No ${statusFilter.replace('_', ' ')} instructors`
+                    : "Get started by adding your first instructor"
+                }
+                action={
+                  <button
+                    type="button"
+                    onClick={handleAddNew}
+                    className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Instructor
+                  </button>
+                }
+              />
+            </div>
+          ) : (
+            filteredInstructors?.map((instructor) => (
+              <div
+                key={instructor.id}
+                onClick={() => handleEdit(instructor)}
+                className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
+                  instructor.status === 'active' ? 'border-green-200 hover:border-green-300' :
+                  instructor.status === 'on_leave' ? 'border-yellow-200' :
+                  instructor.status === 'terminated' ? 'border-red-200' :
+                  'border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                {/* Header - Avatar & Name */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                      {instructor.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate">{instructor.fullName}</h3>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(instructor.status)}`}>
+                        {instructor.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Employment & Rate */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${getEmploymentTypeColor(instructor.employmentType)}`}>
+                    <Briefcase className="h-3 w-3" />
+                    {getEmploymentTypeLabel(instructor.employmentType)}
+                  </span>
+                  {instructor.hourlyRate && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
+                      <DollarSign className="h-3 w-3" />
+                      {Number(instructor.hourlyRate).toFixed(2)}/hr
+                    </span>
+                  )}
+                </div>
+
+                {/* Contact Info */}
+                <div className="space-y-2 mb-4 text-sm">
+                  <a href={`mailto:${instructor.email}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600 truncate">
+                    <Mail className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{instructor.email}</span>
+                  </a>
+                  <a href={`tel:${instructor.phone}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600">
+                    <Phone className="h-4 w-4 flex-shrink-0" />
+                    {instructor.phone}
+                  </a>
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    Hired {new Date(instructor.hireDate).toLocaleDateString()}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(instructor);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(instructor.id);
+                    }}
+                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* Table */}
+      {viewMode === 'table' && (
       <div ref={tableRef} className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -459,6 +604,7 @@ export const InstructorsPage: React.FC = () => {
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                       <div className="flex justify-end gap-1">
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEdit(instructor);
@@ -469,6 +615,7 @@ export const InstructorsPage: React.FC = () => {
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDelete(instructor.id);
@@ -487,6 +634,7 @@ export const InstructorsPage: React.FC = () => {
           </table>
         </div>
       </div>
+      )}
 
       {/* Modal */}
       {isModalOpen && (

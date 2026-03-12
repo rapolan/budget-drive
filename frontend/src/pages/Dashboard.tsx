@@ -62,11 +62,11 @@ export const DashboardPage: React.FC = () => {
   // DASHBOARD STATS
   // ============================================
   
-  // Active students count
+  // Active students count (scheduled + ready to book = students in the pipeline)
   const activeStudents = useMemo(() => {
     return students.filter(s => {
       const statusInfo = computeStudentStatus(s, lessons);
-      return statusInfo.status === 'active' || statusInfo.status === 'enrolled';
+      return statusInfo.status === 'scheduled' || statusInfo.status === 'ready_to_book';
     });
   }, [students, lessons]);
 

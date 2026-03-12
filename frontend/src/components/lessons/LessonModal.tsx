@@ -183,7 +183,12 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   const createMutation = useMutation({
     mutationFn: (data: CreateLessonInput) => lessonsApi.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+      // Use predicate-based invalidation to catch all lesson queries (including Weekly view)
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === 'lessons' ||
+          query.queryKey[0] === 'instructor-lessons'
+      });
       queryClient.invalidateQueries({ queryKey: ['treasury'] }); // Refresh treasury data
       onClose();
     },
@@ -192,7 +197,14 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   const updateMutation = useMutation({
     mutationFn: (data: CreateLessonInput) => lessonsApi.update(lesson!.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+      // Use predicate-based invalidation to catch all lesson queries (including Weekly view)
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === 'lessons' ||
+          query.queryKey[0] === 'instructor-lessons'
+      });
+      // Also invalidate treasury (editing lesson cost affects treasury)
+      queryClient.invalidateQueries({ queryKey: ['treasury'] });
       onClose();
     },
   });

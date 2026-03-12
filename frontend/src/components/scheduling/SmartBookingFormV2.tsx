@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText, Sun, Sunset, Moon, Filter } from 'lucide-react';
+import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText, Sun, Sunset, Moon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { TimeSlot, Student, Instructor, Lesson } from '@/types';
 import { ProgressStepper } from '@/components/common';
@@ -23,6 +23,170 @@ interface SlotWithProximity extends TimeSlot {
 }
 
 type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
+
+// Instructor-Based Grouped Availability View Component for SmartBookingFormV2
+interface GroupedAvailabilityViewV2Props {
+  slots: SlotWithProximity[];
+  onSelectSlot: (slot: SlotWithProximity) => void;
+  formatSlotDate: (dateStr: string) => string;
+  formatTime: (time: string) => string;
+  getProximityBadge: (score: number) => { label: string; class: string };
+}
+
+const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
+  slots,
+  onSelectSlot,
+  formatSlotDate,
+  formatTime,
+  getProximityBadge,
+}) => {
+  const [expandedInstructors, setExpandedInstructors] = useState<Set<number>>(new Set());
+
+  // Group slots by instructor
+  const instructorGroups = useMemo(() => {
+    const groups = new Map<number, SlotWithProximity[]>();
+
+    slots.forEach(slot => {
+      if (!groups.has(slot.instructorId)) {
+        groups.set(slot.instructorId, []);
+      }
+      groups.get(slot.instructorId)!.push(slot);
+    });
+
+    // Convert to array and sort by best proximity score of each instructor
+    return Array.from(groups.entries())
+      .map(([instructorId, instructorSlots]) => {
+        const bestScore = Math.max(...instructorSlots.map((s: SlotWithProximity) => s.proximityScore));
+        const instructor = instructorSlots[0]; // Get instructor details from first slot
+
+        // Group this instructor's slots by date
+        const slotsByDate: { [date: string]: SlotWithProximity[] } = {};
+        instructorSlots.forEach((slot: SlotWithProximity) => {
+          if (!slotsByDate[slot.date]) {
+            slotsByDate[slot.date] = [];
+          }
+          slotsByDate[slot.date].push(slot);
+        });
+
+        // Sort dates and slots
+        const sortedDates = Object.entries(slotsByDate)
+          .map(([date, dateSlots]) => ({
+            date,
+            label: formatSlotDate(date),
+            slots: dateSlots.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        return {
+          instructorId: instructorId,
+          instructorName: instructor.instructorName,
+          bestProximityScore: bestScore,
+          comingFrom: instructor.comingFrom,
+          totalSlots: instructorSlots.length,
+          dateGroups: sortedDates,
+        };
+      })
+      .sort((a, b) => b.bestProximityScore - a.bestProximityScore); // Sort by best proximity
+  }, [slots, formatSlotDate]);
+
+  const toggleInstructor = (instructorId: number) => {
+    setExpandedInstructors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(instructorId)) {
+        newSet.delete(instructorId);
+      } else {
+        newSet.add(instructorId);
+      }
+      return newSet;
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-gray-500">{instructorGroups.length} instructors available (sorted by proximity)</p>
+      <div className="space-y-2 max-h-[500px] overflow-y-auto">
+        {instructorGroups.map((instructor, index) => {
+          const isExpanded = expandedInstructors.has(instructor.instructorId);
+          const badge = getProximityBadge(instructor.bestProximityScore);
+
+          return (
+            <div key={instructor.instructorId} className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden">
+              {/* Instructor Header - Clickable */}
+              <button
+                type="button"
+                onClick={() => toggleInstructor(instructor.instructorId)}
+                className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+              >
+                {/* Rank indicator */}
+                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base flex-shrink-0 ${
+                  index < 3 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  #{index + 1}
+                </div>
+
+                {/* Instructor info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-900 text-base md:text-lg">{instructor.instructorName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${badge.class}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    {instructor.totalSlots} available {instructor.totalSlots === 1 ? 'slot' : 'slots'}
+                  </div>
+                </div>
+
+                {/* Expand/Collapse Icon */}
+                <div className="text-gray-400 flex-shrink-0">
+                  {isExpanded ? (
+                    <ChevronUp className="h-5 w-5" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" />
+                  )}
+                </div>
+              </button>
+
+              {/* Expanded: Show slots grouped by date */}
+              {isExpanded && (
+                <div className="border-t border-gray-200 bg-gray-50 p-3 space-y-3">
+                  {instructor.dateGroups.map(dateGroup => (
+                    <div key={dateGroup.date}>
+                      {/* Date header */}
+                      <div className="text-xs font-semibold text-gray-700 mb-2 px-1">
+                        {dateGroup.label}
+                      </div>
+
+                      {/* Time slots for this date */}
+                      <div className="space-y-2">
+                        {dateGroup.slots.map((slot, idx) => (
+                          <button
+                            key={`${slot.instructorId}-${slot.date}-${slot.startTime}-${idx}`}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectSlot(slot);
+                            }}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left flex items-center justify-between active:scale-[0.98]"
+                          >
+                            <span className="text-sm font-medium text-gray-900">
+                              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                            </span>
+                            <span className="text-gray-400 text-sm">→</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
   preselectedStudent,
@@ -374,12 +538,11 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  const getProximityBadge = (score: number, comingFrom: 'home' | 'lesson') => {
-    const fromLabel = comingFrom === 'home' ? 'from home' : 'from prev lesson';
-    if (score >= 90) return { label: `📍 Very Close (${fromLabel})`, class: 'bg-green-100 text-green-800' };
-    if (score >= 70) return { label: `📍 Nearby (${fromLabel})`, class: 'bg-green-100 text-green-700' };
-    if (score >= 50) return { label: `~Close (${fromLabel})`, class: 'bg-yellow-100 text-yellow-700' };
-    return { label: `Farther (${fromLabel})`, class: 'bg-gray-100 text-gray-600' };
+  const getProximityBadge = (score: number) => {
+    if (score >= 90) return { label: '🏠 Very Close', class: 'bg-green-100 text-green-800' };
+    if (score >= 70) return { label: '📍 Nearby', class: 'bg-green-100 text-green-700' };
+    if (score >= 50) return { label: '🚗 Close', class: 'bg-yellow-100 text-yellow-700' };
+    return { label: '🗺️ Far', class: 'bg-gray-100 text-gray-600' };
   };
 
   const bookingSteps = [
@@ -676,49 +839,13 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
               <p className="text-sm mt-1">Try changing the duration or time preference</p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {slotsWithProximity.slice(0, 50).map((slot, index) => {
-                const badge = getProximityBadge(slot.proximityScore, slot.comingFrom);
-                return (
-                  <button
-                    key={`${slot.instructorId}-${slot.date}-${slot.startTime}-${index}`}
-                    type="button"
-                    onClick={() => handleSelectSlot(slot)}
-                    className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left flex items-center gap-4"
-                  >
-                    {/* Rank indicator */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                      index < 3 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {index + 1}
-                    </div>
-                    
-                    {/* Instructor info */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">{slot.instructorName}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${badge.class}`}>
-                          {badge.label}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {formatShortDate(slot.date)} • {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                      </div>
-                    </div>
-
-                    {/* Arrow */}
-                    <div className="text-gray-400">
-                      →
-                    </div>
-                  </button>
-                );
-              })}
-              {slotsWithProximity.length > 50 && (
-                <p className="text-sm text-center text-gray-500 pt-2">
-                  Showing top 50 slots. Adjust filters to narrow results.
-                </p>
-              )}
-            </div>
+            <GroupedAvailabilityViewV2
+              slots={slotsWithProximity}
+              onSelectSlot={handleSelectSlot}
+              formatSlotDate={formatShortDate}
+              formatTime={formatTime}
+              getProximityBadge={getProximityBadge}
+            />
           )}
 
           {/* Back button */}
@@ -753,8 +880,8 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                 <span className="text-sm text-gray-600">Instructor</span>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-gray-900">{selectedSlot.instructorName}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${getProximityBadge(selectedSlot.proximityScore, selectedSlot.comingFrom).class}`}>
-                    {getProximityBadge(selectedSlot.proximityScore, selectedSlot.comingFrom).label}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${getProximityBadge(selectedSlot.proximityScore).class}`}>
+                    {getProximityBadge(selectedSlot.proximityScore).label}
                   </span>
                 </div>
               </div>

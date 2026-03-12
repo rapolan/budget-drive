@@ -44,7 +44,8 @@
       "Bash(del \"C:\\Users\\Rob\\Documents\\Budget-driving-app\\backend\\src\\services\\googleCalendarSync.ts\")",
       "Bash(powershell -Command:*)",
       "Bash(netstat:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "WebFetch(domain:coingeek.com)"
     ],
     "deny": [],
     "ask": []

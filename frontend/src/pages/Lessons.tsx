@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Edit, X, CheckCircle, List, Calendar, RefreshCw, Trash2, CalendarDays, MapPin, Car as CarIcon, CalendarRange, Clock, Users, TrendingUp, AlertCircle } from 'lucide-react';
-import { lessonsApi, studentsApi, instructorsApi, vehiclesApi, schedulingApi } from '@/api';
+import { Plus, Search, Edit, X, CheckCircle, Calendar, RefreshCw, CalendarDays, MapPin, CalendarRange, Clock, TrendingUp, AlertCircle, Keyboard, LayoutGrid, LayoutList } from 'lucide-react';
+import { lessonsApi, studentsApi, instructorsApi, schedulingApi } from '@/api';
 import type { Lesson, Instructor } from '@/types';
-import { LessonModal } from '@/components/lessons/LessonModal';
-import { LessonsCalendarView } from '@/components/lessons/LessonsCalendarView';
+import { LessonModal, LessonsCalendarView, TodaysScheduleWidget } from '@/components/lessons';
+import type { LessonsCalendarViewRef } from '@/components/lessons';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
-import { EmptyState, LoadingSpinner, FilterButton, BackButton, ToastContainer } from '@/components/common';
+import type { InstructorWeeklyScheduleRef } from '@/components/scheduling/InstructorWeeklySchedule';
+import { EmptyState, LoadingSpinner, FilterButton, BackButton, ToastContainer, DateRangeFilter, KeyboardShortcutsHelp } from '@/components/common';
+import type { DateRangeValue } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useToast } from '@/hooks/useToast';
 
-type ViewMode = 'table' | 'calendar' | 'weekly';
-type StatusFilter = 'all' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+type ViewMode = 'table' | 'cards' | 'calendar' | 'weekly';
+type StatusFilter = 'all' | 'today' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
 
 export const LessonsPage: React.FC = () => {
   const location = useLocation();
@@ -36,18 +38,36 @@ export const LessonsPage: React.FC = () => {
   const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
   const [preselectedTime, setPreselectedTime] = useState<{ start: string; end: string } | null>(null);
   const [preselectedStudentId, setPreselectedStudentId] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ start: '', end: '', preset: 'all' });
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const queryClient = useQueryClient();
   const tableRef = useRef<HTMLDivElement>(null);
+  const calendarSectionRef = useRef<HTMLDivElement>(null);
+  const weeklySectionRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<LessonsCalendarViewRef>(null);
+  const weeklyRef = useRef<InstructorWeeklyScheduleRef>(null);
 
-  // Scroll to table with smooth animation (fallback to instant for reduced motion)
-  const scrollToTable = () => {
-    if (tableRef.current) {
+  // Scroll to a view section with smooth animation
+  const scrollToViewSection = (view: 'table' | 'cards' | 'calendar' | 'weekly') => {
+    const refMap = {
+      table: tableRef,
+      cards: tableRef, // Cards view uses the same ref as table
+      calendar: calendarSectionRef,
+      weekly: weeklySectionRef,
+    };
+    const ref = refMap[view];
+    if (ref?.current) {
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      tableRef.current.scrollIntoView({ 
+      ref.current.scrollIntoView({
         behavior: prefersReducedMotion ? 'auto' : 'smooth',
         block: 'start'
       });
     }
+  };
+
+  // Scroll to table with smooth animation (fallback to instant for reduced motion)
+  const scrollToTable = () => {
+    scrollToViewSection('table');
   };
 
   // Handle stat card click - set filter and scroll to table
@@ -74,6 +94,65 @@ export const LessonsPage: React.FC = () => {
     }
   }, [location]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input or modal is open
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        isModalOpen ||
+        isSmartBookingOpen
+      ) {
+        return;
+      }
+
+      // Close shortcuts help on Escape
+      if (e.key === 'Escape') {
+        setShowShortcutsHelp(false);
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          if (viewMode === 'calendar') calendarRef.current?.goToPrevious();
+          if (viewMode === 'weekly') weeklyRef.current?.goToPrevious();
+          break;
+        case 'ArrowRight':
+          if (viewMode === 'calendar') calendarRef.current?.goToNext();
+          if (viewMode === 'weekly') weeklyRef.current?.goToNext();
+          break;
+        case 't':
+        case 'T':
+          if (viewMode === 'calendar') calendarRef.current?.goToToday();
+          if (viewMode === 'weekly') weeklyRef.current?.goToToday();
+          break;
+        case 'n':
+        case 'N':
+          handleAddNew();
+          break;
+        case '1':
+          setViewMode('table');
+          break;
+        case '2':
+          setViewMode('cards');
+          break;
+        case '3':
+          setViewMode('calendar');
+          break;
+        case '4':
+          setViewMode('weekly');
+          break;
+        case '?':
+          setShowShortcutsHelp(true);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewMode, isModalOpen, isSmartBookingOpen]);
+
   const { data, isLoading } = useQuery({
     queryKey: ['lessons', currentPage],
     queryFn: () => lessonsApi.getAll(currentPage, 50),
@@ -90,10 +169,6 @@ export const LessonsPage: React.FC = () => {
     queryFn: () => instructorsApi.getAll(),
   });
 
-  const { data: vehiclesData } = useQuery({
-    queryKey: ['vehicles'],
-    queryFn: () => vehiclesApi.getAll(),
-  });
 
   // Fetch availability data for calendar view
   const { data: availabilityData } = useQuery({
@@ -102,33 +177,36 @@ export const LessonsPage: React.FC = () => {
     enabled: viewMode === 'calendar', // Only fetch when in calendar view
   });
 
+  // Helper to invalidate all lesson-related queries (handles Weekly view's complex query keys)
+  const invalidateAllLessonQueries = () => {
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === 'lessons' ||
+        query.queryKey[0] === 'instructor-lessons'
+    });
+  };
+
   const cancelMutation = useMutation({
     mutationFn: (id: string) => lessonsApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+      invalidateAllLessonQueries();
     },
   });
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => lessonsApi.complete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+      invalidateAllLessonQueries();
     },
   });
 
   const noShowMutation = useMutation({
     mutationFn: (id: string) => lessonsApi.noShow(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+      invalidateAllLessonQueries();
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => lessonsApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
-    },
-  });
 
   const handleEdit = (lesson: Lesson) => {
     setSelectedLesson(lesson);
@@ -144,21 +222,18 @@ export const LessonsPage: React.FC = () => {
     setIsSmartBookingOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Permanently delete this lesson? This cannot be undone.')) {
-      await deleteMutation.mutateAsync(id);
-    }
-  };
 
   const handleCancel = async (id: string) => {
     if (window.confirm('Are you sure you want to cancel this lesson?')) {
       await cancelMutation.mutateAsync(id);
+      success('Lesson cancelled successfully');
     }
   };
 
   const handleComplete = async (id: string) => {
     if (window.confirm('Mark this lesson as completed?')) {
       await completeMutation.mutateAsync(id);
+      success('Lesson marked as completed');
       // Automatically filter to scheduled lessons after completing
       if (statusFilter === 'all') {
         setStatusFilter('scheduled');
@@ -169,6 +244,7 @@ export const LessonsPage: React.FC = () => {
   const handleNoShow = async (id: string) => {
     if (window.confirm('Mark this lesson as no-show? The student did not arrive for their scheduled lesson.')) {
       await noShowMutation.mutateAsync(id);
+      success('Lesson marked as no-show');
       // Automatically filter to scheduled lessons after marking no-show
       if (statusFilter === 'all') {
         setStatusFilter('scheduled');
@@ -210,14 +286,16 @@ export const LessonsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleBookingComplete = async (lessonId: string) => {
+  const handleBookingComplete = async (_lessonId: string) => {
     setIsSmartBookingOpen(false);
     setPreselectedInstructorId(null);
     setPreselectedStudentId(null);
     setPreselectedDate(null);
     setPreselectedTime(null);
-    // Invalidate and refetch all lesson queries immediately
-    await queryClient.invalidateQueries({ queryKey: ['lessons'], refetchType: 'active' });
+    // Invalidate ALL lesson-related queries (including Weekly view's complex keys)
+    invalidateAllLessonQueries();
+    // Also invalidate availability since booking changes available slots
+    await queryClient.invalidateQueries({ queryKey: ['availability'] });
     // Show success notification
     success('Lesson booked successfully!', 'The lesson has been added to the schedule.');
   };
@@ -233,10 +311,6 @@ export const LessonsPage: React.FC = () => {
     return instructor?.fullName || 'Unknown Instructor';
   };
 
-  const getVehicleInfo = (vehicleId: string) => {
-    const vehicle = vehiclesData?.data?.find((v) => v.id === vehicleId);
-    return vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : 'Unknown Vehicle';
-  };
 
   // Helper to check if lesson is within 24 hours
   const isUpcoming = (lesson: Lesson) => {
@@ -250,14 +324,26 @@ export const LessonsPage: React.FC = () => {
 
   // Calculate status counts for filter buttons
   const statusCounts = React.useMemo(() => {
+    const now = new Date();
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
     const counts = {
       all: data?.data?.length || 0,
+      today: 0,
       scheduled: 0,
       completed: 0,
       cancelled: 0,
       no_show: 0,
     };
     data?.data?.forEach((lesson) => {
+      // Count today's lessons (any status)
+      const lessonDate = new Date(lesson.date);
+      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+      if (lessonDay.getTime() === todayDate.getTime()) {
+        counts.today++;
+      }
+
+      // Count by status
       if (lesson.status === 'scheduled') counts.scheduled++;
       else if (lesson.status === 'completed') counts.completed++;
       else if (lesson.status === 'cancelled') counts.cancelled++;
@@ -325,9 +411,43 @@ export const LessonsPage: React.FC = () => {
     };
   }, [data?.data]);
 
+  // Get today's lessons for the TodaysScheduleWidget
+  const todaysLessonsForWidget = useMemo(() => {
+    if (!data?.data) return [];
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    return data.data.filter((lesson) => {
+      const lessonDate = new Date(lesson.date);
+      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+      return lessonDay.getTime() === today.getTime();
+    });
+  }, [data?.data]);
+
   const filteredLessons = data?.data?.filter((lesson) => {
+    const now = new Date();
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lessonDate = new Date(lesson.date);
+    const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+
+    // Date range filter
+    if (dateRange.start || dateRange.end) {
+      const lessonDateStr = lessonDate.toISOString().split('T')[0];
+      if (dateRange.start && lessonDateStr < dateRange.start) {
+        return false;
+      }
+      if (dateRange.end && lessonDateStr > dateRange.end) {
+        return false;
+      }
+    }
+
     // Status filter
-    if (statusFilter !== 'all' && lesson.status !== statusFilter) {
+    if (statusFilter === 'today') {
+      // Today filter: show only today's lessons (any status)
+      if (lessonDay.getTime() !== todayDate.getTime()) {
+        return false;
+      }
+    } else if (statusFilter !== 'all' && lesson.status !== statusFilter) {
       return false;
     }
 
@@ -375,6 +495,15 @@ export const LessonsPage: React.FC = () => {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
+  // Sort lessons by date and start time
+  const sortByDateTime = (a: Lesson, b: Lesson) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    // Same date, sort by start time
+    return a.startTime.localeCompare(b.startTime);
+  };
+
   // Group lessons by date category
   const groupLessonsByDate = (lessons: Lesson[]) => {
     const now = new Date();
@@ -408,6 +537,13 @@ export const LessonsPage: React.FC = () => {
         groups.past.push(lesson);
       }
     });
+
+    // Sort each group by date and start time
+    groups.today.sort(sortByDateTime);
+    groups.tomorrow.sort(sortByDateTime);
+    groups.thisWeek.sort(sortByDateTime);
+    groups.later.sort(sortByDateTime);
+    groups.past.sort((a, b) => sortByDateTime(b, a)); // Past: most recent first
 
     return groups;
   };
@@ -553,30 +689,17 @@ export const LessonsPage: React.FC = () => {
               </>
             )}
             {lesson.status === 'cancelled' && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReschedule(lesson);
-                  }}
-                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
-                  title="Reschedule lesson"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(lesson.id);
-                  }}
-                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
-                  title="Delete lesson"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReschedule(lesson);
+                }}
+                className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                title="Reschedule lesson"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </button>
             )}
             {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
               <span className="text-gray-400 text-xs italic">—</span>
@@ -601,40 +724,77 @@ export const LessonsPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* View Toggle */}
           <div className="flex rounded-lg border border-gray-300 bg-white overflow-hidden">
+            {/* Table/Cards toggle - show icons on mobile, text on larger screens */}
             <button
-              onClick={() => setViewMode('table')}
+              onClick={() => {
+                setViewMode('table');
+                setTimeout(() => scrollToViewSection('table'), 100);
+              }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'table'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
+              title="Table view"
             >
-              <List className="mr-2 h-4 w-4 flex-shrink-0" />
-              Table
+              <LayoutList className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Table</span>
             </button>
             <button
-              onClick={() => setViewMode('calendar')}
+              onClick={() => {
+                setViewMode('cards');
+                setTimeout(() => scrollToViewSection('cards'), 100);
+              }}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
+                viewMode === 'cards'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+              title="Card view"
+            >
+              <LayoutGrid className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Cards</span>
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('calendar');
+                setTimeout(() => scrollToViewSection('calendar'), 100);
+              }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'calendar'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
+              title="Month view"
             >
-              <Calendar className="mr-2 h-4 w-4 flex-shrink-0" />
-              Month
+              <Calendar className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Month</span>
             </button>
             <button
-              onClick={() => setViewMode('weekly')}
+              onClick={() => {
+                setViewMode('weekly');
+                setTimeout(() => scrollToViewSection('weekly'), 100);
+              }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'weekly'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:bg-gray-50'
               }`}
+              title="Weekly view"
             >
-              <CalendarRange className="mr-2 h-4 w-4 flex-shrink-0" />
-              Weekly
+              <CalendarRange className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Weekly</span>
             </button>
           </div>
+
+          {/* Keyboard Shortcuts Button */}
+          <button
+            onClick={() => setShowShortcutsHelp(true)}
+            className="flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard className="h-5 w-5" />
+          </button>
 
           <button
             onClick={handleAddNew}
@@ -651,7 +811,7 @@ export const LessonsPage: React.FC = () => {
         {/* Today's Lessons */}
         <div 
           className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
-          onClick={() => handleStatCardClick('scheduled')}
+          onClick={() => handleStatCardClick('today')}
         >
           <div className="flex items-center justify-between">
             <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
@@ -752,73 +912,278 @@ export const LessonsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Status Filter - Only show in table view */}
-      {viewMode === 'table' && (
-        <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
-          <span className="text-sm font-medium text-gray-700">Status:</span>
-          <div className="flex flex-wrap gap-2">
-            <FilterButton
-              label="All"
-              isActive={statusFilter === 'all'}
-              onClick={() => setStatusFilter('all')}
-              count={statusCounts.all}
-              variant="default"
-            />
-            <FilterButton
-              label="Scheduled"
-              isActive={statusFilter === 'scheduled'}
-              onClick={() => setStatusFilter('scheduled')}
-              count={statusCounts.scheduled}
-              variant="info"
-            />
-            <FilterButton
-              label="Completed"
-              isActive={statusFilter === 'completed'}
-              onClick={() => setStatusFilter('completed')}
-              count={statusCounts.completed}
-              variant="success"
-            />
-            <FilterButton
-              label="Cancelled"
-              isActive={statusFilter === 'cancelled'}
-              onClick={() => setStatusFilter('cancelled')}
-              count={statusCounts.cancelled}
-              variant="danger"
-            />
-            <FilterButton
-              label="No Show"
-              isActive={statusFilter === 'no_show'}
-              onClick={() => setStatusFilter('no_show')}
-              count={statusCounts.no_show}
-              variant="warning"
-            />
-          </div>
+      {/* Date Range Filter */}
+      <DateRangeFilter value={dateRange} onChange={setDateRange} />
+
+      {/* Status Filter - Show in all views */}
+      <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
+        <span className="text-sm font-medium text-gray-700">Status:</span>
+        <div className="flex flex-wrap gap-2">
+          <FilterButton
+            label="All"
+            isActive={statusFilter === 'all'}
+            onClick={() => setStatusFilter('all')}
+            count={statusCounts.all}
+            variant="default"
+          />
+          <FilterButton
+            label="Today"
+            isActive={statusFilter === 'today'}
+            onClick={() => setStatusFilter('today')}
+            count={statusCounts.today}
+            variant="info"
+          />
+          <FilterButton
+            label="Scheduled"
+            isActive={statusFilter === 'scheduled'}
+            onClick={() => setStatusFilter('scheduled')}
+            count={statusCounts.scheduled}
+            variant="info"
+          />
+          <FilterButton
+            label="Completed"
+            isActive={statusFilter === 'completed'}
+            onClick={() => setStatusFilter('completed')}
+            count={statusCounts.completed}
+            variant="success"
+          />
+          <FilterButton
+            label="Cancelled"
+            isActive={statusFilter === 'cancelled'}
+            onClick={() => setStatusFilter('cancelled')}
+            count={statusCounts.cancelled}
+            variant="danger"
+          />
+          <FilterButton
+            label="No Show"
+            isActive={statusFilter === 'no_show'}
+            onClick={() => setStatusFilter('no_show')}
+            count={statusCounts.no_show}
+            variant="warning"
+          />
         </div>
-      )}
+      </div>
+
+      {/* Today's Schedule Widget */}
+      <TodaysScheduleWidget
+        lessons={todaysLessonsForWidget}
+        onViewLesson={handleEdit}
+        onCompleteLesson={handleComplete}
+        getStudentName={getStudentName}
+        getInstructorName={getInstructorName}
+      />
 
       {/* Calendar View */}
-      {viewMode === 'calendar' && (
-        <LessonsCalendarView
-          lessons={filteredLessons || []}
-          availability={availabilityData || []}
-          instructors={instructorsData?.data || []}
-          onLessonClick={handleEdit}
-          onAvailabilityClick={handleAvailabilityClick}
-          getStudentName={getStudentName}
-          getInstructorName={getInstructorName}
-        />
-      )}
+      <div ref={calendarSectionRef}>
+        {viewMode === 'calendar' && (
+          <LessonsCalendarView
+            ref={calendarRef}
+            lessons={filteredLessons || []}
+            availability={availabilityData || []}
+            instructors={instructorsData?.data || []}
+            onLessonClick={handleEdit}
+            onAvailabilityClick={handleAvailabilityClick}
+            getStudentName={getStudentName}
+            getInstructorName={getInstructorName}
+            searchTerm={searchTerm}
+          />
+        )}
+      </div>
 
       {/* Weekly Schedule View */}
-      {viewMode === 'weekly' && (
-        <InstructorWeeklySchedule
-          onBookSlot={handleWeeklyBookSlot}
-          onViewLesson={handleViewLessonFromWeekly}
-        />
-      )}
+      <div ref={weeklySectionRef}>
+        {viewMode === 'weekly' && (
+          <InstructorWeeklySchedule
+            ref={weeklyRef}
+            onBookSlot={handleWeeklyBookSlot}
+            onViewLesson={handleViewLessonFromWeekly}
+          />
+        )}
+      </div>
 
-      {/* Table View - scroll target */}
+      {/* Card View - mobile friendly */}
       <div ref={tableRef}>
+        {viewMode === 'cards' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {isLoading ? (
+              <div className="col-span-full py-12">
+                <LoadingSpinner />
+              </div>
+            ) : filteredLessons?.length === 0 ? (
+              <div className="col-span-full">
+                <EmptyState
+                  icon={<CalendarDays className="h-12 w-12" />}
+                  title="No lessons found"
+                  description={
+                    statusFilter !== 'all'
+                      ? `No lessons match the selected filter.`
+                      : searchTerm
+                      ? `No lessons match your search for "${searchTerm}"`
+                      : "Get started by scheduling your first lesson"
+                  }
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setIsSmartBookingOpen(true)}
+                      className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Schedule Lesson
+                    </button>
+                  }
+                />
+              </div>
+            ) : (
+              filteredLessons?.sort(sortByDateTime).map((lesson) => {
+                const upcoming = isUpcoming(lesson);
+                return (
+                  <div
+                    key={lesson.id}
+                    onClick={() => handleEdit(lesson)}
+                    className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
+                      upcoming ? 'border-amber-300 bg-amber-50/30' :
+                      lesson.status === 'completed' ? 'border-green-200' :
+                      lesson.status === 'cancelled' ? 'border-red-200' :
+                      'border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {/* Header - Date & Status */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`p-2 rounded-lg ${upcoming ? 'bg-amber-100' : 'bg-blue-50'}`}>
+                          <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-blue-600'}`} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {formatDate(lesson.date)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(lesson.status)}`}
+                        >
+                          {lesson.status === 'scheduled' && <Clock className="h-3 w-3 mr-1" />}
+                          {lesson.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
+                          {lesson.status === 'cancelled' && <X className="h-3 w-3 mr-1" />}
+                          {lesson.status === 'no_show' && <AlertCircle className="h-3 w-3 mr-1" />}
+                          {lesson.status.replace(/_/g, ' ')}
+                        </span>
+                        {upcoming && (
+                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 animate-pulse">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Soon
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Student & Instructor */}
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                          {getStudentName(lesson.studentId).split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{getStudentName(lesson.studentId)}</div>
+                          <div className="text-xs text-gray-500">Student</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                          {getInstructorName(lesson.instructorId).split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{getInstructorName(lesson.instructorId)}</div>
+                          <div className="text-xs text-gray-500">Instructor</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pickup Location & Type */}
+                    <div className="space-y-2 mb-4 text-sm">
+                      {lesson.pickupAddress && (
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5 text-gray-400" />
+                          <span className="truncate" title={lesson.pickupAddress}>{lesson.pickupAddress}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+                          {lesson.lessonType.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                      {lesson.status === 'scheduled' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleComplete(lesson.id);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Complete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(lesson);
+                            }}
+                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancel(lesson.id);
+                            }}
+                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Cancel"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                      {lesson.status === 'cancelled' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReschedule(lesson);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          Reschedule
+                        </button>
+                      )}
+                      {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
+                        <span className="text-gray-400 text-sm italic w-full text-center">No actions available</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Table View */}
+      <div>
         {viewMode === 'table' && (
           <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
@@ -890,7 +1255,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.today && groupedLessons.today.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-blue-50 to-blue-100/50">
-                      <td colSpan={7} className="px-6 py-3">
+                      <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-blue-600" />
                           <h3 className="text-sm font-semibold text-blue-900">Today</h3>
@@ -908,7 +1273,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.tomorrow && groupedLessons.tomorrow.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-green-50 to-green-100/50">
-                      <td colSpan={7} className="px-6 py-3">
+                      <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-green-600" />
                           <h3 className="text-sm font-semibold text-green-900">Tomorrow</h3>
@@ -926,7 +1291,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.thisWeek && groupedLessons.thisWeek.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-purple-50 to-purple-100/50">
-                      <td colSpan={7} className="px-6 py-3">
+                      <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <CalendarRange className="h-4 w-4 text-purple-600" />
                           <h3 className="text-sm font-semibold text-purple-900">This Week</h3>
@@ -944,7 +1309,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.later && groupedLessons.later.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-                      <td colSpan={7} className="px-6 py-3">
+                      <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-gray-600" />
                           <h3 className="text-sm font-semibold text-gray-700">Later</h3>
@@ -962,7 +1327,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.past && groupedLessons.past.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-gray-100 to-gray-200/50">
-                      <td colSpan={7} className="px-6 py-3">
+                      <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-gray-500" />
                           <h3 className="text-sm font-semibold text-gray-600">Past</h3>
@@ -986,25 +1351,33 @@ export const LessonsPage: React.FC = () => {
 
       {/* Pagination - Only show in table view */}
       {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-lg bg-white px-4 py-3 shadow">
-          <div className="text-sm text-gray-700">
-            Page {data.pagination.page} of {data.pagination.totalPages}
+        <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-gray-100">
+          <div className="text-sm text-gray-600">
+            {filteredLessons?.length} of {data.pagination.total} lessons
+            {statusFilter !== 'all' && <span className="text-gray-400 ml-1">(filtered)</span>}
           </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage === data.pagination.totalPages}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Next
-            </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">
+              Page {data.pagination.page} of {data.pagination.totalPages}
+            </span>
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === data.pagination.totalPages}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1052,6 +1425,12 @@ export const LessonsPage: React.FC = () => {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onClose={removeToast} />
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        isOpen={showShortcutsHelp}
+        onClose={() => setShowShortcutsHelp(false)}
+      />
     </div>
   );
 };

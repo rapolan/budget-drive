@@ -105,30 +105,18 @@ npx lars
 
 ## Documentation
 
-### Essential Reading
+### 🏁 Core Manifests
 
 | Document | Description |
 |----------|-------------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **Technical architecture** - BSV standards, overlay services, data flow |
-| [BLOCKCHAIN_ROADMAP.md](BLOCKCHAIN_ROADMAP.md) | Implementation plan for blockchain integration |
-| [BDP_VISION_AND_PHILOSOPHY.md](BDP_VISION_AND_PHILOSOPHY.md) | Core principles and decision-making framework |
+| [docs/MISSION.md](docs/MISSION.md) | **Mission & Vision** - Project philosophy, strategic roadmap, and core pillars. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **Technical Architecture** - Hybrid data layer, BSV standards, and system design. |
+| [docs/BLOCKCHAIN.md](docs/BLOCKCHAIN.md) | **Implementation Manual** - Blockchain roadmap, fee schedules, and dev quick-start. |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | **Operational Guide** - Daily workflows, smart scheduling, and admin features. |
+| [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md) | **Technical Blueprints** - 6D engine, Merkle batching, and future roadmaps. |
 
-### Guides
-
-| Document | Description |
-|----------|-------------|
-| [CALENDAR_MANAGEMENT_GUIDE.md](CALENDAR_MANAGEMENT_GUIDE.md) | Scheduling and calendar integration |
-| [NOTIFICATION_SETUP_GUIDE.md](NOTIFICATION_SETUP_GUIDE.md) | Email and SMS notification setup |
-| [TREASURY_TEST_GUIDE.md](TREASURY_TEST_GUIDE.md) | Testing satoshi-level fees |
-| [PROJECT_SCHEMA_REFERENCE.md](PROJECT_SCHEMA_REFERENCE.md) | Database schema reference |
-
-### Development
-
-| Document | Description |
-|----------|-------------|
-| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
-| [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) | Complete project history |
-| [deployment-info.json](deployment-info.json) | LARS/CARS deployment configuration |
+### 📚 Archived Docs
+Original fragmented documentation has been moved to [docs/archived_docs/](docs/archived_docs/) for historical reference.
 
 ---
 

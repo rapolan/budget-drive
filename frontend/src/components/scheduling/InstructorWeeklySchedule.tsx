@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Users, CheckCircle, CalendarDays, TrendingUp } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common';
@@ -9,6 +9,12 @@ import { format12Hour } from '@/utils/timeFormat';
 interface InstructorWeeklyScheduleProps {
   onBookSlot: (instructor: Instructor, date: Date, time: string) => void;
   onViewLesson: (lesson: Lesson) => void;
+}
+
+export interface InstructorWeeklyScheduleRef {
+  goToPrevious: () => void;
+  goToNext: () => void;
+  goToToday: () => void;
 }
 
 interface TimeSlot {
@@ -29,11 +35,13 @@ const LESSON_DURATION_HOURS = 2;
 const BUFFER_MINUTES = 30;
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> = ({
+export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, InstructorWeeklyScheduleProps>(({
   onBookSlot,
   onViewLesson,
-}) => {
+}, ref) => {
   const [selectedInstructor, setSelectedInstructor] = useState<string>('');
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     const today = new Date();
     const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -107,9 +115,9 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
   }, [currentWeekStart]);
 
   const { data: lessonsData, isLoading: loadingLessons, error: lessonsError } = useQuery({
-    queryKey: ['lessons', currentWeekStart.toISOString(), weekEnd.toISOString(), selectedInstructor],
+    queryKey: ['lessons', currentWeekStart.toISOString(), weekEnd.toISOString(), selectedInstructor, compareMode, selectedInstructors],
     queryFn: () => lessonsApi.getAll(1, 1000),
-    enabled: !!selectedInstructor,
+    enabled: !!selectedInstructor || (compareMode && selectedInstructors.length > 0),
   });
 
   // Filter lessons by instructor and date range
@@ -183,6 +191,38 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
       setSelectedInstructor(instructors[0].id.toString());
     }
   }, [instructors, selectedInstructor]);
+
+  // Sync selectedInstructors when switching to compare mode
+  React.useEffect(() => {
+    if (compareMode && selectedInstructors.length === 0 && selectedInstructor) {
+      setSelectedInstructors([selectedInstructor]);
+    }
+  }, [compareMode, selectedInstructor, selectedInstructors.length]);
+
+  // Toggle instructor selection in compare mode
+  const toggleInstructorSelection = (instructorId: string) => {
+    setSelectedInstructors(prev => {
+      if (prev.includes(instructorId)) {
+        // Don't allow deselecting if only one is selected
+        if (prev.length === 1) return prev;
+        return prev.filter(id => id !== instructorId);
+      } else {
+        // Max 3 instructors
+        if (prev.length >= 3) return prev;
+        return [...prev, instructorId];
+      }
+    });
+  };
+
+  // Get instructor colors for compare mode
+  const getInstructorColor = (index: number) => {
+    const colors = [
+      { bg: 'bg-blue-500', border: 'border-blue-200', light: 'bg-blue-50', text: 'text-blue-700' },
+      { bg: 'bg-purple-500', border: 'border-purple-200', light: 'bg-purple-50', text: 'text-purple-700' },
+      { bg: 'bg-emerald-500', border: 'border-emerald-200', light: 'bg-emerald-50', text: 'text-emerald-700' },
+    ];
+    return colors[index % colors.length];
+  };
 
   const instructor = useMemo(
     () => instructors.find((i) => i.id.toString() === selectedInstructor),
@@ -376,6 +416,13 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
     setCurrentWeekStart(weekStart);
   };
 
+  // Expose navigation methods via ref
+  useImperativeHandle(ref, () => ({
+    goToPrevious: goToPreviousWeek,
+    goToNext: goToNextWeek,
+    goToToday,
+  }));
+
   const formatWeekRange = () => {
     const end = new Date(currentWeekStart);
     end.setDate(end.getDate() + 6);
@@ -472,34 +519,100 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
 
       {/* Header Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-        {/* Instructor Selector - Compact Style */}
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
-          <div className="flex gap-1.5 flex-wrap">
-            {instructors.map((inst) => {
-              const isSelected = inst.id.toString() === selectedInstructor;
-              const initials = inst.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-              const firstName = inst.fullName.split(' ')[0];
-              return (
-                <button
-                  key={inst.id}
-                  onClick={() => setSelectedInstructor(inst.id.toString())}
-                  title={inst.fullName}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 ${
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                    isSelected ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-600'
-                  }`}>
-                    {initials}
-                  </div>
-                  <span className="text-xs font-medium hidden sm:inline">{firstName}</span>
-                </button>
-              );
-            })}
+        {/* Mode Toggle + Instructor Selector */}
+        <div className="flex items-center gap-3">
+          {/* Single/Compare Toggle */}
+          <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+            <button
+              onClick={() => setCompareMode(false)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                !compareMode
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Single
+            </button>
+            <button
+              onClick={() => setCompareMode(true)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                compareMode
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Compare
+            </button>
+          </div>
+
+          <div className="h-6 w-px bg-gray-200" />
+
+          {/* Instructor Selector */}
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <div className="flex gap-1.5 flex-wrap">
+              {instructors.map((inst, idx) => {
+                const instId = inst.id.toString();
+                const isSelected = compareMode
+                  ? selectedInstructors.includes(instId)
+                  : instId === selectedInstructor;
+                const colorIndex = compareMode ? selectedInstructors.indexOf(instId) : 0;
+                const color = getInstructorColor(colorIndex);
+                const initials = inst.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                const firstName = inst.fullName.split(' ')[0];
+                const isDisabled = compareMode && !isSelected && selectedInstructors.length >= 3;
+
+                return (
+                  <button
+                    key={inst.id}
+                    onClick={() => {
+                      if (compareMode) {
+                        toggleInstructorSelection(instId);
+                      } else {
+                        setSelectedInstructor(instId);
+                      }
+                    }}
+                    disabled={isDisabled}
+                    title={compareMode
+                      ? isDisabled
+                        ? 'Max 3 instructors in compare mode'
+                        : `${isSelected ? 'Remove' : 'Add'} ${inst.fullName}`
+                      : inst.fullName
+                    }
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 ${
+                      isSelected
+                        ? compareMode
+                          ? `${color.light} ${color.text} border-2 ${color.border} shadow-sm`
+                          : 'bg-blue-600 text-white shadow-md'
+                        : isDisabled
+                        ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                      isSelected
+                        ? compareMode
+                          ? `${color.bg} text-white`
+                          : 'bg-blue-500 text-white'
+                        : 'bg-gray-300 text-gray-600'
+                    }`}>
+                      {initials}
+                    </div>
+                    <span className="text-xs font-medium hidden sm:inline">{firstName}</span>
+                    {compareMode && isSelected && (
+                      <span className="ml-1 text-[10px] font-bold opacity-60">
+                        {colorIndex + 1}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {compareMode && (
+              <span className="text-[10px] text-gray-400 ml-2">
+                {selectedInstructors.length}/3
+              </span>
+            )}
           </div>
         </div>
 
@@ -570,8 +683,114 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
         </div>
       )}
 
-      {/* Schedule Grid */}
-      {!loadingLessons && !loadingAvailability && instructor && weeklySchedule.length > 0 && (
+      {/* Compare Mode View */}
+      {compareMode && selectedInstructors.length > 0 && !loadingLessons && (
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200 p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-700">Comparing {selectedInstructors.length} Instructor{selectedInstructors.length > 1 ? 's' : ''}</h3>
+            <span className="text-xs text-gray-500">{formatWeekRange()}</span>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid gap-2" style={{ gridTemplateColumns: `120px repeat(7, 1fr)` }}>
+            <div className="text-xs font-medium text-gray-500 uppercase">Instructor</div>
+            {Array.from({ length: 7 }, (_, i) => {
+              const date = new Date(currentWeekStart);
+              date.setDate(date.getDate() + i);
+              const todayColumn = isToday(date);
+              return (
+                <div
+                  key={i}
+                  className={`text-center text-xs font-medium uppercase ${
+                    todayColumn ? 'text-blue-600' : 'text-gray-500'
+                  }`}
+                >
+                  <div>{DAYS_OF_WEEK[date.getDay()].slice(0, 3)}</div>
+                  <div className={`text-lg font-bold ${todayColumn ? 'text-blue-600' : 'text-gray-900'}`}>
+                    {date.getDate()}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Instructor rows */}
+            {selectedInstructors.map((instId, instIndex) => {
+              const inst = instructors.find(i => i.id.toString() === instId);
+              if (!inst) return null;
+              const color = getInstructorColor(instIndex);
+              const initials = inst.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+              return (
+                <React.Fragment key={instId}>
+                  {/* Instructor name */}
+                  <div className="flex items-center gap-2 py-2">
+                    <div className={`w-8 h-8 rounded-full ${color.bg} text-white flex items-center justify-center text-xs font-bold`}>
+                      {initials}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 truncate">{inst.fullName.split(' ')[0]}</span>
+                  </div>
+
+                  {/* Day cells for this instructor */}
+                  {Array.from({ length: 7 }, (_, dayIndex) => {
+                    const date = new Date(currentWeekStart);
+                    date.setDate(date.getDate() + dayIndex);
+                    const todayColumn = isToday(date);
+                    const pastDay = isPast(date);
+
+                    // Count lessons for this instructor on this day
+                    const dayLessons = (lessonsData?.data || []).filter(lesson => {
+                      const lessonDate = new Date(lesson.date);
+                      return lesson.instructorId === instId &&
+                        lessonDate.toDateString() === date.toDateString() &&
+                        (lesson.status === 'scheduled' || lesson.status === 'completed');
+                    });
+
+                    const scheduledCount = dayLessons.filter(l => l.status === 'scheduled').length;
+                    const completedCount = dayLessons.filter(l => l.status === 'completed').length;
+
+                    return (
+                      <div
+                        key={dayIndex}
+                        className={`p-2 rounded-lg text-center ${
+                          todayColumn
+                            ? `${color.light} border ${color.border}`
+                            : pastDay
+                            ? 'bg-gray-50'
+                            : 'bg-gray-50/50'
+                        }`}
+                      >
+                        {dayLessons.length > 0 ? (
+                          <div className="space-y-1">
+                            <div className={`text-lg font-bold ${color.text}`}>
+                              {dayLessons.length}
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              {scheduledCount > 0 && <span className="text-blue-600">{scheduledCount} sched</span>}
+                              {scheduledCount > 0 && completedCount > 0 && ' · '}
+                              {completedCount > 0 && <span className="text-green-600">{completedCount} done</span>}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-300 text-sm">-</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-400">
+              Click on an instructor in Single mode to see detailed schedule
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Grid (Single Mode) */}
+      {!compareMode && !loadingLessons && !loadingAvailability && instructor && weeklySchedule.length > 0 && (
         <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 table-fixed md:table-auto">
@@ -748,8 +967,8 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
         </div>
       )}
 
-      {/* Empty State */}
-      {!loadingLessons && !loadingAvailability && instructor && weeklySchedule.length === 0 && (
+      {/* Empty State (Single Mode only) */}
+      {!compareMode && !loadingLessons && !loadingAvailability && instructor && weeklySchedule.length === 0 && (
         <div className="text-center py-12 bg-white rounded-lg shadow">
           <p className="text-gray-500">
             No availability configured for this instructor. Please set up availability in the instructor settings.
@@ -757,7 +976,8 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
         </div>
       )}
 
-      {/* Legend */}
+      {/* Legend (Single Mode only) */}
+      {!compareMode && (
       <div className="flex items-center justify-center gap-8 text-sm text-gray-600 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-dashed border-green-300 flex items-center justify-center text-[10px]">✨</div>
@@ -776,6 +996,7 @@ export const InstructorWeeklySchedule: React.FC<InstructorWeeklyScheduleProps> =
           <span className="font-medium">Today</span>
         </div>
       </div>
+      )}
     </div>
   );
-};
+});

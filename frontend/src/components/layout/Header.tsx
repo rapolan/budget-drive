@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, User, LogOut } from 'lucide-react';
+import { Bell, User, LogOut, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTenant } from '@/contexts/TenantContext';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { settings } = useTenant();
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -22,16 +26,25 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
-      {/* Left side - can add breadcrumbs or page title here */}
-      <div className="flex items-center">
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6">
+      {/* Left side - hamburger menu + page title */}
+      <div className="flex items-center gap-3">
+        {/* Hamburger menu - mobile only */}
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 lg:hidden"
+          aria-label="Open menu"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
         <h2 className="text-lg font-semibold text-gray-800">
           {/* Page title will go here */}
         </h2>
       </div>
 
       {/* Right side - notifications, user menu */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-2 sm:space-x-4">
         {/* Notifications */}
         <Link
           to="/notifications"
@@ -46,8 +59,9 @@ export const Header: React.FC = () => {
         </Link>
 
         {/* User menu */}
-        <div className="flex items-center space-x-3">
-          <div className="text-right">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Hide user name/email on mobile */}
+          <div className="hidden sm:block text-right">
             <p className="text-sm font-medium text-gray-700">
               {localStorage.getItem('user_name') || 'Admin User'}
             </p>
@@ -55,12 +69,18 @@ export const Header: React.FC = () => {
               {localStorage.getItem('user_email') || 'admin@example.com'}
             </p>
           </div>
-          <button className="rounded-full bg-gray-200 p-2 text-gray-700 hover:bg-gray-300">
+          <button
+            type="button"
+            className="rounded-full bg-gray-200 p-2 text-gray-700 hover:bg-gray-300"
+            aria-label="User profile"
+          >
             <User className="h-5 w-5" />
           </button>
           <button
+            type="button"
             onClick={handleLogout}
-            className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-600"
+            className="rounded-md p-1.5 sm:px-3 sm:py-2 text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-600"
+            aria-label="Logout"
           >
             <LogOut className="h-5 w-5" />
           </button>
