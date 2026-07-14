@@ -8,6 +8,7 @@ import { query } from '../config/database';
 import { Payment } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
+import { ledger } from './Ledger';
 
 const logger = createLogger('PaymentService');
 
@@ -228,6 +229,22 @@ export const createPayment = async (
       amount: payment.amount,
       status: payment.status,
     });
+
+    // Anchor BDP_PAY action through the ledger seam (noop unless BSV_ENABLED)
+    try {
+      await ledger.recordPayment({
+        tenantId,
+        paymentId: payment.id,
+        amountCents: Math.round(payment.amount * 100),
+        method: payment.paymentMethod,
+      });
+    } catch (ledgerError) {
+      logger.warn('Ledger anchor failed (non-blocking)', {
+        tenantId,
+        paymentId: payment.id,
+        error: ledgerError instanceof Error ? ledgerError.message : String(ledgerError),
+      });
+    }
 
     return payment;
   } catch (error) {
