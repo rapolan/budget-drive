@@ -266,6 +266,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return students.find((s: Student) => s.id === selectedStudentId);
   }, [selectedStudentId, students]);
 
+  // Get selected instructor from the fetched list
+  const selectedInstructor = useMemo(() => {
+    if (!selectedInstructorId) return null;
+    return instructors.find((i: Instructor) => i.id === selectedInstructorId);
+  }, [selectedInstructorId, instructors]);
+
   // Get the target zip code for proximity sorting (from selected student)
   const targetZipCode = useMemo(() => {
     if (!selectedStudent) return null;

@@ -40,11 +40,11 @@ const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
   formatTime,
   getProximityBadge,
 }) => {
-  const [expandedInstructors, setExpandedInstructors] = useState<Set<number>>(new Set());
+  const [expandedInstructors, setExpandedInstructors] = useState<Set<string>>(new Set());
 
   // Group slots by instructor
   const instructorGroups = useMemo(() => {
-    const groups = new Map<number, SlotWithProximity[]>();
+    const groups = new Map<string, SlotWithProximity[]>();
 
     slots.forEach(slot => {
       if (!groups.has(slot.instructorId)) {
@@ -89,7 +89,7 @@ const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
       .sort((a, b) => b.bestProximityScore - a.bestProximityScore); // Sort by best proximity
   }, [slots, formatSlotDate]);
 
-  const toggleInstructor = (instructorId: number) => {
+  const toggleInstructor = (instructorId: string) => {
     setExpandedInstructors(prev => {
       const newSet = new Set(prev);
       if (newSet.has(instructorId)) {

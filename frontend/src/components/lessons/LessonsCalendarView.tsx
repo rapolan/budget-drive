@@ -33,7 +33,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [hoveredDay, setHoveredDay] = useState<{ date: Date; rect: DOMRect } | null>(null);
-  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [hoverTimeout, setHoverTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Get current month/year for navigation
   const currentMonth = currentDate.getMonth();

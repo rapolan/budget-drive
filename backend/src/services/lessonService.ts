@@ -10,6 +10,7 @@ import { query } from '../config/database';
 import { Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import treasuryService from './treasuryService';
+import { ledger } from './Ledger';
 import lessonInviteService from './lessonInviteService';
 import { validateLessonBooking } from './schedulingService';
 import { keysToCamel } from '../utils/caseConversion';
@@ -377,22 +378,18 @@ export const createLesson = async (
           },
         });
 
-        // Log BDP action
-        await treasuryService.logBDPAction(
+        // Anchor BDP_BOOK action through the ledger seam (noop unless BSV_ENABLED)
+        await ledger.anchorAction({
           tenantId,
-          'BDP_BOOK',
-          `${lesson.id}|${data.instructorId}|${data.date}|${data.startTime}`,
-          {
-            entityId: lesson.id,
-            entityType: 'lesson',
-            description: `Lesson booked with 1% treasury split`,
-            metadata: {
-              cost: lesson.cost,
-              student_id: data.studentId,
-              instructor_id: data.instructorId,
-            },
-          }
-        );
+          action: 'BDP_BOOK',
+          payload: {
+            lessonId: lesson.id,
+            instructorId: data.instructorId,
+            date: data.date,
+            startTime: data.startTime,
+            cost: lesson.cost,
+          },
+        });
 
         logger.info('Treasury split recorded successfully', {
           tenantId,

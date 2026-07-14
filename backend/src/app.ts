@@ -4,11 +4,13 @@
  */
 
 import express, { Application, Request, Response } from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import { config } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { sanitizeBody } from './middleware/validate';
+import { apiLimiter, authLimiter } from './middleware/rateLimiter';
 import {
   requestLoggingMiddleware,
   errorLoggingMiddleware,
@@ -24,7 +26,7 @@ import lessonRoutes from './routes/lessonRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import availabilityRoutes from './routes/availabilityRoutes';
 import recurringPatternRoutes from './routes/recurringPatternRoutes';
-// import treasuryRoutes from './routes/treasuryRoutes'; // BSV Phase — re-enable when blockchain is implemented
+import treasuryRoutes from './routes/treasuryRoutes';
 
 import notificationRoutes from './routes/notifications';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
@@ -36,10 +38,13 @@ const app: Application = express();
 // MIDDLEWARE
 // =====================================================
 
+// Security headers - must be first
+app.use(helmet());
+
 // CORS - Allow requests from frontend
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3001', 'http://127.0.0.1:3001'],
+    origin: config.ALLOWED_ORIGINS,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
     exposedHeaders: ['X-Tenant-ID'],
@@ -47,8 +52,8 @@ app.use(
 );
 
 // Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Structured logging middleware
 app.use(requestLoggingMiddleware);
@@ -63,6 +68,9 @@ if (config.NODE_ENV === 'development') {
 
 // Sanitize all request bodies
 app.use(sanitizeBody);
+
+// Rate limiting - general API limiter
+app.use(apiLimiter);
 
 // =====================================================
 // ROUTES
@@ -83,7 +91,7 @@ app.get('/health', (_req: Request, res: Response) => {
 const API_PREFIX = `/api/${config.API_VERSION}`;
 
 // API Routes
-app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (public)
+app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes); // Auth routes (public)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
 app.use(API_PREFIX, instructorRoutes);
@@ -93,7 +101,7 @@ app.use(`${API_PREFIX}/users`, userRoutes); // User management routes
 app.use(API_PREFIX, paymentRoutes);
 app.use(API_PREFIX, availabilityRoutes);
 app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
-// app.use(`${API_PREFIX}/treasury`, treasuryRoutes); // BSV Phase — re-enable when blockchain is implemented
+app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
 
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);

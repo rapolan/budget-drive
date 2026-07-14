@@ -9,6 +9,7 @@ import { verifyToken, extractTokenFromHeader, JwtPayload } from '../utils/jwt';
 
 // Extend Express Request to include user data
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- required pattern for augmenting Express types
   namespace Express {
     interface Request {
       user?: JwtPayload;
@@ -43,9 +44,10 @@ export const authenticate = async (
     next();
   } catch (_error) {
     if (_error instanceof AppError) {
-      throw _error;
+      next(_error);
+      return;
     }
-    throw new AppError('Invalid or expired authentication token', 401);
+    next(new AppError('Invalid or expired authentication token', 401));
   }
 };
 

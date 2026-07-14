@@ -55,7 +55,7 @@ export interface TreasurySpending {
 export interface BDPAction {
   id: string;
   tenant_id: string;
-  action_type: 'BDP_REG' | 'BDP_BOOK' | 'BDP_PROGRESS' | 'BDP_CERT' | 'BDP_AVAIL' | 'BDP_SYNC' | 'BDP_TIP';
+  action_type: 'BDP_REG' | 'BDP_BOOK' | 'BDP_PAY' | 'BDP_PROGRESS' | 'BDP_CERT' | 'BDP_AVAIL' | 'BDP_SYNC' | 'BDP_NOTIFY' | 'BDP_TIP';
   action_data: string;
   bsv_txid?: string;
   bsv_fee_satoshis?: number;

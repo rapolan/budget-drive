@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, Car, LayoutGrid, LayoutList, Gauge, Hash, Calendar } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Car, LayoutGrid, LayoutList, Gauge, Hash } from 'lucide-react';
 import { vehiclesApi } from '@/api';
 import type { Vehicle } from '@/types';
 import { VehicleModal } from '@/components/vehicles/VehicleModal';

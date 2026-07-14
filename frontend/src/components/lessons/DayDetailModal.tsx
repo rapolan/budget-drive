@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Calendar as CalendarIcon, Clock, User } from 'lucide-react';
-import type { Lesson, InstructorAvailability, Instructor } from '@/types';
+import type { Lesson, Instructor } from '@/types';
 
 interface DayDetailModalProps {
   date: Date;
@@ -46,21 +46,6 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
       month: 'long',
       day: 'numeric'
     });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-blue-100 border-blue-300 text-blue-800';
-      case 'completed':
-        return 'bg-green-100 border-green-300 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 border-red-300 text-red-800';
-      case 'no_show':
-        return 'bg-orange-100 border-orange-300 text-orange-800';
-      default:
-        return 'bg-gray-100 border-gray-300 text-gray-800';
-    }
   };
 
   const getStatusBadge = (status: string) => {

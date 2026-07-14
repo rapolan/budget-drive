@@ -181,7 +181,7 @@ export const inviteUserToTenant = async (
   logger.info('Inviting user to tenant', { tenantId, email, role, invitedBy });
 
   // Ensure user exists (create minimal user record)
-  let userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
+  const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
   let user = null;
   if (userRes.rows.length === 0) {
     const createRes = await query(

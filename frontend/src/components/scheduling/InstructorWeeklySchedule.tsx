@@ -551,7 +551,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
             <div className="flex gap-1.5 flex-wrap">
-              {instructors.map((inst, idx) => {
+              {instructors.map((inst) => {
                 const instId = inst.id.toString();
                 const isSelected = compareMode
                   ? selectedInstructors.includes(instId)

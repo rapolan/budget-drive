@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
@@ -86,7 +86,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
 
             {/* Error details (only show in development) */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Error Details (Development Only):</h3>
                 <div className="text-xs font-mono text-red-600 overflow-auto max-h-48">

@@ -53,7 +53,7 @@ export const findAvailableSlots = async (
   }
 
   // Iterate through each day in the date range
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
   const end = new Date(endDate);
 
   while (currentDate <= end) {
@@ -110,7 +110,7 @@ export const findAvailableSlots = async (
       const existingLessons = lessonsResult.rows;
 
       // Vehicle ID is provided via request parameter or can be null
-      let vehicleForLesson: string | null = vehicleId || null;
+      const vehicleForLesson: string | null = vehicleId || null;
 
       // Generate capacity-based slots
       const slots = findSlotsInBlock(

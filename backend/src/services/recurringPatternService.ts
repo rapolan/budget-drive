@@ -74,6 +74,7 @@ export class RecurringPatternService {
     let occurrenceCount = 0;
 
     // Generate lessons
+    // eslint-disable-next-line no-constant-condition -- terminates via break below (max occurrences / end date)
     while (true) {
       // Check max occurrences
       if (pattern.max_occurrences && occurrenceCount >= pattern.max_occurrences) break;

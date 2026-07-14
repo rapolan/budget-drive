@@ -11,12 +11,4 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Provide a minimal `process.env` shape for libraries that reference it
-declare const process: {
-  env: {
-    NODE_ENV?: string;
-    [key: string]: any;
-  };
-};
-
 export {};
