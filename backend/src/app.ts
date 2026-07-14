@@ -4,6 +4,7 @@
  */
 
 import express, { Application, Request, Response } from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import { config } from './config/env';
@@ -35,6 +36,9 @@ const app: Application = express();
 // =====================================================
 // MIDDLEWARE
 // =====================================================
+
+// Security headers - must be first
+app.use(helmet());
 
 // CORS - Allow requests from frontend
 app.use(
