@@ -9,6 +9,7 @@ import { AppError } from './errorHandler';
 
 // Extend Express Request to include tenant context
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- required pattern for augmenting Express types
   namespace Express {
     interface Request {
       tenantId?: string;

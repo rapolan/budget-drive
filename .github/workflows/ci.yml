@@ -33,7 +33,6 @@ jobs:
       - name: Lint
         working-directory: backend
         run: npm run lint
-        continue-on-error: true
 
       - name: Test
         working-directory: backend

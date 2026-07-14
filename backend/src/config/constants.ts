@@ -186,7 +186,7 @@ export const VALIDATION = {
   MAX_PASSWORD_LENGTH: 128,
 
   /** Phone number regex pattern */
-  PHONE_PATTERN: /^\+?[\d\s\-\(\)]+$/,
+  PHONE_PATTERN: /^\+?[\d\s\-()]+$/,
 
   /** Email regex pattern (basic) */
   EMAIL_PATTERN: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,

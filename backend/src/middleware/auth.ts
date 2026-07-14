@@ -9,6 +9,7 @@ import { verifyToken, extractTokenFromHeader, JwtPayload } from '../utils/jwt';
 
 // Extend Express Request to include user data
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace -- required pattern for augmenting Express types
   namespace Express {
     interface Request {
       user?: JwtPayload;

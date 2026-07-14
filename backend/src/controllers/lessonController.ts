@@ -7,6 +7,9 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as lessonService from '../services/lessonService';
 import { getTenantId } from '../middleware/tenantContext';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('LessonController');
 
 /**
  * @route   GET /api/v1/lessons
@@ -14,8 +17,6 @@ import { getTenantId } from '../middleware/tenantContext';
  * @access  Private
  */
 export const getAllLessons = asyncHandler(async (req: Request, res: Response) => {
-  const { createLogger } = require('../utils/logger');
-  const logger = createLogger('LessonController');
   const tenantId = getTenantId(req);
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 50;
@@ -40,7 +41,7 @@ export const getAllLessons = asyncHandler(async (req: Request, res: Response) =>
       },
     });
   } catch (error) {
-    logger.error('Failed to fetch lessons', error, {
+    logger.error('Failed to fetch lessons', error instanceof Error ? error : undefined, {
       tenantId,
       page,
       limit,
