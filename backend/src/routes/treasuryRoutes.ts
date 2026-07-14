@@ -4,11 +4,9 @@
  */
 
 import { Router } from 'express';
-import { Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import treasuryService from '../services/treasuryService';
-import { asyncHandler } from '../middleware/errorHandler';
+import * as treasuryController from '../controllers/treasuryController';
 
 const router = Router();
 
@@ -17,43 +15,27 @@ router.use(authenticate);
 router.use(requireTenantContext);
 
 /**
+ * GET /api/v1/treasury/status
+ * Ledger status — available in all modes (enabled or disabled)
+ */
+router.get('/status', treasuryController.getStatus);
+
+/**
  * GET /api/v1/treasury/balance
  * Get treasury balance for current tenant
  */
-router.get(
-  '/balance',
-  asyncHandler(async (req: Request, res: Response) => {
-    const tenantId = req.tenantId!;
-    const balance = await treasuryService.getBalance(tenantId);
-    res.json(balance);
-  })
-);
+router.get('/balance', treasuryController.getBalance);
 
 /**
  * GET /api/v1/treasury/transactions
  * Get recent treasury transactions
  */
-router.get(
-  '/transactions',
-  asyncHandler(async (req: Request, res: Response) => {
-    const tenantId = req.tenantId!;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const transactions = await treasuryService.getRecentTransactions(tenantId, limit);
-    res.json(transactions);
-  })
-);
+router.get('/transactions', treasuryController.getTransactions);
 
 /**
  * GET /api/v1/treasury/statistics
  * Get treasury statistics (balance + aggregates)
  */
-router.get(
-  '/statistics',
-  asyncHandler(async (req: Request, res: Response) => {
-    const tenantId = req.tenantId!;
-    const stats = await treasuryService.getStatistics(tenantId);
-    res.json(stats);
-  })
-);
+router.get('/statistics', treasuryController.getStatistics);
 
 export default router;
