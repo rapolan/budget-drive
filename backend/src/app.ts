@@ -10,6 +10,7 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { sanitizeBody } from './middleware/validate';
+import { apiLimiter, authLimiter } from './middleware/rateLimiter';
 import {
   requestLoggingMiddleware,
   errorLoggingMiddleware,
@@ -68,6 +69,9 @@ if (config.NODE_ENV === 'development') {
 // Sanitize all request bodies
 app.use(sanitizeBody);
 
+// Rate limiting - general API limiter
+app.use(apiLimiter);
+
 // =====================================================
 // ROUTES
 // =====================================================
@@ -87,7 +91,7 @@ app.get('/health', (_req: Request, res: Response) => {
 const API_PREFIX = `/api/${config.API_VERSION}`;
 
 // API Routes
-app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (public)
+app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes); // Auth routes (public)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
 app.use(API_PREFIX, instructorRoutes);
