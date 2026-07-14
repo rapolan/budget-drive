@@ -26,7 +26,7 @@ import lessonRoutes from './routes/lessonRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import availabilityRoutes from './routes/availabilityRoutes';
 import recurringPatternRoutes from './routes/recurringPatternRoutes';
-// import treasuryRoutes from './routes/treasuryRoutes'; // BSV Phase — re-enable when blockchain is implemented
+import treasuryRoutes from './routes/treasuryRoutes';
 
 import notificationRoutes from './routes/notifications';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
@@ -101,7 +101,7 @@ app.use(`${API_PREFIX}/users`, userRoutes); // User management routes
 app.use(API_PREFIX, paymentRoutes);
 app.use(API_PREFIX, availabilityRoutes);
 app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
-// app.use(`${API_PREFIX}/treasury`, treasuryRoutes); // BSV Phase — re-enable when blockchain is implemented
+app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
 
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
