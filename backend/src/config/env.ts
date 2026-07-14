@@ -56,6 +56,11 @@ for (const varName of requiredEnvVars) {
   }
 }
 
+// In production, a weak JWT_SECRET is a critical vulnerability - fail fast
+if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET!.length < 32) {
+  throw new Error('JWT_SECRET must be at least 32 characters in production');
+}
+
 export const config: EnvConfig = {
   // Server
   NODE_ENV: process.env.NODE_ENV || 'development',
