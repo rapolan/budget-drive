@@ -43,9 +43,10 @@ export const authenticate = async (
     next();
   } catch (_error) {
     if (_error instanceof AppError) {
-      throw _error;
+      next(_error);
+      return;
     }
-    throw new AppError('Invalid or expired authentication token', 401);
+    next(new AppError('Invalid or expired authentication token', 401));
   }
 };
 
