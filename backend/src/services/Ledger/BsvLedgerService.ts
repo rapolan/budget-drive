@@ -39,15 +39,41 @@ export class BsvLedgerService implements LedgerService {
     const feeSats = params.feeSats ?? PROTOCOL_FEES[params.action];
 
     try {
-      // Delegate to your existing treasury pipeline. Adjust the call below to
-      // match treasuryService.logBDPAction's exact signature when wiring up —
-      // it already handles OP_RETURN construction and DB status updates.
-      const txid: string = await (treasuryService as any).logBDPAction(
-        params.tenantId,
-        params.action,
-        params.payload,
-        feeSats
-      );
+      // Broadcast the anchor as a self-send with an OP_RETURN memo — this is
+      // the actual on-chain write, so the txid comes from here.
+      const wallet = getProtocolWallet();
+      const memo = `${params.action}:${JSON.stringify(params.payload)}`;
+      const sendResult = await wallet.sendSats({
+        toAddress: wallet.getAddress(),
+        amountSats: feeSats,
+        memo,
+      });
+
+      if (!sendResult.success) {
+        throw new Error(sendResult.error || 'BSV send failed');
+      }
+
+      const txid = sendResult.txid;
+
+      // Persist the audit row in Postgres. This is bookkeeping, not the
+      // on-chain write itself — failures here must not undo the broadcast.
+      try {
+        await treasuryService.logBDPAction(
+          params.tenantId,
+          params.action,
+          JSON.stringify(params.payload),
+          {
+            description: `${params.action} anchored on-chain`,
+            metadata: { ...params.payload, bsvTxid: txid, feeSats },
+          }
+        );
+      } catch (logErr) {
+        logger.error(
+          '[ledger:bsv] logBDPAction audit write failed (anchor already broadcast)',
+          logErr instanceof Error ? logErr : undefined,
+          { tenantId: params.tenantId, action: params.action, txid }
+        );
+      }
 
       return {
         txid,
@@ -57,11 +83,11 @@ export class BsvLedgerService implements LedgerService {
       };
     } catch (err) {
       // Ledger failures must NEVER break core operations. Log and degrade.
-      logger.error('[ledger:bsv] anchorAction failed — continuing without anchor', {
-        tenantId: params.tenantId,
-        action: params.action,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logger.error(
+        '[ledger:bsv] anchorAction failed — continuing without anchor',
+        err instanceof Error ? err : undefined,
+        { tenantId: params.tenantId, action: params.action }
+      );
       return {
         txid: null,
         anchored: false,
@@ -116,9 +142,10 @@ export class BsvLedgerService implements LedgerService {
         balanceSats,
       };
     } catch (err) {
-      logger.error('[ledger:bsv] getStatus failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logger.error(
+        '[ledger:bsv] getStatus failed',
+        err instanceof Error ? err : undefined
+      );
       return { enabled: true, provider: 'bsv' };
     }
   }
