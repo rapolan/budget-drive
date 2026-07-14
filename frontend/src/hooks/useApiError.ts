@@ -1,12 +1,6 @@
 import { useEffect } from 'react';
 import { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 
-interface ApiErrorResponse {
-  message?: string;
-  error?: string;
-  statusCode?: number;
-}
-
 interface UseApiErrorOptions {
   onError?: (error: Error) => void;
   showToast?: boolean;

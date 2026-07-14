@@ -389,6 +389,7 @@ export interface CreateLessonInput {
   lessonNumber?: number | null;
   lessonType?: 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
   cost?: number;
+  pickupAddress?: string | null;
   notes?: string;
 }
 
