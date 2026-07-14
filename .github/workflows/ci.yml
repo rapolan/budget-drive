@@ -30,6 +30,15 @@ jobs:
         working-directory: backend
         run: npx tsc --noEmit
 
+      - name: Lint
+        working-directory: backend
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Test
+        working-directory: backend
+        run: npm test
+
       - name: Build backend
         working-directory: backend
         run: npm run build
@@ -56,6 +65,11 @@ jobs:
       - name: TypeScript compile check
         working-directory: frontend
         run: npx tsc --noEmit
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+        continue-on-error: true
 
       - name: Build frontend
         working-directory: frontend
