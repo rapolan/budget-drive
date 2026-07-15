@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as authService from '../services/authService';
+import * as userService from '../services/userService';
 
 /**
  * @route   POST /api/v1/auth/login
@@ -100,6 +101,31 @@ export const getCurrentUser = asyncHandler(async (req: Request, res: Response) =
   res.json({
     success: true,
     data: user,
+  });
+});
+
+/**
+ * @route   POST /api/v1/auth/accept-invite
+ * @desc    Accept a team invite: sets a password and activates the membership
+ * @access  Public (requires a valid invite token)
+ */
+export const acceptInvite = asyncHandler(async (req: Request, res: Response) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    res.status(400).json({
+      success: false,
+      error: 'Invite token and password are required',
+    });
+    return;
+  }
+
+  const membership = await userService.acceptInvite(token, password);
+
+  res.json({
+    success: true,
+    data: membership,
+    message: 'Invite accepted. You can now log in.',
   });
 });
 

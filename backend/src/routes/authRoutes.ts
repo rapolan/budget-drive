@@ -12,6 +12,7 @@ const router = Router();
 // Public routes (no authentication required)
 router.post('/login', authController.login);
 router.post('/register', authController.register);
+router.post('/accept-invite', authController.acceptInvite);
 
 // Protected routes (require authentication)
 router.post('/logout', authenticate, authController.logout);

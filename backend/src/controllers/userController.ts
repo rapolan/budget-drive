@@ -75,13 +75,21 @@ export const removeTeamMember = asyncHandler(async (req: Request, res: Response)
  */
 export const inviteTeamMember = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const userId = req.user?.userId || 'system';
-  const user = await userService.inviteUserToTenant(
-    req.body.email, 
-    tenantId, 
-    req.body.role, 
-    userId,
-    req.body.instructorId
+  const callerId = req.user?.userId || 'system';
+  const callerRole = req.user?.userId
+    ? await userService.getCurrentRole(req.user.userId, tenantId)
+    : null;
+  const { inviteToken, ...user } = await userService.inviteUserToTenant(
+    req.body.email,
+    tenantId,
+    req.body.role,
+    callerId,
+    req.body.instructorId,
+    callerRole || undefined
   );
-  res.status(201).json({ success: true, data: user });
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const inviteLink = `${frontendUrl}/accept-invite?token=${inviteToken}`;
+
+  res.status(201).json({ success: true, data: { ...user, inviteLink } });
 });

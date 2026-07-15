@@ -3,6 +3,7 @@
  * Business logic for user & tenant membership management
  */
 
+import crypto from 'crypto';
 import { query } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
@@ -17,6 +18,17 @@ import {
 } from '../types';
 
 const logger = createLogger('UserService');
+
+const INVITE_TOKEN_TTL_DAYS = 7;
+
+/**
+ * Hash an invite token for storage. Invite tokens are high-entropy random
+ * values (32 bytes from crypto.randomBytes), not user-chosen secrets, so a
+ * fast deterministic hash is appropriate here - unlike passwords, there's
+ * no need for bcrypt's per-hash cost or salt to defend against brute force.
+ */
+const hashInviteToken = (token: string): string =>
+  crypto.createHash('sha256').update(token).digest('hex');
 
 /**
  * Count active owners for a tenant. Used to protect against removing or
@@ -256,16 +268,29 @@ export const removeUserFromTenant = async (userId: string, tenantId: string): Pr
 };
 
 /**
- * Invite user to tenant (creates invited membership record)
+ * Invite user to tenant (creates invited membership record with a
+ * time-limited accept token).
+ *
+ * @param callerRole - role of the user making this request, required to
+ *   enforce that only an existing owner can invite someone as 'owner'
+ * @returns the joined user/membership row plus the RAW (unhashed) invite
+ *   token. The raw token is only ever available here, at generation time -
+ *   only its hash is persisted - so the caller (controller) must build the
+ *   invite link from this return value immediately.
  */
 export const inviteUserToTenant = async (
   email: string,
   tenantId: string,
   role: UserRole,
   invitedBy: string,
-  instructorId?: string
-): Promise<UserWithMembership> => {
+  instructorId?: string,
+  callerRole?: UserRole
+): Promise<UserWithMembership & { inviteToken: string }> => {
   logger.info('Inviting user to tenant', { tenantId, email, role, invitedBy, instructorId });
+
+  if (role === 'owner' && callerRole !== 'owner') {
+    throw new AppError('Only an owner can assign the owner role', 403);
+  }
 
   // Ensure user exists (create minimal user record)
   const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
@@ -281,11 +306,17 @@ export const inviteUserToTenant = async (
     user = userRes.rows[0];
   }
 
+  const inviteToken = crypto.randomBytes(32).toString('hex');
+  const inviteTokenHash = hashInviteToken(inviteToken);
+
   // Create invited membership
   const insert = await query(
-    `INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, instructor_id, invited_by, invited_at, created_at, updated_at)
-     VALUES ($1,$2,$3,'invited',$4,$5,NOW(),NOW(),NOW()) RETURNING *`,
-    [user.id, tenantId, role, instructorId || null, invitedBy]
+    `INSERT INTO user_tenant_memberships
+       (user_id, tenant_id, role, status, instructor_id, invited_by, invited_at,
+        invite_token_hash, invite_token_expires_at, created_at, updated_at)
+     VALUES ($1,$2,$3,'invited',$4,$5,NOW(),$6,NOW() + INTERVAL '${INVITE_TOKEN_TTL_DAYS} days',NOW(),NOW())
+     RETURNING *`,
+    [user.id, tenantId, role, instructorId || null, invitedBy, inviteTokenHash]
   );
 
   const combined = {
@@ -293,7 +324,54 @@ export const inviteUserToTenant = async (
     ...insert.rows[0],
   };
 
-  return keysToCamel(combined) as UserWithMembership;
+  return { ...(keysToCamel(combined) as UserWithMembership), inviteToken };
+};
+
+/**
+ * Accept an invite: validates the raw token against its stored hash and
+ * expiry, sets the user's password, and activates the membership.
+ */
+export const acceptInvite = async (
+  token: string,
+  password: string
+): Promise<UserWithMembership> => {
+  const tokenHash = hashInviteToken(token);
+
+  const result = await query(
+    `SELECT * FROM user_tenant_memberships
+     WHERE invite_token_hash = $1 AND status = 'invited'`,
+    [tokenHash]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Invalid or already-used invite token', 400);
+  }
+
+  const membership = result.rows[0];
+
+  if (!membership.invite_token_expires_at || new Date(membership.invite_token_expires_at) < new Date()) {
+    throw new AppError('This invite has expired', 400);
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  await query(
+    `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+    [passwordHash, membership.user_id]
+  );
+
+  const updatedMembership = await query(
+    `UPDATE user_tenant_memberships
+     SET status = 'active', accepted_at = NOW(), invite_token_hash = NULL,
+         invite_token_expires_at = NULL, updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [membership.id]
+  );
+
+  const joined = await getUserWithMembership(membership.user_id, membership.tenant_id);
+  if (!joined) throw new AppError('Failed to fetch activated membership', 500);
+  return { ...joined, ...keysToCamel(updatedMembership.rows[0]) } as UserWithMembership;
 };
 
 export default {
@@ -304,4 +382,5 @@ export default {
   updateUserMembership,
   removeUserFromTenant,
   inviteUserToTenant,
+  acceptInvite,
 };
