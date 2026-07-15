@@ -40,7 +40,6 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 ## Do not touch
 
 - `backend/database/migrations/*` (append-only, see above)
-- `docs/archived_*` (historical record)
 - `deployment-info.json` (LARS/CARS deployment schema)
 
 ## Definition of done for any task

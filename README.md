@@ -109,9 +109,6 @@ The protocol incorporates advanced overlay services for blockchain integration. 
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | **Operational Guide** - Daily workflows, smart scheduling, and admin features. |
 | [docs/BLUEPRINTS.md](docs/BLUEPRINTS.md) | **Technical Blueprints** - 6D engine, Merkle batching, and future roadmaps. |
 
-### 📚 Archived Docs
-Original fragmented documentation has been moved to [docs/archived_docs/](docs/archived_docs/) for historical reference.
-
 ---
 
 ## Project Structure
