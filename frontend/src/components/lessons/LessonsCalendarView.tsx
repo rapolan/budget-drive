@@ -294,12 +294,12 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500 rounded-lg">
+            <div className="p-2 bg-primary rounded-lg">
               <CalendarDays className="h-5 w-5 text-white" />
             </div>
             <div>
               <p className="text-2xl font-bold text-blue-900">{monthlyStats.totalLessons}</p>
-              <p className="text-xs text-blue-600 font-medium">Lessons This Month</p>
+              <p className="text-xs text-primary font-medium">Lessons This Month</p>
             </div>
           </div>
         </div>
@@ -341,30 +341,30 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         </div>
       </div>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-200">
+      <div className="rounded-xl bg-surface p-6 shadow-sm border border-[var(--border)]">
         {/* Calendar Header */}
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-tx-primary">
             {monthNames[currentMonth]} {currentYear}
           </h2>
           <div className="flex items-center gap-2">
             <button
               onClick={goToToday}
-              className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1 rounded-lg border border-[var(--border-strong)] px-3 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
             >
               <Calendar className="h-4 w-4" />
               Today
             </button>
             <button
               onClick={previousMonth}
-              className="rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors"
               aria-label="Previous month"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={nextMonth}
-              className="rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors"
               aria-label="Next month"
             >
               <ChevronRight className="h-5 w-5" />
@@ -373,7 +373,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         </div>
 
         {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-px rounded-xl border border-gray-200 bg-gray-200 overflow-hidden">
+        <div className="grid grid-cols-7 gap-px rounded-xl border border-[var(--border)] bg-surface3 overflow-hidden">
           {/* Day headers */}
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
             const today = new Date();
@@ -387,7 +387,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                 className={`py-3 text-center text-xs font-semibold uppercase tracking-wider ${
                   isTodayColumn 
                     ? 'bg-gradient-to-b from-blue-100 to-blue-50 text-blue-900' 
-                    : 'bg-gray-50 text-gray-700'
+                    : 'bg-surface2 text-tx-secondary'
                 }`}
               >
                 {day}
@@ -414,7 +414,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
           const noSearchMatches = searchTerm && dayLessons.length > 0 && matchingCount === 0;
 
           // Determine background color based on availability
-          let bgColor = 'bg-white';
+          let bgColor = 'bg-surface';
           let borderColor = '';
           if (hasActivity && calendarDay.isCurrentMonth) {
             if (totalSlots > 0) {
@@ -444,12 +444,12 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
               onMouseLeave={handleMouseLeave}
               className={`min-h-[110px] p-3 text-left transition-all duration-200 relative ${
                 !calendarDay.isCurrentMonth
-                  ? 'bg-gray-50/50 cursor-default opacity-40'
+                  ? 'bg-surface2/50 cursor-default opacity-40'
                   : isTodayDate
                   ? 'bg-gradient-to-b from-blue-50 to-blue-100/50'
                   : hasActivity
                   ? bgColor
-                  : 'bg-white'
+                  : 'bg-surface'
               } ${calendarDay.isCurrentMonth && hasActivity && !isTodayDate ? borderColor : ''} ${
                 calendarDay.isCurrentMonth && hasActivity
                   ? 'hover:shadow-lg hover:scale-[1.02] cursor-pointer'
@@ -466,10 +466,10 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                 <div
                   className={`text-sm font-bold ${
                     !calendarDay.isCurrentMonth
-                      ? 'text-gray-400'
+                      ? 'text-tx-muted'
                       : isTodayDate
                       ? 'flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md'
-                      : 'text-gray-900'
+                      : 'text-tx-primary'
                   }`}
                 >
                   {calendarDay.day}
@@ -490,7 +490,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                 
                 {/* Today badge */}
                 {isTodayDate && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-600 text-white animate-pulse">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white animate-pulse">
                     TODAY
                   </span>
                 )}
@@ -513,17 +513,17 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                         key={instructor.id}
                         className="flex items-center gap-1.5"
                       >
-                        <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-[9px] font-bold text-gray-600">
+                        <div className="w-5 h-5 rounded-full bg-surface3 flex items-center justify-center text-[9px] font-bold text-tx-secondary">
                           {initials}
                         </div>
-                        <span className="text-[11px] text-gray-700 truncate font-medium">
+                        <span className="text-[11px] text-tx-secondary truncate font-medium">
                           {instructor.fullName.split(' ')[0]}
                         </span>
                       </div>
                     );
                   })}
                   {dayInstructors.length > 2 && (
-                    <div className="text-[10px] text-gray-500 font-semibold pl-6">
+                    <div className="text-[10px] text-tx-muted font-semibold pl-6">
                       +{dayInstructors.length - 2} more
                     </div>
                   )}
@@ -535,7 +535,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         </div>
 
         {/* Legend */}
-        <div className="mt-4 flex items-center justify-center gap-8 text-sm text-gray-600 py-3 bg-gray-50 rounded-xl border border-gray-200">
+        <div className="mt-4 flex items-center justify-center gap-8 text-sm text-tx-secondary py-3 bg-surface2 rounded-xl border border-[var(--border)]">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-green-50 to-green-100 border-l-2 border-green-400"></div>
             <span className="font-medium">Available</span>
@@ -549,7 +549,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             <span className="font-medium">Full</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-lg bg-gradient-to-b from-blue-100 to-blue-50 border-t-2 border-blue-500"></div>
+            <div className="w-5 h-5 rounded-lg bg-gradient-to-b from-blue-100 to-blue-50 border-t-2 border-primary"></div>
             <span className="font-medium">Today</span>
           </div>
         </div>
@@ -577,7 +577,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
 
         return (
           <div
-            className="fixed z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 pointer-events-none"
+            className="fixed z-50 bg-surface rounded-xl shadow-xl border border-[var(--border)] p-4 pointer-events-none"
             style={{
               left: `${left}px`,
               top: `${top}px`,
@@ -585,7 +585,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             }}
           >
             {/* Date header */}
-            <div className="text-sm font-bold text-gray-900 mb-3 pb-2 border-b border-gray-100">
+            <div className="text-sm font-bold text-tx-primary mb-3 pb-2 border-b border-[var(--border)]">
               {hoveredDay.date.toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
@@ -596,10 +596,10 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             {/* Lesson stats */}
             {data.total > 0 && (
               <div className="mb-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Lessons</p>
+                <p className="text-xs font-semibold text-tx-muted uppercase tracking-wider mb-1.5">Lessons</p>
                 <div className="flex flex-wrap gap-2">
                   {data.scheduled > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-primary font-medium">
                       {data.scheduled} scheduled
                     </span>
                   )}
@@ -624,7 +624,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
 
             {/* Available slots */}
             <div className="mb-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Availability</p>
+              <p className="text-xs font-semibold text-tx-muted uppercase tracking-wider mb-1">Availability</p>
               <span className={`text-sm font-bold ${
                 data.availableSlots === 0 ? 'text-red-600' :
                 data.availableSlots <= 2 ? 'text-amber-600' : 'text-green-600'
@@ -636,22 +636,22 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             {/* Instructors */}
             {data.instructors.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Instructors</p>
+                <p className="text-xs font-semibold text-tx-muted uppercase tracking-wider mb-1">Instructors</p>
                 <div className="flex flex-wrap gap-1">
                   {data.instructors.map(instructor => (
-                    <span key={instructor.id} className="text-xs text-gray-700">
+                    <span key={instructor.id} className="text-xs text-tx-secondary">
                       {instructor.fullName.split(' ')[0]}
                     </span>
                   ))}
                   {data.moreInstructors > 0 && (
-                    <span className="text-xs text-gray-500">+{data.moreInstructors} more</span>
+                    <span className="text-xs text-tx-muted">+{data.moreInstructors} more</span>
                   )}
                 </div>
               </div>
             )}
 
             {/* Click hint */}
-            <p className="text-[10px] text-gray-400 mt-2 pt-2 border-t border-gray-100">
+            <p className="text-[10px] text-tx-muted mt-2 pt-2 border-t border-[var(--border)]">
               Click to view details
             </p>
           </div>

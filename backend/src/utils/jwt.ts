@@ -11,6 +11,7 @@ export interface JwtPayload {
   tenantId: string;
   email: string;
   role?: string;
+  instructorId?: string;
 }
 
 /**

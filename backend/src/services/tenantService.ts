@@ -239,6 +239,28 @@ export const updateTenantSettings = async (
     values.push(data.websiteUrl);
   }
 
+  // Address
+  if (data.addressLine1 !== undefined) {
+    fields.push(`address_line1 = $${paramCount++}`);
+    values.push(data.addressLine1);
+  }
+  if (data.addressLine2 !== undefined) {
+    fields.push(`address_line2 = $${paramCount++}`);
+    values.push(data.addressLine2);
+  }
+  if (data.city !== undefined) {
+    fields.push(`city = $${paramCount++}`);
+    values.push(data.city);
+  }
+  if (data.state !== undefined) {
+    fields.push(`state = $${paramCount++}`);
+    values.push(data.state);
+  }
+  if (data.zipCode !== undefined) {
+    fields.push(`zip_code = $${paramCount++}`);
+    values.push(data.zipCode);
+  }
+
   // Feature toggles
   if (data.enableBlockchain !== undefined) {
     fields.push(`enable_blockchain = $${paramCount++}`);

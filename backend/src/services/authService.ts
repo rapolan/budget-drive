@@ -62,7 +62,7 @@ export const login = async (email: string, password: string): Promise<LoginResul
 
   // Get user's tenant membership (use first active membership)
   const membershipResult = await query(
-    `SELECT utm.tenant_id, utm.role, utm.status, t.name as tenant_name
+    `SELECT utm.tenant_id, utm.role, utm.status, utm.instructor_id, t.name as tenant_name
      FROM user_tenant_memberships utm
      JOIN tenants t ON t.id = utm.tenant_id
      WHERE utm.user_id = $1 AND utm.status = 'active'
@@ -89,6 +89,7 @@ export const login = async (email: string, password: string): Promise<LoginResul
     tenantId: membership.tenant_id,
     email: user.email,
     role: membership.role,
+    instructorId: membership.instructor_id,
   };
 
   const token = generateToken(tokenPayload);

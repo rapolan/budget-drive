@@ -53,7 +53,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
       {/* Current Account Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+        className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-surface2 transition-colors"
       >
         {/* Avatar/Logo */}
         <div
@@ -73,21 +73,21 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 
         {/* Name and Type */}
         <div className="flex-1 text-left min-w-0">
-          <p className="text-sm font-medium text-white truncate">{currentTenant.name}</p>
-          <p className="text-xs text-gray-400">{getAccountLabel(currentTenant.type)}</p>
+          <p className="text-sm font-medium text-tx-primary truncate">{currentTenant.name}</p>
+          <p className="text-xs text-tx-muted">{getAccountLabel(currentTenant.type)}</p>
         </div>
 
         {/* Dropdown Arrow */}
         <ChevronDown
-          className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-tx-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
       {/* Dropdown Menu - Opens downward with white background for readability */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-xl shadow-2xl border border-[var(--border)] overflow-hidden z-50">
           {/* Current Account Indicator */}
-          <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <div className="flex items-center gap-3 px-4 py-3 bg-surface2 border-b border-[var(--border)]">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center shadow-sm"
               style={{ backgroundColor: currentTenant.primaryColor || '#3B82F6' }}
@@ -95,16 +95,16 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
               <Icon className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 text-left min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{currentTenant.name}</p>
-              <p className="text-xs text-gray-500">Current account</p>
+              <p className="text-sm font-semibold text-tx-primary truncate">{currentTenant.name}</p>
+              <p className="text-xs text-tx-muted">Current account</p>
             </div>
             <Check className="w-5 h-5 text-green-500" />
           </div>
 
           {/* Account List */}
           {memberships.length > 1 && (
-            <div className="max-h-48 overflow-y-auto border-b border-gray-200">
-              <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider bg-gray-50">
+            <div className="max-h-48 overflow-y-auto border-b border-[var(--border)]">
+              <div className="px-4 py-2 text-xs font-semibold text-tx-muted uppercase tracking-wider bg-surface2">
                 Switch Account
               </div>
               {memberships
@@ -118,7 +118,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                         onSwitchAccount(membership.tenantId);
                         setIsOpen(false);
                       }}
-                      className="flex items-center gap-3 w-full px-4 py-3 hover:bg-blue-50 transition-colors"
+                      className="flex items-center gap-3 w-full px-4 py-3 hover:bg-surface2 transition-colors"
                     >
                       <div
                         className="w-9 h-9 rounded-lg flex items-center justify-center"
@@ -135,10 +135,10 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                         )}
                       </div>
                       <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm font-medium text-tx-primary truncate">
                           {membership.businessName || membership.tenantName}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-tx-muted">
                           {getAccountLabel(membership.tenantType || 'school')} • {membership.role}
                         </p>
                       </div>
@@ -155,9 +155,9 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
                 onCreateNewAccount();
                 setIsOpen(false);
               }}
-              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-tx-secondary hover:bg-surface2 transition-colors"
             >
-              <Plus className="w-4 h-4 text-gray-500" />
+              <Plus className="w-4 h-4 text-tx-muted" />
               <span>Add New Account</span>
             </button>
             <button

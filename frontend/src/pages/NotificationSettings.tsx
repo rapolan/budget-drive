@@ -60,19 +60,19 @@ export const NotificationSettingsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Notification Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-tx-primary">Notification Settings</h1>
+        <p className="mt-1 text-sm text-tx-muted">
           Configure how and when notifications are sent to students, instructors, and admins
         </p>
       </div>
 
       {/* Email Notification Settings */}
-      <div className="rounded-lg bg-white p-6 shadow">
+      <div className="rounded-lg bg-surface p-6 shadow">
         <div className="mb-6 flex items-center">
           <Mail className="mr-3 h-6 w-6 text-primary" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Email Notifications</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold text-tx-primary">Email Notifications</h2>
+            <p className="text-sm text-tx-muted">
               Powered by Gmail SMTP - 500 emails/day limit (free)
             </p>
           </div>
@@ -80,21 +80,21 @@ export const NotificationSettingsPage: React.FC = () => {
 
         <div className="space-y-4">
           {/* Booking Confirmation */}
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-900">Booking Confirmation</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">Booking Confirmation</h3>
+              <p className="text-sm text-tx-muted">
                 Send immediately when a lesson is booked
               </p>
             </div>
             <button
               onClick={() => handleToggle('emailBookingConfirmation')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailBookingConfirmation ? 'bg-blue-600' : 'bg-gray-200'
+                settings.emailBookingConfirmation ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.emailBookingConfirmation ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -102,21 +102,21 @@ export const NotificationSettingsPage: React.FC = () => {
           </div>
 
           {/* 24-Hour Reminder */}
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-900">24-Hour Reminder</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">24-Hour Reminder</h3>
+              <p className="text-sm text-tx-muted">
                 Send 24 hours before the scheduled lesson
               </p>
             </div>
             <button
               onClick={() => handleToggle('emailReminder24h')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailReminder24h ? 'bg-blue-600' : 'bg-gray-200'
+                settings.emailReminder24h ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.emailReminder24h ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -124,21 +124,21 @@ export const NotificationSettingsPage: React.FC = () => {
           </div>
 
           {/* 1-Hour Reminder */}
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-900">1-Hour Reminder</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">1-Hour Reminder</h3>
+              <p className="text-sm text-tx-muted">
                 Send 1 hour before the scheduled lesson
               </p>
             </div>
             <button
               onClick={() => handleToggle('emailReminder1h')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailReminder1h ? 'bg-blue-600' : 'bg-gray-200'
+                settings.emailReminder1h ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.emailReminder1h ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -146,21 +146,21 @@ export const NotificationSettingsPage: React.FC = () => {
           </div>
 
           {/* Cancellation Notice */}
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-900">Cancellation Notice</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">Cancellation Notice</h3>
+              <p className="text-sm text-tx-muted">
                 Send when a lesson is cancelled
               </p>
             </div>
             <button
               onClick={() => handleToggle('emailCancellation')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailCancellation ? 'bg-blue-600' : 'bg-gray-200'
+                settings.emailCancellation ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.emailCancellation ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -170,19 +170,19 @@ export const NotificationSettingsPage: React.FC = () => {
           {/* Reschedule Notice */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-gray-900">Reschedule Notice</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">Reschedule Notice</h3>
+              <p className="text-sm text-tx-muted">
                 Send when a lesson time is changed
               </p>
             </div>
             <button
               onClick={() => handleToggle('emailRescheduled')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.emailRescheduled ? 'bg-blue-600' : 'bg-gray-200'
+                settings.emailRescheduled ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.emailRescheduled ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -192,104 +192,104 @@ export const NotificationSettingsPage: React.FC = () => {
       </div>
 
       {/* SMS Notifications (Future Feature) */}
-      <div className="rounded-lg bg-white p-6 shadow opacity-50">
+      <div className="rounded-lg bg-surface p-6 shadow opacity-50">
         <div className="mb-6 flex items-center">
-          <MessageSquare className="mr-3 h-6 w-6 text-gray-400" />
+          <MessageSquare className="mr-3 h-6 w-6 text-tx-muted" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-tx-primary">
               SMS Notifications
-              <span className="ml-2 rounded bg-gray-200 px-2 py-1 text-xs font-normal text-gray-600">
+              <span className="ml-2 rounded bg-surface3 px-2 py-1 text-xs font-normal text-tx-secondary">
                 Coming Soon
               </span>
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-tx-muted">
               Powered by Twilio - Available in Phase 1 Week 2
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-400">24-Hour SMS Reminder</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="font-medium text-tx-muted">24-Hour SMS Reminder</h3>
+              <p className="text-sm text-tx-muted">
                 Send SMS 24 hours before lesson
               </p>
             </div>
             <button
               disabled
-              className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200"
+              className="relative inline-flex h-6 w-11 items-center rounded-full bg-surface3"
             >
-              <span className="inline-block h-4 w-4 translate-x-1 transform rounded-full bg-white" />
+              <span className="inline-block h-4 w-4 translate-x-1 transform rounded-full bg-surface" />
             </button>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-gray-400">1-Hour SMS Reminder</h3>
-              <p className="text-sm text-gray-400">
+              <h3 className="font-medium text-tx-muted">1-Hour SMS Reminder</h3>
+              <p className="text-sm text-tx-muted">
                 Send SMS 1 hour before lesson
               </p>
             </div>
             <button
               disabled
-              className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200"
+              className="relative inline-flex h-6 w-11 items-center rounded-full bg-surface3"
             >
-              <span className="inline-block h-4 w-4 translate-x-1 transform rounded-full bg-white" />
+              <span className="inline-block h-4 w-4 translate-x-1 transform rounded-full bg-surface" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Recipient Settings */}
-      <div className="rounded-lg bg-white p-6 shadow">
+      <div className="rounded-lg bg-surface p-6 shadow">
         <div className="mb-6 flex items-center">
           <Bell className="mr-3 h-6 w-6 text-primary" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Notification Recipients</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-semibold text-tx-primary">Notification Recipients</h2>
+            <p className="text-sm text-tx-muted">
               Choose who receives notifications
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-900">Send to Students</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">Send to Students</h3>
+              <p className="text-sm text-tx-muted">
                 Notify students about their lessons
               </p>
             </div>
             <button
               onClick={() => handleToggle('sendToStudent')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.sendToStudent ? 'bg-blue-600' : 'bg-gray-200'
+                settings.sendToStudent ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.sendToStudent ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
           </div>
 
-          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h3 className="font-medium text-gray-900">Send to Instructors</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">Send to Instructors</h3>
+              <p className="text-sm text-tx-muted">
                 Notify instructors about their assigned lessons
               </p>
             </div>
             <button
               onClick={() => handleToggle('sendToInstructor')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.sendToInstructor ? 'bg-blue-600' : 'bg-gray-200'
+                settings.sendToInstructor ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.sendToInstructor ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -298,19 +298,19 @@ export const NotificationSettingsPage: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-gray-900">Send to Admin</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-tx-primary">Send to Admin</h3>
+              <p className="text-sm text-tx-muted">
                 CC admin on all notifications (can be noisy)
               </p>
             </div>
             <button
               onClick={() => handleToggle('sendToAdmin')}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.sendToAdmin ? 'bg-blue-600' : 'bg-gray-200'
+                settings.sendToAdmin ? 'bg-primary' : 'bg-surface3'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                className={`inline-block h-4 w-4 transform rounded-full bg-surface transition-transform ${
                   settings.sendToAdmin ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
@@ -320,10 +320,10 @@ export const NotificationSettingsPage: React.FC = () => {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-between rounded-lg bg-white p-6 shadow">
+      <div className="flex items-center justify-between rounded-lg bg-surface p-6 shadow">
         <button
           onClick={handleTestEmail}
-          className="flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="flex items-center rounded-md border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2"
         >
           <TestTube className="mr-2 h-4 w-4" />
           Send Test Email
@@ -338,7 +338,7 @@ export const NotificationSettingsPage: React.FC = () => {
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center rounded-md bg-blue-600 px-6 py-2 text-white hover:bg-opacity-90 disabled:opacity-50"
+            className="flex items-center rounded-md bg-primary px-6 py-2 text-white hover:bg-opacity-90 disabled:opacity-50"
           >
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? 'Saving...' : 'Save Settings'}
@@ -347,7 +347,7 @@ export const NotificationSettingsPage: React.FC = () => {
       </div>
 
       {/* Setup Instructions */}
-      <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-6">
+      <div className="rounded-lg border-l-4 border-primary bg-blue-50 p-6">
         <h3 className="mb-2 font-semibold text-blue-900">Gmail SMTP Setup Required</h3>
         <div className="space-y-2 text-sm text-blue-800">
           <p>

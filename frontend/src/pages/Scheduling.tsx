@@ -40,22 +40,22 @@ export const SchedulingPage: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Scheduling Configuration</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-3xl font-bold text-tx-primary">Scheduling Configuration</h1>
+          <p className="text-tx-secondary mt-1">
             Manage instructor availability, time off, calendar sync, and recurring patterns
           </p>
         </div>
       </div>
 
       {/* Instructor Selector */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="bg-surface rounded-lg shadow p-4">
+        <label className="block text-sm font-medium text-tx-secondary mb-2">
           Select Instructor
         </label>
         <select
           value={selectedInstructorId}
           onChange={(e) => setSelectedInstructorId(e.target.value)}
-          className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full md:w-96 px-4 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
         >
           <option value="">-- Select an Instructor --</option>
           {instructors?.map((instructor) => (
@@ -64,14 +64,14 @@ export const SchedulingPage: React.FC = () => {
             </option>
           ))}
         </select>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-tx-muted mt-1">
           Choose an instructor to manage their availability, time off, and calendar settings
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
+      <div className="bg-surface rounded-lg shadow">
+        <div className="border-b border-[var(--border)]">
           <nav className="flex -mb-px overflow-x-auto">
             {tabs.map((tab) => (
               <button
@@ -79,8 +79,8 @@ export const SchedulingPage: React.FC = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-tx-muted hover:text-tx-secondary hover:border-[var(--border-strong)]'
                 }`}
               >
                 <span className="mr-2">{tab.icon}</span>
@@ -103,7 +103,7 @@ export const SchedulingPage: React.FC = () => {
                   />
 
                   <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    <h3 className="text-lg font-semibold text-tx-primary mb-4">
                       Weekly Calendar View
                     </h3>
                     <AvailabilityCalendar
@@ -114,7 +114,7 @@ export const SchedulingPage: React.FC = () => {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-tx-muted">
                   Please select an instructor above to manage availability
                 </div>
               )}
@@ -133,7 +133,7 @@ export const SchedulingPage: React.FC = () => {
                 />
               ) : (
                 <div>
-                  <div className="mb-4 text-gray-700">
+                  <div className="mb-4 text-tx-secondary">
                     Showing all time off requests (Admin View)
                   </div>
                   <TimeOffManager
@@ -156,7 +156,7 @@ export const SchedulingPage: React.FC = () => {
                   instructorId={selectedInstructorId}
                 />
               ) : (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-tx-muted">
                   Please select an instructor above to manage calendar sync
                 </div>
               )}
@@ -174,31 +174,31 @@ export const SchedulingPage: React.FC = () => {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-surface rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Active Instructors</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">—</p>
+              <p className="text-sm text-tx-secondary">Active Instructors</p>
+              <p className="text-2xl font-bold text-tx-primary mt-1">—</p>
             </div>
             <div className="text-4xl">👨‍🏫</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-surface rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Pending Time Off</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">—</p>
+              <p className="text-sm text-tx-secondary">Pending Time Off</p>
+              <p className="text-2xl font-bold text-tx-primary mt-1">—</p>
             </div>
             <div className="text-4xl">⏳</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-surface rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">This Week's Lessons</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">—</p>
+              <p className="text-sm text-tx-secondary">This Week's Lessons</p>
+              <p className="text-2xl font-bold text-tx-primary mt-1">—</p>
             </div>
             <div className="text-4xl">📚</div>
           </div>

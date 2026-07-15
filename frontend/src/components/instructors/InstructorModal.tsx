@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, UserCheck, Mail, Phone, Briefcase, DollarSign, MapPin, FileText, Calendar } from 'lucide-react';
 import { instructorsApi } from '@/api';
+import { usersApi } from '@/api/users';
 import type { Instructor, CreateInstructorInput } from '@/types';
 import { CalendarFeedSettings } from './CalendarFeedSettings';
 
@@ -76,6 +77,26 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
     },
   });
 
+  const inviteMutation = useMutation({
+    mutationFn: usersApi.invite,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      alert('Instructor invited successfully to the app!');
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to invite instructor');
+    }
+  });
+
+  const handleGrantAccess = () => {
+    if (!instructor?.email) return;
+    inviteMutation.mutate({
+      email: instructor.email,
+      role: 'instructor' as any,
+      instructorId: instructor.id
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -98,30 +119,30 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-surface shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10">
+        <div className="sticky top-0 bg-surface border-b border-[var(--border)] px-6 py-4 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg shadow-purple-500/20">
                 <UserCheck className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-tx-primary">
                   {isEditing && instructor ? instructor.fullName : 'Add New Instructor'}
                 </h2>
                 {!isEditing && (
-                  <p className="text-sm text-gray-500">Fill in the instructor details below</p>
+                  <p className="text-sm text-tx-muted">Fill in the instructor details below</p>
                 )}
                 {isEditing && instructor?.email && (
-                  <p className="text-sm text-gray-500">{instructor.email}</p>
+                  <p className="text-sm text-tx-muted">{instructor.email}</p>
                 )}
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-all"
               aria-label="Close modal"
             >
               <X className="h-5 w-5" />
@@ -135,12 +156,12 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           <div>
             <div className="flex items-center gap-2 mb-4">
               <UserCheck className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-gray-900">Personal Information</h3>
+              <h3 className="text-sm font-semibold text-tx-primary">Personal Information</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Full Name */}
               <div className="col-span-1 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Full Name *
                 </label>
                 <input
@@ -151,17 +172,17 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   required
                   autoComplete="nope"
                   placeholder="John Smith"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Email *
                 </label>
                 <div className="mt-1 relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-tx-muted" />
                   <input
                     type="email"
                     name="email"
@@ -170,18 +191,18 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     required
                     autoComplete="nope"
                     placeholder="instructor@email.com"
-                    className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                    className="w-full rounded-lg border border-[var(--border-strong)] pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
                 </div>
               </div>
 
               {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Phone *
                 </label>
                 <div className="mt-1 relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-tx-muted" />
                   <input
                     type="tel"
                     name="phone"
@@ -190,14 +211,14 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     required
                     autoComplete="nope"
                     placeholder="(555) 123-4567"
-                    className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                    className="w-full rounded-lg border border-[var(--border-strong)] pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
                 </div>
               </div>
 
               {/* Date of Birth */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Date of Birth
                 </label>
                 <input
@@ -206,7 +227,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.dateOfBirth}
                   onChange={handleChange}
                   autoComplete="nope"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -216,12 +237,12 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           <div>
             <div className="flex items-center gap-2 mb-4">
               <FileText className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-gray-900">License Information</h3>
+              <h3 className="text-sm font-semibold text-tx-primary">License Information</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* License Number */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   License Number
                 </label>
                 <input
@@ -231,13 +252,13 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="DL123456789"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* License Expiration */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   License Expiration
                 </label>
                 <input
@@ -246,7 +267,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.licenseExpiration}
                   onChange={handleChange}
                   autoComplete="nope"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -256,19 +277,19 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Briefcase className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-gray-900">Employment Details</h3>
+              <h3 className="text-sm font-semibold text-tx-primary">Employment Details</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Employment Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Employment Type
                 </label>
                 <select
                   name="employmentType"
                   value={formData.employmentType}
                   onChange={handleChange}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 >
                   <option value="w2_employee">W2 Employee</option>
                   <option value="1099_contractor">1099 Contractor</option>
@@ -278,7 +299,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
               {/* Hire Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Hire Date
                 </label>
                 <input
@@ -287,17 +308,17 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.hireDate}
                   onChange={handleChange}
                   autoComplete="nope"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* Hourly Rate */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Hourly Rate
                 </label>
                 <div className="mt-1 relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-tx-muted" />
                   <input
                     type="number"
                     name="hourlyRate"
@@ -307,7 +328,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     step="0.01"
                     autoComplete="nope"
                     placeholder="35.00"
-                    className="w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                    className="w-full rounded-lg border border-[var(--border-strong)] pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
                 </div>
               </div>
@@ -318,12 +339,12 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           <div>
             <div className="flex items-center gap-2 mb-4">
               <MapPin className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-gray-900">Address</h3>
+              <h3 className="text-sm font-semibold text-tx-primary">Address</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Address Line 1 */}
               <div className="col-span-1 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Street Address
                 </label>
                 <input
@@ -333,13 +354,13 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="123 Main St"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* Address Line 2 */}
               <div className="col-span-1 sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Apt, Suite, Unit (optional)
                 </label>
                 <input
@@ -349,13 +370,13 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="Apt 4B"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* City */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   City
                 </label>
                 <input
@@ -365,13 +386,13 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="San Diego"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* State */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   State
                 </label>
                 <input
@@ -381,13 +402,13 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="CA"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
               {/* ZIP Code */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   ZIP Code
                 </label>
                 <input
@@ -397,7 +418,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="92101"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -407,13 +428,13 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           <div>
             <div className="flex items-center gap-2 mb-4">
               <MapPin className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-gray-900">Service Area</h3>
-              <span className="text-xs text-gray-500">(for proximity matching)</span>
+              <h3 className="text-sm font-semibold text-tx-primary">Service Area</h3>
+              <span className="text-xs text-tx-muted">(for proximity matching)</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Home ZIP Code */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Home Base ZIP Code
                 </label>
                 <input
@@ -424,16 +445,16 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   autoComplete="nope"
                   placeholder="92101"
                   maxLength={10}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-tx-muted">
                   Starting location for calculating proximity to students
                 </p>
               </div>
 
               {/* Service ZIP Codes */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Service ZIP Codes
                 </label>
                 <input
@@ -443,9 +464,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="92101,92102,921"
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-tx-muted">
                   Comma-separated ZIP codes or prefixes (e.g., "92101,92102" or "920,921")
                 </p>
               </div>
@@ -454,21 +475,47 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
           {/* Calendar Feed Settings - only show when editing */}
           {isEditing && instructor && (
-            <div className="border-t border-gray-100 pt-6">
+            <div className="border-t border-[var(--border)] pt-6">
               <div className="flex items-center gap-2 mb-4">
                 <Calendar className="h-4 w-4 text-purple-600" />
-                <h3 className="text-sm font-semibold text-gray-900">Calendar Integration</h3>
+                <h3 className="text-sm font-semibold text-tx-primary">Calendar Integration</h3>
               </div>
               <CalendarFeedSettings instructorId={instructor.id} />
             </div>
           )}
 
+          {/* App Access Integration - only show when editing */}
+          {isEditing && instructor && (
+            <div className="border-t border-[var(--border)] pt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <UserCheck className="h-4 w-4 text-purple-600" />
+                <h3 className="text-sm font-semibold text-tx-primary">App Access</h3>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-purple-900">Instructor Dashboard Access</h4>
+                  <p className="text-sm text-purple-700 mt-1">
+                    Grant this instructor access to the app so they can manage their own schedule and students.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGrantAccess}
+                  disabled={inviteMutation.isPending}
+                  className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {inviteMutation.isPending ? 'Sending Invite...' : 'Grant Access'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Submit Buttons */}
-          <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-6 border-t border-[var(--border)]">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              className="rounded-lg border border-[var(--border-strong)] bg-surface px-4 py-2.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
             >
               Cancel
             </button>

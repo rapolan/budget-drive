@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, AlertTriangle, CheckCircle, Clock, Hash, Calendar, User, FileText } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, Clock, Hash, Calendar, User, FileText, MapPin } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson, CreateLessonInput } from '@/types';
 
@@ -24,6 +24,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     lessonNumber: null,
     lessonType: 'behind_wheel',
     cost: 50,
+    pickupAddress: '',
     notes: '',
   });
 
@@ -58,6 +59,21 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     queryKey: ['lessons'],
     queryFn: () => lessonsApi.getAll(1, 10000),
   });
+
+  // Helper: build full address string from student record
+  const getStudentFullAddress = (student: any): string => {
+    if (student?.addressLine1) {
+      return [
+        student.addressLine1,
+        student.addressLine2,
+        student.city && student.state
+          ? `${student.city}, ${student.state}`
+          : student.city || student.state,
+        student.zipCode,
+      ].filter(Boolean).join(', ');
+    }
+    return student?.address || '';
+  };
 
   // Calculate how many lessons the selected student has (excluding current if editing)
   const selectedStudent = studentsData?.data?.find(s => s.id === formData.studentId);
@@ -152,6 +168,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
         lessonNumber: lesson.lessonNumber || null,
         lessonType: lesson.lessonType,
         cost: lesson.cost,
+        pickupAddress: lesson.pickupAddress || '',
         notes: lesson.notes || '',
       });
     }
@@ -179,6 +196,19 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       setFormData(prev => ({ ...prev, lessonNumber: suggestedLessonNumber }));
     }
   }, [formData.studentId, suggestedLessonNumber, isEditing]);
+
+  // Auto-fill pickup address from student's home address when student changes (new lessons only)
+  useEffect(() => {
+    if (!isEditing && formData.studentId) {
+      const student = studentsData?.data?.find(s => s.id === formData.studentId);
+      if (student) {
+        const addr = getStudentFullAddress(student);
+        if (addr) {
+          setFormData(prev => ({ ...prev, pickupAddress: addr }));
+        }
+      }
+    }
+  }, [formData.studentId, studentsData, isEditing]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateLessonInput) => lessonsApi.create(data),
@@ -247,6 +277,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       lessonNumber: formData.lessonNumber,
       lessonType: formData.lessonType,
       cost: formData.cost,
+      pickupAddress: formData.pickupAddress || null,
       notes: formData.notes,
     };
 
@@ -268,20 +299,20 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-[2px] p-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-white/60">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10">
+        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-white/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
                 <Calendar className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-tx-primary">
                   {isEditing ? 'Edit Lesson' : 'Add New Lesson'}
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-tx-muted">
                   {isEditing ? 'Update lesson details' : 'Schedule a new driving lesson'}
                 </p>
               </div>
@@ -289,7 +320,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-all"
               aria-label="Close modal"
             >
               <X className="h-5 w-5" />
@@ -303,8 +334,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Student */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <User className="h-4 w-4 text-blue-600" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <User className="h-4 w-4 text-primary" />
                 Student
                 <span className="text-red-500">*</span>
               </label>
@@ -314,7 +345,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Student"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="">Select Student</option>
                 {studentsData?.data
@@ -329,8 +360,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
             {/* Lesson Number */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <Hash className="h-4 w-4 text-blue-600" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <Hash className="h-4 w-4 text-primary" />
                 Lesson #
               </label>
               <div className="flex items-center gap-2">
@@ -342,7 +373,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                     lessonNumber: e.target.value ? parseInt(e.target.value) : null
                   }))}
                   title="Lesson Number"
-                  className="flex-1 px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="flex-1 px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 >
                   <option value="">--</option>
                   {Array.from({ length: Math.max(estimatedTotalLessons, 10) }, (_, i) => i + 1).map(num => (
@@ -352,7 +383,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                   ))}
                 </select>
                 {formData.studentId && (
-                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                  <span className="text-xs text-tx-muted whitespace-nowrap">
                     of ~{estimatedTotalLessons}
                   </span>
                 )}
@@ -364,8 +395,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Instructor */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <User className="h-4 w-4 text-blue-600" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <User className="h-4 w-4 text-primary" />
                 Instructor
                 <span className="text-red-500">*</span>
               </label>
@@ -375,7 +406,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Instructor"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="">Select Instructor</option>
                 {instructorsData?.data
@@ -390,8 +421,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
             {/* Lesson Type */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <FileText className="h-4 w-4 text-blue-600" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <FileText className="h-4 w-4 text-primary" />
                 Lesson Type
                 <span className="text-red-500">*</span>
               </label>
@@ -401,7 +432,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Lesson Type"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="behind_wheel">Behind the Wheel</option>
                 <option value="classroom">Classroom</option>
@@ -412,8 +443,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
           {/* Date Row */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-              <Calendar className="h-4 w-4 text-blue-600" />
+            <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+              <Calendar className="h-4 w-4 text-primary" />
               Date
               <span className="text-red-500">*</span>
             </label>
@@ -425,7 +456,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               required
               autoComplete="off"
               title="Select Date"
-              className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
             />
           </div>
 
@@ -433,8 +464,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Start Time */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <Clock className="h-4 w-4 text-blue-600" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <Clock className="h-4 w-4 text-primary" />
                 Start Time
                 <span className="text-red-500">*</span>
               </label>
@@ -446,14 +477,14 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 required
                 autoComplete="off"
                 title="Select Start Time"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
             </div>
 
             {/* End Time */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <Clock className="h-4 w-4 text-blue-600" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <Clock className="h-4 w-4 text-primary" />
                 End Time
                 <span className="text-red-500">*</span>
               </label>
@@ -465,21 +496,21 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 required
                 autoComplete="off"
                 title="Select End Time"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
             </div>
 
             {/* Duration (auto-calculated) */}
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <Clock className="h-4 w-4 text-gray-400" />
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <Clock className="h-4 w-4 text-tx-muted" />
                 Duration
               </label>
               <input
                 type="text"
                 value={`${formData.duration} min`}
                 readOnly
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-surface2 text-tx-secondary cursor-not-allowed"
                 title="Auto-calculated from start and end times"
               />
             </div>
@@ -488,8 +519,8 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           {/* Cost Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-                <span className="text-blue-600">$</span>
+              <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+                <span className="text-primary">$</span>
                 Cost
                 <span className="text-red-500">*</span>
               </label>
@@ -502,16 +533,38 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 step="0.01"
                 required
                 autoComplete="off"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 placeholder="50.00"
               />
             </div>
           </div>
 
+          {/* Pickup Address */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Pickup Address
+            </label>
+            <input
+              type="text"
+              name="pickupAddress"
+              value={formData.pickupAddress || ''}
+              onChange={handleChange}
+              placeholder="e.g. 123 Maple Ave, Los Angeles, CA 90006"
+              autoComplete="off"
+              className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            />
+            {formData.studentId && (
+              <p className="text-xs text-tx-muted mt-1">
+                Auto-filled from student's home address. Edit to use a different pickup location.
+              </p>
+            )}
+          </div>
+
           {/* Notes */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-900 mb-2">
-              <FileText className="h-4 w-4 text-blue-600" />
+            <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
+              <FileText className="h-4 w-4 text-primary" />
               Notes
             </label>
             <textarea
@@ -520,7 +573,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               onChange={handleChange}
               rows={3}
               placeholder="Additional notes about this lesson..."
-              className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
             />
           </div>
 
@@ -542,14 +595,14 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <Clock className="h-5 w-5 flex-shrink-0 text-blue-600 mt-0.5" />
+                    <Clock className="h-5 w-5 flex-shrink-0 text-primary mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-blue-900">
                         Instructor's schedule for this day:
                       </p>
                       <div className="mt-2 space-y-1">
                         {sameDayLessons.map((l, idx) => (
-                          <p key={idx} className="text-xs text-blue-700">
+                          <p key={idx} className="text-xs text-primary">
                             • {l.startTime.substring(0, 5)} - {l.endTime.substring(0, 5)} (Busy)
                           </p>
                         ))}
@@ -606,11 +659,11 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+              className="px-4 py-2.5 text-sm font-medium text-tx-secondary hover:text-tx-primary hover:bg-surface2 rounded-lg transition-all"
             >
               Cancel
             </button>

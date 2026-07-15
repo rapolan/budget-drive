@@ -30,24 +30,24 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
   const achievedMilestones = milestones.filter(m => m.achieved).length;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
+    <div className="bg-surface rounded-lg shadow-sm border border-[var(--border)] p-6 space-y-6">
       {/* Progress Overview */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-gray-700">Training Progress</h3>
-          <span className="text-sm font-semibold text-blue-600">
+          <h3 className="text-sm font-medium text-tx-secondary">Training Progress</h3>
+          <span className="text-sm font-semibold text-primary">
             {hoursCompleted} / {hoursRequired} hrs
           </span>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <div className="w-full bg-surface3 rounded-full h-3 overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               progressPercentage >= 100
                 ? 'bg-green-500'
                 : progressPercentage >= 75
-                ? 'bg-blue-500'
+                ? 'bg-primary'
                 : progressPercentage >= 50
                 ? 'bg-yellow-500'
                 : 'bg-orange-500'
@@ -56,7 +56,7 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
           />
         </div>
 
-        <div className="mt-1 text-xs text-gray-500 text-right">
+        <div className="mt-1 text-xs text-tx-muted text-right">
           {progressPercentage.toFixed(1)}% Complete
         </div>
       </div>
@@ -68,8 +68,8 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
           <div className="text-xs text-green-600 mt-1">Completed</div>
         </div>
         <div className="text-center p-3 bg-blue-50 rounded-lg">
-          <div className="text-2xl font-bold text-blue-700">{scheduledLessons}</div>
-          <div className="text-xs text-blue-600 mt-1">Scheduled</div>
+          <div className="text-2xl font-bold text-primary">{scheduledLessons}</div>
+          <div className="text-xs text-primary mt-1">Scheduled</div>
         </div>
         <div className="text-center p-3 bg-purple-50 rounded-lg">
           <div className="text-2xl font-bold text-purple-700">{totalLessons}</div>
@@ -80,8 +80,8 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
       {/* Milestones */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-medium text-gray-700">Milestones</h4>
-          <span className="text-xs text-gray-500">
+          <h4 className="text-sm font-medium text-tx-secondary">Milestones</h4>
+          <span className="text-xs text-tx-muted">
             {achievedMilestones} / {milestones.length}
           </span>
         </div>
@@ -95,19 +95,19 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
                 className={`flex items-center gap-3 p-2 rounded transition-colors ${
                   milestone.achieved
                     ? 'bg-green-50 border-l-4 border-green-500'
-                    : 'bg-gray-50 border-l-4 border-gray-300'
+                    : 'bg-surface2 border-l-4 border-[var(--border-strong)]'
                 }`}
               >
                 <Icon
                   className={`h-4 w-4 ${
-                    milestone.achieved ? 'text-green-600' : 'text-gray-400'
+                    milestone.achieved ? 'text-green-600' : 'text-tx-muted'
                   }`}
                 />
                 <span
                   className={`text-sm ${
                     milestone.achieved
                       ? 'text-green-800 font-medium'
-                      : 'text-gray-500'
+                      : 'text-tx-muted'
                   }`}
                 >
                   {milestone.label}

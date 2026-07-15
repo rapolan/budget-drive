@@ -65,6 +65,12 @@ export const removeTeamMember = asyncHandler(async (req: Request, res: Response)
 export const inviteTeamMember = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const userId = req.user?.userId || 'system';
-  const user = await userService.inviteUserToTenant(req.body.email, tenantId, req.body.role, userId);
+  const user = await userService.inviteUserToTenant(
+    req.body.email, 
+    tenantId, 
+    req.body.role, 
+    userId,
+    req.body.instructorId
+  );
   res.status(201).json({ success: true, data: user });
 });

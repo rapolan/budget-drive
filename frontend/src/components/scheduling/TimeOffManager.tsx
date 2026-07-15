@@ -173,7 +173,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <div className="text-gray-500">Loading time off requests...</div>
+        <div className="text-tx-muted">Loading time off requests...</div>
       </div>
     );
   }
@@ -188,13 +188,13 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
 
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          <h3 className="text-lg font-semibold text-gray-900">Time Off Requests</h3>
+          <h3 className="text-lg font-semibold text-tx-primary">Time Off Requests</h3>
 
           {showAllInstructors && (
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-1 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
@@ -206,7 +206,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
         {instructorId && (
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
           >
             {showAddForm ? 'Cancel' : '+ Request Time Off'}
           </button>
@@ -214,10 +214,10 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
       </div>
 
       {showAddForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-lg space-y-4">
+        <form onSubmit={handleSubmit} className="bg-surface2 p-4 rounded-lg space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Start Date *
               </label>
               <input
@@ -225,13 +225,13 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.startDate}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 End Date *
               </label>
               <input
@@ -239,7 +239,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -247,7 +247,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Start Time (Optional for partial day)
               </label>
               <input
@@ -255,12 +255,12 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.startTime}
                 onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 End Time (Optional for partial day)
               </label>
               <input
@@ -268,13 +268,13 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.endTime}
                 onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-tx-secondary mb-1">
               Reason *
             </label>
             <input
@@ -282,21 +282,21 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
               autoComplete="nope"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="e.g., Vacation, Sick leave, Personal"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-tx-secondary mb-1">
               Notes (Optional)
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Additional details..."
             />
           </div>
@@ -304,59 +304,59 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
           <button
             type="submit"
             disabled={saving}
-            className="w-full md:w-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
+            className="w-full md:w-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-surface3 disabled:text-tx-muted"
           >
             {saving ? 'Submitting...' : 'Submit Request'}
           </button>
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-surface rounded-lg shadow overflow-hidden">
         {timeOffs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-tx-muted">
             {filterStatus === 'all'
               ? 'No time off requests found.'
               : `No ${filterStatus} requests found.`}
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[var(--border)]">
+            <thead className="bg-surface2">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Start Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   End Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Reason
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-surface divide-y divide-[var(--border)]">
               {timeOffs.map((timeOff) => (
-                <tr key={timeOff.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <tr key={timeOff.id} className="hover:bg-surface2">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-primary">
                     {formatDate(timeOff.startDate)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-primary">
                     {formatDate(timeOff.endDate)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-muted">
                     {timeOff.startTime && timeOff.endTime
                       ? `${formatTime(timeOff.startTime)} - ${formatTime(timeOff.endTime)}`
                       : 'Full day'}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                  <td className="px-6 py-4 text-sm text-tx-muted max-w-xs truncate">
                     {timeOff.reason || '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

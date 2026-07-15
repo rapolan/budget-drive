@@ -59,9 +59,9 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
       case 'failed':
         return 'bg-red-100 text-red-800';
       case 'refunded':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
     }
   };
 
@@ -75,23 +75,23 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
         />
 
         {/* Modal */}
-        <div className="relative w-full max-w-4xl rounded-lg bg-white shadow-xl">
+        <div className="relative w-full max-w-4xl rounded-lg bg-surface shadow-xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
             <div>
               <div className="flex items-center gap-2">
                 <FileText className="h-6 w-6 text-primary" />
-                <h2 className="text-xl font-semibold text-gray-900">Payment History</h2>
+                <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
               </div>
               {student && (
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="mt-1 text-sm text-tx-secondary">
                   {student.fullName} ({student.email})
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+              className="rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted"
             >
               <X className="h-5 w-5" />
             </button>
@@ -103,20 +103,20 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
             {student && (
               <div className="mb-6 grid gap-4 md:grid-cols-3">
                 <div className="rounded-lg bg-blue-50 p-4">
-                  <p className="text-sm font-medium text-gray-700">Total Paid</p>
+                  <p className="text-sm font-medium text-tx-secondary">Total Paid</p>
                   <p className="mt-1 text-2xl font-bold text-green-600">
                     ${(Number(student.totalPaid) || 0).toFixed(2)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-blue-50 p-4">
-                  <p className="text-sm font-medium text-gray-700">Outstanding</p>
+                  <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
                   <p className="mt-1 text-2xl font-bold text-red-600">
                     ${(Number(student.outstandingBalance) || 0).toFixed(2)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-blue-50 p-4">
-                  <p className="text-sm font-medium text-gray-700">Total Payments</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-900">{payments.length}</p>
+                  <p className="text-sm font-medium text-tx-secondary">Total Payments</p>
+                  <p className="mt-1 text-2xl font-bold text-tx-primary">{payments.length}</p>
                 </div>
               </div>
             )}
@@ -141,53 +141,53 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
             {!isLoading && !error && (
               <>
                 {payments.length === 0 ? (
-                  <div className="rounded-lg border-2 border-dashed border-gray-300 py-12 text-center">
-                    <DollarSign className="mx-auto h-12 w-12 text-gray-400" />
-                    <p className="mt-2 text-sm text-gray-600">No payments recorded yet</p>
+                  <div className="rounded-lg border-2 border-dashed border-[var(--border-strong)] py-12 text-center">
+                    <DollarSign className="mx-auto h-12 w-12 text-tx-muted" />
+                    <p className="mt-2 text-sm text-tx-secondary">No payments recorded yet</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-lg border border-gray-200">
+                  <div className="overflow-hidden rounded-lg border border-[var(--border)]">
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                      <table className="min-w-full divide-y divide-[var(--border)]">
+                        <thead className="bg-surface2">
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Date
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Type
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Method
                             </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Amount
                             </th>
-                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Status
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Notes
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200 bg-white">
+                        <tbody className="divide-y divide-[var(--border)] bg-surface">
                           {payments.map((payment) => (
-                            <tr key={payment.id} className="hover:bg-gray-50">
+                            <tr key={payment.id} className="hover:bg-surface2">
                               <td className="whitespace-nowrap px-4 py-3">
-                                <div className="flex items-center gap-2 text-sm text-gray-900">
-                                  <Calendar className="h-4 w-4 text-gray-400" />
+                                <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                  <Calendar className="h-4 w-4 text-tx-muted" />
                                   {new Date(payment.date).toLocaleDateString()}
                                 </div>
                               </td>
                               <td className="whitespace-nowrap px-4 py-3">
-                                <div className="text-sm text-gray-900">
+                                <div className="text-sm text-tx-primary">
                                   {getPaymentTypeLabel(payment.paymentType)}
                                 </div>
                               </td>
                               <td className="whitespace-nowrap px-4 py-3">
-                                <div className="flex items-center gap-2 text-sm text-gray-900">
-                                  <CreditCard className="h-4 w-4 text-gray-400" />
+                                <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                  <CreditCard className="h-4 w-4 text-tx-muted" />
                                   {getPaymentMethodLabel(payment.paymentMethod)}
                                 </div>
                               </td>
@@ -206,7 +206,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                 </span>
                               </td>
                               <td className="px-4 py-3">
-                                <div className="max-w-xs truncate text-sm text-gray-500">
+                                <div className="max-w-xs truncate text-sm text-tx-muted">
                                   {payment.notes || '-'}
                                 </div>
                               </td>
@@ -222,10 +222,10 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end border-t border-gray-200 px-6 py-4">
+          <div className="flex justify-end border-t border-[var(--border)] px-6 py-4">
             <button
               onClick={onClose}
-              className="rounded-md border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+              className="rounded-md border border-[var(--border-strong)] px-4 py-2 text-tx-secondary hover:bg-surface2"
             >
               Close
             </button>

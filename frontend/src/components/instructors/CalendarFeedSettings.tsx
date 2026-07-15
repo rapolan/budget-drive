@@ -58,16 +58,16 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
       className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
     >
       <div className="flex items-center gap-2">
-        <Calendar className="h-5 w-5 text-blue-600" />
-        <span className="font-semibold text-gray-900">Calendar Sync</span>
+        <Calendar className="h-5 w-5 text-primary" />
+        <span className="font-semibold text-tx-primary">Calendar Sync</span>
         {hasCalendarFeed && (
           <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
         )}
       </div>
       {expanded ? (
-        <ChevronUp className="h-5 w-5 text-gray-500" />
+        <ChevronUp className="h-5 w-5 text-tx-muted" />
       ) : (
-        <ChevronDown className="h-5 w-5 text-gray-500" />
+        <ChevronDown className="h-5 w-5 text-tx-muted" />
       )}
     </button>
   );
@@ -75,8 +75,8 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
   if (isLoading) {
     return (
       <div className="mt-4">
-        <div className="animate-pulse bg-gray-100 rounded-lg p-4">
-          <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+        <div className="animate-pulse bg-surface2 rounded-lg p-4">
+          <div className="h-4 bg-surface3 rounded w-1/3"></div>
         </div>
       </div>
     );
@@ -88,7 +88,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
 
       {expanded && (
         <div className="mt-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-          <p className="text-sm text-gray-600 mb-3">
+          <p className="text-sm text-tx-secondary mb-3">
             Subscribe to this instructor's lesson calendar in any calendar app (Google, Apple, Outlook).
             Lessons will automatically appear in their calendar.
           </p>
@@ -102,7 +102,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                   readOnly
                   value={feedUrl}
                   title="Calendar feed URL"
-                  className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg font-mono text-gray-600 truncate"
+                  className="flex-1 px-3 py-2 text-sm bg-surface border border-[var(--border-strong)] rounded-lg font-mono text-tx-secondary truncate"
                 />
                 <button
                   type="button"
@@ -111,7 +111,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                   className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1 ${
                     copied
                       ? 'bg-green-500 text-white'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-primary text-white hover:brightness-90 hover:bg-primary'
                   }`}
                 >
                   {copied ? (
@@ -133,7 +133,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowInstructions(!showInstructions)}
-                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  className="text-sm text-primary hover:text-blue-800 flex items-center gap-1"
                 >
                   <ExternalLink className="h-4 w-4" />
                   {showInstructions ? 'Hide' : 'Show'} Setup Instructions
@@ -142,7 +142,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                   type="button"
                   onClick={() => regenerateMutation.mutate()}
                   disabled={regenerateMutation.isPending}
-                  className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
+                  className="text-sm text-tx-secondary hover:text-tx-primary flex items-center gap-1"
                 >
                   <RefreshCw className={`h-4 w-4 ${regenerateMutation.isPending ? 'animate-spin' : ''}`} />
                   Regenerate URL
@@ -151,33 +151,33 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
 
               {/* Instructions */}
               {showInstructions && (
-                <div className="bg-white rounded-lg p-3 border border-gray-200 space-y-3">
+                <div className="bg-surface rounded-lg p-3 border border-[var(--border)] space-y-3">
                   <div>
-                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                    <h4 className="font-medium text-tx-primary flex items-center gap-2">
                       <span className="text-lg">📱</span> Google Calendar
                     </h4>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-tx-secondary mt-1">
                       Open Google Calendar → Settings → Add calendar → From URL → Paste the URL above
                     </p>
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                    <h4 className="font-medium text-tx-primary flex items-center gap-2">
                       <span className="text-lg">🍎</span> Apple Calendar
                     </h4>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-tx-secondary mt-1">
                       File → New Calendar Subscription → Paste the URL above
                     </p>
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                    <h4 className="font-medium text-tx-primary flex items-center gap-2">
                       <span className="text-lg">📧</span> Microsoft Outlook
                     </h4>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-tx-secondary mt-1">
                       Add Calendar → Subscribe from web → Paste the URL above
                     </p>
                   </div>
-                  <div className="pt-2 border-t border-gray-100">
-                    <p className="text-xs text-gray-500">
+                  <div className="pt-2 border-t border-[var(--border)]">
+                    <p className="text-xs text-tx-muted">
                       💡 <strong>Tip:</strong> Calendar apps refresh subscribed calendars periodically (usually every 15-60 minutes).
                       New lessons will appear automatically after the next refresh.
                     </p>
@@ -194,14 +194,14 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
           ) : (
             /* No feed set up yet */
             <div className="text-center py-4">
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-tx-secondary mb-3">
                 Calendar sync is not set up yet for this instructor.
               </p>
               <button
                 type="button"
                 onClick={() => setupMutation.mutate()}
                 disabled={setupMutation.isPending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition-colors flex items-center gap-2 mx-auto"
               >
                 {setupMutation.isPending ? (
                   <>

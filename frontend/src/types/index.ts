@@ -58,34 +58,48 @@ export interface UserTenantMembership {
 export interface TenantSettings {
   id: string;
   tenantId: string;
-  tagline?: string;
+
+  // Business identity
+  businessName?: string;
+  businessTagline?: string;
   logoUrl?: string;
+
+  // Colors
   primaryColor: string;
-  secondaryColor: string;
-  accentColor: string;
-  contactEmail?: string;
-  contactPhone?: string;
+
+  // Contact
+  supportEmail?: string;
+  supportPhone?: string;
   websiteUrl?: string;
-  businessAddress?: string;
+
+  // Address
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+
+  // Localization
   timezone: string;
   currency: string;
   language: string;
-  defaultHoursRequired: number; // State-specific training hours requirement
+
+  // Defaults
+  defaultHoursRequired: number;
+
+  // Feature flags
+  enableBlockchain?: boolean;
   enableBlockchainPayments: boolean;
   enableGoogleCalendar: boolean;
   enableCertificates: boolean;
   enableFollowUpTracker: boolean;
-  // Independent instructor specific fields
-  independentInstructorId?: string;
-  acceptsNewStudents: boolean;
-  serviceAreaDescription?: string;
-  serviceAreaRadiusMiles?: number;
-  serviceZipCodes?: string[];
-  specializations?: string[];
-  languagesSpoken: string[];
-  yearsExperience?: number;
-  bio?: string;
-  teachingPhilosophy?: string;
+  enableMultiPayment?: boolean;
+  enableStudentPortal?: boolean;
+  enableInstructorPortal?: boolean;
+  enableSmsNotifications?: boolean;
+  enableEmailNotifications?: boolean;
+
   createdAt: Date;
   updatedAt: Date;
 }

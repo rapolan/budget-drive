@@ -15,6 +15,7 @@ dist/
 build/
 *.log
 .vite/
+coverage/
 
 # OS files
 .DS_Store
@@ -29,6 +30,7 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+.claude/settings.json
 
 # Database
 *.db

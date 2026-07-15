@@ -8,6 +8,7 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
+const validateSeed = require('./validate-seed');
 
 async function runSeed() {
   const client = new Client({
@@ -51,23 +52,32 @@ async function runSeed() {
     console.log('✅ ALL SEED DATA LOADED SUCCESSFULLY!');
     console.log('==============================================\n');
 
-    // Get summary statistics
-    const tenantResult = await client.query('SELECT COUNT(*) FROM tenants');
-    const studentResult = await client.query('SELECT COUNT(*) FROM students');
-    const instructorResult = await client.query('SELECT COUNT(*) FROM instructors');
-    const vehicleResult = await client.query('SELECT COUNT(*) FROM vehicles');
-    const lessonResult = await client.query('SELECT COUNT(*) FROM lessons');
-    const paymentResult = await client.query('SELECT COUNT(*) FROM payments');
-    const recurringResult = await client.query('SELECT COUNT(*) FROM recurring_lesson_patterns WHERE is_active = true');
+    // Get summary statistics (wrapped in try/catch to be robust)
+    const getCount = async (table, where = '') => {
+      try {
+        const result = await client.query(`SELECT COUNT(*) FROM ${table} ${where}`);
+        return result.rows[0].count;
+      } catch (e) {
+        return 'Table not found';
+      }
+    };
+
+    const tenantCount = await getCount('tenants');
+    const studentCount = await getCount('students');
+    const instructorCount = await getCount('instructors');
+    const vehicleCount = await getCount('vehicles');
+    const lessonCount = await getCount('lessons');
+    const paymentCount = await getCount('payments');
+    const recurringCount = await getCount('recurring_lesson_patterns', "WHERE status = 'active'");
 
     console.log('📊 Database Summary:');
-    console.log(`  - ${tenantResult.rows[0].count} Tenant(s)`);
-    console.log(`  - ${studentResult.rows[0].count} Students`);
-    console.log(`  - ${instructorResult.rows[0].count} Instructors`);
-    console.log(`  - ${vehicleResult.rows[0].count} Vehicles`);
-    console.log(`  - ${lessonResult.rows[0].count} Lessons`);
-    console.log(`  - ${paymentResult.rows[0].count} Payments`);
-    console.log(`  - ${recurringResult.rows[0].count} Active Recurring Patterns`);
+    console.log(`  - ${tenantCount} Tenant(s)`);
+    console.log(`  - ${studentCount} Students`);
+    console.log(`  - ${instructorCount} Instructors`);
+    console.log(`  - ${vehicleCount} Vehicles`);
+    console.log(`  - ${lessonCount} Lessons`);
+    console.log(`  - ${paymentCount} Payments`);
+    console.log(`  - ${recurringCount} Active Recurring Patterns`);
 
     // Get tenant info for frontend testing
     const tenantInfo = await client.query('SELECT id, name FROM tenants LIMIT 1');
@@ -84,6 +94,14 @@ async function runSeed() {
     console.log('==============================================\n');
 
     await client.end();
+
+    // FINAL VALIDATION STEP
+    const isValid = await validateSeed();
+    if (!isValid) {
+      console.error('⚠️  Seed completed but data validation FAILED.');
+      process.exit(1);
+    }
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Seed failed:', error.message);

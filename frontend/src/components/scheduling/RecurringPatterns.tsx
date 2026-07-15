@@ -158,14 +158,14 @@ export const RecurringPatterns: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Recurring Lesson Patterns</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-semibold text-tx-primary">Recurring Lesson Patterns</h2>
+          <p className="text-sm text-tx-secondary mt-1">
             Schedule multiple lessons at once with recurring patterns
           </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 bg-primary text-white font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
         >
           {showForm ? 'Cancel' : '+ New Pattern'}
         </button>
@@ -173,13 +173,13 @@ export const RecurringPatterns: React.FC = () => {
 
       {/* Create Pattern Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Recurring Pattern</h3>
+        <form onSubmit={handleSubmit} className="bg-surface border border-[var(--border)] rounded-lg p-6 space-y-4">
+          <h3 className="text-lg font-semibold text-tx-primary mb-4">Create Recurring Pattern</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Pattern Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Pattern Name *
               </label>
               <input
@@ -188,14 +188,14 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, patternName: e.target.value })}
                 placeholder="e.g., Mike's Weekly Lessons"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Student ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Student ID *
               </label>
               <input
@@ -204,14 +204,14 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
                 placeholder="Student UUID"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Instructor ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Instructor ID *
               </label>
               <input
@@ -220,14 +220,14 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, instructorId: e.target.value })}
                 placeholder="Instructor UUID"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Vehicle ID */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Vehicle ID *
               </label>
               <input
@@ -236,14 +236,14 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
                 placeholder="Vehicle UUID"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Recurrence Type */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Recurrence Type *
               </label>
               <select
@@ -251,7 +251,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, recurrenceType: e.target.value as any })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 {RECURRENCE_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -263,7 +263,7 @@ export const RecurringPatterns: React.FC = () => {
 
             {/* Duration */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Duration (minutes) *
               </label>
               <input
@@ -273,14 +273,14 @@ export const RecurringPatterns: React.FC = () => {
                 min="30"
                 step="30"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Cost */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Cost per Lesson ($) *
               </label>
               <input
@@ -290,14 +290,14 @@ export const RecurringPatterns: React.FC = () => {
                 min="0"
                 step="0.01"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Time of Day */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Time of Day *
               </label>
               <input
@@ -305,14 +305,14 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.timeOfDay || ''}
                 onChange={(e) => setFormData({ ...formData, timeOfDay: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* Start Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Start Date *
               </label>
               <input
@@ -320,14 +320,14 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.startDate || ''}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             {/* End Date */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 End Date (optional)
               </label>
               <input
@@ -335,13 +335,13 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.endDate || ''}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
             {/* Max Occurrences */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Max Occurrences (optional)
               </label>
               <input
@@ -353,14 +353,14 @@ export const RecurringPatterns: React.FC = () => {
                 min="1"
                 placeholder="Unlimited if empty"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
           </div>
 
           {/* Days of Week */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-tx-secondary mb-2">
               Days of Week *
             </label>
             <div className="flex flex-wrap gap-2">
@@ -371,8 +371,8 @@ export const RecurringPatterns: React.FC = () => {
                   onClick={() => toggleDay(day.value)}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                     formData.daysOfWeek?.includes(day.value)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-primary text-white'
+                      : 'bg-surface2 text-tx-secondary hover:bg-surface3'
                   }`}
                 >
                   {day.label}
@@ -383,7 +383,7 @@ export const RecurringPatterns: React.FC = () => {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-tx-secondary mb-1">
               Description (optional)
             </label>
             <textarea
@@ -391,7 +391,7 @@ export const RecurringPatterns: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
               placeholder="Additional notes about this pattern..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
 
@@ -407,14 +407,14 @@ export const RecurringPatterns: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors disabled:opacity-50"
             >
               {loading ? 'Creating...' : 'Create Pattern'}
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-3 bg-surface2 text-tx-secondary font-medium rounded-lg hover:bg-surface3 transition-colors"
             >
               Cancel
             </button>
@@ -423,34 +423,34 @@ export const RecurringPatterns: React.FC = () => {
       )}
 
       {/* Patterns List */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Active Patterns</h3>
+      <div className="bg-surface border border-[var(--border)] rounded-lg overflow-hidden">
+        <div className="px-6 py-4 bg-surface2 border-b border-[var(--border)]">
+          <h3 className="text-lg font-semibold text-tx-primary">Active Patterns</h3>
         </div>
 
         {loading && patterns.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : patterns.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-tx-muted">
             No recurring patterns created yet. Click "New Pattern" to get started.
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-[var(--border)]">
             {patterns.map((pattern) => (
-              <div key={pattern.id} className="p-6 hover:bg-gray-50 transition-colors">
+              <div key={pattern.id} className="p-6 hover:bg-surface2 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h4 className="text-lg font-semibold text-gray-900">
+                      <h4 className="text-lg font-semibold text-tx-primary">
                         {pattern.patternName}
                       </h4>
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded ${
                           pattern.isActive
                             ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
+                            : 'bg-surface2 text-tx-primary'
                         }`}
                       >
                         {pattern.isActive ? 'Active' : 'Inactive'}
@@ -458,35 +458,35 @@ export const RecurringPatterns: React.FC = () => {
                     </div>
 
                     {pattern.description && (
-                      <p className="text-sm text-gray-600 mb-3">{pattern.description}</p>
+                      <p className="text-sm text-tx-secondary mb-3">{pattern.description}</p>
                     )}
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-500">Recurrence:</span>
-                        <p className="font-medium text-gray-900 capitalize">
+                        <span className="text-tx-muted">Recurrence:</span>
+                        <p className="font-medium text-tx-primary capitalize">
                           {pattern.recurrenceType}
                         </p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Duration:</span>
-                        <p className="font-medium text-gray-900">{pattern.duration} min</p>
+                        <span className="text-tx-muted">Duration:</span>
+                        <p className="font-medium text-tx-primary">{pattern.duration} min</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Cost:</span>
-                        <p className="font-medium text-gray-900">${pattern.cost}</p>
+                        <span className="text-tx-muted">Cost:</span>
+                        <p className="font-medium text-tx-primary">${pattern.cost}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Time:</span>
-                        <p className="font-medium text-gray-900">{pattern.timeOfDay}</p>
+                        <span className="text-tx-muted">Time:</span>
+                        <p className="font-medium text-tx-primary">{pattern.timeOfDay}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Start Date:</span>
-                        <p className="font-medium text-gray-900">{pattern.startDate}</p>
+                        <span className="text-tx-muted">Start Date:</span>
+                        <p className="font-medium text-tx-primary">{pattern.startDate}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Days:</span>
-                        <p className="font-medium text-gray-900">
+                        <span className="text-tx-muted">Days:</span>
+                        <p className="font-medium text-tx-primary">
                           {pattern.daysOfWeek
                             .map((d) => DAYS_OF_WEEK.find((day) => day.value === d)?.label)
                             .join(', ')}
@@ -494,8 +494,8 @@ export const RecurringPatterns: React.FC = () => {
                       </div>
                       {pattern.totalOccurrences !== undefined && (
                         <div>
-                          <span className="text-gray-500">Progress:</span>
-                          <p className="font-medium text-gray-900">
+                          <span className="text-tx-muted">Progress:</span>
+                          <p className="font-medium text-tx-primary">
                             {pattern.completedOccurrences || 0} / {pattern.totalOccurrences}
                           </p>
                         </div>

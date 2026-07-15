@@ -27,7 +27,7 @@ export const getUsersByTenant = async (
 
   const result = await query(
     `SELECT
-       u.*, 
+       u.*,
        utm.id as membership_id,
        utm.role,
        utm.status as membership_status,
@@ -54,7 +54,7 @@ export const getUserWithMembership = async (
 ): Promise<UserWithMembership | null> => {
   const result = await query(
     `SELECT
-       u.*, 
+       u.*,
        utm.id as membership_id,
        utm.role,
        utm.status as membership_status,
@@ -176,9 +176,10 @@ export const inviteUserToTenant = async (
   email: string,
   tenantId: string,
   role: UserRole,
-  invitedBy: string
+  invitedBy: string,
+  instructorId?: string
 ): Promise<UserWithMembership> => {
-  logger.info('Inviting user to tenant', { tenantId, email, role, invitedBy });
+  logger.info('Inviting user to tenant', { tenantId, email, role, invitedBy, instructorId });
 
   // Ensure user exists (create minimal user record)
   const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
@@ -196,9 +197,9 @@ export const inviteUserToTenant = async (
 
   // Create invited membership
   const insert = await query(
-    `INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, invited_by, invited_at, created_at, updated_at)
-     VALUES ($1,$2,$3,'invited',$4,NOW(),NOW(),NOW()) RETURNING *`,
-    [user.id, tenantId, role, invitedBy]
+    `INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, instructor_id, invited_by, invited_at, created_at, updated_at)
+     VALUES ($1,$2,$3,'invited',$4,$5,NOW(),NOW(),NOW()) RETURNING *`,
+    [user.id, tenantId, role, instructorId || null, invitedBy]
   );
 
   const combined = {
