@@ -28,11 +28,14 @@ export const getUserDetails = asyncHandler(async (req: Request, res: Response) =
  */
 export const createTeamMember = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const callerId = req.user?.userId;
+  const callerRole = callerId ? await userService.getCurrentRole(callerId, tenantId) : null;
   const user = await userService.createUserAndAddToTenant(
     tenantId,
     req.body,
     req.body.role,
-    req.user?.userId
+    callerId,
+    callerRole || undefined
   );
   res.status(201).json({ success: true, data: user });
 });
@@ -43,7 +46,15 @@ export const createTeamMember = asyncHandler(async (req: Request, res: Response)
 export const updateTeamMember = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { id } = req.params;
-  const membership = await userService.updateUserMembership(id, tenantId, req.body);
+  const callerId = req.user?.userId;
+  const callerRole = callerId ? await userService.getCurrentRole(callerId, tenantId) : null;
+  const membership = await userService.updateUserMembership(
+    id,
+    tenantId,
+    req.body,
+    callerId,
+    callerRole || undefined
+  );
   res.json({ success: true, data: membership });
 });
 

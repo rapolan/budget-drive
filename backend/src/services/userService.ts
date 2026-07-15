@@ -19,6 +19,34 @@ import {
 const logger = createLogger('UserService');
 
 /**
+ * Count active owners for a tenant. Used to protect against removing or
+ * demoting the last owner, which would leave the tenant with no one able
+ * to manage ownership-level settings.
+ */
+const countActiveOwners = async (tenantId: string, excludeUserId?: string): Promise<number> => {
+  const result = await query(
+    `SELECT COUNT(*) FROM user_tenant_memberships
+     WHERE tenant_id = $1 AND role = 'owner' AND status = 'active'
+       AND user_id != COALESCE($2, '00000000-0000-0000-0000-000000000000')`,
+    [tenantId, excludeUserId || null]
+  );
+  return parseInt(result.rows[0].count, 10);
+};
+
+/**
+ * Get a user's current role for a tenant, fresh from the database (not
+ * from a JWT claim, which can be stale). Returns null if there's no
+ * membership.
+ */
+export const getCurrentRole = async (userId: string, tenantId: string): Promise<UserRole | null> => {
+  const result = await query(
+    `SELECT role FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2 AND status = 'active'`,
+    [userId, tenantId]
+  );
+  return result.rows.length > 0 ? result.rows[0].role : null;
+};
+
+/**
  * Get all users in a tenant (active + invited)
  */
 export const getUsersByTenant = async (
@@ -74,14 +102,22 @@ export const getUserWithMembership = async (
 
 /**
  * Create new user and add to tenant (creates user row if needed)
+ *
+ * @param callerRole - role of the user making this request, required to
+ *   enforce that only an existing owner can grant the 'owner' role
  */
 export const createUserAndAddToTenant = async (
   tenantId: string,
   userData: CreateUserInput,
   role: UserRole,
-  invitedBy?: string
+  invitedBy?: string,
+  callerRole?: UserRole
 ): Promise<UserWithMembership> => {
   logger.info('Creating user and adding to tenant', { tenantId, email: userData.email });
+
+  if (role === 'owner' && callerRole !== 'owner') {
+    throw new AppError('Only an owner can assign the owner role', 403);
+  }
 
   // Upsert user by email (simple flow: if exists, use existing)
   const userRes = await query('SELECT * FROM users WHERE email = $1', [userData.email]);
@@ -129,12 +165,47 @@ export const createUserAndAddToTenant = async (
 
 /**
  * Update user membership (role, status)
+ *
+ * @param callerId - user id of the caller, required to block a user from
+ *   changing their own role
+ * @param callerRole - role of the caller, required to enforce that only an
+ *   owner can grant or revoke the 'owner' role, and to protect the last
+ *   owner from being demoted
  */
 export const updateUserMembership = async (
   userId: string,
   tenantId: string,
-  updates: UpdateMembershipInput
+  updates: UpdateMembershipInput,
+  callerId?: string,
+  callerRole?: UserRole
 ): Promise<UserTenantMembership> => {
+  if (updates.role !== undefined) {
+    if (callerId && userId === callerId) {
+      throw new AppError('You cannot change your own role', 403);
+    }
+
+    // Assigning OR revoking the owner role both require the caller to
+    // already be an owner
+    const existing = await query(
+      `SELECT role FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`,
+      [userId, tenantId]
+    );
+    if (existing.rows.length === 0) throw new AppError('Membership not found', 404);
+    const currentRole: UserRole = existing.rows[0].role;
+
+    if ((updates.role === 'owner' || currentRole === 'owner') && callerRole !== 'owner') {
+      throw new AppError('Only an owner can assign or change the owner role', 403);
+    }
+
+    // Demoting the last active owner would leave the tenant with no owner
+    if (currentRole === 'owner' && updates.role !== 'owner') {
+      const remainingOwners = await countActiveOwners(tenantId, userId);
+      if (remainingOwners === 0) {
+        throw new AppError('Cannot demote the last owner of this tenant', 400);
+      }
+    }
+  }
+
   const fields: string[] = [];
   const values: any[] = [];
   let i = 1;
@@ -165,9 +236,22 @@ export const updateUserMembership = async (
 };
 
 /**
- * Remove user from tenant
+ * Remove user from tenant. Blocks removing the last active owner.
  */
 export const removeUserFromTenant = async (userId: string, tenantId: string): Promise<void> => {
+  const existing = await query(
+    `SELECT role FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`,
+    [userId, tenantId]
+  );
+  if (existing.rows.length === 0) throw new AppError('Membership not found', 404);
+
+  if (existing.rows[0].role === 'owner') {
+    const remainingOwners = await countActiveOwners(tenantId, userId);
+    if (remainingOwners === 0) {
+      throw new AppError('Cannot remove the last owner of this tenant', 400);
+    }
+  }
+
   await query('DELETE FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2', [userId, tenantId]);
 };
 
@@ -213,6 +297,7 @@ export const inviteUserToTenant = async (
 };
 
 export default {
+  getCurrentRole,
   getUsersByTenant,
   getUserWithMembership,
   createUserAndAddToTenant,
