@@ -7,6 +7,7 @@ import { query } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
+import { hashPassword } from './authService';
 import {
   UserWithMembership,
   CreateUserInput,
@@ -87,10 +88,11 @@ export const createUserAndAddToTenant = async (
 
   let user = null;
   if (userRes.rows.length === 0) {
+    const passwordHash = userData.password ? await hashPassword(userData.password) : null;
     const createRes = await query(
       `INSERT INTO users (email, full_name, phone, password_hash, email_verified, created_at, updated_at)
        VALUES ($1,$2,$3,$4, FALSE, NOW(), NOW()) RETURNING *`,
-      [userData.email, userData.fullName || null, userData.phone || null, userData.password || null]
+      [userData.email, userData.fullName || null, userData.phone || null, passwordHash]
     );
     user = createRes.rows[0];
   } else {
