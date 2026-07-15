@@ -118,7 +118,11 @@ npm run dev
 
 Expected: Vite prints `Local: http://localhost:5173/`. Open that URL in a browser.
 
-### 1.8 Full command sequence (copy-paste)
+### 1.8 Or: start both servers with one script
+
+Once dependencies are installed and the database is seeded (steps 1.2–1.5), `./start-dev.ps1` from the repo root does steps 1.6 and 1.7 for you — it frees ports 4000/5173 if anything stale is holding them, then launches backend and frontend each in their own window. Stop both with `./start-dev.ps1 -Stop`.
+
+### 1.9 Full command sequence (copy-paste)
 
 ```bash
 # Terminal 1 — one-time setup
