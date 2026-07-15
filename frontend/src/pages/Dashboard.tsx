@@ -19,7 +19,7 @@ import { StudentModal } from '@/components/students/StudentModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
 import { format12Hour } from '@/utils/timeFormat';
-import { computeStudentStatus, studentNeedsFollowup } from '@/utils/studentStatus';
+import { computeStudentStatus } from '@/utils/studentStatus';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();

@@ -8,7 +8,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
-  const { settings } = useTenant();
+  useTenant();
   const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {

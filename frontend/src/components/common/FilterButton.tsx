@@ -43,7 +43,6 @@ export const FilterButton: React.FC<FilterButtonProps> = ({
   variant = 'default',
 }) => {
   const classes = variantClasses[variant];
-  const colorClass = isActive ? classes.active : classes.inactive;
 
   return (
     <button
