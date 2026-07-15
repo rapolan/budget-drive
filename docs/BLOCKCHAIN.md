@@ -52,6 +52,8 @@ BDP uses **fixed satoshi-level fees**, not percentage-based splits, to align wit
     ```
     *LARS will launch local Docker containers for PostgreSQL and MongoDB, start your Overlay Express server, and provide an ngrok tunnel.*
 
+> **Note:** `@bsv/bsv-claude-agents` is installed at repo root when BSV development resumes. The root `package.json`/lockfile were removed during a dependency cleanup while the ledger is disabled (`BSV_ENABLED=false`) — reintroduce them at that point.
+
 ### Creating a Topic Manager
 ```typescript
 // backend/src/overlay/topic-managers/lessons.ts
