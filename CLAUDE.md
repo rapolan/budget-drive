@@ -14,6 +14,7 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 ## BSV / Ledger rules (IMPORTANT)
 
 - All blockchain writes go through the `LedgerService` interface in `backend/src/services/ledger/`. Business logic must NEVER import `walletService` or `treasuryService` directly.
+- **Exemption:** `treasuryService.createTransaction` itself is allowed to import `walletService` — it's the pre-ledger-seam implementation, gated behind `BSV_ENABLED`. While the flag is off it only writes to PostgreSQL (`treasury_transactions` table); when `BSV_ENABLED=true` it also calls `writeToBSVBlockchain` directly, which has not yet been migrated behind the `LedgerService` interface. This is scoped to `createTransaction` only — other code still must not import `walletService`/`treasuryService` directly.
 - The active implementation is chosen at startup from `BSV_ENABLED` (see `ledger/index.ts`). It is currently `false` → `NoopLedgerService` runs (logs the action, returns `txid: null`).
 - `bsv_transaction_id` columns are nullable by design. Code must tolerate `null` txids everywhere.
 - Do not delete or rewrite `walletService.ts` / `treasuryService.ts` — they are the future real implementation. Wrap, don't remove.

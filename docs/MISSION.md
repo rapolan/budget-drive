@@ -33,7 +33,8 @@ Budget Drive Protocol (BDP) is a **free-forever software protocol** for the driv
 - **Multi-Tenant Core:** Complete isolation for individual driving schools.
 - **Smart Scheduling:** Conflict-free booking with integrated instructor availability.
 - **Admin Tools:** Management suites for students, instructors, vehicles, and payments.
-- **Authentication:** Secure login and role-based access control.
+- **Authentication:** Secure login (JWT + bcrypt).
+- **Role-Based Access Control:** Enforced at the API layer (`owner` / `admin` / `instructor` / `staff` / `viewer`), with owner-role protections (last-owner cannot be removed or demoted, only an owner can grant ownership) and a team-management invite flow.
 
 ### Blockchain Integration (Available in Beta)
 - **BSV Overlay Services:** Immutable financial and audit records on the BSV blockchain.
