@@ -8,6 +8,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
 import { config } from './config/env';
+import { query } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { sanitizeBody } from './middleware/validate';
 import { apiLimiter, authLimiter } from './middleware/rateLimiter';
@@ -30,6 +31,7 @@ import treasuryRoutes from './routes/treasuryRoutes';
 
 import notificationRoutes from './routes/notifications';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
+import calendarFeedService from './services/calendarFeedService';
 
 // Create Express app
 const app: Application = express();
@@ -77,10 +79,22 @@ app.use(apiLimiter);
 // =====================================================
 
 // Health check endpoint
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/health', async (_req: Request, res: Response) => {
+  let dbStatus = 'healthy';
+  try {
+    const adminCheck = await query("SELECT COUNT(*) FROM users WHERE email = 'admin@budgetdrivingschool.com'");
+    if (parseInt(adminCheck.rows[0].count) === 0) {
+      dbStatus = 'degraded (missing admin)';
+    }
+  } catch (e) {
+    dbStatus = 'unreachable';
+  }
+
   res.json({
-    success: true,
+    success: dbStatus === 'healthy',
+    status: dbStatus === 'healthy' ? 'UP' : 'DEGRADED',
     message: 'Budget Driving School API is running',
+    database: dbStatus,
     environment: config.NODE_ENV,
     version: config.API_VERSION,
     timestamp: new Date().toISOString(),
@@ -91,6 +105,38 @@ app.get('/health', (_req: Request, res: Response) => {
 const API_PREFIX = `/api/${config.API_VERSION}`;
 
 // API Routes
+
+// -----------------------------------------------------------------------
+// PUBLIC: ICS calendar feed — no auth required, token IS the credential
+// Registered FIRST so no router-level auth middleware can intercept it
+// -----------------------------------------------------------------------
+app.get(`${API_PREFIX}/calendar-feed/:token.ics`, async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const instructor = await calendarFeedService.getInstructorByFeedToken(token);
+
+    if (!instructor) {
+      return res.status(404).send('Calendar feed not found');
+    }
+
+    const icsContent = await calendarFeedService.generateICSFeed(
+      instructor.id,
+      instructor.tenantId
+    );
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${instructor.fullName.replace(/[^a-zA-Z0-9]/g, '_')}_lessons.ics"`
+    );
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return res.send(icsContent);
+  } catch (error: any) {
+    console.error('Error generating calendar feed:', error);
+    return res.status(500).send('Error generating calendar feed');
+  }
+});
+
 app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes); // Auth routes (public)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
@@ -104,6 +150,8 @@ app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
 app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
 
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
+
+// Authenticated calendar feed management (feed/status, feed/setup, regenerate)
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
 
 // 404 handler

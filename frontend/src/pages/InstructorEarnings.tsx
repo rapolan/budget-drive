@@ -29,24 +29,24 @@ export const InstructorEarningsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Instructor Earnings</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-tx-primary">Instructor Earnings</h1>
+        <p className="mt-1 text-sm text-tx-muted">
           Track instructor earnings and Budget Drive Protocol fees
         </p>
       </div>
 
       {/* Filters */}
-      <div className="rounded-lg bg-white p-6 shadow">
+      <div className="rounded-lg bg-surface p-6 shadow">
         <div className="grid gap-4 md:grid-cols-3">
           {/* Instructor Selection */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1 block text-sm font-medium text-tx-secondary">
               Select Instructor
             </label>
             <select
               value={selectedInstructorId}
               onChange={(e) => setSelectedInstructorId(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none"
             >
               <option value="">-- Select Instructor --</option>
               {instructors.map((instructor) => (
@@ -59,7 +59,7 @@ export const InstructorEarningsPage: React.FC = () => {
 
           {/* Start Date */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1 block text-sm font-medium text-tx-secondary">
               Start Date
             </label>
             <input
@@ -67,13 +67,13 @@ export const InstructorEarningsPage: React.FC = () => {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               autoComplete="nope"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
 
           {/* End Date */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label className="mb-1 block text-sm font-medium text-tx-secondary">
               End Date
             </label>
             <input
@@ -81,7 +81,7 @@ export const InstructorEarningsPage: React.FC = () => {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               autoComplete="nope"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
         </div>
@@ -94,7 +94,7 @@ export const InstructorEarningsPage: React.FC = () => {
                 setStartDate('');
                 setEndDate('');
               }}
-              className="px-3 py-1 text-sm text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+              className="px-3 py-1 text-sm text-primary hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
             >
               Clear date filters
             </button>
@@ -109,42 +109,42 @@ export const InstructorEarningsPage: React.FC = () => {
           {selectedInstructor && (
             <div className="mb-4 rounded-lg bg-blue-50 p-4">
               <div className="flex items-center">
-                <Award className="mr-3 h-8 w-8 text-blue-600" />
+                <Award className="mr-3 h-8 w-8 text-primary" />
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2 className="text-lg font-semibold text-tx-primary">
                     {selectedInstructor.fullName}
                   </h2>
-                  <p className="text-sm text-gray-600">{selectedInstructor.email}</p>
+                  <p className="text-sm text-tx-secondary">{selectedInstructor.email}</p>
                 </div>
               </div>
             </div>
           )}
 
           {earningsLoading ? (
-            <div className="rounded-lg bg-white p-8 text-center shadow">
-              <p className="text-gray-500">Loading earnings...</p>
+            <div className="rounded-lg bg-surface p-8 text-center shadow">
+              <p className="text-tx-muted">Loading earnings...</p>
             </div>
           ) : earnings ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {/* Total Lessons */}
-              <div className="rounded-lg bg-white p-6 shadow">
+              <div className="rounded-lg bg-surface p-6 shadow">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total Lessons</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">
+                    <p className="text-sm font-medium text-tx-secondary">Total Lessons</p>
+                    <p className="mt-2 text-3xl font-bold text-tx-primary">
                       {earnings.totalLessons}
                     </p>
                   </div>
-                  <Calendar className="h-12 w-12 text-blue-500" />
+                  <Calendar className="h-12 w-12 text-primary" />
                 </div>
               </div>
 
               {/* Gross Earnings */}
-              <div className="rounded-lg bg-white p-6 shadow">
+              <div className="rounded-lg bg-surface p-6 shadow">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Gross Earnings</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">
+                    <p className="text-sm font-medium text-tx-secondary">Gross Earnings</p>
+                    <p className="mt-2 text-3xl font-bold text-tx-primary">
                       ${earnings.grossEarnings.toFixed(2)}
                     </p>
                   </div>
@@ -153,14 +153,14 @@ export const InstructorEarningsPage: React.FC = () => {
               </div>
 
               {/* BDP Fees */}
-              <div className="rounded-lg bg-white p-6 shadow">
+              <div className="rounded-lg bg-surface p-6 shadow">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">BDP Fees</p>
+                    <p className="text-sm font-medium text-tx-secondary">BDP Fees</p>
                     <p className="mt-2 text-3xl font-bold text-orange-600">
                       ${earnings.totalFees.toFixed(8)}
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">
+                    <p className="mt-1 text-xs text-tx-muted">
                       Satoshi-level fees
                     </p>
                   </div>
@@ -188,11 +188,11 @@ export const InstructorEarningsPage: React.FC = () => {
 
           {/* Explanation */}
           {earnings && (
-            <div className="mt-6 rounded-lg bg-gray-50 p-6">
-              <h3 className="mb-3 font-semibold text-gray-900">
+            <div className="mt-6 rounded-lg bg-surface2 p-6">
+              <h3 className="mb-3 font-semibold text-tx-primary">
                 Budget Drive Protocol (BDP) Fee Model
               </h3>
-              <div className="space-y-2 text-sm text-gray-700">
+              <div className="space-y-2 text-sm text-tx-secondary">
                 <p>
                   <strong>Gross Earnings:</strong> Total amount from all completed lessons
                 </p>
@@ -202,7 +202,7 @@ export const InstructorEarningsPage: React.FC = () => {
                 <p>
                   <strong>Net Earnings:</strong> Amount instructor receives after tiny BDP fees
                 </p>
-                <p className="mt-4 rounded border-l-4 border-blue-500 bg-blue-50 p-3">
+                <p className="mt-4 rounded border-l-4 border-primary bg-blue-50 p-3">
                   <strong>Why satoshi-level fees?</strong> Unlike traditional platforms that charge
                   10-30% commission, Budget Drive Protocol uses cost-based fees aligned with Craig Wright's
                   Bitcoin philosophy. Instructors keep 99.999%+ of their earnings.
@@ -215,12 +215,12 @@ export const InstructorEarningsPage: React.FC = () => {
 
       {/* No Instructor Selected */}
       {!selectedInstructorId && (
-        <div className="rounded-lg bg-white p-12 text-center shadow">
-          <Award className="mx-auto h-16 w-16 text-gray-400" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">
+        <div className="rounded-lg bg-surface p-12 text-center shadow">
+          <Award className="mx-auto h-16 w-16 text-tx-muted" />
+          <h3 className="mt-4 text-lg font-medium text-tx-primary">
             Select an Instructor
           </h3>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-tx-muted">
             Choose an instructor from the dropdown above to view their earnings breakdown
           </p>
         </div>

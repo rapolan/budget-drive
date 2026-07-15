@@ -66,10 +66,10 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
       <div className="flex items-center gap-2">
-        <Calendar className="h-4 w-4 text-gray-500" />
-        <span className="text-sm font-medium text-gray-700">Date:</span>
+        <Calendar className="h-4 w-4 text-tx-muted" />
+        <span className="text-sm font-medium text-tx-secondary">Date:</span>
       </div>
 
       {/* Preset Buttons */}
@@ -81,8 +81,8 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
             onClick={() => handlePresetClick(preset.value)}
             className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all hover:scale-105 active:scale-95 ${
               value.preset === preset.value
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                ? 'bg-primary text-white border-primary'
+                : 'bg-surface text-tx-secondary border-[var(--border-strong)] hover:bg-surface2'
             }`}
           >
             {preset.label}
@@ -97,22 +97,22 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
             type="date"
             value={value.start}
             onChange={(e) => handleCustomDateChange('start', e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
             title="Start date"
           />
-          <span className="text-gray-400">to</span>
+          <span className="text-tx-muted">to</span>
           <input
             type="date"
             value={value.end}
             onChange={(e) => handleCustomDateChange('end', e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
             title="End date"
           />
           {(value.start || value.end) && (
             <button
               type="button"
               onClick={clearCustomDates}
-              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+              className="p-1.5 text-tx-muted hover:text-tx-secondary rounded-full hover:bg-surface2 transition-colors"
               title="Clear dates"
             >
               <X className="h-4 w-4" />

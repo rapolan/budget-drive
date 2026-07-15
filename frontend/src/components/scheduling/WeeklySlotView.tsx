@@ -135,23 +135,23 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
         <button
           type="button"
           onClick={previousWeek}
-          className="p-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+          className="p-2 rounded-md border border-[var(--border-strong)] text-tx-secondary hover:bg-surface2 transition-colors"
           title="Previous week"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div className="text-center">
-          <div className="text-lg font-semibold text-gray-900">
+          <div className="text-lg font-semibold text-tx-primary">
             {currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </div>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-tx-secondary">
             Week of {currentWeekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </div>
         </div>
         <button
           type="button"
           onClick={nextWeek}
-          className="p-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+          className="p-2 rounded-md border border-[var(--border-strong)] text-tx-secondary hover:bg-surface2 transition-colors"
           title="Next week"
         >
           <ChevronRight className="h-5 w-5" />
@@ -159,12 +159,12 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
       </div>
 
       {/* Calendar Grid */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+      <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-surface">
         <div className="overflow-x-auto">
           <div className="inline-block min-w-full">
             {/* Header Row - Days of Week */}
-            <div className="grid grid-cols-8 border-b border-gray-200 bg-gray-50">
-              <div className="p-2 text-xs font-semibold text-gray-500 border-r border-gray-200">
+            <div className="grid grid-cols-8 border-b border-[var(--border)] bg-surface2">
+              <div className="p-2 text-xs font-semibold text-tx-muted border-r border-[var(--border)]">
                 Time
               </div>
               {weekDays.map((day, idx) => {
@@ -172,14 +172,14 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
                 return (
                   <div
                     key={idx}
-                    className={`p-2 text-center border-r border-gray-200 last:border-r-0 ${
+                    className={`p-2 text-center border-r border-[var(--border)] last:border-r-0 ${
                       isToday(day) ? 'bg-blue-50' : ''
                     }`}
                   >
-                    <div className={`text-xs font-semibold ${isToday(day) ? 'text-blue-600' : 'text-gray-700'}`}>
+                    <div className={`text-xs font-semibold ${isToday(day) ? 'text-primary' : 'text-tx-secondary'}`}>
                       {dayName}
                     </div>
-                    <div className={`text-xs ${isToday(day) ? 'text-blue-600' : 'text-gray-500'}`}>
+                    <div className={`text-xs ${isToday(day) ? 'text-primary' : 'text-tx-muted'}`}>
                       {dateStr}
                     </div>
                   </div>
@@ -192,10 +192,10 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
               {timeSlots.map((time, timeIdx) => (
                 <div
                   key={timeIdx}
-                  className="grid grid-cols-8 border-b border-gray-200 last:border-b-0"
+                  className="grid grid-cols-8 border-b border-[var(--border)] last:border-b-0"
                 >
                   {/* Time Label */}
-                  <div className="p-2 text-xs font-medium text-gray-600 border-r border-gray-200 bg-gray-50 sticky left-0 z-10">
+                  <div className="p-2 text-xs font-medium text-tx-secondary border-r border-[var(--border)] bg-surface2 sticky left-0 z-10">
                     {formatTime(time)}
                   </div>
 
@@ -207,7 +207,7 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
                     return (
                       <div
                         key={dayIdx}
-                        className="border-r border-gray-200 last:border-r-0 min-h-[40px]"
+                        className="border-r border-[var(--border)] last:border-r-0 min-h-[40px]"
                       >
                         {slot ? (
                           <button
@@ -215,7 +215,7 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
                             onClick={() => onSelectSlot(slot)}
                             className={`w-full h-full p-1 text-xs transition-colors ${
                               isSelected
-                                ? 'bg-blue-500 text-white font-semibold'
+                                ? 'bg-primary text-white font-semibold'
                                 : 'bg-green-100 hover:bg-green-200 text-green-800'
                             }`}
                             title={`Available: ${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`}
@@ -223,7 +223,7 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
                             {isSelected ? '✓ Selected' : 'Available'}
                           </button>
                         ) : (
-                          <div className="w-full h-full bg-gray-50"></div>
+                          <div className="w-full h-full bg-surface2"></div>
                         )}
                       </div>
                     );
@@ -236,17 +236,17 @@ export const WeeklySlotView: React.FC<WeeklySlotViewProps> = ({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+      <div className="flex flex-wrap gap-4 text-xs text-tx-secondary">
         <div className="flex items-center">
           <div className="w-4 h-4 bg-green-100 border border-green-300 rounded mr-2"></div>
           <span>Available</span>
         </div>
         <div className="flex items-center">
-          <div className="w-4 h-4 bg-blue-500 rounded mr-2"></div>
+          <div className="w-4 h-4 bg-primary rounded mr-2"></div>
           <span>Selected</span>
         </div>
         <div className="flex items-center">
-          <div className="w-4 h-4 bg-gray-50 border border-gray-200 rounded mr-2"></div>
+          <div className="w-4 h-4 bg-surface2 border border-[var(--border)] rounded mr-2"></div>
           <span>Not Available</span>
         </div>
       </div>

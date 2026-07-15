@@ -82,8 +82,8 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
   // If no lessons today, show a compact message
   if (lessons.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mb-4">
-        <div className="flex items-center gap-2 text-gray-500">
+      <div className="bg-surface2 border border-[var(--border)] rounded-lg px-4 py-3 mb-4">
+        <div className="flex items-center gap-2 text-tx-muted">
           <Calendar className="h-4 w-4" />
           <span className="text-sm">No lessons scheduled for today</span>
         </div>
@@ -95,7 +95,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
   const remainingLessons = scheduledLessons.length;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm mb-4 overflow-hidden">
+    <div className="bg-surface border border-[var(--border)] rounded-lg shadow-sm mb-4 overflow-hidden">
       {/* Header - Always visible */}
       <button
         type="button"
@@ -104,8 +104,8 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
       >
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold text-gray-900">Today's Schedule</span>
+            <Calendar className="h-5 w-5 text-primary" />
+            <span className="font-semibold text-tx-primary">Today's Schedule</span>
           </div>
 
           {/* Quick stats */}
@@ -116,7 +116,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
               </span>
             )}
             {remainingLessons > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-primary font-medium">
                 {remainingLessons} remaining
               </span>
             )}
@@ -131,9 +131,9 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
         <div className="flex items-center gap-3">
           {/* Current/Next lesson preview when collapsed */}
           {isCollapsed && (currentLesson || nextLesson) && (
-            <div className="text-sm text-gray-600 hidden sm:block">
+            <div className="text-sm text-tx-secondary hidden sm:block">
               {currentLesson ? (
-                <span className="text-blue-600 font-medium">
+                <span className="text-primary font-medium">
                   Now: {getStudentName(currentLesson.studentId)}
                 </span>
               ) : nextLesson ? (
@@ -145,9 +145,9 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
           )}
 
           {isCollapsed ? (
-            <ChevronDown className="h-5 w-5 text-gray-400" />
+            <ChevronDown className="h-5 w-5 text-tx-muted" />
           ) : (
-            <ChevronUp className="h-5 w-5 text-gray-400" />
+            <ChevronUp className="h-5 w-5 text-tx-muted" />
           )}
         </div>
       </button>
@@ -157,20 +157,20 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
         <div className="px-4 py-3 space-y-3">
           {/* Progress bar */}
           <div className="flex items-center gap-3">
-            <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div className="flex-1 bg-surface3 rounded-full h-2 overflow-hidden">
               <div
                 className="bg-green-500 h-full transition-all duration-500"
                 style={{ width: `${(completedLessons.length / totalLessons) * 100}%` }}
               />
             </div>
-            <span className="text-xs text-gray-500 whitespace-nowrap">
+            <span className="text-xs text-tx-muted whitespace-nowrap">
               {completedLessons.length}/{totalLessons} complete
             </span>
           </div>
 
           {/* Current lesson highlight */}
           {currentLesson && (
-            <div className="bg-blue-500 text-white rounded-lg p-3">
+            <div className="bg-primary text-white rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -186,7 +186,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onViewLesson(currentLesson); }}
-                    className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                    className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors"
                     title="View details"
                   >
                     <Eye className="h-4 w-4" />
@@ -194,7 +194,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onCompleteLesson(currentLesson.id); }}
-                    className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                    className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors"
                     title="Mark complete"
                   >
                     <CheckCircle className="h-4 w-4" />
@@ -210,17 +210,17 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Next {getTimeUntil(nextLesson.startTime)}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary">Next {getTimeUntil(nextLesson.startTime)}</span>
                   </div>
-                  <p className="font-semibold text-gray-900">{getStudentName(nextLesson.studentId)}</p>
-                  <p className="text-sm text-blue-700">
+                  <p className="font-semibold text-tx-primary">{getStudentName(nextLesson.studentId)}</p>
+                  <p className="text-sm text-primary">
                     {formatTime(nextLesson.startTime)} - {formatTime(nextLesson.endTime)} • {getInstructorName(nextLesson.instructorId)}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onViewLesson(nextLesson); }}
-                  className="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors"
+                  className="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 text-primary transition-colors"
                   title="View details"
                 >
                   <Eye className="h-4 w-4" />
@@ -232,7 +232,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
           {/* Remaining lessons list */}
           {scheduledLessons.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Upcoming</p>
+              <p className="text-xs font-medium text-tx-muted uppercase tracking-wider">Upcoming</p>
               <div className="space-y-1">
                 {scheduledLessons
                   .filter(l => l.id !== currentLesson?.id && l.id !== nextLesson?.id)
@@ -240,15 +240,15 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                   .map(lesson => (
                     <div
                       key={lesson.id}
-                      className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors group"
+                      className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-surface2 transition-colors group"
                     >
                       <div className="flex items-center gap-3">
-                        <Clock className="h-4 w-4 text-gray-400" />
+                        <Clock className="h-4 w-4 text-tx-muted" />
                         <div>
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-sm font-medium text-tx-primary">
                             {formatTime(lesson.startTime)}
                           </span>
-                          <span className="text-sm text-gray-500 ml-2">
+                          <span className="text-sm text-tx-muted ml-2">
                             {getStudentName(lesson.studentId)}
                           </span>
                         </div>
@@ -257,7 +257,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
-                          className="p-1.5 rounded hover:bg-gray-200 text-gray-500 transition-colors"
+                          className="p-1.5 rounded hover:bg-surface3 text-tx-muted transition-colors"
                           title="View details"
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -266,7 +266,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                     </div>
                   ))}
                 {scheduledLessons.filter(l => l.id !== currentLesson?.id && l.id !== nextLesson?.id).length > 3 && (
-                  <p className="text-xs text-gray-400 px-3">
+                  <p className="text-xs text-tx-muted px-3">
                     +{scheduledLessons.filter(l => l.id !== currentLesson?.id && l.id !== nextLesson?.id).length - 3} more
                   </p>
                 )}

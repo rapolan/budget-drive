@@ -45,8 +45,8 @@ export const PaymentsPage: React.FC = () => {
         <div className="space-y-6">
           {/* Header */}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Payments & Balances</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-tx-primary">Payments & Balances</h1>
+            <p className="mt-1 text-sm text-tx-muted">
               Track student payments and account balances
             </p>
           </div>
@@ -75,9 +75,9 @@ export const PaymentsPage: React.FC = () => {
           </div>
 
           {/* Preview of Page Layout */}
-          <div className="rounded-lg bg-gray-100 p-8 text-center">
-            <DollarSign className="mx-auto h-16 w-16 text-gray-400" />
-            <p className="mt-4 text-sm text-gray-600">
+          <div className="rounded-lg bg-surface2 p-8 text-center">
+            <DollarSign className="mx-auto h-16 w-16 text-tx-muted" />
+            <p className="mt-4 text-sm text-tx-secondary">
               Payment tracking interface will appear here once authenticated
             </p>
           </div>
@@ -160,7 +160,7 @@ export const PaymentsPage: React.FC = () => {
       case 'unpaid':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
     }
   };
 
@@ -181,18 +181,18 @@ export const PaymentsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <BackButton />
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Payments & Balances</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-tx-primary mt-2">Payments & Balances</h1>
+          <p className="mt-1 text-sm text-tx-muted">
             Track student payments and account balances
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -200,7 +200,7 @@ export const PaymentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -212,7 +212,7 @@ export const PaymentsPage: React.FC = () => {
               setSelectedStudent(null);
               setIsPaymentModalOpen(true);
             }}
-            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+            className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
           >
             <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
             Record Payment
@@ -223,23 +223,23 @@ export const PaymentsPage: React.FC = () => {
       {/* Summary Stats */}
       <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {/* Total Revenue */}
-        <div className="rounded-lg bg-white p-6 shadow">
+        <div className="rounded-lg bg-surface p-6 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-tx-secondary">Total Revenue</p>
+              <p className="mt-2 text-3xl font-bold text-tx-primary">
                 ${totals.totalDue.toFixed(2)}
               </p>
             </div>
-            <TrendingUp className="h-12 w-12 text-blue-500" />
+            <TrendingUp className="h-12 w-12 text-primary" />
           </div>
         </div>
 
         {/* Total Collected */}
-        <div className="rounded-lg bg-white p-6 shadow">
+        <div className="rounded-lg bg-surface p-6 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Collected</p>
+              <p className="text-sm font-medium text-tx-secondary">Total Collected</p>
               <p className="mt-2 text-3xl font-bold text-green-600">
                 ${totals.totalPaid.toFixed(2)}
               </p>
@@ -249,10 +249,10 @@ export const PaymentsPage: React.FC = () => {
         </div>
 
         {/* Outstanding Balance */}
-        <div className="rounded-lg bg-white p-6 shadow">
+        <div className="rounded-lg bg-surface p-6 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Outstanding</p>
+              <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
               <p className="mt-2 text-3xl font-bold text-red-600">
                 ${totals.totalOutstanding.toFixed(2)}
               </p>
@@ -263,11 +263,11 @@ export const PaymentsPage: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="rounded-lg bg-white p-4 shadow">
+      <div className="rounded-lg bg-surface p-4 shadow">
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Search */}
-          <div className="flex items-center rounded-md border border-gray-300 bg-white px-4 py-2">
-            <Search className="h-5 w-5 text-gray-400" />
+          <div className="flex items-center rounded-md border border-[var(--border-strong)] bg-surface px-4 py-2">
+            <Search className="h-5 w-5 text-tx-muted" />
             <input
               type="text"
               placeholder="Search by student name or email..."
@@ -284,7 +284,7 @@ export const PaymentsPage: React.FC = () => {
             onChange={(e) => setFilterStatus(e.target.value as any)}
             title="Filter by payment status"
             aria-label="Filter by payment status"
-            className="rounded-md border border-gray-300 px-4 py-2 focus:border-primary focus:outline-none"
+            className="rounded-md border border-[var(--border-strong)] px-4 py-2 focus:border-primary focus:outline-none"
           >
             <option value="all">All Statuses</option>
             <option value="paid">Paid in Full</option>
@@ -319,10 +319,10 @@ export const PaymentsPage: React.FC = () => {
               return (
                 <div
                   key={student.id}
-                  className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all ${
+                  className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all ${
                     payment.status === 'paid' ? 'border-green-200' :
                     payment.status === 'unpaid' ? 'border-red-200' :
-                    'border-gray-200 hover:border-blue-300'
+                    'border-[var(--border)] hover:brightness-110 hover:border-primary'
                   }`}
                 >
                   {/* Header - Student Name & Status */}
@@ -332,7 +332,7 @@ export const PaymentsPage: React.FC = () => {
                         {student.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{student.fullName}</h3>
+                        <h3 className="font-semibold text-tx-primary truncate">{student.fullName}</h3>
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusBadge(payment.status)}`}
                         >
@@ -346,15 +346,15 @@ export const PaymentsPage: React.FC = () => {
                   {/* Payment Progress Bar */}
                   <div className="mb-4">
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-gray-600">Payment Progress</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="text-tx-secondary">Payment Progress</span>
+                      <span className="font-medium text-tx-primary">
                         {Math.round(progressPercent)}%
                       </span>
                     </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-blue-500' : 'bg-amber-500'
+                          progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-primary' : 'bg-amber-500'
                         }`}
                         style={{ width: `${Math.min(100, progressPercent)}%` }}
                       />
@@ -363,16 +363,16 @@ export const PaymentsPage: React.FC = () => {
 
                   {/* Payment Details */}
                   <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-                    <div className="bg-gray-50 rounded-lg p-2">
-                      <div className="text-xs text-gray-500">Total Due</div>
-                      <div className="text-sm font-semibold text-gray-900">${payment.totalDue.toFixed(2)}</div>
+                    <div className="bg-surface2 rounded-lg p-2">
+                      <div className="text-xs text-tx-muted">Total Due</div>
+                      <div className="text-sm font-semibold text-tx-primary">${payment.totalDue.toFixed(2)}</div>
                     </div>
                     <div className="bg-green-50 rounded-lg p-2">
-                      <div className="text-xs text-gray-500">Paid</div>
+                      <div className="text-xs text-tx-muted">Paid</div>
                       <div className="text-sm font-semibold text-green-600">${payment.paid.toFixed(2)}</div>
                     </div>
                     <div className={`rounded-lg p-2 ${payment.balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-                      <div className="text-xs text-gray-500">Balance</div>
+                      <div className="text-xs text-tx-muted">Balance</div>
                       <div className={`text-sm font-semibold ${payment.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                         ${payment.balance.toFixed(2)}
                       </div>
@@ -381,12 +381,12 @@ export const PaymentsPage: React.FC = () => {
 
                   {/* Contact Info */}
                   <div className="space-y-1 mb-4 text-sm">
-                    <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600 truncate">
+                    <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
                       <Mail className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{student.email}</span>
                     </a>
                     {student.phone && (
-                      <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600">
+                      <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
                         <Phone className="h-4 w-4 flex-shrink-0" />
                         {student.phone}
                       </a>
@@ -394,14 +394,14 @@ export const PaymentsPage: React.FC = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedStudent(student);
                         setIsPaymentModalOpen(true);
                       }}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                     >
                       <Plus className="h-4 w-4" />
                       Add Payment
@@ -412,7 +412,7 @@ export const PaymentsPage: React.FC = () => {
                         setSelectedStudent(student);
                         setIsHistoryModalOpen(true);
                       }}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-tx-secondary hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
                       title="View History"
                     >
                       <History className="h-4 w-4" />
@@ -427,35 +427,35 @@ export const PaymentsPage: React.FC = () => {
 
       {/* Payments Table */}
       {viewMode === 'table' && (
-      <div className="rounded-lg bg-white shadow">
+      <div className="rounded-lg bg-surface shadow">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[var(--border)]">
+            <thead className="bg-surface2">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Student
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Contact
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Total Due
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Paid
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Balance
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-[var(--border)] bg-surface">
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-2">
@@ -477,18 +477,18 @@ export const PaymentsPage: React.FC = () => {
                   const payment = getPaymentInfo(student);
 
                   return (
-                    <tr key={student.id} className="hover:bg-gray-50">
+                    <tr key={student.id} className="hover:bg-surface2">
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-tx-primary">
                           {student.fullName}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="text-sm text-gray-500">{student.email}</div>
-                        <div className="text-sm text-gray-500">{student.phone}</div>
+                        <div className="text-sm text-tx-muted">{student.email}</div>
+                        <div className="text-sm text-tx-muted">{student.phone}</div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-tx-primary">
                           ${payment.totalDue.toFixed(2)}
                         </div>
                       </td>
@@ -528,7 +528,7 @@ export const PaymentsPage: React.FC = () => {
                           >
                             Add Payment
                           </button>
-                          <span className="text-gray-300">|</span>
+                          <span className="text-tx-muted">|</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -552,7 +552,7 @@ export const PaymentsPage: React.FC = () => {
       )}
 
       {/* BDP Integration Notice */}
-      <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-6">
+      <div className="rounded-lg border-l-4 border-primary bg-blue-50 p-6">
         <h3 className="mb-2 font-semibold text-blue-900">Budget Drive Protocol Integration</h3>
         <div className="space-y-2 text-sm text-blue-800">
           <p>

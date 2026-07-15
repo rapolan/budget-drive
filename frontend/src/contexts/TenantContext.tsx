@@ -8,51 +8,45 @@ interface TenantContextType {
   settings: TenantSettings | null;
   loading: boolean;
   error: string | null;
-  refreshTenant: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   updateTheme: (settings: TenantSettings) => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
-interface TenantProviderProps {
-  children: ReactNode;
+/** Convert #rrggbb or #rgb to "r, g, b" for use in rgba(). Returns null on invalid input. */
+function hexToRgbString(hex: string): string | null {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  const num = parseInt(full, 16);
+  if (isNaN(num)) return null;
+  return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`;
 }
 
-export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
+function applyTheme(settings: TenantSettings, tenantName: string) {
+  const root = document.documentElement;
+  root.style.setProperty('--color-primary', settings.primaryColor);
+
+  const pr = hexToRgbString(settings.primaryColor);
+  if (pr) root.style.setProperty('--color-primary-rgb', pr);
+
+  document.title = `${tenantName} - Management System`;
+}
+
+export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [settings, setSettings] = useState<TenantSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Derive tenant type with fallback to 'school'
   const tenantType: TenantType = tenant?.tenantType || 'school';
 
   const updateTheme = (newSettings: TenantSettings) => {
-    // Update CSS variables for theming
-    document.documentElement.style.setProperty('--color-primary', newSettings.primaryColor);
-    document.documentElement.style.setProperty('--color-secondary', newSettings.secondaryColor);
-    document.documentElement.style.setProperty('--color-accent', newSettings.accentColor);
-
-    // Update document title - use tenant.businessName or localStorage fallback
-    const tenantName = tenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
-    document.title = `${tenantName} - Management System`;
-  };
-
-  const refreshTenant = async () => {
-    try {
-      const response = await tenantsApi.getCurrentTenant();
-      if (response.success && response.data) {
-        setTenant(response.data);
-      }
-    } catch (err: any) {
-      // Don't set error - tenant info is optional, settings are primary
-    }
+    const name = tenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
+    applyTheme(newSettings, name);
   };
 
   const refreshSettings = async () => {
-    // Skip if not authenticated — TenantProvider should only mount after login,
-    // but guard here as a safety net.
     const token = localStorage.getItem('auth_token');
     if (!token) {
       setLoading(false);
@@ -63,25 +57,21 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
 
-      // Fetch tenant info and settings in parallel
       const [tenantResponse, settingsResponse] = await Promise.all([
         tenantsApi.getCurrentTenant().catch(() => null),
-        tenantsApi.getSettings()
+        tenantsApi.getSettings(),
       ]);
 
-      // Handle tenant info
-      if (tenantResponse?.success && tenantResponse.data) {
-        setTenant(tenantResponse.data);
-      }
+      const resolvedTenant = tenantResponse?.success ? tenantResponse.data ?? null : null;
+      if (resolvedTenant) setTenant(resolvedTenant);
 
-      // Handle settings
       if (settingsResponse.success && settingsResponse.data) {
         setSettings(settingsResponse.data);
-        updateTheme(settingsResponse.data);
+        const name = resolvedTenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
+        applyTheme(settingsResponse.data, name);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load tenant settings');
-      // Don't throw - allow app to continue with no settings
     } finally {
       setLoading(false);
     }
@@ -91,19 +81,8 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     refreshSettings();
   }, []);
 
-  const value: TenantContextType = {
-    tenant,
-    tenantType,
-    settings,
-    loading,
-    error,
-    refreshTenant,
-    refreshSettings,
-    updateTheme,
-  };
-
   return (
-    <TenantContext.Provider value={value}>
+    <TenantContext.Provider value={{ tenant, tenantType, settings, loading, error, refreshSettings, updateTheme }}>
       {children}
     </TenantContext.Provider>
   );
@@ -111,8 +90,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
 
 export const useTenant = (): TenantContextType => {
   const context = useContext(TenantContext);
-  if (context === undefined) {
-    throw new Error('useTenant must be used within a TenantProvider');
-  }
+  if (context === undefined) throw new Error('useTenant must be used within a TenantProvider');
   return context;
 };

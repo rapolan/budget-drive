@@ -31,6 +31,8 @@ interface NavItem {
   featureFlag?: string;
   // Which tenant types can see this nav item
   tenantTypes?: TenantType[];
+  // Allowed roles to see this item. If empty, all roles can see it
+  roles?: string[];
   // Group for visual organization
   group?: 'main' | 'operations' | 'financial' | 'communication' | 'system';
 }
@@ -47,35 +49,35 @@ const allNavigation: NavItem[] = [
   { name: 'Scheduling', href: '/scheduling', icon: Calendar, tenantTypes: ['independent'], group: 'operations' },
   
   { name: 'Students', href: '/students', icon: Users, tenantTypes: ['school'], group: 'operations' },
-  { name: 'Instructors', href: '/instructors', icon: UserCheck, tenantTypes: ['school'], group: 'operations' },
-  { name: 'Vehicles', href: '/vehicles', icon: Car, tenantTypes: ['school'], group: 'operations' },
+  { name: 'Instructors', href: '/instructors', icon: UserCheck, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
+  { name: 'Vehicles', href: '/vehicles', icon: Car, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
   { name: 'Lessons', href: '/lessons', icon: Calendar, tenantTypes: ['school'], group: 'operations' },
-  { name: 'Scheduling', href: '/scheduling', icon: Calendar, tenantTypes: ['school'], group: 'operations' },
+  { name: 'Scheduling', href: '/scheduling', icon: Calendar, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
   
   // Financial
   { name: 'My Earnings', href: '/instructor-earnings', icon: DollarSign, tenantTypes: ['independent'], group: 'financial' },
   { name: 'Payments', href: '/payments', icon: CreditCard, tenantTypes: ['independent'], group: 'financial' },
   
-  { name: 'Instructor Earnings', href: '/instructor-earnings', icon: DollarSign, tenantTypes: ['school'], group: 'financial' },
-  { name: 'Payments', href: '/payments', icon: CreditCard, tenantTypes: ['school'], group: 'financial' },
-  { name: 'Treasury', href: '/treasury', icon: Coins, featureFlag: 'enableBlockchainPayments', group: 'financial' },
+  { name: 'Instructor Earnings', href: '/instructor-earnings', icon: DollarSign, tenantTypes: ['school'], roles: ['owner', 'admin'], group: 'financial' },
+  { name: 'Payments', href: '/payments', icon: CreditCard, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'financial' },
+  { name: 'Treasury', href: '/treasury', icon: Coins, featureFlag: 'enableBlockchainPayments', roles: ['owner', 'admin'], group: 'financial' },
   
   // Referrals - Both types
   { name: 'Referrals', href: '/referrals', icon: Share2, group: 'operations' },
   
   // Public Profile - Both types (but more important for independent)
-  { name: 'Public Profile', href: '/public-profile', icon: Globe, group: 'operations' },
+  { name: 'Public Profile', href: '/public-profile', icon: Globe, roles: ['owner', 'admin'], group: 'operations' },
   
   // Communication
   { name: 'Notifications', href: '/notifications', icon: Bell, group: 'communication' },
-  { name: 'Notification History', href: '/notification-history', icon: History, tenantTypes: ['school'], group: 'communication' },
+  { name: 'Notification History', href: '/notification-history', icon: History, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'communication' },
   
   // Certificates & Follow-ups (school only for now)
-  { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates', tenantTypes: ['school'], group: 'operations' },
-  { name: 'Follow-Ups', href: '/follow-ups', icon: ClipboardList, featureFlag: 'enableFollowUpTracker', tenantTypes: ['school'], group: 'operations' },
+  { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
+  { name: 'Follow-Ups', href: '/follow-ups', icon: ClipboardList, featureFlag: 'enableFollowUpTracker', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
   
   // System
-  { name: 'Settings', href: '/settings', icon: Settings, group: 'system' },
+  { name: 'Settings', href: '/settings', icon: Settings, roles: ['owner', 'admin'], group: 'system' },
 ];
 
 // Group labels for visual organization
@@ -95,12 +97,17 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
   const location = useLocation();
   const { settings, tenant, tenantType } = useTenant();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
-  // Filter navigation based on tenant type and feature flags
+  // Filter navigation based on tenant type, feature flags, and roles
   const filteredNavigation = allNavigation.filter((item) => {
     // Check tenant type filter
     if (item.tenantTypes && !item.tenantTypes.includes(tenantType)) {
+      return false;
+    }
+
+    // Check user role (if user and role restrictions exist)
+    if (user?.role && item.roles && !item.roles.includes(user.role)) {
       return false;
     }
     
@@ -143,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       tenantName: tenantName,
       tenantType: tenantType,
       businessName: tenantName,
-      primaryColor: (settings as any)?.primary_color || '#3B82F6',
+      primaryColor: settings?.primaryColor || '#3B82F6',
     },
   ];
 
@@ -163,33 +170,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
 
   return (
     <div className={clsx(
-      'flex h-full w-64 flex-col bg-gray-900 text-white',
-      // Mobile: fixed positioning with slide animation
+      'flex h-full w-64 flex-col bg-surface border-r border-[var(--border)] text-tx-primary transition-colors',
       'fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out',
-      // Desktop: relative positioning, always visible
       'lg:relative lg:translate-x-0',
-      // Mobile: slide in/out based on isOpen
       isOpen ? 'translate-x-0' : '-translate-x-full'
     )}>
       {/* Mobile close button */}
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-2 top-2 p-2 text-gray-400 hover:text-white lg:hidden"
+        className="absolute right-2 top-2 p-2 text-tx-muted hover:text-tx-primary lg:hidden"
         aria-label="Close menu"
       >
         <X className="h-6 w-6" />
       </button>
 
       {/* Account Switcher */}
-      <div className="border-b border-gray-800 p-3 pt-12 lg:pt-3">
+      <div className="border-b border-[var(--border)] p-3 pt-12 lg:pt-3">
         <AccountSwitcher
           currentTenant={{
             id: tenant?.id || '1',
             name: tenantName,
             type: tenantType,
-            logoUrl: (settings as any)?.logo_url,
-            primaryColor: (settings as any)?.primary_color || '#3B82F6',
+            logoUrl: settings?.logoUrl,
+            primaryColor: settings?.primaryColor || '#3B82F6',
           }}
           memberships={mockMemberships}
           onSwitchAccount={handleSwitchAccount}
@@ -198,12 +202,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         />
       </div>
 
-      {/* Navigation - scrollbar hidden by default, visible on hover */}
+      {/* Navigation */}
       <nav className="sidebar-nav flex-1 overflow-y-auto px-3 py-4">
         {Object.entries(groupedNavigation).map(([group, items]) => (
           <div key={group} className="mb-4">
             {groupLabels[group] && (
-              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-tx-muted">
                 {groupLabels[group]}
               </p>
             )}
@@ -218,13 +222,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
                     to={item.href}
                     onClick={() => onClose?.()}
                     className={clsx(
-                      'flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      'flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors border',
                       isActive
-                        ? 'bg-gray-800 text-white'
-                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                        ? 'bg-primary/10 text-primary border-primary/20'
+                        : 'text-tx-secondary hover:bg-surface2 hover:text-tx-primary border-transparent'
                     )}
                   >
-                    <Icon className="mr-3 h-5 w-5" />
+                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
                     {item.name}
                   </Link>
                 );
@@ -234,18 +238,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
         ))}
       </nav>
 
-      {/* Footer with tenant type badge */}
-      <div className="border-t border-gray-800 p-4">
+      {/* Footer */}
+      <div className="border-t border-[var(--border)] p-4">
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-tx-muted">
             {tenantType === 'independent' ? 'Independent Instructor' : 'Driving School'}
           </p>
-          <span className={clsx(
-            'px-2 py-0.5 text-xs font-medium rounded-full',
-            tenantType === 'independent' 
-              ? 'bg-purple-900/50 text-purple-300' 
-              : 'bg-blue-900/50 text-blue-300'
-          )}>
+          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary border border-primary/20">
             {tenantType === 'independent' ? 'Solo' : 'School'}
           </span>
         </div>

@@ -186,23 +186,23 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl">
+      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-surface shadow-xl">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4">
+        <div className="sticky top-0 z-10 bg-surface border-b border-[var(--border)] px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5 text-blue-600" />
+              <h2 className="text-xl font-bold text-tx-primary flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5 text-primary" />
                 {formatDate(date)}
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-tx-muted">
                 {lessons.length} lesson{lessons.length !== 1 ? 's' : ''} • {availability.length} available slot{availability.length !== 1 ? 's' : ''}
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-tx-muted hover:text-tx-secondary transition-colors"
             >
               <X className="h-6 w-6" />
             </button>
@@ -212,23 +212,23 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-6">
           {instructorSchedules.size === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <CalendarIcon className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+            <div className="text-center py-12 text-tx-muted">
+              <CalendarIcon className="mx-auto h-12 w-12 text-tx-muted mb-3" />
               <p>No lessons or availability for this day</p>
             </div>
           ) : (
             Array.from(instructorSchedules.entries())
               .sort((a, b) => a[1].instructor.fullName.localeCompare(b[1].instructor.fullName))
               .map(([instructorId, schedule]) => (
-              <div key={instructorId} className="border border-gray-200 rounded-lg overflow-hidden">
+              <div key={instructorId} className="border border-[var(--border)] rounded-lg overflow-hidden">
                 {/* Instructor Header */}
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <div className="bg-surface2 px-4 py-3 border-b border-[var(--border)]">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-600" />
-                      <h3 className="font-semibold text-gray-900">{schedule.instructor.fullName}</h3>
+                      <User className="h-4 w-4 text-tx-secondary" />
+                      <h3 className="font-semibold text-tx-primary">{schedule.instructor.fullName}</h3>
                     </div>
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-tx-secondary">
                       {schedule.lessons.length} lesson{schedule.lessons.length !== 1 ? 's' : ''}
                       {schedule.availableSlots.length > 0 && ` • ${schedule.availableSlots.length} available`}
                     </span>
@@ -236,7 +236,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                 </div>
 
                 {/* Schedule Items */}
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-[var(--border)]">
                   {/* Booked Lessons */}
                   {schedule.lessons
                     .sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -247,25 +247,25 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       key={lesson.id}
                       type="button"
                       onClick={() => onLessonClick(lesson)}
-                      className={`w-full px-4 py-3 hover:bg-gray-50 transition-colors text-left ${
+                      className={`w-full px-4 py-3 hover:bg-surface2 transition-colors text-left ${
                         isMatch ? 'bg-amber-50 ring-1 ring-amber-300' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-3 flex-1">
-                          <Clock className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
+                          <Clock className="h-4 w-4 text-tx-muted mt-1 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-gray-900">
+                              <span className="font-medium text-tx-primary">
                                 {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
                               </span>
                               {getStatusBadge(lesson.status)}
                             </div>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-tx-secondary">
                               {getStudentName(lesson.studentId)}
                             </p>
                             {lesson.notes && (
-                              <p className="text-xs text-gray-500 mt-1 truncate">{lesson.notes}</p>
+                              <p className="text-xs text-tx-muted mt-1 truncate">{lesson.notes}</p>
                             )}
                           </div>
                         </div>
@@ -288,14 +288,14 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                         <Clock className="h-4 w-4 text-blue-400 mt-1 flex-shrink-0" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-gray-700">
+                            <span className="font-medium text-tx-secondary">
                               {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                             </span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-primary">
                               Available
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-tx-muted">
                             Click to book this time slot
                           </p>
                         </div>

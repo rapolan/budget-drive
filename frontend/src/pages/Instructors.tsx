@@ -165,7 +165,7 @@ export const InstructorsPage: React.FC = () => {
       case 'terminated':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
     }
   };
 
@@ -185,13 +185,13 @@ export const InstructorsPage: React.FC = () => {
   const getEmploymentTypeColor = (type: string) => {
     switch (type) {
       case 'w2_employee':
-        return 'bg-blue-50 text-blue-700';
+        return 'bg-blue-50 text-primary';
       case '1099_contractor':
         return 'bg-purple-50 text-purple-700';
       case 'volunteer':
         return 'bg-green-50 text-green-700';
       default:
-        return 'bg-gray-50 text-gray-700';
+        return 'bg-surface2 text-tx-secondary';
     }
   };
 
@@ -201,18 +201,18 @@ export const InstructorsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <BackButton />
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Instructors</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-tx-primary mt-2">Instructors</h1>
+          <p className="mt-1 text-sm text-tx-muted">
             Manage your driving school instructors
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -220,7 +220,7 @@ export const InstructorsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -229,7 +229,7 @@ export const InstructorsPage: React.FC = () => {
           <button
             type="button"
             onClick={handleAddNew}
-            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+            className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
           >
             <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
             Add Instructor
@@ -241,7 +241,7 @@ export const InstructorsPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Active Instructors */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
@@ -250,33 +250,33 @@ export const InstructorsPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.active}</p>
-            <p className="text-sm text-gray-500">Active Instructors</p>
+            <p className="text-2xl font-bold text-tx-primary">{statusCounts.active}</p>
+            <p className="text-sm text-tx-muted">Active Instructors</p>
           </div>
         </div>
 
         {/* Lessons This Month */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
             <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-              <Calendar className="h-5 w-5 text-blue-600" />
+              <Calendar className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+            <span className="text-xs font-medium text-primary bg-blue-50 px-2 py-1 rounded-full">
               {stats.totalHoursThisMonth} hrs
             </span>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.totalLessonsThisMonth}</p>
-            <p className="text-sm text-gray-500">Lessons This Month</p>
+            <p className="text-2xl font-bold text-tx-primary">{stats.totalLessonsThisMonth}</p>
+            <p className="text-sm text-tx-muted">Lessons This Month</p>
           </div>
         </div>
 
         {/* Top Performer */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
@@ -290,14 +290,14 @@ export const InstructorsPage: React.FC = () => {
             )}
           </div>
           <div className="mt-3">
-            <p className="text-lg font-bold text-gray-900 truncate">{stats.topInstructor}</p>
-            <p className="text-sm text-gray-500">Top Performer</p>
+            <p className="text-lg font-bold text-tx-primary truncate">{stats.topInstructor}</p>
+            <p className="text-sm text-tx-muted">Top Performer</p>
           </div>
         </div>
 
         {/* Average Rate */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('all')}
         >
           <div className="flex items-center justify-between">
@@ -306,28 +306,28 @@ export const InstructorsPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">${stats.avgHourlyRate}</p>
-            <p className="text-sm text-gray-500">Avg Hourly Rate</p>
+            <p className="text-2xl font-bold text-tx-primary">${stats.avgHourlyRate}</p>
+            <p className="text-sm text-tx-muted">Avg Hourly Rate</p>
           </div>
         </div>
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-        <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
+      <div className="flex items-center rounded-xl border border-[var(--border)] bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+        <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
           placeholder="Search by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           autoComplete="nope"
-          className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
+          className="ml-3 flex-1 border-none bg-transparent outline-none text-tx-primary placeholder-gray-400"
         />
         {searchTerm && (
           <button
             type="button"
             onClick={() => setSearchTerm('')}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            className="p-1 text-tx-muted hover:text-tx-secondary rounded-full hover:bg-surface2 transition-colors"
             title="Clear search"
           >
             <X className="h-4 w-4" />
@@ -336,8 +336,8 @@ export const InstructorsPage: React.FC = () => {
       </div>
 
       {/* Status Filter */}
-      <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
-        <span className="text-sm font-medium text-gray-700">Status:</span>
+      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
+        <span className="text-sm font-medium text-tx-secondary">Status:</span>
         <div className="flex flex-wrap gap-2">
           <FilterButton
             label="All"
@@ -393,7 +393,7 @@ export const InstructorsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddNew}
-                    className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                    className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Instructor
@@ -406,11 +406,11 @@ export const InstructorsPage: React.FC = () => {
               <div
                 key={instructor.id}
                 onClick={() => handleEdit(instructor)}
-                className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
+                className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
                   instructor.status === 'active' ? 'border-green-200 hover:border-green-300' :
                   instructor.status === 'on_leave' ? 'border-yellow-200' :
                   instructor.status === 'terminated' ? 'border-red-200' :
-                  'border-gray-200 hover:border-blue-300'
+                  'border-[var(--border)] hover:brightness-110 hover:border-primary'
                 }`}
               >
                 {/* Header - Avatar & Name */}
@@ -420,7 +420,7 @@ export const InstructorsPage: React.FC = () => {
                       {instructor.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate">{instructor.fullName}</h3>
+                      <h3 className="font-semibold text-tx-primary truncate">{instructor.fullName}</h3>
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(instructor.status)}`}>
                         {instructor.status.replace('_', ' ')}
                       </span>
@@ -435,7 +435,7 @@ export const InstructorsPage: React.FC = () => {
                     {getEmploymentTypeLabel(instructor.employmentType)}
                   </span>
                   {instructor.hourlyRate && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-surface2 text-tx-secondary">
                       <DollarSign className="h-3 w-3" />
                       {Number(instructor.hourlyRate).toFixed(2)}/hr
                     </span>
@@ -444,29 +444,29 @@ export const InstructorsPage: React.FC = () => {
 
                 {/* Contact Info */}
                 <div className="space-y-2 mb-4 text-sm">
-                  <a href={`mailto:${instructor.email}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600 truncate">
+                  <a href={`mailto:${instructor.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
                     <Mail className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">{instructor.email}</span>
                   </a>
-                  <a href={`tel:${instructor.phone}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600">
+                  <a href={`tel:${instructor.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
                     <Phone className="h-4 w-4 flex-shrink-0" />
                     {instructor.phone}
                   </a>
-                  <div className="flex items-center gap-2 text-gray-500">
+                  <div className="flex items-center gap-2 text-tx-muted">
                     <Clock className="h-4 w-4 flex-shrink-0" />
                     Hired {new Date(instructor.hireDate).toLocaleDateString()}
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEdit(instructor);
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                   >
                     <Edit className="h-4 w-4" />
                     Edit
@@ -477,7 +477,7 @@ export const InstructorsPage: React.FC = () => {
                       e.stopPropagation();
                       handleDelete(instructor.id);
                     }}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-tx-secondary hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -491,32 +491,32 @@ export const InstructorsPage: React.FC = () => {
 
       {/* Table */}
       {viewMode === 'table' && (
-      <div ref={tableRef} className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+      <div ref={tableRef} className="rounded-xl bg-surface shadow-sm border border-[var(--border)] overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[var(--border)]">
+            <thead className="bg-surface2">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Instructor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Contact
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Employment
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Hourly Rate
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-[var(--border)] bg-surface">
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="py-12">
@@ -540,7 +540,7 @@ export const InstructorsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleAddNew}
-                          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                          className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                         >
                           <Plus className="mr-2 h-4 w-4" />
                           Add Instructor
@@ -551,15 +551,15 @@ export const InstructorsPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredInstructors?.map((instructor) => (
-                  <tr key={instructor.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => handleEdit(instructor)}>
+                  <tr key={instructor.id} className="hover:bg-surface2 transition-colors cursor-pointer" onClick={() => handleEdit(instructor)}>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
                           {instructor.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">{instructor.fullName}</div>
-                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                          <div className="font-medium text-tx-primary">{instructor.fullName}</div>
+                          <div className="text-xs text-tx-muted flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             Hired {new Date(instructor.hireDate).toLocaleDateString()}
                           </div>
@@ -568,12 +568,12 @@ export const InstructorsPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-gray-900">
-                          <Mail className="h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2 text-sm text-tx-primary">
+                          <Mail className="h-4 w-4 text-tx-muted" />
                           {instructor.email}
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Phone className="h-4 w-4 text-gray-400" />
+                        <div className="flex items-center gap-2 text-sm text-tx-muted">
+                          <Phone className="h-4 w-4 text-tx-muted" />
                           {instructor.phone}
                         </div>
                       </div>
@@ -586,8 +586,8 @@ export const InstructorsPage: React.FC = () => {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center gap-1">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-900">
+                        <DollarSign className="h-4 w-4 text-tx-muted" />
+                        <span className="text-sm font-medium text-tx-primary">
                           {instructor.hourlyRate ? `${Number(instructor.hourlyRate).toFixed(2)}/hr` : 'N/A'}
                         </span>
                       </div>
@@ -609,7 +609,7 @@ export const InstructorsPage: React.FC = () => {
                             e.stopPropagation();
                             handleEdit(instructor);
                           }}
-                          className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                          className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                           title="Edit instructor"
                         >
                           <Edit className="h-4 w-4" />

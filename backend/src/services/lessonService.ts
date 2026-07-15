@@ -39,12 +39,8 @@ export const getAllLessons = async (
 
     // Get paginated lessons with creator/editor names
     const result = await query(
-      `SELECT l.*,
-              u1.full_name as created_by_name,
-              u2.full_name as updated_by_name
+      `SELECT l.*
        FROM lessons l
-       LEFT JOIN users u1 ON l.created_by = u1.id
-       LEFT JOIN users u2 ON l.updated_by = u2.id
        WHERE l.tenant_id = $1
        ORDER BY l.date DESC, l.start_time DESC
        LIMIT $2 OFFSET $3`,
@@ -79,12 +75,8 @@ export const getLessonById = async (
   logger.debug('Fetching lesson by ID', { tenantId, lessonId: id });
 
   const result = await query(
-    `SELECT l.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT l.*
      FROM lessons l
-     LEFT JOIN users u1 ON l.created_by = u1.id
-     LEFT JOIN users u2 ON l.updated_by = u2.id
      WHERE l.id = $1 AND l.tenant_id = $2`,
     [id, tenantId]
   );
@@ -104,12 +96,8 @@ export const getLessonsByStudent = async (
   logger.debug('Fetching lessons for student', { tenantId, studentId });
 
   const result = await query(
-    `SELECT l.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT l.*
      FROM lessons l
-     LEFT JOIN users u1 ON l.created_by = u1.id
-     LEFT JOIN users u2 ON l.updated_by = u2.id
      WHERE l.tenant_id = $1 AND l.student_id = $2
      ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, studentId]
@@ -131,12 +119,8 @@ export const getLessonsByInstructor = async (
   logger.debug('Fetching lessons for instructor', { tenantId, instructorId });
 
   const result = await query(
-    `SELECT l.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT l.*
      FROM lessons l
-     LEFT JOIN users u1 ON l.created_by = u1.id
-     LEFT JOIN users u2 ON l.updated_by = u2.id
      WHERE l.tenant_id = $1 AND l.instructor_id = $2
      ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, instructorId]
@@ -158,12 +142,8 @@ export const getLessonsByStatus = async (
   logger.debug('Fetching lessons by status', { tenantId, status });
 
   const result = await query(
-    `SELECT l.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT l.*
      FROM lessons l
-     LEFT JOIN users u1 ON l.created_by = u1.id
-     LEFT JOIN users u2 ON l.updated_by = u2.id
      WHERE l.tenant_id = $1 AND l.status = $2
      ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, status]
@@ -186,12 +166,8 @@ export const getLessonsByDateRange = async (
   logger.debug('Fetching lessons by date range', { tenantId, startDate, endDate });
 
   const result = await query(
-    `SELECT l.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT l.*
      FROM lessons l
-     LEFT JOIN users u1 ON l.created_by = u1.id
-     LEFT JOIN users u2 ON l.updated_by = u2.id
      WHERE l.tenant_id = $1
      AND l.date >= $2
      AND l.date <= $3

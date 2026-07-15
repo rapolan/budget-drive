@@ -32,8 +32,8 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
                       isCompleted
                         ? 'border-green-500 bg-green-500 text-white scale-110'
                         : isActive
-                        ? 'border-blue-600 bg-blue-600 text-white scale-110 shadow-lg'
-                        : 'border-gray-300 bg-white text-gray-500'
+                        ? 'border-primary bg-primary text-white scale-110 shadow-lg'
+                        : 'border-[var(--border-strong)] bg-surface text-tx-muted'
                     }
                   `}
                 >
@@ -48,8 +48,8 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
                     mt-2 text-xs font-medium transition-colors duration-300
                     ${
                       isCompleted || isActive
-                        ? 'text-gray-900'
-                        : 'text-gray-500'
+                        ? 'text-tx-primary'
+                        : 'text-tx-muted'
                     }
                   `}
                 >
@@ -60,7 +60,7 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
               {/* Connector Line */}
               {!isLast && (
                 <div className="flex-1 px-2">
-                  <div className="relative h-0.5 bg-gray-200">
+                  <div className="relative h-0.5 bg-surface3">
                     <div
                       className={`
                         absolute left-0 top-0 h-full transition-all duration-500 ease-in-out
@@ -68,8 +68,8 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
                           isCompleted
                             ? 'w-full bg-green-500'
                             : isActive
-                            ? 'w-1/2 bg-blue-600'
-                            : 'w-0 bg-gray-300'
+                            ? 'w-1/2 bg-primary'
+                            : 'w-0 bg-surface3'
                         }
                       `}
                     />

@@ -224,7 +224,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading availability...</div>
+        <div className="text-tx-muted">Loading availability...</div>
       </div>
     );
   }
@@ -244,9 +244,9 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className="bg-surface rounded-lg shadow overflow-hidden">
       {/* Legend */}
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-4 text-xs">
+      <div className="px-4 py-2 bg-surface2 border-b border-[var(--border)] flex flex-wrap items-center gap-4 text-xs">
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-green-500 rounded"></div>
           <span>Lesson Start</span>
@@ -255,22 +255,22 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
           <div className="w-4 h-4 bg-green-100 rounded"></div>
           <span>Lesson Time</span>
         </div>
-        <div className="text-gray-500">
+        <div className="text-tx-muted">
           ({schedulingSettings?.defaultLessonDuration || 120} min lessons, {schedulingSettings?.bufferTimeBetweenLessons || 30} min buffer)
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full divide-y divide-[var(--border)]">
+          <thead className="bg-surface2">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">
+              <th className="px-3 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider sticky left-0 bg-surface2">
                 Time
               </th>
               {DAYS_OF_WEEK.map((day) => (
                 <th
                   key={day.value}
-                  className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  className="px-3 py-3 text-center text-xs font-medium text-tx-muted uppercase tracking-wider"
                 >
                   <div className="hidden md:block">{day.label}</div>
                   <div className="md:hidden">{day.short}</div>
@@ -278,10 +278,10 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-surface divide-y divide-[var(--border)]">
             {TIME_SLOTS.map((timeSlot) => (
-              <tr key={timeSlot} className="hover:bg-gray-50">
-                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 sticky left-0 bg-white font-medium">
+              <tr key={timeSlot} className="hover:bg-surface2">
+                <td className="px-3 py-2 whitespace-nowrap text-sm text-tx-muted sticky left-0 bg-surface font-medium">
                   {timeSlot}
                 </td>
                 {DAYS_OF_WEEK.map((day) => {
@@ -298,7 +298,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
                           ? 'bg-green-500 hover:bg-green-600'
                           : isInSlot
                             ? 'bg-green-100'
-                            : 'bg-gray-50'
+                            : 'bg-surface2'
                         }`}
                     >
                       {slotStart && (
@@ -316,7 +316,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       </div>
 
       {availability.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-tx-muted">
           No availability set. {editable && 'Click on time slots to add availability.'}
         </div>
       )}

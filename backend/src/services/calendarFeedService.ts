@@ -141,7 +141,7 @@ export const generateICSFeed = async (
   
   const instructorName = instructorResult.rows[0]?.full_name || 'Instructor';
 
-  // Get upcoming lessons for this instructor
+  // Get upcoming lessons for this instructor, including student contact info
   const lessonsResult = await query(
     `SELECT 
       l.id,
@@ -156,6 +156,7 @@ export const generateICSFeed = async (
       l.lesson_number,
       s.full_name as student_name,
       s.phone as student_phone,
+      s.emergency_contact as parent_phone,
       s.hours_required
      FROM lessons l
      JOIN students s ON l.student_id = s.id
@@ -206,40 +207,49 @@ export const generateICSFeed = async (
     const startTime = lesson.start_time.replace(/:/g, '').substring(0, 6);
     const endTime = lesson.end_time.replace(/:/g, '').substring(0, 6);
 
-    // Build description
-    const descParts = [
-      `Student: ${lesson.student_name}`,
-      `Phone: ${lesson.student_phone || 'N/A'}`,
-    ];
-    
-    // Add lesson number info if available
-    if (lesson.lesson_number && lesson.hours_required) {
-      const estimatedTotalLessons = Math.ceil(parseFloat(lesson.hours_required) / 2);
-      descParts.push(`Lesson: ${lesson.lesson_number} of ${estimatedTotalLessons}`);
-    } else if (lesson.lesson_number) {
-      descParts.push(`Lesson: #${lesson.lesson_number}`);
+    // Build description lines
+    const descParts: string[] = [];
+
+    // Contact info
+    if (lesson.student_phone) {
+      descParts.push(`Student Phone: ${lesson.student_phone}`);
     }
-    
-    descParts.push(`Lesson Type: ${lesson.lesson_type.replace(/_/g, ' ')}`);
-    descParts.push(`Duration: ${lesson.duration} minutes`);
-    
-    if (lesson.pickup_address) {
-      descParts.push(`Pickup: ${lesson.pickup_address}`);
+    if (lesson.parent_phone) {
+      descParts.push(`Parent/Guardian: ${lesson.parent_phone}`);
     }
+
+    // Lesson progress
+    if (lesson.lesson_number) {
+      const hoursRequired = parseFloat(lesson.hours_required || '6');
+      // Under-18 minimum is 3 lessons; use hours_required / 2hr lessons as estimate
+      const estimatedTotal = Math.max(3, Math.ceil(hoursRequired / 2));
+      descParts.push('');
+      descParts.push(`Lesson #${lesson.lesson_number} of ${estimatedTotal}`);
+    }
+
+    // Lesson details
+    descParts.push(`Type: ${lesson.lesson_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}`);
+    
+    const durationHours = Math.floor(lesson.duration / 60);
+    const durationMins = lesson.duration % 60;
+    const durationStr = durationHours > 0
+      ? durationMins > 0 ? `${durationHours}h ${durationMins}m` : `${durationHours} hour${durationHours > 1 ? 's' : ''}`
+      : `${durationMins} min`;
+    descParts.push(`Duration: ${durationStr}`);
+
+    // Notes (only if present)
     if (lesson.notes) {
+      descParts.push('');
       descParts.push(`Notes: ${lesson.notes}`);
     }
 
-    // Build summary with lesson number if available
-    const lessonLabel = lesson.lesson_number 
-      ? `Lesson #${lesson.lesson_number}` 
-      : 'Driving Lesson';
-    const summary = `🚗 ${lessonLabel} - ${lesson.student_name}`;
+    // Event title: just the student's name
+    const summary = `🚗 ${lesson.student_name}`;
     const description = descParts.join('\\n');
+
+    // Pickup address goes into LOCATION field (clickable map link in Google/Apple Calendar)
     const location = lesson.pickup_address || '';
     const uid = `lesson-${lesson.id}@budgetdrivingschool.com`;
-
-    // Status mapping
     const status = lesson.status === 'cancelled' ? 'CANCELLED' : 'CONFIRMED';
 
     lines.push(
@@ -260,6 +270,7 @@ export const generateICSFeed = async (
 
   return lines.join('\r\n');
 };
+
 
 export default {
   generateFeedToken,

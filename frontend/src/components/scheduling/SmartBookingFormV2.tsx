@@ -103,23 +103,23 @@ const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500">{instructorGroups.length} instructors available (sorted by proximity)</p>
+      <p className="text-xs text-tx-muted">{instructorGroups.length} instructors available (sorted by proximity)</p>
       <div className="space-y-2 max-h-[500px] overflow-y-auto">
         {instructorGroups.map((instructor, index) => {
           const isExpanded = expandedInstructors.has(instructor.instructorId);
           const badge = getProximityBadge(instructor.bestProximityScore);
 
           return (
-            <div key={instructor.instructorId} className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden">
+            <div key={instructor.instructorId} className="bg-surface rounded-xl border-2 border-[var(--border)] overflow-hidden">
               {/* Instructor Header - Clickable */}
               <button
                 type="button"
                 onClick={() => toggleInstructor(instructor.instructorId)}
-                className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
+                className="w-full p-4 flex items-center gap-3 hover:bg-surface2 transition-colors text-left"
               >
                 {/* Rank indicator */}
                 <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base flex-shrink-0 ${
-                  index < 3 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                  index < 3 ? 'bg-green-100 text-green-700' : 'bg-surface2 text-tx-muted'
                 }`}>
                   #{index + 1}
                 </div>
@@ -127,18 +127,18 @@ const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
                 {/* Instructor info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-900 text-base md:text-lg">{instructor.instructorName}</span>
+                    <span className="font-semibold text-tx-primary text-base md:text-lg">{instructor.instructorName}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${badge.class}`}>
                       {badge.label}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <div className="text-sm text-tx-secondary mt-1">
                     {instructor.totalSlots} available {instructor.totalSlots === 1 ? 'slot' : 'slots'}
                   </div>
                 </div>
 
                 {/* Expand/Collapse Icon */}
-                <div className="text-gray-400 flex-shrink-0">
+                <div className="text-tx-muted flex-shrink-0">
                   {isExpanded ? (
                     <ChevronUp className="h-5 w-5" />
                   ) : (
@@ -149,11 +149,11 @@ const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
 
               {/* Expanded: Show slots grouped by date */}
               {isExpanded && (
-                <div className="border-t border-gray-200 bg-gray-50 p-3 space-y-3">
+                <div className="border-t border-[var(--border)] bg-surface2 p-3 space-y-3">
                   {instructor.dateGroups.map(dateGroup => (
                     <div key={dateGroup.date}>
                       {/* Date header */}
-                      <div className="text-xs font-semibold text-gray-700 mb-2 px-1">
+                      <div className="text-xs font-semibold text-tx-secondary mb-2 px-1">
                         {dateGroup.label}
                       </div>
 
@@ -167,12 +167,12 @@ const GroupedAvailabilityViewV2: React.FC<GroupedAvailabilityViewV2Props> = ({
                               e.stopPropagation();
                               onSelectSlot(slot);
                             }}
-                            className="w-full p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left flex items-center justify-between active:scale-[0.98]"
+                            className="w-full p-3 bg-surface border border-[var(--border)] rounded-lg hover:border-primary hover:bg-blue-50 transition-all text-left flex items-center justify-between active:scale-[0.98]"
                           >
-                            <span className="text-sm font-medium text-gray-900">
+                            <span className="text-sm font-medium text-tx-primary">
                               {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                             </span>
-                            <span className="text-gray-400 text-sm">→</span>
+                            <span className="text-tx-muted text-sm">→</span>
                           </button>
                         ))}
                       </div>
@@ -542,7 +542,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
     if (score >= 90) return { label: '🏠 Very Close', class: 'bg-green-100 text-green-800' };
     if (score >= 70) return { label: '📍 Nearby', class: 'bg-green-100 text-green-700' };
     if (score >= 50) return { label: '🚗 Close', class: 'bg-yellow-100 text-yellow-700' };
-    return { label: '🗺️ Far', class: 'bg-gray-100 text-gray-600' };
+    return { label: '🗺️ Far', class: 'bg-surface2 text-tx-secondary' };
   };
 
   const bookingSteps = [
@@ -554,23 +554,23 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
   const currentStepNumber = step === 'setup' ? 1 : step === 'slots' ? 2 : 3;
 
   return (
-    <div className="bg-white rounded-lg shadow-xl max-w-4xl mx-auto">
+    <div className="bg-surface rounded-lg shadow-xl max-w-4xl mx-auto">
       {/* Header */}
-      <div className="border-b border-gray-200 p-6">
+      <div className="border-b border-[var(--border)] p-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <Sparkles className="h-6 w-6 text-blue-600" />
+              <Sparkles className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Smart Booking</h2>
-              <p className="text-sm text-gray-500">Find the closest available instructor</p>
+              <h2 className="text-2xl font-bold text-tx-primary">Smart Booking</h2>
+              <p className="text-sm text-tx-muted">Find the closest available instructor</p>
             </div>
           </div>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-colors"
             >
               <span className="text-2xl">×</span>
             </button>
@@ -592,29 +592,29 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           {/* Student Selection */}
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
-              <User className="h-5 w-5 text-blue-600" />
-              <label className="block text-sm font-semibold text-gray-900">
+              <User className="h-5 w-5 text-primary" />
+              <label className="block text-sm font-semibold text-tx-primary">
                 Student <span className="text-red-500">*</span>
               </label>
             </div>
             {preselectedStudent ? (
               <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
                   {getInitials(preselectedStudent.fullName)}
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-900">{preselectedStudent.fullName}</div>
-                  <div className="text-sm text-gray-600">{preselectedStudent.email}</div>
+                  <div className="font-semibold text-tx-primary">{preselectedStudent.fullName}</div>
+                  <div className="text-sm text-tx-secondary">{preselectedStudent.email}</div>
                 </div>
               </div>
             ) : selectedStudent ? (
               <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold">
+                <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
                   {getInitials(selectedStudent.fullName)}
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-900">{selectedStudent.fullName}</div>
-                  <div className="text-sm text-gray-600">{selectedStudent.email}</div>
+                  <div className="font-semibold text-tx-primary">{selectedStudent.fullName}</div>
+                  <div className="text-sm text-tx-secondary">{selectedStudent.email}</div>
                 </div>
                 <button
                   type="button"
@@ -624,7 +624,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                     setPickupAddress('');
                     setPickupZip(null);
                   }}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-sm text-primary hover:text-blue-800 font-medium"
                 >
                   Change
                 </button>
@@ -641,10 +641,10 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                   onFocus={() => setShowStudentDropdown(true)}
                   placeholder="Search by name or email..."
                   autoComplete="nope"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
                 {showStudentDropdown && filteredStudents.length > 0 && (
-                  <div className="absolute z-20 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                  <div className="absolute z-20 w-full mt-2 bg-surface border border-[var(--border-strong)] rounded-lg shadow-xl max-h-64 overflow-y-auto">
                     {filteredStudents.map((student) => (
                       <button
                         key={student.id}
@@ -657,14 +657,14 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                           setPickupAddress(addr);
                           setPickupZip(extractZipCode(addr) || student.zipCode || null);
                         }}
-                        className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-0 flex items-center space-x-3"
+                        className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-[var(--border)] last:border-0 flex items-center space-x-3"
                       >
-                        <div className="h-10 w-10 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-semibold text-sm">
+                        <div className="h-10 w-10 rounded-full bg-surface3 text-tx-secondary flex items-center justify-center font-semibold text-sm">
                           {getInitials(student.fullName)}
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">{student.fullName}</div>
-                          <div className="text-sm text-gray-500">{student.email}</div>
+                          <div className="font-medium text-tx-primary">{student.fullName}</div>
+                          <div className="text-sm text-tx-muted">{student.email}</div>
                         </div>
                       </button>
                     ))}
@@ -678,7 +678,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-amber-600" />
-              <label className="block text-sm font-semibold text-gray-900">
+              <label className="block text-sm font-semibold text-tx-primary">
                 Pickup Location <span className="text-red-500">*</span>
               </label>
             </div>
@@ -687,7 +687,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
               onChange={(e) => setPickupAddress(e.target.value)}
               placeholder="Enter pickup address (include zip code for best results)..."
               rows={2}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
             />
             {pickupZip ? (
               <p className="text-xs text-green-600 flex items-center gap-1">
@@ -704,7 +704,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           {/* Lesson Details Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
                 <Calendar className="h-4 w-4 inline mr-1 text-purple-600" />
                 Lesson Type
               </label>
@@ -712,7 +712,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                 title="Select lesson type"
                 value={lessonType}
                 onChange={(e) => setLessonType(e.target.value as any)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-purple-500"
               >
                 <option value="behind_wheel">Behind the Wheel</option>
                 <option value="classroom">Classroom</option>
@@ -722,7 +722,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
                 <Clock className="h-4 w-4 inline mr-1 text-orange-600" />
                 Duration
               </label>
@@ -730,7 +730,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                 title="Select lesson duration"
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-orange-500"
               >
                 <option value={60}>1 hour</option>
                 <option value={90}>1.5 hours</option>
@@ -743,7 +743,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
               <Filter className="h-5 w-5 text-indigo-600" />
-              <label className="block text-sm font-semibold text-gray-900">
+              <label className="block text-sm font-semibold text-tx-primary">
                 Time Preference (optional)
               </label>
             </div>
@@ -761,7 +761,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                   className={`px-4 py-2 rounded-lg border-2 transition-all flex items-center gap-2 ${
                     timePreference === value
                       ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                      : 'border-[var(--border)] hover:border-[var(--border-strong)] text-tx-secondary'
                   }`}
                 >
                   {Icon && <Icon className="h-4 w-4" />}
@@ -772,12 +772,12 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           </div>
 
           {/* Continue Button */}
-          <div className="border-t border-gray-200 pt-6 flex space-x-3">
+          <div className="border-t border-[var(--border)] pt-6 flex space-x-3">
             {onCancel && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="flex-1 px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
               >
                 Cancel
               </button>
@@ -809,15 +809,15 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Available Time Slots</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="text-lg font-semibold text-tx-primary">Available Time Slots</h3>
+              <p className="text-sm text-tx-muted">
                 Sorted by instructor proximity to pickup location
               </p>
             </div>
             <button
               type="button"
               onClick={() => setStep('setup')}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              className="text-sm text-primary hover:text-blue-800 font-medium"
             >
               ← Change Filters
             </button>
@@ -833,8 +833,8 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           </div>
 
           {slotsWithProximity.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-              <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+            <div className="text-center py-12 text-tx-muted bg-surface2 rounded-lg border-2 border-dashed border-[var(--border-strong)]">
+              <Calendar className="h-12 w-12 mx-auto mb-3 text-tx-muted" />
               <p className="font-medium">No available slots found</p>
               <p className="text-sm mt-1">Try changing the duration or time preference</p>
             </div>
@@ -849,11 +849,11 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           )}
 
           {/* Back button */}
-          <div className="border-t border-gray-200 pt-6">
+          <div className="border-t border-[var(--border)] pt-6">
             <button
               type="button"
               onClick={() => setStep('setup')}
-              className="w-full px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="w-full px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
             >
               ← Back to Setup
             </button>
@@ -865,50 +865,50 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
       {step === 'confirm' && selectedSlot && (
         <div className="p-6 space-y-6">
           <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <h3 className="text-lg font-semibold text-tx-primary mb-4 flex items-center">
               <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
               Booking Summary
             </h3>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Student</span>
-                <span className="font-semibold text-gray-900">{selectedStudent?.fullName}</span>
+                <span className="text-sm text-tx-secondary">Student</span>
+                <span className="font-semibold text-tx-primary">{selectedStudent?.fullName}</span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Instructor</span>
+                <span className="text-sm text-tx-secondary">Instructor</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-gray-900">{selectedSlot.instructorName}</span>
+                  <span className="font-semibold text-tx-primary">{selectedSlot.instructorName}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${getProximityBadge(selectedSlot.proximityScore).class}`}>
                     {getProximityBadge(selectedSlot.proximityScore).label}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4">
-                <span className="text-sm text-gray-600">Date & Time</span>
+              <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
+                <span className="text-sm text-tx-secondary">Date & Time</span>
                 <div className="text-right">
-                  <div className="font-semibold text-gray-900">{formatShortDate(selectedSlot.date)}</div>
-                  <div className="text-sm text-gray-600">
+                  <div className="font-semibold text-tx-primary">{formatShortDate(selectedSlot.date)}</div>
+                  <div className="text-sm text-tx-secondary">
                     {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Lesson Type</span>
-                <span className="font-semibold text-gray-900 capitalize">{lessonType.replace(/_/g, ' ')}</span>
+                <span className="text-sm text-tx-secondary">Lesson Type</span>
+                <span className="font-semibold text-tx-primary capitalize">{lessonType.replace(/_/g, ' ')}</span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Duration</span>
-                <span className="font-semibold text-gray-900">{duration} minutes</span>
+                <span className="text-sm text-tx-secondary">Duration</span>
+                <span className="font-semibold text-tx-primary">{duration} minutes</span>
               </div>
 
               <div className="flex items-start justify-between">
-                <span className="text-sm text-gray-600">Pickup</span>
-                <span className="font-semibold text-gray-900 text-right max-w-xs">{pickupAddress}</span>
+                <span className="text-sm text-tx-secondary">Pickup</span>
+                <span className="font-semibold text-tx-primary text-right max-w-xs">{pickupAddress}</span>
               </div>
             </div>
           </div>
@@ -916,14 +916,14 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
           {/* Editable fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
                 Lesson # (auto-suggested)
               </label>
               <select
                 title="Select lesson number"
                 value={lessonNumber || ''}
                 onChange={(e) => setLessonNumber(e.target.value ? parseInt(e.target.value) : null)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary"
               >
                 <option value="">Not set</option>
                 {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
@@ -933,7 +933,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
                 Cost ($) - Edit for discounts
               </label>
               <input
@@ -945,14 +945,14 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
                 min="0"
                 step="0.01"
                 autoComplete="nope"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-green-500"
               />
             </div>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-tx-secondary mb-2">
               <FileText className="h-4 w-4 inline mr-1" />
               Notes (optional)
             </label>
@@ -961,7 +961,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add any notes for the instructor..."
               rows={2}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
+              className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
             />
           </div>
 
@@ -970,7 +970,7 @@ export const SmartBookingFormV2: React.FC<SmartBookingFormProps> = ({
             <button
               type="button"
               onClick={() => setStep('slots')}
-              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              className="flex-1 px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
             >
               ← Back
             </button>

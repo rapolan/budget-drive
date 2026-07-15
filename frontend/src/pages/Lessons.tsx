@@ -474,7 +474,7 @@ export const LessonsPage: React.FC = () => {
       case 'no_show':
         return 'bg-orange-100 text-orange-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
     }
   };
 
@@ -559,19 +559,19 @@ export const LessonsPage: React.FC = () => {
     return (
       <tr
         key={lesson.id}
-        className={`hover:bg-gray-50 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-amber-400 bg-amber-50/50' : ''}`}
+        className={`hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-amber-400 bg-amber-50/50' : ''}`}
         onClick={() => handleEdit(lesson)}
       >
         <td className="whitespace-nowrap px-6 py-4">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg ${upcoming ? 'bg-amber-100' : 'bg-blue-50'}`}>
-              <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-blue-600'}`} />
+              <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-primary'}`} />
             </div>
             <div>
-              <div className="text-sm font-medium text-gray-900">
+              <div className="text-sm font-medium text-tx-primary">
                 {formatDate(lesson.date)}
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-tx-muted">
                 {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
               </div>
             </div>
@@ -588,7 +588,7 @@ export const LessonsPage: React.FC = () => {
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium">
               {getStudentName(lesson.studentId).split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
-            <div className="text-sm font-medium text-gray-900">{getStudentName(lesson.studentId)}</div>
+            <div className="text-sm font-medium text-tx-primary">{getStudentName(lesson.studentId)}</div>
           </div>
         </td>
         <td className="whitespace-nowrap px-6 py-4">
@@ -596,23 +596,23 @@ export const LessonsPage: React.FC = () => {
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-xs font-medium">
               {getInstructorName(lesson.instructorId).split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
-            <div className="text-sm text-gray-900">{getInstructorName(lesson.instructorId)}</div>
+            <div className="text-sm text-tx-primary">{getInstructorName(lesson.instructorId)}</div>
           </div>
         </td>
         <td className="px-6 py-4">
           {lesson.pickupAddress ? (
             <div className="flex items-start gap-2 max-w-xs">
-              <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-gray-600 truncate" title={lesson.pickupAddress}>
+              <MapPin className="h-4 w-4 text-tx-muted mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-tx-secondary truncate" title={lesson.pickupAddress}>
                 {lesson.pickupAddress}
               </div>
             </div>
           ) : (
-            <span className="text-sm text-gray-400 italic">Not specified</span>
+            <span className="text-sm text-tx-muted italic">Not specified</span>
           )}
         </td>
         <td className="whitespace-nowrap px-6 py-4">
-          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-surface2 text-tx-secondary capitalize">
             {lesson.lessonType.replace(/_/g, ' ')}
           </span>
         </td>
@@ -648,7 +648,7 @@ export const LessonsPage: React.FC = () => {
                     e.stopPropagation();
                     handleEdit(lesson);
                   }}
-                  className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                  className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                   title="Edit lesson"
                 >
                   <Edit className="h-4 w-4" />
@@ -695,14 +695,14 @@ export const LessonsPage: React.FC = () => {
                   e.stopPropagation();
                   handleReschedule(lesson);
                 }}
-                className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                 title="Reschedule lesson"
               >
                 <RefreshCw className="h-4 w-4" />
               </button>
             )}
             {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
-              <span className="text-gray-400 text-xs italic">—</span>
+              <span className="text-tx-muted text-xs italic">—</span>
             )}
           </div>
         </td>
@@ -716,14 +716,14 @@ export const LessonsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <BackButton />
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Lessons</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-tx-primary mt-2">Lessons</h1>
+          <p className="mt-1 text-sm text-tx-muted">
             Manage driving lessons and appointments
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* View Toggle */}
-          <div className="flex rounded-lg border border-gray-300 bg-white overflow-hidden">
+          <div className="flex rounded-lg border border-[var(--border-strong)] bg-surface overflow-hidden">
             {/* Table/Cards toggle - show icons on mobile, text on larger screens */}
             <button
               onClick={() => {
@@ -732,8 +732,8 @@ export const LessonsPage: React.FC = () => {
               }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'table'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
               }`}
               title="Table view"
             >
@@ -747,8 +747,8 @@ export const LessonsPage: React.FC = () => {
               }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'cards'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
               }`}
               title="Card view"
             >
@@ -762,8 +762,8 @@ export const LessonsPage: React.FC = () => {
               }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'calendar'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
               }`}
               title="Month view"
             >
@@ -777,8 +777,8 @@ export const LessonsPage: React.FC = () => {
               }}
               className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
                 viewMode === 'weekly'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
               }`}
               title="Weekly view"
             >
@@ -790,7 +790,7 @@ export const LessonsPage: React.FC = () => {
           {/* Keyboard Shortcuts Button */}
           <button
             onClick={() => setShowShortcutsHelp(true)}
-            className="flex items-center justify-center rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all"
+            className="flex items-center justify-center rounded-lg border border-[var(--border)] p-2 text-tx-muted hover:bg-surface2 hover:text-tx-secondary transition-all"
             title="Keyboard shortcuts (?)"
           >
             <Keyboard className="h-5 w-5" />
@@ -798,7 +798,7 @@ export const LessonsPage: React.FC = () => {
 
           <button
             onClick={handleAddNew}
-            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+            className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
           >
             <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
             Book New Lesson
@@ -810,12 +810,12 @@ export const LessonsPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Today's Lessons */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('today')}
         >
           <div className="flex items-center justify-between">
             <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-              <CalendarDays className="h-5 w-5 text-blue-600" />
+              <CalendarDays className="h-5 w-5 text-primary" />
             </div>
             {stats.upcomingToday > 0 && (
               <span className="flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
@@ -825,14 +825,14 @@ export const LessonsPage: React.FC = () => {
             )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.todayLessons}</p>
-            <p className="text-sm text-gray-500">Today's Lessons</p>
+            <p className="text-2xl font-bold text-tx-primary">{stats.todayLessons}</p>
+            <p className="text-sm text-tx-muted">Today's Lessons</p>
           </div>
         </div>
 
         {/* This Week */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => {
             setStatusFilter('scheduled');
             setViewMode('weekly');
@@ -845,14 +845,14 @@ export const LessonsPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.thisWeekLessons}</p>
-            <p className="text-sm text-gray-500">Scheduled This Week</p>
+            <p className="text-2xl font-bold text-tx-primary">{stats.thisWeekLessons}</p>
+            <p className="text-sm text-tx-muted">Scheduled This Week</p>
           </div>
         </div>
 
         {/* Completed This Month */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('completed')}
         >
           <div className="flex items-center justify-between">
@@ -864,14 +864,14 @@ export const LessonsPage: React.FC = () => {
             </span>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.completedThisMonth}</p>
-            <p className="text-sm text-gray-500">Completed This Month</p>
+            <p className="text-2xl font-bold text-tx-primary">{stats.completedThisMonth}</p>
+            <p className="text-sm text-tx-muted">Completed This Month</p>
           </div>
         </div>
 
         {/* Active Bookings */}
         <div 
-          className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('scheduled')}
         >
           <div className="flex items-center justify-between">
@@ -880,15 +880,15 @@ export const LessonsPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.scheduled}</p>
-            <p className="text-sm text-gray-500">Active Bookings</p>
+            <p className="text-2xl font-bold text-tx-primary">{statusCounts.scheduled}</p>
+            <p className="text-sm text-tx-muted">Active Bookings</p>
           </div>
         </div>
       </div>
 
       {/* Search - Show in both views */}
-      <div className="flex items-center rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-        <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
+      <div className="flex items-center rounded-xl border border-[var(--border)] bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+        <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
           placeholder={
@@ -899,12 +899,12 @@ export const LessonsPage: React.FC = () => {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           autoComplete="nope"
-          className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
+          className="ml-3 flex-1 border-none bg-transparent outline-none text-tx-primary placeholder-gray-400"
         />
         {searchTerm && (
           <button
             onClick={() => setSearchTerm('')}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            className="p-1 text-tx-muted hover:text-tx-secondary rounded-full hover:bg-surface2 transition-colors"
             title="Clear search"
           >
             <X className="h-4 w-4" />
@@ -916,8 +916,8 @@ export const LessonsPage: React.FC = () => {
       <DateRangeFilter value={dateRange} onChange={setDateRange} />
 
       {/* Status Filter - Show in all views */}
-      <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
-        <span className="text-sm font-medium text-gray-700">Status:</span>
+      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
+        <span className="text-sm font-medium text-tx-secondary">Status:</span>
         <div className="flex flex-wrap gap-2">
           <FilterButton
             label="All"
@@ -1025,7 +1025,7 @@ export const LessonsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsSmartBookingOpen(true)}
-                      className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                      className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       Schedule Lesson
@@ -1040,24 +1040,24 @@ export const LessonsPage: React.FC = () => {
                   <div
                     key={lesson.id}
                     onClick={() => handleEdit(lesson)}
-                    className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
+                    className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
                       upcoming ? 'border-amber-300 bg-amber-50/30' :
                       lesson.status === 'completed' ? 'border-green-200' :
                       lesson.status === 'cancelled' ? 'border-red-200' :
-                      'border-gray-200 hover:border-blue-300'
+                      'border-[var(--border)] hover:brightness-110 hover:border-primary'
                     }`}
                   >
                     {/* Header - Date & Status */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <div className={`p-2 rounded-lg ${upcoming ? 'bg-amber-100' : 'bg-blue-50'}`}>
-                          <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-blue-600'}`} />
+                          <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-primary'}`} />
                         </div>
                         <div>
-                          <div className="text-sm font-semibold text-gray-900">
+                          <div className="text-sm font-semibold text-tx-primary">
                             {formatDate(lesson.date)}
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-tx-muted">
                             {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
                           </div>
                         </div>
@@ -1088,8 +1088,8 @@ export const LessonsPage: React.FC = () => {
                           {getStudentName(lesson.studentId).split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">{getStudentName(lesson.studentId)}</div>
-                          <div className="text-xs text-gray-500">Student</div>
+                          <div className="text-sm font-medium text-tx-primary truncate">{getStudentName(lesson.studentId)}</div>
+                          <div className="text-xs text-tx-muted">Student</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1097,8 +1097,8 @@ export const LessonsPage: React.FC = () => {
                           {getInstructorName(lesson.instructorId).split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">{getInstructorName(lesson.instructorId)}</div>
-                          <div className="text-xs text-gray-500">Instructor</div>
+                          <div className="text-sm font-medium text-tx-primary truncate">{getInstructorName(lesson.instructorId)}</div>
+                          <div className="text-xs text-tx-muted">Instructor</div>
                         </div>
                       </div>
                     </div>
@@ -1106,20 +1106,20 @@ export const LessonsPage: React.FC = () => {
                     {/* Pickup Location & Type */}
                     <div className="space-y-2 mb-4 text-sm">
                       {lesson.pickupAddress && (
-                        <div className="flex items-start gap-2 text-gray-600">
-                          <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5 text-gray-400" />
+                        <div className="flex items-start gap-2 text-tx-secondary">
+                          <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5 text-tx-muted" />
                           <span className="truncate" title={lesson.pickupAddress}>{lesson.pickupAddress}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-surface2 text-tx-secondary capitalize">
                           {lesson.lessonType.replace(/_/g, ' ')}
                         </span>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
                       {lesson.status === 'scheduled' && (
                         <>
                           <button
@@ -1139,7 +1139,7 @@ export const LessonsPage: React.FC = () => {
                               e.stopPropagation();
                               handleEdit(lesson);
                             }}
-                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-tx-secondary hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
                             title="Edit"
                           >
                             <Edit className="h-4 w-4" />
@@ -1150,7 +1150,7 @@ export const LessonsPage: React.FC = () => {
                               e.stopPropagation();
                               handleCancel(lesson.id);
                             }}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-tx-secondary hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Cancel"
                           >
                             <X className="h-4 w-4" />
@@ -1164,14 +1164,14 @@ export const LessonsPage: React.FC = () => {
                             e.stopPropagation();
                             handleReschedule(lesson);
                           }}
-                          className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                         >
                           <RefreshCw className="h-4 w-4" />
                           Reschedule
                         </button>
                       )}
                       {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
-                        <span className="text-gray-400 text-sm italic w-full text-center">No actions available</span>
+                        <span className="text-tx-muted text-sm italic w-full text-center">No actions available</span>
                       )}
                     </div>
                   </div>
@@ -1185,38 +1185,38 @@ export const LessonsPage: React.FC = () => {
       {/* Table View */}
       <div>
         {viewMode === 'table' && (
-          <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+          <div className="rounded-xl bg-surface shadow-sm border border-[var(--border)] overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/80">
+              <table className="min-w-full divide-y divide-[var(--border)]">
+            <thead className="bg-surface2/80">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Date & Time
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Student
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Instructor
                 </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                 Pickup Location
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                 Type
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                 Status
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                 History
               </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
+              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
+          <tbody className="divide-y divide-[var(--border)] bg-surface">
             {isLoading ? (
               <tr>
                 <td colSpan={8} className="py-12">
@@ -1240,7 +1240,7 @@ export const LessonsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsSmartBookingOpen(true)}
-                        className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                        className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Schedule Lesson
@@ -1257,7 +1257,7 @@ export const LessonsPage: React.FC = () => {
                     <tr className="bg-gradient-to-r from-blue-50 to-blue-100/50">
                       <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
-                          <CalendarDays className="h-4 w-4 text-blue-600" />
+                          <CalendarDays className="h-4 w-4 text-primary" />
                           <h3 className="text-sm font-semibold text-blue-900">Today</h3>
                           <span className="ml-2 px-2 py-0.5 bg-blue-200 text-blue-800 text-xs font-medium rounded-full">
                             {groupedLessons.today.length}
@@ -1311,9 +1311,9 @@ export const LessonsPage: React.FC = () => {
                     <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
                       <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-600" />
-                          <h3 className="text-sm font-semibold text-gray-700">Later</h3>
-                          <span className="ml-2 px-2 py-0.5 bg-gray-200 text-gray-700 text-xs font-medium rounded-full">
+                          <Clock className="h-4 w-4 text-tx-secondary" />
+                          <h3 className="text-sm font-semibold text-tx-secondary">Later</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-surface3 text-tx-secondary text-xs font-medium rounded-full">
                             {groupedLessons.later.length}
                           </span>
                         </div>
@@ -1329,9 +1329,9 @@ export const LessonsPage: React.FC = () => {
                     <tr className="bg-gradient-to-r from-gray-100 to-gray-200/50">
                       <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-500" />
-                          <h3 className="text-sm font-semibold text-gray-600">Past</h3>
-                          <span className="ml-2 px-2 py-0.5 bg-gray-300 text-gray-600 text-xs font-medium rounded-full">
+                          <Clock className="h-4 w-4 text-tx-muted" />
+                          <h3 className="text-sm font-semibold text-tx-secondary">Past</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-surface3 text-tx-secondary text-xs font-medium rounded-full">
                             {groupedLessons.past.length}
                           </span>
                         </div>
@@ -1351,13 +1351,13 @@ export const LessonsPage: React.FC = () => {
 
       {/* Pagination - Only show in table view */}
       {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-600">
+        <div className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm border border-[var(--border)]">
+          <div className="text-sm text-tx-secondary">
             {filteredLessons?.length} of {data.pagination.total} lessons
-            {statusFilter !== 'all' && <span className="text-gray-400 ml-1">(filtered)</span>}
+            {statusFilter !== 'all' && <span className="text-tx-muted ml-1">(filtered)</span>}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-tx-muted">
               Page {data.pagination.page} of {data.pagination.totalPages}
             </span>
             <div className="flex space-x-2">
@@ -1365,7 +1365,7 @@ export const LessonsPage: React.FC = () => {
                 type="button"
                 onClick={() => setCurrentPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
               >
                 Previous
               </button>
@@ -1373,7 +1373,7 @@ export const LessonsPage: React.FC = () => {
                 type="button"
                 onClick={() => setCurrentPage(currentPage + 1)}
                 disabled={currentPage === data.pagination.totalPages}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
               >
                 Next
               </button>

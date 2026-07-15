@@ -10,7 +10,7 @@ interface SkeletonProps {
 export const Skeleton: React.FC<SkeletonProps> = ({ className = '' }) => {
   return (
     <div
-      className={`animate-pulse bg-gray-200 rounded ${className}`}
+      className={`animate-pulse bg-surface3 rounded ${className}`}
       role="status"
       aria-label="Loading..."
     />
@@ -53,7 +53,7 @@ export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
  */
 export const CardSkeleton: React.FC = () => {
   return (
-    <div className="rounded-lg bg-white p-6 shadow">
+    <div className="rounded-lg bg-surface p-6 shadow">
       <Skeleton className="h-6 w-1/3 mb-4" />
       <Skeleton className="h-4 w-full mb-2" />
       <Skeleton className="h-4 w-5/6 mb-2" />
@@ -67,7 +67,7 @@ export const CardSkeleton: React.FC = () => {
  */
 export const StatCardSkeleton: React.FC = () => {
   return (
-    <div className="rounded-lg bg-white p-6 shadow">
+    <div className="rounded-lg bg-surface p-6 shadow">
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <Skeleton className="h-4 w-24 mb-3" />
@@ -84,7 +84,7 @@ export const StatCardSkeleton: React.FC = () => {
  */
 export const ListItemSkeleton: React.FC = () => {
   return (
-    <div className="flex items-center space-x-4 p-4 bg-white rounded-lg border border-gray-200">
+    <div className="flex items-center space-x-4 p-4 bg-surface rounded-lg border border-[var(--border)]">
       <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
       <div className="flex-1">
         <Skeleton className="h-4 w-3/4 mb-2" />

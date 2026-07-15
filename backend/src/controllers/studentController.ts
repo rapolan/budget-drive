@@ -18,6 +18,22 @@ export const getAllStudents = asyncHandler(async (req: Request, res: Response) =
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 50;
 
+  // Enforce role-based data isolation for instructors
+  if (req.user?.role === 'instructor' && req.user?.instructorId) {
+    const students = await studentService.getStudentsByInstructor(tenantId, req.user.instructorId);
+    res.json({
+      success: true,
+      data: students,
+      pagination: {
+        page: 1,
+        limit: students.length > 0 ? students.length : limit,
+        total: students.length,
+        totalPages: 1,
+      },
+    });
+    return;
+  }
+
   const result = await studentService.getAllStudents(tenantId, page, limit);
 
   res.json({
@@ -47,6 +63,15 @@ export const getStudent = asyncHandler(async (req: Request, res: Response) => {
     res.status(404).json({
       success: false,
       error: 'Student not found',
+    });
+    return;
+  }
+
+  // Enforce access control: instructors can only view their own students
+  if (req.user?.role === 'instructor' && student.assignedInstructorId !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only view your own assigned students',
     });
     return;
   }

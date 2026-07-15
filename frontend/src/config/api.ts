@@ -5,9 +5,10 @@
 
 export const API_CONFIG = {
   /**
-   * Base URL for the API — pointing directly at backend to bypass Vite proxy
+   * Base URL for the API — override with VITE_API_URL in .env for a
+   * non-default backend port
    */
-  BASE_URL: 'http://127.0.0.1:4000/api/v1',
+  BASE_URL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000/api/v1',
 
   /**
    * Request timeout in milliseconds

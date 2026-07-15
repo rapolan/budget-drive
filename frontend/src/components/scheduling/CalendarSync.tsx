@@ -55,11 +55,11 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-surface rounded-lg shadow p-6">
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
+          <div className="h-6 bg-surface3 rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-surface3 rounded w-2/3 mb-2"></div>
+          <div className="h-10 bg-surface3 rounded"></div>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-surface rounded-lg shadow p-6">
         <div className="text-red-600">
           Failed to load calendar feed status. Please try again.
         </div>
@@ -76,15 +76,15 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-surface rounded-lg shadow p-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="p-2 bg-blue-100 rounded-lg">
-          <Calendar className="h-6 w-6 text-blue-600" />
+          <Calendar className="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Calendar Subscription</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-lg font-semibold text-tx-primary">Calendar Subscription</h2>
+          <p className="text-sm text-tx-muted">
             Subscribe to lessons using any calendar app
           </p>
         </div>
@@ -108,7 +108,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
         <>
           {/* Feed URL */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-tx-secondary mb-2">
               Calendar Feed URL
             </label>
             <div className="flex gap-2">
@@ -117,7 +117,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 readOnly
                 value={feedUrl}
                 title="Calendar feed URL"
-                className="flex-1 px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-sm text-gray-600 truncate"
+                className="flex-1 px-4 py-2 bg-surface2 border border-[var(--border-strong)] rounded-lg font-mono text-sm text-tx-secondary truncate"
               />
               <button
                 type="button"
@@ -126,7 +126,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-medium ${
                   copied
                     ? 'bg-green-500 text-white'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-primary text-white hover:brightness-90 hover:bg-primary'
                 }`}
               >
                 {copied ? (
@@ -148,27 +148,27 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
           <button
             type="button"
             onClick={() => setShowInstructions(!showInstructions)}
-            className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors mb-4"
+            className="w-full flex items-center justify-between p-3 bg-surface2 rounded-lg border border-[var(--border)] hover:bg-surface2 transition-colors mb-4"
           >
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+            <span className="flex items-center gap-2 text-sm font-medium text-tx-secondary">
               <ExternalLink className="h-4 w-4" />
               Setup Instructions for Calendar Apps
             </span>
             {showInstructions ? (
-              <ChevronUp className="h-5 w-5 text-gray-500" />
+              <ChevronUp className="h-5 w-5 text-tx-muted" />
             ) : (
-              <ChevronDown className="h-5 w-5 text-gray-500" />
+              <ChevronDown className="h-5 w-5 text-tx-muted" />
             )}
           </button>
 
           {/* Instructions */}
           {showInstructions && (
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-4 mb-4">
+            <div className="bg-surface2 rounded-lg p-4 border border-[var(--border)] space-y-4 mb-4">
               <div>
-                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                <h4 className="font-medium text-tx-primary flex items-center gap-2 mb-2">
                   <span className="text-xl">📱</span> Google Calendar
                 </h4>
-                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1 ml-6">
+                <ol className="text-sm text-tx-secondary list-decimal list-inside space-y-1 ml-6">
                   <li>Open Google Calendar in your browser</li>
                   <li>Click the + next to "Other calendars" in the left sidebar</li>
                   <li>Select "From URL"</li>
@@ -177,10 +177,10 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
               </div>
               
               <div>
-                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                <h4 className="font-medium text-tx-primary flex items-center gap-2 mb-2">
                   <span className="text-xl">🍎</span> Apple Calendar (Mac/iPhone)
                 </h4>
-                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1 ml-6">
+                <ol className="text-sm text-tx-secondary list-decimal list-inside space-y-1 ml-6">
                   <li>Open the Calendar app</li>
                   <li>Go to File → New Calendar Subscription (Mac) or Settings → Calendar → Accounts → Add Account → Other (iPhone)</li>
                   <li>Paste the feed URL</li>
@@ -189,10 +189,10 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
               </div>
               
               <div>
-                <h4 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                <h4 className="font-medium text-tx-primary flex items-center gap-2 mb-2">
                   <span className="text-xl">📧</span> Microsoft Outlook
                 </h4>
-                <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1 ml-6">
+                <ol className="text-sm text-tx-secondary list-decimal list-inside space-y-1 ml-6">
                   <li>Open Outlook Calendar</li>
                   <li>Click "Add Calendar" → "Subscribe from web"</li>
                   <li>Paste the feed URL</li>
@@ -200,8 +200,8 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 </ol>
               </div>
               
-              <div className="pt-3 border-t border-gray-200">
-                <p className="text-xs text-gray-500 flex items-start gap-2">
+              <div className="pt-3 border-t border-[var(--border)]">
+                <p className="text-xs text-tx-muted flex items-start gap-2">
                   <span className="text-lg">💡</span>
                   <span>
                     <strong>Note:</strong> Calendar apps typically refresh subscribed calendars every 15-60 minutes. 
@@ -213,8 +213,8 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
           )}
 
           {/* Regenerate URL */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-            <div className="text-sm text-gray-500">
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+            <div className="text-sm text-tx-muted">
               Need a new URL? Regenerating will invalidate the old one.
             </div>
             <button
@@ -225,7 +225,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 }
               }}
               disabled={regenerateMutation.isPending}
-              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="px-3 py-2 text-sm text-tx-secondary hover:text-tx-primary flex items-center gap-2 hover:bg-surface2 rounded-lg transition-colors"
             >
               <RefreshCw className={`h-4 w-4 ${regenerateMutation.isPending ? 'animate-spin' : ''}`} />
               Regenerate URL
@@ -241,20 +241,20 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
       ) : (
         /* No feed set up yet */
         <div className="text-center py-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-            <Calendar className="h-8 w-8 text-gray-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-surface2 rounded-full mb-4">
+            <Calendar className="h-8 w-8 text-tx-muted" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <h3 className="text-lg font-medium text-tx-primary mb-2">
             Calendar sync not set up
           </h3>
-          <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+          <p className="text-sm text-tx-muted mb-6 max-w-md mx-auto">
             Enable calendar sync to generate a feed URL that the instructor can subscribe to in their calendar app.
           </p>
           <button
             type="button"
             onClick={() => setupMutation.mutate()}
             disabled={setupMutation.isPending}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto font-medium"
+            className="px-6 py-3 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition-colors flex items-center gap-2 mx-auto font-medium"
           >
             {setupMutation.isPending ? (
               <>

@@ -61,7 +61,7 @@ export const VehiclesPage: React.FC = () => {
       case 'retired':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
     }
   };
 
@@ -84,18 +84,18 @@ export const VehiclesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <BackButton />
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Vehicles</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-tx-primary mt-2">Vehicles</h1>
+          <p className="mt-1 text-sm text-tx-muted">
             Manage your driving school vehicles
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -103,7 +103,7 @@ export const VehiclesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -112,7 +112,7 @@ export const VehiclesPage: React.FC = () => {
           <button
             type="button"
             onClick={handleAddNew}
-            className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+            className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
           >
             <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
             Add Vehicle
@@ -121,8 +121,8 @@ export const VehiclesPage: React.FC = () => {
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-        <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
+      <div className="flex items-center rounded-lg border border-[var(--border-strong)] bg-surface px-4 py-2 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+        <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
           placeholder="Search vehicles by make, model, or plate..."
@@ -154,7 +154,7 @@ export const VehiclesPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddNew}
-                    className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                    className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Vehicle
@@ -167,11 +167,11 @@ export const VehiclesPage: React.FC = () => {
               <div
                 key={vehicle.id}
                 onClick={() => handleEdit(vehicle)}
-                className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
+                className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
                   vehicle.status === 'active' ? 'border-green-200 hover:border-green-300' :
                   vehicle.status === 'maintenance' ? 'border-yellow-200' :
                   vehicle.status === 'retired' ? 'border-red-200' :
-                  'border-gray-200 hover:border-blue-300'
+                  'border-[var(--border)] hover:brightness-110 hover:border-primary'
                 }`}
               >
                 {/* Header - Vehicle Name & Status */}
@@ -181,10 +181,10 @@ export const VehiclesPage: React.FC = () => {
                       <Car className="h-6 w-6" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-gray-900 truncate">
+                      <h3 className="font-semibold text-tx-primary truncate">
                         {vehicle.year} {vehicle.make}
                       </h3>
-                      <p className="text-sm text-gray-500 truncate">{vehicle.model}</p>
+                      <p className="text-sm text-tx-muted truncate">{vehicle.model}</p>
                     </div>
                   </div>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(vehicle.status)}`}>
@@ -195,40 +195,40 @@ export const VehiclesPage: React.FC = () => {
                 {/* Vehicle Details */}
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center gap-2 text-sm">
-                    <Hash className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                    <span className="font-medium text-gray-900">{vehicle.licensePlate}</span>
+                    <Hash className="h-4 w-4 text-tx-muted flex-shrink-0" />
+                    <span className="font-medium text-tx-primary">{vehicle.licensePlate}</span>
                   </div>
                   {vehicle.color && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-tx-secondary">
                       <div
-                        className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0"
+                        className="w-4 h-4 rounded-full border border-[var(--border-strong)] flex-shrink-0"
                         style={{ backgroundColor: vehicle.color.toLowerCase() }}
                       />
                       <span className="capitalize">{vehicle.color}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Gauge className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <div className="flex items-center gap-2 text-sm text-tx-secondary">
+                    <Gauge className="h-4 w-4 text-tx-muted flex-shrink-0" />
                     <span>{vehicle.currentMileage?.toLocaleString() || 0} mi</span>
                   </div>
                 </div>
 
                 {/* Ownership Badge */}
                 <div className="mb-4">
-                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700">
+                  <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-surface2 text-tx-secondary">
                     {getOwnershipLabel(vehicle.ownershipType)}
                   </span>
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEdit(vehicle);
                     }}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                   >
                     <Edit className="h-4 w-4" />
                     Edit
@@ -239,7 +239,7 @@ export const VehiclesPage: React.FC = () => {
                       e.stopPropagation();
                       handleDelete(vehicle.id);
                     }}
-                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-tx-secondary hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -253,32 +253,32 @@ export const VehiclesPage: React.FC = () => {
 
       {/* Table */}
       {viewMode === 'table' && (
-      <div className="rounded-lg bg-white shadow">
+      <div className="rounded-lg bg-surface shadow">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[var(--border)]">
+          <thead className="bg-surface2">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                 Vehicle
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                 License Plate
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                 Ownership
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                 Mileage
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                 Status
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
+          <tbody className="divide-y divide-[var(--border)] bg-surface">
             {isLoading ? (
               <tr>
                 <td colSpan={6} className="py-12">
@@ -300,7 +300,7 @@ export const VehiclesPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleAddNew}
-                        className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                        className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Add Vehicle
@@ -311,24 +311,24 @@ export const VehiclesPage: React.FC = () => {
               </tr>
             ) : (
               filteredVehicles?.map((vehicle) => (
-                <tr key={vehicle.id} className="hover:bg-gray-50">
+                <tr key={vehicle.id} className="hover:bg-surface2">
                   <td className="whitespace-nowrap px-6 py-4">
-                    <div className="font-medium text-gray-900">
+                    <div className="font-medium text-tx-primary">
                       {vehicle.year} {vehicle.make} {vehicle.model}
                     </div>
                     {vehicle.color && (
-                      <div className="text-sm text-gray-500">{vehicle.color}</div>
+                      <div className="text-sm text-tx-muted">{vehicle.color}</div>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-tx-primary">
                     {vehicle.licensePlate}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
-                    <div className="text-sm text-gray-900">
+                    <div className="text-sm text-tx-primary">
                       {getOwnershipLabel(vehicle.ownershipType)}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-tx-muted">
                     {vehicle.currentMileage?.toLocaleString()} mi
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
@@ -345,7 +345,7 @@ export const VehiclesPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleEdit(vehicle)}
-                        className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                        className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
                         title="Edit vehicle"
                       >
                         <Edit className="h-5 w-5" />

@@ -198,7 +198,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
   if (loading || loadingSettings) {
     return (
       <div className="flex items-center justify-center h-32">
-        <div className="text-gray-500">Loading availability...</div>
+        <div className="text-tx-muted">Loading availability...</div>
       </div>
     );
   }
@@ -216,7 +216,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
 
       {/* Info Banner */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start space-x-3">
-        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+        <Info className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
         <div className="text-sm text-blue-800">
           <p className="font-semibold mb-1">Capacity-Based Scheduling</p>
           <p>
@@ -229,21 +229,21 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
       </div>
 
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900">Weekly Availability</h3>
+        <h3 className="text-lg font-semibold text-tx-primary">Weekly Availability</h3>
         <button
           type="button"
           onClick={() => setShowAddForm(!showAddForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
         >
           {showAddForm ? 'Cancel' : '+ Add Availability'}
         </button>
       </div>
 
       {showAddForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-lg space-y-4">
+        <form onSubmit={handleSubmit} className="bg-surface2 p-4 rounded-lg space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Day of Week
               </label>
               <select
@@ -251,7 +251,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, dayOfWeek: parseInt(e.target.value) })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 title="Select day of week"
                 required
               >
@@ -264,7 +264,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Start Time
               </label>
               <input
@@ -272,13 +272,13 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 value={formData.startTime}
                 onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-tx-secondary mb-1">
                 Max Students
               </label>
               <select
@@ -289,7 +289,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                     maxStudents: e.target.value === '' ? null : parseInt(e.target.value)
                   })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 title="Select max students for this slot"
               >
                 <option value="">Default ({schedulingSettings?.defaultMaxStudentsPerDay || 3})</option>
@@ -302,77 +302,77 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
             </div>
           </div>
 
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-tx-secondary">
             Day ends around <strong>{calculatedEndTime}</strong> ({effectiveMaxStudents} student{effectiveMaxStudents !== 1 ? 's' : ''} × {schedulingSettings?.defaultLessonDuration || 120} min + buffers)
           </p>
 
           <button
             type="submit"
             disabled={saving}
-            className="w-full md:w-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400"
+            className="w-full md:w-auto px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-surface3 disabled:text-tx-muted"
           >
             {saving ? 'Adding...' : 'Add Availability'}
           </button>
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-surface rounded-lg shadow overflow-hidden">
         {availability.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-tx-muted">
             No availability slots configured. Click "Add Availability" to get started.
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[var(--border)]">
+            <thead className="bg-surface2">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Day
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Start Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Max Students
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Calculated End
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-surface divide-y divide-[var(--border)]">
               {availability.map((slot) => {
                 const slotMaxStudents = slot.maxStudents ?? schedulingSettings?.defaultMaxStudentsPerDay ?? 3;
                 return (
-                  <tr key={slot.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <tr key={slot.id} className="hover:bg-surface2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-tx-primary">
                       {getDayLabel(slot.dayOfWeek)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-primary font-semibold">
                       {slot.startTime}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-primary">
                       {slot.maxStudents === null ? (
-                        <span className="text-gray-500">{slotMaxStudents} <span className="text-xs">(default)</span></span>
+                        <span className="text-tx-muted">{slotMaxStudents} <span className="text-xs">(default)</span></span>
                       ) : (
                         <span className={slot.maxStudents === 1 ? 'text-orange-600 font-medium' : ''}>
                           {slot.maxStudents} {slot.maxStudents === 1 && <span className="text-xs">(single)</span>}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-muted">
                       ~{slot.endTime}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${slot.isActive
                           ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
+                          : 'bg-surface2 text-tx-primary'
                           }`}
                       >
                         {slot.isActive ? 'Active' : 'Inactive'}
@@ -382,7 +382,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleToggleActive(slot)}
-                          className="px-3 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                          className="px-3 py-1 text-primary hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
                         >
                           {slot.isActive ? 'Deactivate' : 'Activate'}
                         </button>

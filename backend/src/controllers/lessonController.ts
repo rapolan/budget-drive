@@ -22,6 +22,23 @@ export const getAllLessons = asyncHandler(async (req: Request, res: Response) =>
   const limit = parseInt(req.query.limit as string) || 50;
 
   try {
+    // Enforce role-based data isolation for instructors
+    if (req.user?.role === 'instructor' && req.user?.instructorId) {
+      const lessons = await lessonService.getLessonsByInstructor(tenantId, req.user.instructorId);
+      logger.info('Fetched instructor lessons', { tenantId, count: lessons.length });
+      res.json({
+        success: true,
+        data: lessons,
+        pagination: {
+          page: 1,
+          limit: lessons.length > 0 ? lessons.length : limit,
+          total: lessons.length,
+          totalPages: 1,
+        },
+      });
+      return;
+    }
+
     const result = await lessonService.getAllLessons(tenantId, page, limit);
     logger.info('Fetched lessons', {
       tenantId,
@@ -68,6 +85,15 @@ export const getLesson = asyncHandler(async (req: Request, res: Response) => {
     res.status(404).json({
       success: false,
       error: 'Lesson not found',
+    });
+    return;
+  }
+
+  // Enforce access control: instructors can only view their own lessons
+  if (req.user?.role === 'instructor' && lesson.instructorId !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only view your own assigned lessons',
     });
     return;
   }

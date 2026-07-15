@@ -27,11 +27,11 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
       case 'completed':
         return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'scheduled':
-        return <Clock className="h-5 w-5 text-blue-600" />;
+        return <Clock className="h-5 w-5 text-primary" />;
       case 'cancelled':
         return <XCircle className="h-5 w-5 text-red-600" />;
       default:
-        return <Calendar className="h-5 w-5 text-gray-600" />;
+        return <Calendar className="h-5 w-5 text-tx-secondary" />;
     }
   };
 
@@ -44,7 +44,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
       case 'cancelled':
         return 'bg-red-50 border-red-200';
       default:
-        return 'bg-gray-50 border-gray-200';
+        return 'bg-surface2 border-[var(--border)]';
     }
   };
 
@@ -65,7 +65,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
     return (
       <div className="text-center py-12">
         <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-        <p className="text-sm text-gray-500">No lessons scheduled yet</p>
+        <p className="text-sm text-tx-muted">No lessons scheduled yet</p>
       </div>
     );
   }
@@ -77,7 +77,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
           {/* Timeline connector */}
           {index < sortedLessons.length - 1 && (
             <div
-              className="absolute left-6 top-12 bottom-0 w-0.5 bg-gray-200"
+              className="absolute left-6 top-12 bottom-0 w-0.5 bg-surface3"
               style={{ transform: 'translateX(-50%)' }}
             />
           )}
@@ -95,10 +95,10 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
                 {/* Date and Time */}
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-900">
+                    <h4 className="text-sm font-semibold text-tx-primary">
                       {formatShortDate(lesson.date)}
                     </h4>
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-tx-secondary">
                       {format12Hour(lesson.startTime)} - {format12Hour(lesson.endTime)}
                     </p>
                   </div>
@@ -117,13 +117,13 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
 
                 {/* Lesson Type */}
                 <div className="mb-2">
-                  <span className="text-sm text-gray-700 capitalize">
+                  <span className="text-sm text-tx-secondary capitalize">
                     {lesson.lessonType.replace(/_/g, ' ')}
                   </span>
                 </div>
 
                 {/* Instructor */}
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                <div className="flex items-center gap-2 text-sm text-tx-secondary mb-2">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
@@ -132,7 +132,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
 
                 {/* Pickup Location */}
                 {lesson.pickupAddress && (
-                  <div className="flex items-start gap-2 text-sm text-gray-600">
+                  <div className="flex items-start gap-2 text-sm text-tx-secondary">
                     <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
                     <span className="truncate">{lesson.pickupAddress}</span>
                   </div>
@@ -140,8 +140,8 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
 
                 {/* Notes if any */}
                 {lesson.notes && (
-                  <div className="mt-3 p-2 bg-white rounded border border-gray-200">
-                    <p className="text-xs text-gray-600 italic">{lesson.notes}</p>
+                  <div className="mt-3 p-2 bg-surface rounded border border-[var(--border)]">
+                    <p className="text-xs text-tx-secondary italic">{lesson.notes}</p>
                   </div>
                 )}
               </div>

@@ -78,14 +78,14 @@ const Treasury: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <BackButton />
-          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mt-2">Treasury Dashboard</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-tx-primary mt-2">Treasury Dashboard</h1>
           {showBlockchainDetails && (
-            <p className="text-sm sm:text-base text-gray-600 mt-1">
+            <p className="text-sm sm:text-base text-tx-secondary mt-1">
               Satoshi-level transaction fees • Craig Wright aligned
             </p>
           )}
           {!showBlockchainDetails && (
-            <p className="text-sm sm:text-base text-gray-600 mt-1">
+            <p className="text-sm sm:text-base text-tx-secondary mt-1">
               Platform fee collection and financial overview
             </p>
           )}
@@ -100,14 +100,14 @@ const Treasury: React.FC = () => {
 
       {/* Wright Philosophy Banner */}
       {showBlockchainDetails && (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+        <div className="bg-blue-50 border-l-4 border-primary p-4 rounded">
           <div className="flex">
             <div className="flex-shrink-0">
-              <Coins className="h-5 w-5 text-blue-500" />
+              <Coins className="h-5 w-5 text-primary" />
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-blue-900">Cost-Based Satoshi Fees</h3>
-              <p className="mt-2 text-sm text-blue-700">
+              <p className="mt-2 text-sm text-primary">
                 <strong>NOT percentage extraction.</strong> Each transaction pays a fixed satoshi fee
                 based on computational cost (5 sats = ~$0.000002). Providers get 99.999996% of transaction
                 value. Scales profitably at volume: 100M bookings = 5 BSV = ~$235 USD passive income.
@@ -120,45 +120,45 @@ const Treasury: React.FC = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Current Balance */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-surface rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Treasury Balance</p>
+              <p className="text-sm font-medium text-tx-secondary">Treasury Balance</p>
               {showBlockchainDetails ? (
                 <>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
+                  <p className="text-2xl font-bold text-tx-primary mt-2">
                     {balance?.bsv_wallet_balance_satoshis || 0} sats
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-tx-muted mt-1">
                     ≈ {treasuryApi.formatCurrency(treasuryApi.satoshisToUSD(balance?.bsv_wallet_balance_satoshis || 0, BSV_PRICE))}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
+                  <p className="text-2xl font-bold text-tx-primary mt-2">
                     {treasuryApi.formatCurrency(treasuryApi.satoshisToUSD(balance?.bsv_wallet_balance_satoshis || 0, BSV_PRICE))}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-tx-muted mt-1">
                     Total collected fees
                   </p>
                 </>
               )}
             </div>
             <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <Coins className="h-6 w-6 text-blue-600" />
+              <Coins className="h-6 w-6 text-primary" />
             </div>
           </div>
         </div>
 
         {/* Transaction Count */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-surface rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Transactions</p>
-              <p className="text-2xl font-bold text-gray-900 mt-2">
+              <p className="text-sm font-medium text-tx-secondary">Total Transactions</p>
+              <p className="text-2xl font-bold text-tx-primary mt-2">
                 {balance?.transaction_count || 0}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-tx-muted mt-1">
                 {showBlockchainDetails ? `${totalSatoshis} sats collected` : 'Fee transactions recorded'}
               </p>
             </div>
@@ -169,14 +169,14 @@ const Treasury: React.FC = () => {
         </div>
 
         {/* Total Gross Volume */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-surface rounded-lg shadow p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Gross Volume</p>
-              <p className="text-2xl font-bold text-gray-900 mt-2">
+              <p className="text-sm font-medium text-tx-secondary">Gross Volume</p>
+              <p className="text-2xl font-bold text-tx-primary mt-2">
                 ${statistics?.total_gross?.toLocaleString() || '0'}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-tx-muted mt-1">
                 Total transaction volume
               </p>
             </div>
@@ -188,12 +188,12 @@ const Treasury: React.FC = () => {
 
         {/* Provider Share - Only show in power mode */}
         {showBlockchainDetails && (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-surface rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Provider Share</p>
-                <p className="text-2xl font-bold text-gray-900 mt-2">99.999996%</p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-sm font-medium text-tx-secondary">Provider Share</p>
+                <p className="text-2xl font-bold text-tx-primary mt-2">99.999996%</p>
+                <p className="text-xs text-tx-muted mt-1">
                   ${statistics?.total_provider?.toLocaleString() || '0'}
                 </p>
               </div>
@@ -206,48 +206,48 @@ const Treasury: React.FC = () => {
       </div>
 
       {/* Recent Transactions */}
-      <div className="overflow-hidden rounded-lg bg-white shadow">
+      <div className="overflow-hidden rounded-lg bg-surface shadow">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-[var(--border)]">
+            <thead className="bg-surface2">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   {showBlockchainDetails ? 'BDP Action' : 'Action'}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Source
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Gross Amount
                 </th>
                 {showBlockchainDetails && (
                   <>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-medium text-tx-muted uppercase tracking-wider">
                       Fee (Sats)
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-right text-xs font-medium text-tx-muted uppercase tracking-wider">
                       Fee (USD)
                     </th>
                   </>
                 )}
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-tx-muted uppercase tracking-wider">
                   Status
                 </th>
                 {showBlockchainDetails && (
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-tx-muted uppercase tracking-wider">
                     On-Chain
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-surface divide-y divide-[var(--border)]">
               {transactionsArray && transactionsArray.length > 0 ? (
                 transactionsArray.map((tx: TreasuryTransaction) => (
-                  <tr key={tx.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr key={tx.id} className="hover:bg-surface2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-primary">
                       {new Date(tx.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -255,18 +255,18 @@ const Treasury: React.FC = () => {
                         {tx.bsv_action}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-secondary">
                       {tx.source_type.replace('_', ' ')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-tx-primary">
                       ${tx.gross_amount.toFixed(2)}
                     </td>
                     {showBlockchainDetails && (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-blue-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-primary">
                           {tx.bsv_satoshis} sats
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-tx-secondary">
                           {treasuryApi.formatCurrency(treasuryApi.satoshisToUSD(tx.bsv_satoshis, BSV_PRICE))}
                         </td>
                       </>
@@ -295,13 +295,13 @@ const Treasury: React.FC = () => {
                             href={getWhatsOnChainUrl(tx.bsv_txid)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                            className="inline-flex items-center text-primary hover:text-blue-800 text-sm"
                             title="View transaction on WhatsOnChain"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </a>
                         ) : (
-                          <span className="text-gray-400 text-xs">N/A</span>
+                          <span className="text-tx-muted text-xs">N/A</span>
                         )}
                       </td>
                     )}
@@ -309,7 +309,7 @@ const Treasury: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={showBlockchainDetails ? 8 : 6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={showBlockchainDetails ? 8 : 6} className="px-6 py-12 text-center text-tx-muted">
                     No transactions yet. Treasury fees will appear here when lessons are booked.
                   </td>
                 </tr>
@@ -321,49 +321,49 @@ const Treasury: React.FC = () => {
 
       {/* Wright Alignment Checklist */}
       {showBlockchainDetails && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Craig Wright Philosophy Alignment</h3>
+        <div className="bg-surface rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-tx-primary mb-4">Craig Wright Philosophy Alignment</h3>
           <div className="space-y-3">
             <div className="flex items-start">
               <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Cost-Based Fees</p>
-                <p className="text-sm text-gray-600">5 sats per booking reflects computational cost, NOT arbitrary percentage</p>
+                <p className="font-medium text-tx-primary">Cost-Based Fees</p>
+                <p className="text-sm text-tx-secondary">5 sats per booking reflects computational cost, NOT arbitrary percentage</p>
               </div>
             </div>
             <div className="flex items-start">
               <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Fixed Fees</p>
-                <p className="text-sm text-gray-600">NOT percentage-based extraction that punishes higher-value transactions</p>
+                <p className="font-medium text-tx-primary">Fixed Fees</p>
+                <p className="text-sm text-tx-secondary">NOT percentage-based extraction that punishes higher-value transactions</p>
               </div>
             </div>
             <div className="flex items-start">
               <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Scales at Volume</p>
-                <p className="text-sm text-gray-600">Profitable at millions of transactions, not through rent-seeking</p>
+                <p className="font-medium text-tx-primary">Scales at Volume</p>
+                <p className="text-sm text-tx-secondary">Profitable at millions of transactions, not through rent-seeking</p>
               </div>
             </div>
             <div className="flex items-start">
               <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">No Rent-Seeking</p>
-                <p className="text-sm text-gray-600">Honest money principle - providers keep 99.999996% of value</p>
+                <p className="font-medium text-tx-primary">No Rent-Seeking</p>
+                <p className="text-sm text-tx-secondary">Honest money principle - providers keep 99.999996% of value</p>
               </div>
             </div>
             <div className="flex items-start">
               <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Satoshi-Denominated</p>
-                <p className="text-sm text-gray-600">Bitcoin-native pricing in satoshis, not fiat percentages</p>
+                <p className="font-medium text-tx-primary">Satoshi-Denominated</p>
+                <p className="text-sm text-tx-secondary">Bitcoin-native pricing in satoshis, not fiat percentages</p>
               </div>
             </div>
             <div className="flex items-start">
               <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">Transparent</p>
-                <p className="text-sm text-gray-600">All fees documented and logged on-chain (Phase 3)</p>
+                <p className="font-medium text-tx-primary">Transparent</p>
+                <p className="text-sm text-tx-secondary">All fees documented and logged on-chain (Phase 3)</p>
               </div>
             </div>
           </div>
@@ -373,25 +373,25 @@ const Treasury: React.FC = () => {
       {/* BSV Blockchain Info */}
       {showBlockchainDetails && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+          <h3 className="text-lg font-semibold text-tx-primary mb-2 flex items-center">
             <Check className="h-5 w-5 text-green-600 mr-2" />
             Blockchain Integration Status: LIVE ✅
           </h3>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-tx-secondary mb-4">
             <strong>Phase 2 (LIVE NOW):</strong> All treasury transactions are automatically written to BSV testnet blockchain
             with OP_RETURN metadata. Every booking creates a permanent, immutable on-chain record.
           </p>
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-tx-secondary mb-2">
             <strong>Current Status:</strong>
           </p>
-          <ul className="text-sm text-gray-600 list-disc list-inside space-y-1 mb-4">
+          <ul className="text-sm text-tx-secondary list-disc list-inside space-y-1 mb-4">
             <li>✅ Wallet service operational (testnet)</li>
             <li>✅ Automatic BSV broadcasts on every booking</li>
             <li>✅ OP_RETURN data: BDP action type + transaction ID</li>
             <li>✅ Graceful fallback if blockchain unavailable</li>
             <li>✅ Real-time balance checking via WhatsOnChain API</li>
           </ul>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-tx-secondary">
             <strong>Phase 3 (Q1 2026):</strong> Merkle tree batching to aggregate 100+ transactions into single on-chain write,
             reducing costs by 97%. Mainnet migration with production wallet.
           </p>

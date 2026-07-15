@@ -28,7 +28,7 @@ interface StatusBadgeProps {
 const statusConfig: Record<Status, { label: string; className: string }> = {
   // Student statuses
   active: { label: 'Active', className: 'bg-green-100 text-green-800' },
-  inactive: { label: 'Inactive', className: 'bg-gray-100 text-gray-800' },
+  inactive: { label: 'Inactive', className: 'bg-surface2 text-tx-primary' },
   enrolled: { label: 'Enrolled', className: 'bg-blue-100 text-blue-800' },
   completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
   dropped: { label: 'Dropped', className: 'bg-red-100 text-red-800' },
@@ -44,11 +44,11 @@ const statusConfig: Record<Status, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
   confirmed: { label: 'Confirmed', className: 'bg-green-100 text-green-800' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800' },
-  refunded: { label: 'Refunded', className: 'bg-gray-100 text-gray-800' },
+  refunded: { label: 'Refunded', className: 'bg-surface2 text-tx-primary' },
 
   // Vehicle statuses
   maintenance: { label: 'Maintenance', className: 'bg-yellow-100 text-yellow-800' },
-  retired: { label: 'Retired', className: 'bg-gray-100 text-gray-800' },
+  retired: { label: 'Retired', className: 'bg-surface2 text-tx-primary' },
 
   // Instructor statuses
   on_leave: { label: 'On Leave', className: 'bg-yellow-100 text-yellow-800' },
@@ -61,7 +61,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
   if (!config) {
     console.warn(`Unknown status: ${status}`);
     return (
-      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 ${className}`}>
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-surface2 text-tx-primary ${className}`}>
         {status}
       </span>
     );

@@ -138,6 +138,8 @@ export const StudentsPage: React.FC = () => {
       inactive: 0,
     };
 
+    counts.all = data?.data?.length || 0;
+
     data?.data?.forEach((student) => {
       const statusInfo = getStudentStatus(student);
       const createdAt = new Date(student.createdAt);
@@ -234,6 +236,21 @@ export const StudentsPage: React.FC = () => {
     return studentLessons.length > 0 ? new Date(studentLessons[0].date) : null;
   };
 
+  // Display helpers
+  const getDisplayName = (student: Student): string => {
+    if (student.firstName || student.lastName) {
+      return [student.firstName, student.lastName].filter(Boolean).join(' ');
+    }
+    return student.fullName;
+  };
+
+  const getInitials = (student: Student): string => {
+    if (student.firstName && student.lastName) {
+      return `${student.firstName[0]}${student.lastName[0]}`.toUpperCase();
+    }
+    return student.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  };
+
   const filteredAndSortedStudents = useMemo(() => {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -261,8 +278,11 @@ export const StudentsPage: React.FC = () => {
     // Then, sort
     const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
-        case 'name':
-          return a.fullName.localeCompare(b.fullName);
+        case 'name': {
+          const aSort = a.lastName ? `${a.lastName}${a.firstName}` : a.fullName;
+          const bSort = b.lastName ? `${b.lastName}${b.firstName}` : b.fullName;
+          return aSort.localeCompare(bSort);
+        }
         case 'enrollment_newest':
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         case 'enrollment_oldest':
@@ -304,9 +324,9 @@ export const StudentsPage: React.FC = () => {
       case 'completed':
         return 'bg-purple-100 text-purple-800';
       case 'inactive':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-surface2 text-tx-primary';
     }
   };
 
@@ -316,15 +336,15 @@ export const StudentsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <BackButton />
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">Students</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-bold text-tx-primary mt-2">Students</h1>
+          <p className="mt-1 text-sm text-tx-muted">
             Manage your driving school students
           </p>
         </div>
         <button
           type="button"
           onClick={handleAddNew}
-          className="flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+          className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
         >
           <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
           Add Student
@@ -334,11 +354,11 @@ export const StudentsPage: React.FC = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* New Students This Month */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('new_this_month')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-              <Users className="h-5 w-5 text-blue-600" />
+              <Users className="h-5 w-5 text-primary" />
             </div>
             {/* Comparison Toggle */}
             <button
@@ -362,16 +382,16 @@ export const StudentsPage: React.FC = () => {
             </button>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.newThisMonth}</p>
-            <p className="text-sm text-gray-500">New This Month</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-2xl font-bold text-tx-primary">{stats.newThisMonth}</p>
+            <p className="text-sm text-tx-muted">New This Month</p>
+            <p className="text-xs text-tx-muted mt-1">
               vs {comparisonMode === 'month' ? 'last month' : 'last year'} ({comparisonMode === 'month' ? stats.newLastMonth : stats.newLastYearSameMonth})
             </p>
           </div>
         </div>
 
         {/* Scheduled - Students with upcoming lessons */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('scheduled')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
@@ -384,32 +404,32 @@ export const StudentsPage: React.FC = () => {
             )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.scheduled}</p>
-            <p className="text-sm text-gray-500">Scheduled</p>
+            <p className="text-2xl font-bold text-tx-primary">{statusCounts.scheduled}</p>
+            <p className="text-sm text-tx-muted">Scheduled</p>
           </div>
         </div>
 
         {/* Ready to Book - Students needing their next lesson */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('ready_to_book')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-              <UserCheck className="h-5 w-5 text-blue-600" />
+              <UserCheck className="h-5 w-5 text-primary" />
             </div>
             {statusCounts.ready_to_book > 0 && (
-              <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-primary bg-blue-50 px-2 py-1 rounded-full">
                 Book now
               </span>
             )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.ready_to_book}</p>
-            <p className="text-sm text-gray-500">Ready to Book</p>
+            <p className="text-2xl font-bold text-tx-primary">{statusCounts.ready_to_book}</p>
+            <p className="text-sm text-tx-muted">Ready to Book</p>
           </div>
         </div>
 
         {/* Needs Attention */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('needs_attention')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
@@ -422,13 +442,13 @@ export const StudentsPage: React.FC = () => {
             )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.needs_attention}</p>
-            <p className="text-sm text-gray-500">Need Attention</p>
+            <p className="text-2xl font-bold text-tx-primary">{statusCounts.needs_attention}</p>
+            <p className="text-sm text-tx-muted">Need Attention</p>
           </div>
         </div>
 
         {/* Completed */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('completed')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
@@ -441,27 +461,27 @@ export const StudentsPage: React.FC = () => {
             )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-gray-900">{statusCounts.completed}</p>
-            <p className="text-sm text-gray-500">Completed</p>
+            <p className="text-2xl font-bold text-tx-primary">{statusCounts.completed}</p>
+            <p className="text-sm text-tx-muted">Completed</p>
           </div>
         </div>
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
-        <Search className="h-5 w-5 text-gray-400 flex-shrink-0" />
+      <div className="flex items-center rounded-xl border border-[var(--border)] bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+        <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
           placeholder="Search students by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           autoComplete="nope"
-          className="ml-3 flex-1 border-none bg-transparent outline-none text-gray-900 placeholder-gray-400"
+          className="ml-3 flex-1 border-none bg-transparent outline-none text-tx-primary placeholder-gray-400"
         />
         {searchTerm && (
           <button
             onClick={() => setSearchTerm('')}
-            className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            className="p-1 text-tx-muted hover:text-tx-secondary rounded-full hover:bg-surface2 transition-colors"
             title="Clear search"
           >
             <X className="h-4 w-4" />
@@ -470,15 +490,15 @@ export const StudentsPage: React.FC = () => {
       </div>
 
       {/* Status Filter & Sort */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-white p-4 shadow-sm border border-gray-100">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
         <div className="flex items-center justify-between sm:justify-start gap-3">
-          <span className="text-sm font-medium text-gray-700">Filter:</span>
+          <span className="text-sm font-medium text-tx-secondary">Filter:</span>
           {/* View Toggle - Mobile only shows on the right */}
           <div className="flex items-center gap-1 sm:hidden">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -486,7 +506,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -545,13 +565,13 @@ export const StudentsPage: React.FC = () => {
           />
           {/* Sort dropdown */}
           <div className="flex items-center gap-2 ml-auto border-l pl-3">
-            <ArrowUpDown className="h-4 w-4 text-gray-400" />
+            <ArrowUpDown className="h-4 w-4 text-tx-muted" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
               title="Sort students by"
               aria-label="Sort students by"
-              className="text-sm border-none bg-transparent text-gray-700 focus:ring-0 cursor-pointer pr-6"
+              className="text-sm border-none bg-transparent text-tx-secondary focus:ring-0 cursor-pointer pr-6"
             >
               <option value="name">Name A-Z</option>
               <option value="enrollment_newest">Newest First</option>
@@ -565,7 +585,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -573,7 +593,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -607,7 +627,7 @@ export const StudentsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddNew}
-                    className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                    className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Student
@@ -625,24 +645,24 @@ export const StudentsPage: React.FC = () => {
               return (
                 <div
                   key={student.id}
-                  className={`bg-white rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all ${
-                    statusInfo.status === 'needs_attention' ? 'border-amber-300' : 'border-gray-200 hover:border-blue-300'
+                  className={`bg-surface rounded-xl shadow-sm border p-5 hover:shadow-md transition-all ${
+                    statusInfo.status === 'needs_attention' ? 'border-amber-300' : 'border-[var(--border)] hover:brightness-110 hover:border-primary'
                   }`}
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                        {student.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        {getInitials(student)}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{student.fullName}</h3>
+                        <h3 className="font-semibold text-tx-primary truncate">{getDisplayName(student)}</h3>
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(statusInfo.status)}`}>
                           {statusInfo.displayStatus}
                         </span>
                         {/* Status reason - visible on cards */}
                         {statusInfo.reason && (
-                          <p className="text-xs text-gray-500 mt-1 truncate">
+                          <p className="text-xs text-tx-muted mt-1 truncate">
                             {statusInfo.status === 'needs_attention'
                               ? getFollowupReason(student, lessonsData?.data || [])
                               : statusInfo.reason}
@@ -655,15 +675,15 @@ export const StudentsPage: React.FC = () => {
                   {/* Progress */}
                   <div className="mb-4">
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-gray-600">Progress</span>
-                      <span className="font-medium text-gray-900">
+                      <span className="text-tx-secondary">Progress</span>
+                      <span className="font-medium text-tx-primary">
                         {student.totalHoursCompleted}/{student.hoursRequired || 6} hrs
                       </span>
                     </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-blue-500' : 'bg-amber-500'
+                          progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-primary' : 'bg-amber-500'
                         }`}
                         style={{ width: `${progressPercent}%` }}
                       />
@@ -672,22 +692,22 @@ export const StudentsPage: React.FC = () => {
 
                   {/* Contact Info */}
                   <div className="space-y-2 mb-4 text-sm">
-                    <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600 truncate">
+                    <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
                       <Mail className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate">{student.email}</span>
                     </a>
-                    <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-gray-600 hover:text-blue-600">
+                    <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
                       <Phone className="h-4 w-4 flex-shrink-0" />
                       {student.phone}
                     </a>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
                     <button
                       type="button"
                       onClick={() => handleBookLesson(student)}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                     >
                       <Calendar className="h-4 w-4" />
                       Book
@@ -695,7 +715,7 @@ export const StudentsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleEdit(student)}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-tx-secondary hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
                       title="Edit"
                     >
                       <Edit className="h-4 w-4" />
@@ -720,31 +740,31 @@ export const StudentsPage: React.FC = () => {
 
       {/* Table View */}
       {viewMode === 'table' && (
-        <div className="overflow-x-auto rounded-xl bg-white shadow-sm border border-gray-100">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50/80">
+        <div className="overflow-x-auto rounded-xl bg-surface shadow-sm border border-[var(--border)]">
+          <table className="min-w-full divide-y divide-white/20">
+            <thead className="bg-surface/8">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Student
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden md:table-cell">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden md:table-cell">
                   Contact
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Progress
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell">
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                   History
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-600 min-w-[120px]">
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary min-w-[120px]">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            <tbody className="divide-y divide-white/20 bg-transparent">
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="py-12">
@@ -768,7 +788,7 @@ export const StudentsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleAddNew}
-                          className="flex items-center rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+                          className="flex items-center rounded-md bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary transition-colors"
                         >
                           <Plus className="mr-2 h-4 w-4" />
                           Add Student
@@ -785,23 +805,23 @@ export const StudentsPage: React.FC = () => {
                     : 0;
                   
                   return (
-                    <tr key={student.id} className={`hover:bg-gray-50 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-amber-50/50' : ''}`} onClick={() => handleEdit(student)}>
+                    <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-amber-50/50' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                            {student.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            {getInitials(student)}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-medium text-gray-900 truncate">{student.fullName}</div>
-                            <div className="text-sm text-gray-500 md:hidden truncate">{student.email}</div>
+                            <div className="font-medium text-tx-primary truncate">{getDisplayName(student)}</div>
+                            <div className="text-sm text-tx-muted md:hidden truncate">{student.email}</div>
                           </div>
                         </div>
                       </td>
                       {/* Contact - Hidden on mobile */}
                       <td className="px-6 py-4 hidden md:table-cell">
-                        <div className="text-sm text-gray-900">{student.email}</div>
-                        <div className="text-sm text-gray-500">{student.phone}</div>
+                        <div className="text-sm text-tx-primary">{student.email}</div>
+                        <div className="text-sm text-tx-muted">{student.phone}</div>
                       </td>
                       {/* Status - hover for reason */}
                       <td className="px-6 py-4">
@@ -820,15 +840,15 @@ export const StudentsPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="w-32">
                           <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="font-medium text-gray-900">
+                            <span className="font-medium text-tx-primary">
                               {student.totalHoursCompleted}/{student.hoursRequired || 6} hrs
                             </span>
-                            <span className="text-gray-500">{Math.round(progressPercent)}%</span>
+                            <span className="text-tx-muted">{Math.round(progressPercent)}%</span>
                           </div>
-                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${
-                                progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-blue-500' : 'bg-amber-500'
+                                progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-primary' : 'bg-amber-500'
                               }`}
                               style={{ width: `${progressPercent}%` }}
                             />
@@ -874,7 +894,7 @@ export const StudentsPage: React.FC = () => {
                               e.stopPropagation();
                               handleEdit(student);
                             }}
-                            className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                            className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
                             title="Edit student"
                           >
                             <Edit className="h-4 w-4" />
@@ -904,16 +924,16 @@ export const StudentsPage: React.FC = () => {
 
       {/* Pagination */}
       {data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-sm border border-gray-100">
-          <div className="text-sm text-gray-700">
+        <div className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm border border-[var(--border)]">
+          <div className="text-sm text-tx-secondary">
             <span className="font-medium">{filteredStudents?.length || 0}</span> of{' '}
             <span className="font-medium">{data.pagination.total}</span> students
             {statusFilter !== 'all' && (
-              <span className="text-gray-500 ml-1">
+              <span className="text-tx-muted ml-1">
                 (filtered)
               </span>
             )}
-            <span className="text-gray-400 mx-2">•</span>
+            <span className="text-tx-muted mx-2">•</span>
             Page {data.pagination.page} of {data.pagination.totalPages}
           </div>
           <div className="flex space-x-2">
@@ -921,7 +941,7 @@ export const StudentsPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
             >
               Previous
             </button>
@@ -929,7 +949,7 @@ export const StudentsPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage === data.pagination.totalPages}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
             >
               Next
             </button>

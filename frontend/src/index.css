@@ -2,12 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Brand colour tokens (set at runtime by TenantContext) ─────────────────── */
 :root {
-  --color-primary: #2563eb;
-  --color-secondary: #64748b;
-  --color-accent: #f59e0b;
+  --color-primary: #3B82F6;
+  --color-primary-rgb: 59, 130, 246;
 }
 
+/* ─── Semantic surface/text tokens — light mode (default) ───────────────────── */
+:root {
+  --bg-base:        #f8fafc;
+  --bg-surface:     #ffffff;
+  --bg-surface-2:   #f1f5f9;
+  --bg-surface-3:   #e2e8f0;
+  --border:         #e2e8f0;
+  --border-strong:  #cbd5e1;
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+}
+
+/* ─── Semantic surface/text tokens — dark mode ──────────────────────────────── */
+:root.dark {
+  --bg-base:        #0f172a;
+  --bg-surface:     #1e293b;
+  --bg-surface-2:   #334155;
+  --bg-surface-3:   #475569;
+  --border:         #334155;
+  --border-strong:  #475569;
+  --text-primary:   #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted:     #64748b;
+}
+
+/* ─── Base styles ───────────────────────────────────────────────────────────── */
 * {
   margin: 0;
   padding: 0;
@@ -15,55 +42,24 @@
 }
 
 body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
+/* ─── Scrollbars ────────────────────────────────────────────────────────────── */
+.scrollbar-thin  { scrollbar-width: thin; }
+.scrollbar-none  { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
-/* Custom scrollbar styles */
-.scrollbar-thin {
-  scrollbar-width: thin;
-}
-
-.scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-}
-
-/* Sidebar navigation scrollbar - hidden by default, visible on hover */
-.sidebar-nav {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.sidebar-nav::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 3px;
-}
-
-.sidebar-nav:hover::-webkit-scrollbar-thumb {
-  background: #4b5563;
-}
-
-.sidebar-nav:hover {
-  scrollbar-width: thin;
-}
+/* Sidebar nav — hidden by default, visible on hover */
+.sidebar-nav { scrollbar-width: none; -ms-overflow-style: none; }
+.sidebar-nav::-webkit-scrollbar       { width: 6px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.sidebar-nav:hover::-webkit-scrollbar-thumb { background: var(--border-strong); }
+.sidebar-nav:hover { scrollbar-width: thin; }

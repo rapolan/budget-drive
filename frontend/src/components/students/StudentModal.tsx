@@ -235,27 +235,27 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-[2px] p-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-white/60">
         {/* Header - Clean & Minimal */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 z-10">
+        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-white/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
+              <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
                 {isEditing && student
                   ? student.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
                   : <User className="h-5 w-5" />
                 }
               </div>
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold text-gray-900 truncate">
+                <h2 className="text-xl font-semibold text-tx-primary truncate">
                   {isEditing && student ? student.fullName : 'New Student'}
                 </h2>
                 {!isEditing && (
-                  <p className="text-sm text-gray-500">Fill in the details below</p>
+                  <p className="text-sm text-tx-muted">Fill in the details below</p>
                 )}
                 {isEditing && student?.email && (
-                  <p className="text-sm text-gray-500 truncate">{student.email}</p>
+                  <p className="text-sm text-tx-muted truncate">{student.email}</p>
                 )}
               </div>
             </div>
@@ -268,7 +268,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     onBookLesson(student);
                     onClose();
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Book Lesson</span>
@@ -278,7 +278,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               <button
                 type="button"
                 onClick={onClose}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-all"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
@@ -289,13 +289,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
           {/* Progress Bar - Only for new students */}
           {!isEditing && (
             <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+              <div className="flex items-center justify-between text-xs text-tx-muted mb-1.5">
                 <span>Profile completion</span>
-                <span className="font-medium text-blue-600">{formProgress}%</span>
+                <span className="font-medium text-primary">{formProgress}%</span>
               </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-surface2 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 rounded-full transition-all duration-500 ease-out"
+                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${formProgress}%` }}
                 />
               </div>
@@ -305,15 +305,15 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
         {/* Tabs - Only show for existing students - Minimal pill style */}
         {isEditing && (
-          <div className="px-6 py-3 bg-gray-50 border-b border-gray-100">
-            <nav className="flex gap-1 bg-gray-200/60 p-1 rounded-lg" aria-label="Tabs">
+          <div className="px-6 py-3 bg-surface/20 border-b border-white/30 backdrop-blur-sm">
+            <nav className="flex gap-1 bg-surface/40 border border-white/50 p-1 rounded-xl" aria-label="Tabs">
               <button
                 type="button"
                 onClick={() => setActiveTab('details')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md font-medium text-sm transition-all ${
                   activeTab === 'details'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-surface text-tx-primary shadow-sm'
+                    : 'text-tx-secondary hover:text-tx-primary'
                 }`}
               >
                 <User className="h-4 w-4" />
@@ -324,8 +324,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 onClick={() => setActiveTab('progress')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md font-medium text-sm transition-all ${
                   activeTab === 'progress'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-surface text-tx-primary shadow-sm'
+                    : 'text-tx-secondary hover:text-tx-primary'
                 }`}
               >
                 <TrendingUp className="h-4 w-4" />
@@ -336,8 +336,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 onClick={() => setActiveTab('history')}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md font-medium text-sm transition-all ${
                   activeTab === 'history'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-surface text-tx-primary shadow-sm'
+                    : 'text-tx-secondary hover:text-tx-primary'
                 }`}
               >
                 <History className="h-4 w-4" />
@@ -355,11 +355,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
               {/* Section 1: Basic Info */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Basic Info</h3>
+                <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide">Basic Info</h3>
 
                 {/* Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <label className="block text-sm font-medium text-tx-secondary mb-1.5">
                     Full Name <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -370,7 +370,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
                       required
                       autoComplete="given-name"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="First"
                     />
                     <input
@@ -379,7 +379,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.middleName || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, middleName: e.target.value }))}
                       autoComplete="additional-name"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="Middle"
                     />
                     <input
@@ -389,7 +389,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                       required
                       autoComplete="family-name"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="Last"
                     />
                   </div>
@@ -398,7 +398,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 {/* Email & Phone */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">
                       Email <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -408,12 +408,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       required
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="email@example.com"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">
                       Phone
                     </label>
                     <input
@@ -422,7 +422,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.phone || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="(555) 123-4567"
                     />
                   </div>
@@ -431,7 +431,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 {/* DOB & Hours */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Birth</label>
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Date of Birth</label>
                     <input
                       type="date"
                       name="student_dob_input"
@@ -439,11 +439,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
                       title="Date of Birth"
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Training Hours</label>
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Training Hours</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -453,11 +453,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         onChange={(e) => setFormData(prev => ({ ...prev, hoursRequired: parseFloat(e.target.value) || 0 }))}
                         min="0"
                         step="0.5"
-                        className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        className="w-20 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       />
-                      <span className="text-sm text-gray-500">hrs</span>
+                      <span className="text-sm text-tx-muted">hrs</span>
                       {studentAge !== null && (
-                        <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-blue-100 text-primary' : 'bg-amber-100 text-amber-700'}`}>
                           {isAdult ? `Adult (${studentAge})` : `Minor (${studentAge})`}
                         </span>
                       )}
@@ -467,11 +467,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 2: Address (for pickup) */}
-              <div className="space-y-4 pt-4 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-gray-400" />
+              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+                <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-tx-muted" />
                   Home Address
-                  <span className="text-xs font-normal text-gray-400 normal-case">(for pickup location)</span>
+                  <span className="text-xs font-normal text-tx-muted normal-case">(for pickup location)</span>
                 </h3>
 
                 <div className="space-y-3">
@@ -481,7 +481,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.addressLine1}
                     onChange={(e) => setFormData(prev => ({ ...prev, addressLine1: e.target.value }))}
                     autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Street address"
                   />
                   <input
@@ -490,7 +490,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.addressLine2}
                     onChange={(e) => setFormData(prev => ({ ...prev, addressLine2: e.target.value }))}
                     autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Apt, Suite, Unit (optional)"
                   />
                   <div className="grid grid-cols-6 gap-2">
@@ -500,7 +500,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.city}
                       onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
                       autoComplete="new-password"
-                      className="col-span-3 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="col-span-3 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="City"
                     />
                     <input
@@ -509,7 +509,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.state}
                       onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
                       autoComplete="new-password"
-                      className="col-span-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center"
+                      className="col-span-1 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm text-center"
                       placeholder="CA"
                       maxLength={2}
                     />
@@ -519,7 +519,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.zipCode}
                       onChange={(e) => setFormData(prev => ({ ...prev, zipCode: e.target.value }))}
                       autoComplete="new-password"
-                      className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="col-span-2 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="ZIP"
                       maxLength={10}
                     />
@@ -529,9 +529,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 3: Parent/Guardian */}
-              <div className="space-y-4 pt-4 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-400" />
+              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+                <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
+                  <Users className="h-4 w-4 text-tx-muted" />
                   Parent/Guardian
                   {!hasAtLeastOnePhone && (
                     <span className="text-xs font-normal text-red-500 normal-case">* Phone required if student has none</span>
@@ -540,26 +540,26 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Name</label>
                     <input
                       type="text"
                       name="guardian_name_input"
                       value={formData.emergencyContactName}
                       onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactName: e.target.value }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="Parent/Guardian name"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Phone</label>
                     <input
                       type="tel"
                       name="guardian_phone_input"
                       value={formData.emergencyContactPhone}
                       onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="(555) 123-4567"
                     />
                   </div>
@@ -569,26 +569,26 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 {(formData.emergencyContact2Name || formData.emergencyContact2Phone) ? (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Secondary Contact</label>
+                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact</label>
                       <input
                         type="text"
                         name="guardian2_name_input"
                         value={formData.emergencyContact2Name}
                         onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Name: e.target.value }))}
                         autoComplete="new-password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                         placeholder="Name"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">&nbsp;</label>
+                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">&nbsp;</label>
                       <input
                         type="tel"
                         name="guardian2_phone_input"
                         value={formData.emergencyContact2Phone}
                         onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Phone: formatPhoneNumber(e.target.value) }))}
                         autoComplete="new-password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                         placeholder="(555) 123-4567"
                       />
                     </div>
@@ -597,7 +597,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, emergencyContact2Name: ' ' }))}
-                    className="text-sm text-blue-600 hover:text-blue-700"
+                    className="text-sm text-primary hover:text-primary"
                   >
                     + Add secondary contact
                   </button>
@@ -605,11 +605,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 4: Permit & Notes */}
-              <div className="space-y-4 pt-4 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-gray-400" />
+              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+                <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-tx-muted" />
                   Learner's Permit
-                  <span className="text-xs font-normal text-gray-400 normal-case">(optional)</span>
+                  <span className="text-xs font-normal text-tx-muted normal-case">(optional)</span>
                 </h3>
 
                 <div className="grid grid-cols-3 gap-2">
@@ -619,7 +619,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.learnerPermitNumber}
                     onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitNumber: e.target.value }))}
                     autoComplete="new-password"
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Permit #"
                   />
                   <div>
@@ -630,9 +630,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitIssueDate: e.target.value }))}
                       title="Issue Date"
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     />
-                    <span className="text-xs text-gray-400">Issue date</span>
+                    <span className="text-xs text-tx-muted">Issue date</span>
                   </div>
                   <div>
                     <input
@@ -642,21 +642,21 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitExpiration: e.target.value }))}
                       title="Expiration Date"
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     />
-                    <span className="text-xs text-gray-400">Expiration</span>
+                    <span className="text-xs text-tx-muted">Expiration</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+                  <label className="block text-sm font-medium text-tx-secondary mb-1.5">Notes</label>
                   <textarea
                     name="student_notes_input"
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={2}
                     autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                    className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
                     placeholder="Learning preferences, special requirements..."
                   />
                 </div>
@@ -672,18 +672,18 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
               {/* Actions */}
               {!createdStudent ? (
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border)]">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                    className="px-4 py-2.5 text-sm font-medium text-tx-secondary border border-[var(--border)] rounded-lg hover:bg-surface2 transition-all"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={createMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || !formData.email}
-                    className="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                    className="px-6 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed transition-colors"
                   >
                     {createMutation.isPending || updateMutation.isPending
                       ? 'Saving...'
@@ -693,7 +693,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                 </div>
               ) : (
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-4 border-t border-[var(--border)]">
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-green-100 rounded-full">
@@ -711,7 +711,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                      className="px-4 py-2.5 text-sm font-medium text-tx-secondary border border-[var(--border)] rounded-lg hover:bg-surface2 transition-all"
                     >
                       Close
                     </button>
@@ -722,7 +722,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                           onBookLesson(createdStudent);
                           onClose();
                         }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                       >
                         <Plus className="h-4 w-4" />
                         Book First Lesson
@@ -744,7 +744,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 {student.phone && (
                   <a
                     href={`tel:${student.phone}`}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-surface2 text-tx-secondary rounded-lg hover:bg-surface3 transition-colors text-sm font-medium"
                   >
                     <Phone className="h-4 w-4 text-green-600" />
                     Call
@@ -752,9 +752,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 )}
                 <a
                   href={`mailto:${student.email}`}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-surface2 text-tx-secondary rounded-lg hover:bg-surface3 transition-colors text-sm font-medium"
                 >
-                  <Mail className="h-4 w-4 text-blue-600" />
+                  <Mail className="h-4 w-4 text-primary" />
                   Email
                 </a>
                 {(student.address || student.addressLine1) && (
@@ -762,7 +762,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(student.addressLine1 || student.address || '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-surface2 text-tx-secondary rounded-lg hover:bg-surface3 transition-colors text-sm font-medium"
                   >
                     <MapPin className="h-4 w-4 text-purple-600" />
                     Map
@@ -776,8 +776,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
           {activeTab === 'history' && isEditing && student && (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Lesson History</h3>
-                <span className="text-sm text-gray-500">
+                <h3 className="text-lg font-semibold text-tx-primary">Lesson History</h3>
+                <span className="text-sm text-tx-muted">
                   {studentLessons.length} total lesson{studentLessons.length !== 1 ? 's' : ''}
                 </span>
               </div>

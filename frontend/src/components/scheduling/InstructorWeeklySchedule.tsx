@@ -217,7 +217,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   // Get instructor colors for compare mode
   const getInstructorColor = (index: number) => {
     const colors = [
-      { bg: 'bg-blue-500', border: 'border-blue-200', light: 'bg-blue-50', text: 'text-blue-700' },
+      { bg: 'bg-primary', border: 'border-blue-200', light: 'bg-blue-50', text: 'text-primary' },
       { bg: 'bg-purple-500', border: 'border-purple-200', light: 'bg-purple-50', text: 'text-purple-700' },
       { bg: 'bg-emerald-500', border: 'border-emerald-200', light: 'bg-emerald-50', text: 'text-emerald-700' },
     ];
@@ -459,7 +459,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   if (instructors.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">No instructors found. Add instructors to view schedules.</p>
+        <p className="text-tx-muted">No instructors found. Add instructors to view schedules.</p>
       </div>
     );
   }
@@ -470,12 +470,12 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500 rounded-lg">
+            <div className="p-2 bg-primary rounded-lg">
               <CalendarDays className="h-5 w-5 text-white" />
             </div>
             <div>
               <p className="text-2xl font-bold text-blue-900">{weeklyStats.totalLessons}</p>
-              <p className="text-xs text-blue-600 font-medium">Lessons This Week</p>
+              <p className="text-xs text-primary font-medium">Lessons This Week</p>
             </div>
           </div>
         </div>
@@ -518,17 +518,17 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
       </div>
 
       {/* Header Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface rounded-xl p-4 border border-[var(--border)] shadow-sm">
         {/* Mode Toggle + Instructor Selector */}
         <div className="flex items-center gap-3">
           {/* Single/Compare Toggle */}
-          <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+          <div className="flex rounded-lg border border-[var(--border)] p-0.5 bg-surface2">
             <button
               onClick={() => setCompareMode(false)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                 !compareMode
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-surface text-tx-primary shadow-sm'
+                  : 'text-tx-muted hover:text-tx-secondary'
               }`}
             >
               Single
@@ -537,19 +537,19 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
               onClick={() => setCompareMode(true)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                 compareMode
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-surface text-tx-primary shadow-sm'
+                  : 'text-tx-muted hover:text-tx-secondary'
               }`}
             >
               Compare
             </button>
           </div>
 
-          <div className="h-6 w-px bg-gray-200" />
+          <div className="h-6 w-px bg-surface3" />
 
           {/* Instructor Selector */}
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <Users className="h-4 w-4 text-tx-muted flex-shrink-0" />
             <div className="flex gap-1.5 flex-wrap">
               {instructors.map((inst) => {
                 const instId = inst.id.toString();
@@ -583,18 +583,18 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                       isSelected
                         ? compareMode
                           ? `${color.light} ${color.text} border-2 ${color.border} shadow-sm`
-                          : 'bg-blue-600 text-white shadow-md'
+                          : 'bg-primary text-white shadow-md'
                         : isDisabled
-                        ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-surface2 text-tx-muted cursor-not-allowed'
+                        : 'bg-surface2 text-tx-secondary hover:bg-surface3'
                     }`}
                   >
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                       isSelected
                         ? compareMode
                           ? `${color.bg} text-white`
-                          : 'bg-blue-500 text-white'
-                        : 'bg-gray-300 text-gray-600'
+                          : 'bg-primary text-white'
+                        : 'bg-surface3 text-tx-secondary'
                     }`}>
                       {initials}
                     </div>
@@ -609,7 +609,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
               })}
             </div>
             {compareMode && (
-              <span className="text-[10px] text-gray-400 ml-2">
+              <span className="text-[10px] text-tx-muted ml-2">
                 {selectedInstructors.length}/3
               </span>
             )}
@@ -620,25 +620,25 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
         <div className="flex items-center gap-2">
           <button
             onClick={goToToday}
-            className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-1 rounded-lg border border-[var(--border-strong)] px-3 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
           >
             <Calendar className="h-4 w-4" />
             Today
           </button>
           <button
             onClick={goToPreviousWeek}
-            className="rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50 transition-colors"
+            className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors"
             aria-label="Previous week"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <span className="min-w-[180px] text-center text-sm font-semibold text-gray-900 bg-gray-50 px-4 py-2 rounded-lg">
+          <span className="min-w-[180px] text-center text-sm font-semibold text-tx-primary bg-surface2 px-4 py-2 rounded-lg">
             {formatWeekRange()}
           </span>
           <button
             onClick={goToNextWeek}
             disabled={isNextWeekDisabled}
-            className="rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Next week"
           >
             <ChevronRight className="h-5 w-5" />
@@ -685,15 +685,15 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Compare Mode View */}
       {compareMode && selectedInstructors.length > 0 && !loadingLessons && (
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200 p-4">
+        <div className="bg-surface rounded-lg shadow-lg overflow-hidden border border-[var(--border)] p-4">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">Comparing {selectedInstructors.length} Instructor{selectedInstructors.length > 1 ? 's' : ''}</h3>
-            <span className="text-xs text-gray-500">{formatWeekRange()}</span>
+            <h3 className="text-sm font-semibold text-tx-secondary">Comparing {selectedInstructors.length} Instructor{selectedInstructors.length > 1 ? 's' : ''}</h3>
+            <span className="text-xs text-tx-muted">{formatWeekRange()}</span>
           </div>
 
           {/* Day headers */}
           <div className="grid gap-2" style={{ gridTemplateColumns: `120px repeat(7, 1fr)` }}>
-            <div className="text-xs font-medium text-gray-500 uppercase">Instructor</div>
+            <div className="text-xs font-medium text-tx-muted uppercase">Instructor</div>
             {Array.from({ length: 7 }, (_, i) => {
               const date = new Date(currentWeekStart);
               date.setDate(date.getDate() + i);
@@ -702,11 +702,11 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                 <div
                   key={i}
                   className={`text-center text-xs font-medium uppercase ${
-                    todayColumn ? 'text-blue-600' : 'text-gray-500'
+                    todayColumn ? 'text-primary' : 'text-tx-muted'
                   }`}
                 >
                   <div>{DAYS_OF_WEEK[date.getDay()].slice(0, 3)}</div>
-                  <div className={`text-lg font-bold ${todayColumn ? 'text-blue-600' : 'text-gray-900'}`}>
+                  <div className={`text-lg font-bold ${todayColumn ? 'text-primary' : 'text-tx-primary'}`}>
                     {date.getDate()}
                   </div>
                 </div>
@@ -727,7 +727,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                     <div className={`w-8 h-8 rounded-full ${color.bg} text-white flex items-center justify-center text-xs font-bold`}>
                       {initials}
                     </div>
-                    <span className="text-sm font-medium text-gray-700 truncate">{inst.fullName.split(' ')[0]}</span>
+                    <span className="text-sm font-medium text-tx-secondary truncate">{inst.fullName.split(' ')[0]}</span>
                   </div>
 
                   {/* Day cells for this instructor */}
@@ -755,8 +755,8 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                           todayColumn
                             ? `${color.light} border ${color.border}`
                             : pastDay
-                            ? 'bg-gray-50'
-                            : 'bg-gray-50/50'
+                            ? 'bg-surface2'
+                            : 'bg-surface2/50'
                         }`}
                       >
                         {dayLessons.length > 0 ? (
@@ -764,14 +764,14 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                             <div className={`text-lg font-bold ${color.text}`}>
                               {dayLessons.length}
                             </div>
-                            <div className="text-[10px] text-gray-500">
-                              {scheduledCount > 0 && <span className="text-blue-600">{scheduledCount} sched</span>}
+                            <div className="text-[10px] text-tx-muted">
+                              {scheduledCount > 0 && <span className="text-primary">{scheduledCount} sched</span>}
                               {scheduledCount > 0 && completedCount > 0 && ' · '}
                               {completedCount > 0 && <span className="text-green-600">{completedCount} done</span>}
                             </div>
                           </div>
                         ) : (
-                          <div className="text-gray-300 text-sm">-</div>
+                          <div className="text-tx-muted text-sm">-</div>
                         )}
                       </div>
                     );
@@ -781,8 +781,8 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
             })}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-400">
+          <div className="mt-4 pt-4 border-t border-[var(--border)] text-center">
+            <p className="text-xs text-tx-muted">
               Click on an instructor in Single mode to see detailed schedule
             </p>
           </div>
@@ -791,12 +791,12 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Schedule Grid (Single Mode) */}
       {!compareMode && !loadingLessons && !loadingAvailability && instructor && weeklySchedule.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
+        <div className="bg-surface rounded-lg shadow-lg overflow-hidden border border-[var(--border)]">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 table-fixed md:table-auto">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-[var(--border)] table-fixed md:table-auto">
+              <thead className="bg-surface2">
                 <tr>
-                  <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 z-10">
+                  <th className="sticky left-0 bg-surface2 px-4 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider border-r border-[var(--border)] z-10">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4" />
                       Time
@@ -817,8 +817,8 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                           todayColumn
                             ? 'bg-gradient-to-b from-blue-100 to-blue-50 text-blue-900'
                             : pastDay
-                            ? 'bg-gray-100 text-gray-400'
-                            : 'bg-gray-50 text-gray-500'
+                            ? 'bg-surface2 text-tx-muted'
+                            : 'bg-surface2 text-tx-muted'
                         }`}
                       >
                         {/* Today indicator bar */}
@@ -828,7 +828,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                         <div className="flex items-center justify-center gap-1">
                           <span className={todayColumn ? 'font-bold' : ''}>{day.dayName.slice(0, 3)}</span>
                           {todayColumn && (
-                            <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white animate-pulse">
+                            <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary text-white animate-pulse">
                               TODAY
                             </span>
                           )}
@@ -837,8 +837,8 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                           todayColumn 
                             ? 'text-blue-900 bg-blue-200 w-8 h-8 rounded-full flex items-center justify-center mx-auto' 
                             : pastDay 
-                            ? 'text-gray-400' 
-                            : 'text-gray-900'
+                            ? 'text-tx-muted' 
+                            : 'text-tx-primary'
                         }`}>
                           {day.dayNumber}
                         </div>
@@ -846,7 +846,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                         {hasCapacity && !pastDay && (
                           <div className="mt-3 px-1">
                             <div className="flex items-center justify-between text-[10px] mb-1">
-                              <span className={isFull ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+                              <span className={isFull ? 'text-red-600 font-semibold' : 'text-tx-muted'}>
                                 {capacity.booked}/{capacity.max}
                               </span>
                               <span className={
@@ -857,7 +857,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                                 {capacityPercentage}%
                               </span>
                             </div>
-                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="w-full h-2 bg-surface3 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full rounded-full transition-all duration-500 ${
                                   isFull 
@@ -876,15 +876,15 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                   })}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface divide-y divide-[var(--border)]">
                 {weeklySchedule[0]?.slots.map((_, slotIndex) => (
-                  <tr key={slotIndex} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="sticky left-0 bg-white px-4 py-3 text-sm text-gray-900 border-r border-gray-200 whitespace-nowrap z-10">
+                  <tr key={slotIndex} className="hover:bg-surface2/50 transition-colors">
+                    <td className="sticky left-0 bg-surface px-4 py-3 text-sm text-tx-primary border-r border-[var(--border)] whitespace-nowrap z-10">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
+                        <div className="w-2 h-2 rounded-full bg-surface3"></div>
                         <div>
                           <div className="font-semibold">{format12Hour(weeklySchedule[0].slots[slotIndex].time)}</div>
-                          <div className="text-xs text-gray-400">to {format12Hour(weeklySchedule[0].slots[slotIndex].endTime)}</div>
+                          <div className="text-xs text-tx-muted">to {format12Hour(weeklySchedule[0].slots[slotIndex].endTime)}</div>
                         </div>
                       </div>
                     </td>
@@ -900,7 +900,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                             todayColumn 
                               ? 'bg-blue-50/50' 
                               : pastDay 
-                              ? 'bg-gray-50/50' 
+                              ? 'bg-surface2/50' 
                               : ''
                           }`}
                         >
@@ -911,7 +911,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                               disabled={pastDay}
                               className={`w-full rounded-lg px-3 py-4 text-center text-sm font-medium transition-all duration-200 group ${
                                 pastDay
-                                  ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                                  ? 'bg-surface2 border border-[var(--border)] text-tx-muted cursor-not-allowed'
                                   : 'bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-dashed border-green-300 text-green-700 hover:border-solid hover:border-green-400 hover:from-green-100 hover:to-emerald-100 hover:shadow-md hover:scale-[1.02]'
                               }`}
                             >
@@ -942,7 +942,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                               <div className={`text-xs mt-1 px-2 py-0.5 rounded-full inline-block ${
                                 slot.lesson.status === 'completed' 
                                   ? 'bg-green-100 text-green-700' 
-                                  : 'bg-blue-100 text-blue-700'
+                                  : 'bg-blue-100 text-primary'
                               }`}>
                                 {slot.lesson.status === 'completed' ? '✓ ' : ''}{slot.lesson.status}
                               </div>
@@ -950,10 +950,10 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                           ) : (
                             <div className={`w-full rounded-lg border px-3 py-4 text-center text-sm ${
                               pastDay
-                                ? 'bg-gray-100 border-gray-200 text-gray-300'
-                                : 'bg-gray-50 border-gray-200 text-gray-400'
+                                ? 'bg-surface2 border-[var(--border)] text-tx-muted'
+                                : 'bg-surface2 border-[var(--border)] text-tx-muted'
                             }`}>
-                              <span className="text-gray-300">{pastDay ? '—' : '○'}</span>
+                              <span className="text-tx-muted">{pastDay ? '—' : '○'}</span>
                             </div>
                           )}
                         </td>
@@ -969,8 +969,8 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Empty State (Single Mode only) */}
       {!compareMode && !loadingLessons && !loadingAvailability && instructor && weeklySchedule.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">
+        <div className="text-center py-12 bg-surface rounded-lg shadow">
+          <p className="text-tx-muted">
             No availability configured for this instructor. Please set up availability in the instructor settings.
           </p>
         </div>
@@ -978,7 +978,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Legend (Single Mode only) */}
       {!compareMode && (
-      <div className="flex items-center justify-center gap-8 text-sm text-gray-600 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
+      <div className="flex items-center justify-center gap-8 text-sm text-tx-secondary px-4 py-3 bg-surface2 rounded-xl border border-[var(--border)]">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-dashed border-green-300 flex items-center justify-center text-[10px]">✨</div>
           <span className="font-medium">Available</span>
@@ -988,11 +988,11 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
           <span className="font-medium">Booked</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-300 text-[10px]">○</div>
+          <div className="w-5 h-5 rounded-lg bg-surface2 border border-[var(--border)] flex items-center justify-center text-tx-muted text-[10px]">○</div>
           <span className="font-medium">Unavailable</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-lg bg-gradient-to-b from-blue-100 to-blue-50 border-t-2 border-blue-500"></div>
+          <div className="w-5 h-5 rounded-lg bg-gradient-to-b from-blue-100 to-blue-50 border-t-2 border-primary"></div>
           <span className="font-medium">Today</span>
         </div>
       </div>

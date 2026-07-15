@@ -27,7 +27,7 @@ export const BackButton: React.FC<BackButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
-      className={`inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 rounded-lg px-3 py-2 transition-all ${className}`}
+      className={`inline-flex items-center gap-2 text-sm font-medium text-tx-secondary hover:text-tx-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 rounded-lg px-3 py-2 transition-all ${className}`}
     >
       <ArrowLeft className="h-4 w-4 flex-shrink-0" />
       <span>{label}</span>

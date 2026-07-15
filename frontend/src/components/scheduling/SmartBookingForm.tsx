@@ -93,7 +93,7 @@ const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500">{slots.length} slots available</p>
+      <p className="text-xs text-tx-muted">{slots.length} slots available</p>
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {groupedSlots.map(group => {
           const isExpanded = expandedGroups.has(group.key);
@@ -101,12 +101,12 @@ const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
           const hasMore = group.slots.length > MAX_PREVIEW_SLOTS;
 
           return (
-            <div key={group.key} className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+            <div key={group.key} className="bg-surface2 rounded-xl border border-[var(--border)] overflow-hidden">
               {/* Group Header */}
-              <div className="px-4 py-2.5 bg-white border-b border-gray-200">
+              <div className="px-4 py-2.5 bg-surface border-b border-[var(--border)]">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-gray-900">{group.label}</h4>
-                  <span className="text-xs text-gray-500">
+                  <h4 className="text-sm font-semibold text-tx-primary">{group.label}</h4>
+                  <span className="text-xs text-tx-muted">
                     {group.slots.length} {group.slots.length === 1 ? 'slot' : 'slots'}
                   </span>
                 </div>
@@ -121,12 +121,12 @@ const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
                       key={idx}
                       type="button"
                       onClick={() => onSelectSlot(slot)}
-                      className="p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm transition-all text-left active:scale-95"
+                      className="p-3 bg-surface border border-[var(--border)] rounded-lg hover:brightness-110 hover:border-primary hover:bg-blue-50 hover:shadow-sm transition-all text-left active:scale-95"
                     >
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-tx-primary">
                         {formatTime(slot.startTime)}
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
+                      <div className="text-xs text-tx-muted mt-0.5">
                         {formatTime(slot.endTime)}
                       </div>
                     </button>
@@ -138,7 +138,7 @@ const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.key)}
-                    className="w-full mt-2 py-2 text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1 hover:bg-blue-50 rounded-lg transition-colors"
+                    className="w-full mt-2 py-2 text-xs text-primary hover:text-primary font-medium flex items-center justify-center gap-1 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     {isExpanded ? (
                       <>
@@ -298,8 +298,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // Helper: Get proximity indicator badge
   const getProximityBadge = (proximityScore: number) => {
     if (proximityScore >= 90) return { emoji: '🏠', text: 'Very Close', color: 'text-green-600 bg-green-50' };
-    if (proximityScore >= 70) return { emoji: '📍', text: 'Same Area', color: 'text-blue-600 bg-blue-50' };
-    if (proximityScore >= 50) return { emoji: '🚗', text: 'Nearby', color: 'text-gray-600 bg-gray-50' };
+    if (proximityScore >= 70) return { emoji: '📍', text: 'Same Area', color: 'text-primary bg-blue-50' };
+    if (proximityScore >= 50) return { emoji: '🚗', text: 'Nearby', color: 'text-tx-secondary bg-surface2' };
     return { emoji: '🗺️', text: 'Far', color: 'text-orange-600 bg-orange-50' };
   };
 
@@ -592,20 +592,20 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg max-w-2xl mx-auto overflow-hidden">
+    <div className="bg-surface rounded-2xl shadow-lg max-w-2xl mx-auto overflow-hidden">
       {/* Header - Clean & Minimal */}
-      <div className="px-6 py-5 border-b border-gray-100">
+      <div className="px-6 py-5 border-b border-[var(--border)]">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Book a Lesson</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="text-xl font-semibold text-tx-primary">Book a Lesson</h2>
+            <p className="text-sm text-tx-muted mt-0.5">
               {step === 'setup' ? 'Select student, instructor & time' : 'Review and confirm'}
             </p>
           </div>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="p-2 -mr-2 text-gray-400 hover:text-gray-600 rounded-full transition-colors"
+              className="p-2 -mr-2 text-tx-muted hover:text-tx-secondary rounded-full transition-colors"
               aria-label="Close"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -617,8 +617,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
         {/* Minimal Step Indicator */}
         <div className="flex items-center gap-2 mt-4">
-          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'setup' || step === 'confirm' ? 'bg-blue-600' : 'bg-gray-200'}`} />
-          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'confirm' ? 'bg-blue-600' : 'bg-gray-200'}`} />
+          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'setup' || step === 'confirm' ? 'bg-primary' : 'bg-surface3'}`} />
+          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'confirm' ? 'bg-primary' : 'bg-surface3'}`} />
         </div>
       </div>
 
@@ -636,27 +636,27 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Student Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
                 Student {!preselectedStudent && <span className="text-red-500">*</span>}
               </label>
               {preselectedStudent ? (
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                  <div className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium text-sm">
+                <div className="flex items-center gap-3 p-3 bg-surface2 rounded-xl">
+                  <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(preselectedStudent.fullName)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">{preselectedStudent.fullName}</div>
-                    <div className="text-sm text-gray-500 truncate">{preselectedStudent.email}</div>
+                    <div className="font-medium text-tx-primary truncate">{preselectedStudent.fullName}</div>
+                    <div className="text-sm text-tx-muted truncate">{preselectedStudent.email}</div>
                   </div>
                 </div>
               ) : selectedStudentId && selectedStudent ? (
                 <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                  <div className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium text-sm">
+                  <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(selectedStudent.fullName)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">{selectedStudent.fullName}</div>
-                    <div className="text-sm text-gray-500 truncate">{selectedStudent.email}</div>
+                    <div className="font-medium text-tx-primary truncate">{selectedStudent.fullName}</div>
+                    <div className="text-sm text-tx-muted truncate">{selectedStudent.email}</div>
                   </div>
                   <button
                     type="button"
@@ -664,7 +664,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       setSelectedStudentId('');
                       setStudentSearch('');
                     }}
-                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-white transition-colors"
+                    className="text-xs text-tx-muted hover:text-tx-secondary px-2 py-1 rounded hover:bg-surface transition-colors"
                   >
                     Change
                   </button>
@@ -681,10 +681,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     onFocus={() => setShowStudentDropdown(true)}
                     placeholder="Search students..."
                     autoComplete="nope"
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                    className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
                   />
                   {showStudentDropdown && studentSearch && filteredStudents.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-20 w-full mt-1 bg-surface border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto">
                       {filteredStudents.map((student) => (
                         <button
                           key={student.id}
@@ -698,14 +698,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                               setPickupAddress(fullAddress);
                             }
                           }}
-                          className="w-full px-3 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                          className="w-full px-3 py-2.5 text-left hover:bg-surface2 transition-colors flex items-center gap-3"
                         >
-                          <div className="h-8 w-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-medium text-xs">
+                          <div className="h-8 w-8 rounded-full bg-surface2 text-tx-secondary flex items-center justify-center font-medium text-xs">
                             {getInitials(student.fullName)}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-medium text-gray-900 text-sm truncate">{student.fullName}</div>
-                            <div className="text-xs text-gray-500 truncate">{student.email}</div>
+                            <div className="font-medium text-tx-primary text-sm truncate">{student.fullName}</div>
+                            <div className="text-xs text-tx-muted truncate">{student.email}</div>
                           </div>
                         </button>
                       ))}
@@ -717,17 +717,17 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
             {/* Instructor Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
                 Instructor {!preselectedInstructor && <span className="text-red-500">*</span>}
               </label>
               {preselectedInstructor ? (
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-3 p-3 bg-surface2 rounded-xl">
                   <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-sm">
                     {getInitials(preselectedInstructor.fullName)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">{preselectedInstructor.fullName}</div>
-                    <div className="text-sm text-gray-500 truncate">{preselectedInstructor.email}</div>
+                    <div className="font-medium text-tx-primary truncate">{preselectedInstructor.fullName}</div>
+                    <div className="text-sm text-tx-muted truncate">{preselectedInstructor.email}</div>
                   </div>
                 </div>
               ) : selectedInstructorId && selectedInstructor ? (
@@ -736,8 +736,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     {getInitials(selectedInstructor.fullName)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 truncate">{selectedInstructor.fullName}</div>
-                    <div className="text-sm text-gray-500 truncate">{selectedInstructor.email}</div>
+                    <div className="font-medium text-tx-primary truncate">{selectedInstructor.fullName}</div>
+                    <div className="text-sm text-tx-muted truncate">{selectedInstructor.email}</div>
                   </div>
                   <button
                     type="button"
@@ -748,7 +748,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                       setSelectedSlot(null);
                       setShowingSlots(false);
                     }}
-                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-white transition-colors"
+                    className="text-xs text-tx-muted hover:text-tx-secondary px-2 py-1 rounded hover:bg-surface transition-colors"
                   >
                     Change
                   </button>
@@ -765,12 +765,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     onFocus={() => setShowInstructorDropdown(true)}
                     placeholder="Search instructors..."
                     autoComplete="nope"
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                    className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
                   />
                   {showInstructorDropdown && filteredInstructors.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-20 w-full mt-1 bg-surface border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto">
                       {targetZipCode && (
-                        <div className="px-3 py-2 bg-gray-50 text-xs text-gray-600 flex items-center gap-1 border-b border-gray-100">
+                        <div className="px-3 py-2 bg-surface2 text-xs text-tx-secondary flex items-center gap-1 border-b border-[var(--border)]">
                           <MapPin className="h-3 w-3" />
                           Sorted by proximity
                         </div>
@@ -784,25 +784,25 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                             setInstructorSearch(getInstructorDisplay(instructor));
                             setShowInstructorDropdown(false);
                           }}
-                          className={`w-full px-3 py-2.5 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 ${
-                            instructor.isAssignedInstructor ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                          className={`w-full px-3 py-2.5 text-left hover:bg-surface2 transition-colors flex items-center gap-3 ${
+                            instructor.isAssignedInstructor ? 'bg-blue-50 border-l-2 border-primary' : ''
                           }`}
                         >
                           <div className={`h-8 w-8 rounded-full flex items-center justify-center font-medium text-xs ${
-                            instructor.isAssignedInstructor ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
+                            instructor.isAssignedInstructor ? 'bg-primary text-white' : 'bg-surface2 text-tx-secondary'
                           }`}>
                             {getInitials(instructor.fullName)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-gray-900 text-sm truncate">{instructor.fullName}</span>
+                              <span className="font-medium text-tx-primary text-sm truncate">{instructor.fullName}</span>
                               {instructor.isAssignedInstructor && (
-                                <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
+                                <span className="text-xs bg-blue-100 text-primary px-1.5 py-0.5 rounded font-medium">
                                   Assigned
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-500 truncate">{instructor.email}</div>
+                            <div className="text-xs text-tx-muted truncate">{instructor.email}</div>
                           </div>
                           {targetZipCode && instructor.proximityBadge && (
                             <span className={`text-xs px-2 py-1 rounded-md font-medium ${instructor.proximityBadge.color} whitespace-nowrap`}>
@@ -822,7 +822,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           {/* Lesson Details - Inline Row */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label htmlFor="duration-select" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="duration-select" className="block text-sm font-medium text-tx-secondary mb-2">
                 Duration
               </label>
               <select
@@ -835,7 +835,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   setAvailableSlots([]);
                   setShowingSlots(false);
                 }}
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                className="w-full px-3 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
               >
                 <option value={30}>30 min</option>
                 <option value={60}>1 hour</option>
@@ -845,7 +845,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </div>
 
             <div>
-              <label htmlFor="lesson-type-select" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="lesson-type-select" className="block text-sm font-medium text-tx-secondary mb-2">
                 Type
               </label>
               <select
@@ -853,7 +853,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                 title="Select lesson type"
                 value={lessonType}
                 onChange={(e) => setLessonType(e.target.value as any)}
-                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                className="w-full px-3 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
               >
                 <option value="behind_wheel">Driving</option>
                 <option value="classroom">Classroom</option>
@@ -862,11 +862,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </div>
 
             <div>
-              <label htmlFor="cost-input" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="cost-input" className="block text-sm font-medium text-tx-secondary mb-2">
                 Cost
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tx-muted text-sm">$</span>
                 <input
                   id="cost-input"
                   type="number"
@@ -877,16 +877,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   min="0"
                   step="0.01"
                   autoComplete="nope"
-                  className="w-full pl-7 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                  className="w-full pl-7 pr-3 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
                 />
               </div>
             </div>
           </div>
 
           {/* Time Slot Selection - Clean */}
-          <div className="pt-4 border-t border-gray-100">
+          <div className="pt-4 border-t border-[var(--border)]">
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-tx-secondary">
                 Date & Time <span className="text-red-500">*</span>
               </label>
               {!selectedSlot && (
@@ -894,7 +894,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   type="button"
                   onClick={handleFindSlots}
                   disabled={loading || !selectedInstructorId}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  className="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:brightness-90 hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {loading ? (
                     <span className="flex items-center">
@@ -914,14 +914,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             {selectedSlot ? (
               <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-lg bg-primary text-white flex items-center justify-center">
                     <Calendar className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900">
+                    <div className="font-medium text-tx-primary">
                       {formatSlotDate(selectedSlot.date)}
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-tx-secondary">
                       {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
                     </div>
                   </div>
@@ -932,7 +932,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     setSelectedSlot(null);
                     setShowingSlots(true);
                   }}
-                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-white transition-colors"
+                  className="text-xs text-tx-muted hover:text-tx-secondary px-2 py-1 rounded hover:bg-surface transition-colors"
                 >
                   Change
                 </button>
@@ -945,12 +945,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                 formatTime={formatTime}
               />
             ) : showingSlots && availableSlots.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl">
+              <div className="text-center py-8 text-tx-muted bg-surface2 rounded-xl">
                 <p className="text-sm">No available slots found</p>
-                <p className="text-xs mt-1 text-gray-400">Try a different duration or instructor</p>
+                <p className="text-xs mt-1 text-tx-muted">Try a different duration or instructor</p>
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <div className="text-center py-8 text-tx-muted bg-surface2 rounded-xl border border-dashed border-[var(--border)]">
                 <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">Select an instructor, then find available times</p>
               </div>
@@ -959,9 +959,9 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
           {/* Pickup & Notes - Compact */}
           {selectedSlot && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[var(--border)]">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-tx-secondary mb-2">
                   Pickup Location
                 </label>
                 <input
@@ -969,19 +969,19 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                   value={pickupAddress}
                   onChange={(e) => setPickupAddress(e.target.value)}
                   placeholder="Enter pickup address..."
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                  className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notes <span className="text-gray-400 font-normal">(optional)</span>
+                <label className="block text-sm font-medium text-tx-secondary mb-2">
+                  Notes <span className="text-tx-muted font-normal">(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Focus areas, special requests..."
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all text-sm"
+                  className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
                 />
               </div>
             </div>
@@ -995,12 +995,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           )}
 
           {/* Continue Button - Clean */}
-          <div className="pt-4 border-t border-gray-100 flex gap-3">
+          <div className="pt-4 border-t border-[var(--border)] flex gap-3">
             {onCancel && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
+                className="flex-1 px-4 py-2.5 border border-[var(--border)] text-tx-secondary rounded-xl hover:bg-surface2 transition-colors text-sm font-medium"
               >
                 Cancel
               </button>
@@ -1009,7 +1009,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               type="button"
               onClick={handleContinueToConfirm}
               disabled={!selectedStudentId || !selectedInstructorId || !selectedSlot}
-              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl hover:brightness-90 hover:bg-primary transition-colors text-sm font-medium disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed"
             >
               Continue
             </button>
@@ -1021,16 +1021,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       {step === 'confirm' && selectedSlot && (
         <div className="p-6 space-y-5">
           {/* Summary Card */}
-          <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+          <div className="bg-surface2 rounded-xl p-5 space-y-4">
             {/* People Row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {selectedStudent && (
                   <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-medium text-xs">
+                    <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center font-medium text-xs">
                       {getInitials(selectedStudent.fullName)}
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{selectedStudent.fullName}</span>
+                    <span className="text-sm font-medium text-tx-primary">{selectedStudent.fullName}</span>
                   </div>
                 )}
                 <span className="text-gray-300">→</span>
@@ -1039,45 +1039,45 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
                     <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-xs">
                       {getInitials(selectedInstructor.fullName)}
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{selectedInstructor.fullName}</span>
+                    <span className="text-sm font-medium text-tx-primary">{selectedInstructor.fullName}</span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Date & Time */}
-            <div className="flex items-center gap-3 pt-3 border-t border-gray-200">
-              <div className="h-10 w-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+            <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
+              <div className="h-10 w-10 rounded-lg bg-blue-100 text-primary flex items-center justify-center">
                 <Calendar className="h-5 w-5" />
               </div>
               <div>
-                <div className="font-medium text-gray-900">{formatSlotDate(selectedSlot.date)}</div>
-                <div className="text-sm text-gray-500">
+                <div className="font-medium text-tx-primary">{formatSlotDate(selectedSlot.date)}</div>
+                <div className="text-sm text-tx-muted">
                   {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)} ({duration} min)
                 </div>
               </div>
             </div>
 
             {/* Details Grid */}
-            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200 text-sm">
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border)] text-sm">
               <div>
-                <span className="text-gray-500">Type</span>
-                <p className="font-medium text-gray-900 capitalize">{lessonType.replace(/_/g, ' ')}</p>
+                <span className="text-tx-muted">Type</span>
+                <p className="font-medium text-tx-primary capitalize">{lessonType.replace(/_/g, ' ')}</p>
               </div>
               <div>
-                <span className="text-gray-500">Cost</span>
+                <span className="text-tx-muted">Cost</span>
                 <p className="font-semibold text-emerald-600">${cost.toFixed(2)}</p>
               </div>
               {pickupAddress && (
                 <div className="col-span-2">
-                  <span className="text-gray-500">Pickup</span>
-                  <p className="font-medium text-gray-900 truncate">{pickupAddress}</p>
+                  <span className="text-tx-muted">Pickup</span>
+                  <p className="font-medium text-tx-primary truncate">{pickupAddress}</p>
                 </div>
               )}
               {notes && (
                 <div className="col-span-2">
-                  <span className="text-gray-500">Notes</span>
-                  <p className="text-gray-700">{notes}</p>
+                  <span className="text-tx-muted">Notes</span>
+                  <p className="text-tx-secondary">{notes}</p>
                 </div>
               )}
             </div>
@@ -1088,7 +1088,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             <button
               type="button"
               onClick={() => setStep('setup')}
-              className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
+              className="flex-1 px-4 py-2.5 border border-[var(--border)] text-tx-secondary rounded-xl hover:bg-surface2 transition-colors text-sm font-medium"
             >
               Back
             </button>
@@ -1096,7 +1096,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               type="button"
               onClick={handleConfirmBooking}
               disabled={loading}
-              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl hover:brightness-90 hover:bg-primary transition-colors text-sm font-medium disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center">

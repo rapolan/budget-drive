@@ -15,7 +15,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   height,
   animation = 'pulse',
 }) => {
-  const baseClasses = 'bg-gray-200';
+  const baseClasses = 'bg-surface3';
   const animationClasses = animation === 'pulse' ? 'animate-pulse' : 'animate-shimmer';
 
   const variantClasses = {
@@ -61,7 +61,7 @@ export const TableRowSkeleton: React.FC = () => (
 );
 
 export const CardSkeleton: React.FC = () => (
-  <div className="bg-white rounded-lg shadow p-6 animate-pulse">
+  <div className="bg-surface rounded-lg shadow p-6 animate-pulse">
     <div className="flex items-center mb-4">
       <Skeleton variant="circular" width={48} height={48} />
       <div className="ml-4 flex-1">
@@ -74,7 +74,7 @@ export const CardSkeleton: React.FC = () => (
 );
 
 export const StatCardSkeleton: React.FC = () => (
-  <div className="overflow-hidden rounded-lg bg-white shadow animate-pulse">
+  <div className="overflow-hidden rounded-lg bg-surface shadow animate-pulse">
     <div className="p-6">
       <div className="flex items-center">
         <Skeleton variant="rectangular" width={48} height={48} />
@@ -117,11 +117,11 @@ export const DashboardSkeleton: React.FC = () => (
     </div>
 
     {/* Quick Actions */}
-    <div className="rounded-lg bg-white p-6 shadow animate-pulse">
+    <div className="rounded-lg bg-surface p-6 shadow animate-pulse">
       <Skeleton width="150px" height={20} className="mb-4" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-lg border border-gray-200 p-4">
+          <div key={i} className="rounded-lg border border-[var(--border)] p-4">
             <div className="flex items-start gap-3">
               <Skeleton variant="rectangular" width={40} height={40} />
               <div className="flex-1">
@@ -135,11 +135,11 @@ export const DashboardSkeleton: React.FC = () => (
     </div>
 
     {/* Recent Activity */}
-    <div className="rounded-lg bg-white p-6 shadow animate-pulse">
+    <div className="rounded-lg bg-surface p-6 shadow animate-pulse">
       <Skeleton width="150px" height={20} className="mb-4" />
       <div className="space-y-3">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
+          <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-surface2">
             <Skeleton variant="circular" width={20} height={20} />
             <div className="flex-1">
               <Skeleton width="40%" height={16} className="mb-2" />
@@ -157,10 +157,10 @@ export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
   rows = 5,
   columns = 6
 }) => (
-  <div className="rounded-lg bg-white shadow">
+  <div className="rounded-lg bg-surface shadow">
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+      <table className="min-w-full divide-y divide-[var(--border)]">
+        <thead className="bg-surface2">
           <tr>
             {[...Array(columns)].map((_, i) => (
               <th key={i} className="px-6 py-3">
@@ -169,7 +169,7 @@ export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 bg-white">
+        <tbody className="divide-y divide-[var(--border)] bg-surface">
           {[...Array(rows)].map((_, i) => (
             <tr key={i} className="animate-pulse">
               {[...Array(columns)].map((_, j) => (

@@ -41,9 +41,9 @@ const toastConfig = {
     icon: Info,
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
-    iconColor: 'text-blue-600',
+    iconColor: 'text-primary',
     textColor: 'text-blue-900',
-    descColor: 'text-blue-700',
+    descColor: 'text-primary',
   },
 };
 

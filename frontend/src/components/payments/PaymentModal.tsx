@@ -136,16 +136,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         />
 
         {/* Modal */}
-        <div className="relative w-full max-w-2xl rounded-lg bg-white shadow-xl">
+        <div className="relative w-full max-w-2xl rounded-lg bg-surface shadow-xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
             <div className="flex items-center gap-2">
               <DollarSign className="h-6 w-6 text-primary" />
-              <h2 className="text-xl font-semibold text-gray-900">Record Payment</h2>
+              <h2 className="text-xl font-semibold text-tx-primary">Record Payment</h2>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
+              className="rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted"
             >
               <X className="h-5 w-5" />
             </button>
@@ -158,14 +158,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <div className="mb-6 rounded-lg bg-blue-50 p-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Student</p>
-                    <p className="mt-1 text-lg font-semibold text-gray-900">
+                    <p className="text-sm font-medium text-tx-secondary">Student</p>
+                    <p className="mt-1 text-lg font-semibold text-tx-primary">
                       {student.fullName}
                     </p>
-                    <p className="text-sm text-gray-600">{student.email}</p>
+                    <p className="text-sm text-tx-secondary">{student.email}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-gray-700">Current Balance</p>
+                    <p className="text-sm font-medium text-tx-secondary">Current Balance</p>
                     <p className="mt-1 text-lg font-semibold text-red-600">
                       ${(Number(student.outstandingBalance) || 0).toFixed(2)}
                     </p>
@@ -174,18 +174,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             ) : (
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Select Student <span className="text-red-500">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <User className="h-5 w-5 text-gray-400" />
+                    <User className="h-5 w-5 text-tx-muted" />
                   </div>
                   <select
                     name="studentId"
                     value={formData.studentId}
                     onChange={handleChange}
-                    className="block w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="">-- Choose a student --</option>
                     {students.map((s) => (
@@ -200,7 +200,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 )}
                 {selectedStudentData && (
                   <div className="mt-2 rounded-md bg-blue-50 p-3">
-                    <p className="text-sm font-medium text-gray-700">Current Balance</p>
+                    <p className="text-sm font-medium text-tx-secondary">Current Balance</p>
                     <p className="mt-1 text-lg font-semibold text-red-600">
                       ${(Number(selectedStudentData.outstandingBalance) || 0).toFixed(2)}
                     </p>
@@ -213,12 +213,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="space-y-4">
               {/* Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Amount <span className="text-red-500">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <DollarSign className="h-5 w-5 text-gray-400" />
+                    <DollarSign className="h-5 w-5 text-tx-muted" />
                   </div>
                   <input
                     type="number"
@@ -228,7 +228,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     step="0.01"
                     min="0"
                     autoComplete="nope"
-                    className="block w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="0.00"
                   />
                 </div>
@@ -239,18 +239,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* Payment Method */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Payment Method <span className="text-red-500">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <CreditCard className="h-5 w-5 text-gray-400" />
+                    <CreditCard className="h-5 w-5 text-tx-muted" />
                   </div>
                   <select
                     name="paymentMethod"
                     value={formData.paymentMethod}
                     onChange={handleChange}
-                    className="block w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="cash">Cash</option>
                     <option value="credit_card">Credit Card</option>
@@ -268,14 +268,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* Payment Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Payment Type
                 </label>
                 <select
                   name="paymentType"
                   value={formData.paymentType}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="lesson_payment">Lesson Payment</option>
                   <option value="package_payment">Package Payment</option>
@@ -287,12 +287,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-tx-secondary">
                   Date <span className="text-red-500">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Calendar className="h-5 w-5 text-gray-400" />
+                    <Calendar className="h-5 w-5 text-tx-muted" />
                   </div>
                   <input
                     type="date"
@@ -300,7 +300,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     value={formData.date}
                     onChange={handleChange}
                     autoComplete="nope"
-                    className="block w-full rounded-md border border-gray-300 py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 {errors.date && <p className="mt-1 text-sm text-red-600">{errors.date}</p>}
@@ -308,12 +308,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* Status */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Status</label>
+                <label className="block text-sm font-medium text-tx-secondary">Status</label>
                 <select
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="confirmed">Confirmed</option>
                   <option value="pending">Pending</option>
@@ -323,13 +323,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-medium text-gray-700">Notes</label>
+                <label className="block text-sm font-medium text-tx-secondary">Notes</label>
                 <textarea
                   name="notes"
                   value={formData.notes}
                   onChange={handleChange}
                   rows={3}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   placeholder="Additional payment notes..."
                 />
               </div>
@@ -343,7 +343,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             )}
 
             {/* BDP Notice */}
-            <div className="mt-4 rounded-md border-l-4 border-blue-500 bg-blue-50 p-3">
+            <div className="mt-4 rounded-md border-l-4 border-primary bg-blue-50 p-3">
               <p className="text-sm text-blue-800">
                 <strong>BDP Integration:</strong> Recording this payment will update the
                 student's balance and may trigger BSV blockchain treasury transactions.
@@ -351,18 +351,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end gap-3">
+            <div className="mt-6 pt-4 border-t border-[var(--border)] flex justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="rounded-md border border-[var(--border-strong)] bg-surface px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:brightness-90 hover:bg-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {createMutation.isPending ? 'Recording...' : 'Record Payment'}
               </button>

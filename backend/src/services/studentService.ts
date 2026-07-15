@@ -40,14 +40,10 @@ export const getAllStudents = async (
     );
     const total = parseInt(countResult.rows[0].count);
 
-    // Get students with creator/editor names
+    // Get students
     const result = await query(
-      `SELECT s.*,
-              u1.full_name as created_by_name,
-              u2.full_name as updated_by_name
+      `SELECT s.*
        FROM students s
-       LEFT JOIN users u1 ON s.created_by = u1.id
-       LEFT JOIN users u2 ON s.updated_by = u2.id
        WHERE s.tenant_id = $1
        ORDER BY s.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -85,12 +81,8 @@ export const getStudentById = async (
   logger.debug('Fetching student by ID', { tenantId, studentId: id });
 
   const result = await query(
-    `SELECT s.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT s.*
      FROM students s
-     LEFT JOIN users u1 ON s.created_by = u1.id
-     LEFT JOIN users u2 ON s.updated_by = u2.id
      WHERE s.id = $1 AND s.tenant_id = $2`,
     [id, tenantId]
   );
@@ -431,12 +423,8 @@ export const getStudentsByStatus = async (
   status: 'active' | 'completed' | 'inactive' | 'suspended'
 ): Promise<Student[]> => {
   const result = await query(
-    `SELECT s.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT s.*
      FROM students s
-     LEFT JOIN users u1 ON s.created_by = u1.id
-     LEFT JOIN users u2 ON s.updated_by = u2.id
      WHERE s.tenant_id = $1 AND s.status = $2
      ORDER BY s.created_at DESC`,
     [tenantId, status]
@@ -453,12 +441,8 @@ export const getStudentsByInstructor = async (
   instructorId: string
 ): Promise<Student[]> => {
   const result = await query(
-    `SELECT s.*,
-            u1.full_name as created_by_name,
-            u2.full_name as updated_by_name
+    `SELECT s.*
      FROM students s
-     LEFT JOIN users u1 ON s.created_by = u1.id
-     LEFT JOIN users u2 ON s.updated_by = u2.id
      WHERE s.tenant_id = $1 AND s.assigned_instructor_id = $2
      ORDER BY s.created_at DESC`,
     [tenantId, instructorId]
