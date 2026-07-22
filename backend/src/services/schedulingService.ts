@@ -82,26 +82,19 @@ export const findAvailableSlots = async (
 
     // Check each instructor
     for (const instId of instructorsToCheck) {
-      // Get instructor's capacity and availability for this day of week
+      // Get ALL of the instructor's active availability blocks for this day of
+      // week (a split shift, e.g. morning + evening, is more than one row)
       const instructorResult = await query(
-        `SELECT ia.start_time, ia.max_students
+        `SELECT ia.start_time, ia.end_time, ia.max_students
          FROM instructor_availability ia
          WHERE ia.instructor_id = $1 AND ia.tenant_id = $2 AND ia.day_of_week = $3 AND ia.is_active = true
-         ORDER BY ia.start_time
-         LIMIT 1`,
+         ORDER BY ia.start_time`,
         [instId, tenantId, dayOfWeek]
       );
 
       if (instructorResult.rows.length === 0) {
         continue; // Instructor doesn't work on this day
       }
-
-      const instructorData = instructorResult.rows[0];
-      const blockStart = timeToMinutes(instructorData.start_time);
-
-      // Determine max students per day (availability record override or tenant default)
-      // Note: max_students on instructor_availability can be null to use tenant default
-      const maxSlotsPerDay = instructorData.max_students ?? settings.defaultMaxStudentsPerDay;
 
       // Check for time off
       const timeOffResult = await query(
@@ -138,33 +131,42 @@ export const findAvailableSlots = async (
       // Vehicle ID is provided via request parameter or can be null
       const vehicleForLesson: string | null = vehicleId || null;
 
-      // Generate capacity-based slots
-      const slots = findSlotsInBlock(
-        blockStart,
-        maxSlotsPerDay,
-        existingLessons,
-        duration,
-        bufferTime
-      );
+      // Generate capacity-based slots independently for each availability
+      // block (split shifts each get their own slots, capped to their own
+      // end_time so a block's slots never bleed into another block's window)
+      for (const block of instructorResult.rows) {
+        const blockStart = timeToMinutes(block.start_time);
+        const blockEnd = timeToMinutes(block.end_time);
+        const maxSlotsForBlock = block.max_students ?? settings.defaultMaxStudentsPerDay;
 
-      // Create TimeSlot objects
-      for (const slot of slots) {
-        const slotStart = new Date(currentDate);
-        slotStart.setHours(Math.floor(slot.start / 60), slot.start % 60, 0, 0);
-
-        const slotEnd = new Date(currentDate);
-        slotEnd.setHours(Math.floor(slot.end / 60), slot.end % 60, 0, 0);
-
-        availableSlots.push({
-          date: dateStr,
-          startTime: slotStart.toISOString(),
-          endTime: slotEnd.toISOString(),
-          instructorId: instId,
-          vehicleId: vehicleForLesson ?? null,
+        const slots = findSlotsInBlock(
+          blockStart,
+          blockEnd,
+          maxSlotsForBlock,
+          existingLessons,
           duration,
-          available: true,
-          reason: undefined,
-        });
+          bufferTime
+        );
+
+        // Create TimeSlot objects
+        for (const slot of slots) {
+          const slotStart = new Date(currentDate);
+          slotStart.setHours(Math.floor(slot.start / 60), slot.start % 60, 0, 0);
+
+          const slotEnd = new Date(currentDate);
+          slotEnd.setHours(Math.floor(slot.end / 60), slot.end % 60, 0, 0);
+
+          availableSlots.push({
+            date: dateStr,
+            startTime: slotStart.toISOString(),
+            endTime: slotEnd.toISOString(),
+            instructorId: instId,
+            vehicleId: vehicleForLesson ?? null,
+            duration,
+            available: true,
+            reason: undefined,
+          });
+        }
       }
     }
 
@@ -176,24 +178,30 @@ export const findAvailableSlots = async (
 };
 
 /**
- * Find free slots within a time block using capacity-based scheduling
- * Generates ONLY the exact number of slots needed based on max_students_per_day
+ * Find free slots within a single availability block using capacity-based
+ * scheduling. Generates up to maxSlots slots, but never lets a slot run past
+ * the block's own end_time - once a theoretical slot would end after
+ * blockEnd, generation stops (this matters once an instructor can have
+ * multiple blocks/day, e.g. a split shift, and each block is capped to its
+ * own window rather than bleeding into the next block's time).
  *
- * @param blockStart - Instructor's start time in minutes since midnight
+ * @param blockStart - Block's start time in minutes since midnight
+ * @param blockEnd - Block's end time in minutes since midnight
  * @param maxSlots - Maximum number of students per day (from settings or instructor override)
  * @param existingLessons - Already booked lessons for this day
  * @param duration - Lesson duration in minutes (e.g., 120 for 2 hours)
  * @param bufferTime - Buffer time between lessons in minutes (e.g., 30)
  * @returns Array of available time slots
  *
- * Example: blockStart=540 (9am), maxSlots=3, duration=120, buffer=30
- * Generates exactly 3 slots:
+ * Example: blockStart=540 (9am), blockEnd=1020 (5pm), maxSlots=3, duration=120, buffer=30
+ * Generates up to 3 slots, each capped to end by 5pm:
  *   Slot 1: 9:00-11:00 (540-660)
  *   Slot 2: 11:30-1:30 (690-810)
  *   Slot 3: 2:00-4:00 (840-960)
  */
 function findSlotsInBlock(
   blockStart: number,
+  blockEnd: number,
   maxSlots: number,
   existingLessons: any[],
   duration: number,
@@ -201,13 +209,18 @@ function findSlotsInBlock(
 ): Array<{ start: number; end: number }> {
   const slots: Array<{ start: number; end: number }> = [];
 
-  // Generate the theoretical slots for the day (based on capacity, not time range)
+  // Generate the theoretical slots for the block (based on capacity, capped
+  // to the block's own end_time)
   const theoreticalSlots: Array<{ start: number; end: number }> = [];
   let currentTime = blockStart;
 
   for (let i = 0; i < maxSlots; i++) {
     const slotStart = currentTime;
     const slotEnd = currentTime + duration;
+
+    if (slotEnd > blockEnd) {
+      break; // This and any further slot would run past the block's end
+    }
 
     theoreticalSlots.push({ start: slotStart, end: slotEnd });
 

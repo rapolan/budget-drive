@@ -240,7 +240,7 @@ describe('findAvailableSlots - student dimension', () => {
       .mockResolvedValueOnce(
         queryResult([{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }])
       ) // student's own lessons in range
-      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', max_students: 3 }])) // instructor availability for the day
+      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])) // instructor availability for the day
       .mockResolvedValueOnce(queryResult([])) // time off
       .mockResolvedValueOnce(queryResult([])); // instructor's lessons that day (none)
 
@@ -268,7 +268,7 @@ describe('findAvailableSlots - student dimension', () => {
       .mockResolvedValueOnce(
         queryResult([{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }])
       )
-      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', max_students: 3 }]))
+      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }]))
       .mockResolvedValueOnce(queryResult([]))
       .mockResolvedValueOnce(queryResult([]));
 
@@ -283,5 +283,63 @@ describe('findAvailableSlots - student dimension', () => {
 
     const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
     expect(slotStartHours).toContain(11); // 11:30 local -> hour 11, still offered
+  });
+});
+
+describe('findAvailableSlots - split shifts', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('offers slots in both a morning and an evening block for the same instructor/day', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
+      .mockResolvedValueOnce(
+        queryResult([
+          { start_time: '09:00:00', end_time: '12:00:00', max_students: 1 }, // morning block
+          { start_time: '17:00:00', end_time: '20:00:00', max_students: 1 }, // evening block
+        ])
+      ) // instructor availability for the day (two blocks - a split shift)
+      .mockResolvedValueOnce(queryResult([])) // time off
+      .mockResolvedValueOnce(queryResult([])); // instructor's lessons that day (shared across both blocks)
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T00:00:00'),
+      endDate: new Date('2026-08-03T00:00:00'),
+      duration: 120,
+    });
+
+    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours()).sort((a, b) => a - b);
+    expect(slotStartHours).toEqual([9, 17]);
+  });
+
+  it('never generates a slot that runs past its own block\'s end_time', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
+      // A tight 09:00-11:00 block with a 120-minute duration fits exactly one
+      // slot (9:00-11:00) - max_students of 3 should NOT force a second slot
+      // that would run past 11:00.
+      .mockResolvedValueOnce(
+        queryResult([{ start_time: '09:00:00', end_time: '11:00:00', max_students: 3 }])
+      )
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]));
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T00:00:00'),
+      endDate: new Date('2026-08-03T00:00:00'),
+      duration: 120,
+    });
+
+    expect(slots).toHaveLength(1);
+    expect(new Date(slots[0].startTime).getHours()).toBe(9);
   });
 });
