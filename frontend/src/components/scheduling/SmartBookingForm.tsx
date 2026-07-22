@@ -1,164 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Clock, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText, Sun, Sunset, Moon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { TimeSlot, Student, Instructor, Lesson } from '@/types';
+import { ProgressStepper } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
-import { getEffectiveZipCode, calculateProximityScore, extractZipCode } from '@/utils/zipCode';
-
-// Grouped Availability View Component
-interface GroupedAvailabilityViewProps {
-  slots: TimeSlot[];
-  onSelectSlot: (slot: TimeSlot) => void;
-  formatSlotDate: (dateStr: string) => string;
-  formatTime: (time: string) => string;
-}
-
-const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
-  slots,
-  onSelectSlot,
-  formatSlotDate,
-  formatTime,
-}) => {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
-  // Group slots by date
-  const groupedSlots = useMemo(() => {
-    const groups: { [key: string]: TimeSlot[] } = {};
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
-    slots.forEach(slot => {
-      const slotDate = new Date(slot.date);
-      slotDate.setHours(0, 0, 0, 0);
-
-      let groupKey: string;
-      let groupLabel: string;
-      let sortOrder: number;
-
-      if (slotDate.getTime() === today.getTime()) {
-        groupKey = 'today';
-        groupLabel = `Today (${formatSlotDate(slot.date).split(',')[0]})`;
-        sortOrder = 0;
-      } else if (slotDate.getTime() === tomorrow.getTime()) {
-        groupKey = 'tomorrow';
-        groupLabel = `Tomorrow (${formatSlotDate(slot.date).split(',')[0]})`;
-        sortOrder = 1;
-      } else if (slotDate < nextWeek) {
-        groupKey = `thisweek_${slot.date}`;
-        groupLabel = formatSlotDate(slot.date);
-        sortOrder = 2;
-      } else {
-        groupKey = `later_${slot.date}`;
-        groupLabel = formatSlotDate(slot.date);
-        sortOrder = 3;
-      }
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-        (groups[groupKey] as any).label = groupLabel;
-        (groups[groupKey] as any).sortOrder = sortOrder;
-      }
-      groups[groupKey].push(slot);
-    });
-
-    // Convert to array and sort
-    return Object.entries(groups)
-      .map(([key, slots]) => ({
-        key,
-        label: (slots as any).label,
-        sortOrder: (slots as any).sortOrder,
-        slots: slots.sort((a, b) => a.startTime.localeCompare(b.startTime)),
-      }))
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [slots, formatSlotDate]);
-
-  const toggleGroup = (groupKey: string) => {
-    setExpandedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(groupKey)) {
-        newSet.delete(groupKey);
-      } else {
-        newSet.add(groupKey);
-      }
-      return newSet;
-    });
-  };
-
-  const MAX_PREVIEW_SLOTS = 3; // Show first 3 slots on mobile, 4 on desktop
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-tx-muted">{slots.length} slots available</p>
-      <div className="space-y-2 max-h-96 overflow-y-auto">
-        {groupedSlots.map(group => {
-          const isExpanded = expandedGroups.has(group.key);
-          const previewSlots = group.slots.slice(0, MAX_PREVIEW_SLOTS);
-          const hasMore = group.slots.length > MAX_PREVIEW_SLOTS;
-
-          return (
-            <div key={group.key} className="bg-surface2 rounded-xl border border-[var(--border)] overflow-hidden">
-              {/* Group Header */}
-              <div className="px-4 py-2.5 bg-surface border-b border-[var(--border)]">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-tx-primary">{group.label}</h4>
-                  <span className="text-xs text-tx-muted">
-                    {group.slots.length} {group.slots.length === 1 ? 'slot' : 'slots'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Slots - Preview or Full List */}
-              <div className="p-3">
-                {/* Desktop: Grid layout, Mobile: Stacked */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {(isExpanded ? group.slots : previewSlots).map((slot, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => onSelectSlot(slot)}
-                      className="p-3 bg-surface border border-[var(--border)] rounded-lg hover:brightness-110 hover:border-primary hover:bg-blue-50 hover:shadow-sm transition-all text-left active:scale-95"
-                    >
-                      <div className="text-sm font-medium text-tx-primary">
-                        {formatTime(slot.startTime)}
-                      </div>
-                      <div className="text-xs text-tx-muted mt-0.5">
-                        {formatTime(slot.endTime)}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Show More/Less Button */}
-                {hasMore && (
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.key)}
-                    className="w-full mt-2 py-2 text-xs text-primary hover:text-primary font-medium flex items-center justify-center gap-1 hover:bg-blue-50 rounded-lg transition-colors"
-                  >
-                    {isExpanded ? (
-                      <>
-                        Show Less <ChevronUp className="h-3 w-3" />
-                      </>
-                    ) : (
-                      <>
-                        Show {group.slots.length - MAX_PREVIEW_SLOTS} More <ChevronDown className="h-3 w-3" />
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
+import { calculateProximityScore, extractZipCode } from '@/utils/zipCode';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -169,6 +16,181 @@ interface SmartBookingFormProps {
   onCancel?: () => void;
 }
 
+// Extended slot type with proximity info
+interface SlotWithProximity extends TimeSlot {
+  proximityScore: number;
+  instructorName: string;
+  instructorZip?: string;
+  comingFrom: 'home' | 'lesson';
+  previousLessonAddress?: string;
+}
+
+type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
+
+// Instructor-Based Grouped Availability View Component for SmartBookingForm
+interface GroupedAvailabilityViewProps {
+  slots: SlotWithProximity[];
+  onSelectSlot: (slot: SlotWithProximity) => void;
+  formatSlotDate: (dateStr: string) => string;
+  formatTime: (time: string) => string;
+  getProximityBadge: (score: number) => { label: string; class: string };
+}
+
+const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = ({
+  slots,
+  onSelectSlot,
+  formatSlotDate,
+  formatTime,
+  getProximityBadge,
+}) => {
+  const [expandedInstructors, setExpandedInstructors] = useState<Set<string>>(new Set());
+
+  // Group slots by instructor
+  const instructorGroups = useMemo(() => {
+    const groups = new Map<string, SlotWithProximity[]>();
+
+    slots.forEach(slot => {
+      if (!groups.has(slot.instructorId)) {
+        groups.set(slot.instructorId, []);
+      }
+      groups.get(slot.instructorId)!.push(slot);
+    });
+
+    // Convert to array and sort by best proximity score of each instructor
+    return Array.from(groups.entries())
+      .map(([instructorId, instructorSlots]) => {
+        const bestScore = Math.max(...instructorSlots.map((s: SlotWithProximity) => s.proximityScore));
+        const instructor = instructorSlots[0]; // Get instructor details from first slot
+
+        // Group this instructor's slots by date
+        const slotsByDate: { [date: string]: SlotWithProximity[] } = {};
+        instructorSlots.forEach((slot: SlotWithProximity) => {
+          if (!slotsByDate[slot.date]) {
+            slotsByDate[slot.date] = [];
+          }
+          slotsByDate[slot.date].push(slot);
+        });
+
+        // Sort dates and slots
+        const sortedDates = Object.entries(slotsByDate)
+          .map(([date, dateSlots]) => ({
+            date,
+            label: formatSlotDate(date),
+            slots: dateSlots.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        return {
+          instructorId: instructorId,
+          instructorName: instructor.instructorName,
+          bestProximityScore: bestScore,
+          comingFrom: instructor.comingFrom,
+          totalSlots: instructorSlots.length,
+          dateGroups: sortedDates,
+        };
+      })
+      .sort((a, b) => b.bestProximityScore - a.bestProximityScore); // Sort by best proximity
+  }, [slots, formatSlotDate]);
+
+  const toggleInstructor = (instructorId: string) => {
+    setExpandedInstructors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(instructorId)) {
+        newSet.delete(instructorId);
+      } else {
+        newSet.add(instructorId);
+      }
+      return newSet;
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-tx-muted">{instructorGroups.length} instructors available (sorted by proximity)</p>
+      <div className="space-y-2 max-h-[500px] overflow-y-auto">
+        {instructorGroups.map((instructor, index) => {
+          const isExpanded = expandedInstructors.has(instructor.instructorId);
+          const badge = getProximityBadge(instructor.bestProximityScore);
+
+          return (
+            <div key={instructor.instructorId} className="bg-surface rounded-xl border-2 border-[var(--border)] overflow-hidden">
+              {/* Instructor Header - Clickable */}
+              <button
+                type="button"
+                onClick={() => toggleInstructor(instructor.instructorId)}
+                className="w-full p-4 flex items-center gap-3 hover:bg-surface2 transition-colors text-left"
+              >
+                {/* Rank indicator */}
+                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base flex-shrink-0 ${
+                  index < 3 ? 'bg-green-100 text-green-700' : 'bg-surface2 text-tx-muted'
+                }`}>
+                  #{index + 1}
+                </div>
+
+                {/* Instructor info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-tx-primary text-base md:text-lg">{instructor.instructorName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${badge.class}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <div className="text-sm text-tx-secondary mt-1">
+                    {instructor.totalSlots} available {instructor.totalSlots === 1 ? 'slot' : 'slots'}
+                  </div>
+                </div>
+
+                {/* Expand/Collapse Icon */}
+                <div className="text-tx-muted flex-shrink-0">
+                  {isExpanded ? (
+                    <ChevronUp className="h-5 w-5" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" />
+                  )}
+                </div>
+              </button>
+
+              {/* Expanded: Show slots grouped by date */}
+              {isExpanded && (
+                <div className="border-t border-[var(--border)] bg-surface2 p-3 space-y-3">
+                  {instructor.dateGroups.map(dateGroup => (
+                    <div key={dateGroup.date}>
+                      {/* Date header */}
+                      <div className="text-xs font-semibold text-tx-secondary mb-2 px-1">
+                        {dateGroup.label}
+                      </div>
+
+                      {/* Time slots for this date */}
+                      <div className="space-y-2">
+                        {dateGroup.slots.map((slot, idx) => (
+                          <button
+                            key={`${slot.instructorId}-${slot.date}-${slot.startTime}-${idx}`}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectSlot(slot);
+                            }}
+                            className="w-full p-3 bg-surface border border-[var(--border)] rounded-lg hover:border-primary hover:bg-blue-50 transition-all text-left flex items-center justify-between active:scale-[0.98]"
+                          >
+                            <span className="text-sm font-medium text-tx-primary">
+                              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                            </span>
+                            <span className="text-tx-muted text-sm">→</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   preselectedStudent,
   preselectedInstructor,
@@ -177,38 +199,43 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   onBookingComplete,
   onCancel,
 }) => {
-  // Simplified to 2 steps: 'setup' and 'confirm'
-  // Only skip to confirm if ALL required fields are pre-selected (student, instructor, date, time)
-  const initialStep = (preselectedStudent && preselectedInstructor && preselectedDate && preselectedTime) ? 'confirm' : 'setup';
-  const [step, setStep] = useState<'setup' | 'confirm'>(initialStep);
+  const canSkipToConfirm = Boolean(
+    preselectedStudent && preselectedInstructor && preselectedDate && preselectedTime
+  );
+
+  // Steps: 'setup' (student, pickup, duration, type) -> 'filter' (date/time prefs) -> 'slots' (ranked slots) -> 'confirm'
+  const [step, setStep] = useState<'setup' | 'slots' | 'confirm'>(canSkipToConfirm ? 'confirm' : 'setup');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
-  // Form data
-  const [selectedInstructorId, setSelectedInstructorId] = useState(preselectedInstructor?.id || '');
+  // Step 1: Setup data
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
-  const [duration, setDuration] = useState(120); // Default: 2 hours
-  const [lessonType, setLessonType] = useState<'behind_wheel' | 'classroom' | 'observation' | 'road_test'>('behind_wheel');
-  const [cost, setCost] = useState(150);
   const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupZip, setPickupZip] = useState<string | null>(null);
+  const [duration, setDuration] = useState(120);
+  const [lessonType, setLessonType] = useState<'behind_wheel' | 'classroom' | 'observation' | 'road_test'>('behind_wheel');
+  
+  // Step 2: Filters
+  const [timePreference, setTimePreference] = useState<TimePreference>('any');
+  const [dateRange] = useState(14); // days ahead to search
+  
+  // Step 3: Slot selection
+  const [slotsWithProximity, setSlotsWithProximity] = useState<SlotWithProximity[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<SlotWithProximity | null>(null);
+  
+  // Step 4: Confirm
+  const [cost, setCost] = useState(50);
   const [notes, setNotes] = useState('');
-
-  // Slot selection
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [showingSlots, setShowingSlots] = useState(false);
+  const [lessonNumber, setLessonNumber] = useState<number | null>(null);
 
   // Search states
-  const [instructorSearch, setInstructorSearch] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
-  const [showInstructorDropdown, setShowInstructorDropdown] = useState(false);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
 
-  // Fetch lists - paginate students for better performance
+  // Fetch data
   const { data: studentsData } = useQuery({
     queryKey: ['students', 'booking'],
-    queryFn: () => studentsApi.getAll(1, 50), // Fetch only 50 students initially
+    queryFn: () => studentsApi.getAll(1, 100),
   });
 
   const { data: instructorsData } = useQuery({
@@ -216,15 +243,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     queryFn: () => instructorsApi.getAll(),
   });
 
-  // Fetch recent lessons for instructor location data (for proximity sorting)
-  const { data: recentLessonsData } = useQuery({
-    queryKey: ['lessons', 'recent-for-proximity'],
-    queryFn: () => lessonsApi.getAll(1, 200), // Get recent lessons to determine instructor locations
+  const { data: allLessonsData } = useQuery({
+    queryKey: ['lessons', 'all-for-proximity'],
+    queryFn: () => lessonsApi.getAll(1, 500),
   });
 
   const students = studentsData?.data || [];
   const instructors = instructorsData?.data || [];
-  const recentLessons = recentLessonsData?.data || [];
+  const allLessons = allLessonsData?.data || [];
 
   // Helper: Get full address string from student's structured fields
   const getStudentFullAddress = (student: Student): string => {
@@ -237,138 +263,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       ].filter(Boolean);
       return parts.join(', ');
     }
-    // Fall back to legacy address field
     return student.address || '';
-  };
-
-  // Get each instructor's most recent lesson pickup address (for proximity sorting)
-  const instructorLastLocations = useMemo(() => {
-    const locationMap: Record<string, string> = {};
-    
-    // Sort lessons by date descending to find most recent
-    const sortedLessons = [...recentLessons].sort((a: Lesson, b: Lesson) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    // For each instructor, get their most recent lesson's pickup address
-    for (const lesson of sortedLessons) {
-      if (lesson.instructorId && !locationMap[lesson.instructorId] && lesson.pickupAddress) {
-        locationMap[lesson.instructorId] = lesson.pickupAddress;
-      }
-    }
-    
-    return locationMap;
-  }, [recentLessons]);
-
-  // Get selected student and their assigned instructor
-  const selectedStudent = useMemo(() => {
-    if (!selectedStudentId) return null;
-    return students.find((s: Student) => s.id === selectedStudentId);
-  }, [selectedStudentId, students]);
-
-  // Get selected instructor from the fetched list
-  const selectedInstructor = useMemo(() => {
-    if (!selectedInstructorId) return null;
-    return instructors.find((i: Instructor) => i.id === selectedInstructorId);
-  }, [selectedInstructorId, instructors]);
-
-  // Get the target zip code for proximity sorting (from selected student)
-  const targetZipCode = useMemo(() => {
-    if (!selectedStudent) return null;
-    return getEffectiveZipCode(null, selectedStudent.zipCode);
-  }, [selectedStudent]);
-
-  // Helper: Check if instructor serves the student's zip code
-  const instructorServesArea = (instructor: Instructor, studentZip: string | null): boolean => {
-    if (!studentZip || !instructor.serviceZipCodes) return true; // No restrictions
-
-    const serviceAreas = instructor.serviceZipCodes.split(',').map(z => z.trim());
-
-    // Check exact match or prefix match
-    return serviceAreas.some(serviceZip => {
-      // Exact match
-      if (serviceZip === studentZip) return true;
-      // Prefix match (e.g., "920" matches "92001")
-      if (studentZip.startsWith(serviceZip)) return true;
-      if (serviceZip.startsWith(studentZip)) return true;
-      return false;
-    });
-  };
-
-  // Helper: Get proximity indicator badge
-  const getProximityBadge = (proximityScore: number) => {
-    if (proximityScore >= 90) return { emoji: '🏠', text: 'Very Close', color: 'text-green-600 bg-green-50' };
-    if (proximityScore >= 70) return { emoji: '📍', text: 'Same Area', color: 'text-primary bg-blue-50' };
-    if (proximityScore >= 50) return { emoji: '🚗', text: 'Nearby', color: 'text-tx-secondary bg-surface2' };
-    return { emoji: '🗺️', text: 'Far', color: 'text-orange-600 bg-orange-50' };
-  };
-
-  // Sort and filter instructors with proximity scoring and service area filtering
-  const filteredInstructors = useMemo(() => {
-    let filtered = instructors.filter((i: Instructor) => {
-      // Text search filter
-      const matchesSearch = i.fullName.toLowerCase().includes(instructorSearch.toLowerCase()) ||
-        i.email.toLowerCase().includes(instructorSearch.toLowerCase());
-      if (!matchesSearch) return false;
-
-      // Service area filter (only if student is selected and instructor has service areas defined)
-      if (selectedStudent && targetZipCode && i.serviceZipCodes) {
-        const servesArea = instructorServesArea(i, targetZipCode);
-        if (!servesArea) return false; // Filter out instructors who don't serve this area
-      }
-
-      return true;
-    });
-
-    // Calculate proximity score and add metadata
-    filtered = filtered.map((instructor: Instructor) => {
-      // Use home_zip_code if available, otherwise fall back to last lesson location
-      const instructorZip = instructor.homeZipCode || extractZipCode(instructorLastLocations[instructor.id]);
-      const proximityScore = calculateProximityScore(instructorZip, targetZipCode);
-      const badge = getProximityBadge(proximityScore);
-
-      return {
-        ...instructor,
-        proximityScore,
-        proximityBadge: badge,
-        instructorZip,
-        isAssignedInstructor: selectedStudent?.assignedInstructorId === instructor.id
-      };
-    });
-
-    // Sort: Assigned instructor first, then by proximity
-    filtered.sort((a: any, b: any) => {
-      // Assigned instructor always first
-      if (a.isAssignedInstructor && !b.isAssignedInstructor) return -1;
-      if (!a.isAssignedInstructor && b.isAssignedInstructor) return 1;
-
-      // Then sort by proximity score
-      return (b.proximityScore || 50) - (a.proximityScore || 50);
-    });
-
-    return filtered;
-  }, [instructors, instructorSearch, targetZipCode, selectedStudent, instructorLastLocations]);
-
-  const filteredStudents = students.filter((s: Student) =>
-    s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    s.email.toLowerCase().includes(studentSearch.toLowerCase())
-  );
-
-  // Get display names
-  const getInstructorDisplay = (instructor: Instructor) => {
-    const duplicates = instructors.filter(i => i.fullName === instructor.fullName);
-    if (duplicates.length > 1) {
-      return `${instructor.fullName} (${instructor.email})`;
-    }
-    return instructor.fullName;
-  };
-
-  const getStudentDisplay = (student: Student) => {
-    const duplicates = students.filter(s => s.fullName === student.fullName);
-    if (duplicates.length > 1) {
-      return `${student.fullName} (${student.email})`;
-    }
-    return student.fullName;
   };
 
   // Get initials for avatar
@@ -380,99 +275,161 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return name.slice(0, 2).toUpperCase();
   };
 
-  // Initialize search fields with preselected values
-  useEffect(() => {
-    if (preselectedInstructor) {
-      setInstructorSearch(getInstructorDisplay(preselectedInstructor));
+  // Get display name
+  const getStudentDisplay = (student: Student) => {
+    const duplicates = students.filter(s => s.fullName === student.fullName);
+    if (duplicates.length > 1) {
+      return `${student.fullName} (${student.email})`;
     }
-  }, [preselectedInstructor, instructors]);
+    return student.fullName;
+  };
 
+  const filteredStudents = students.filter((s: Student) =>
+    s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    s.email.toLowerCase().includes(studentSearch.toLowerCase())
+  );
+
+  const selectedStudent = students.find((s: Student) => s.id === selectedStudentId);
+
+  // Auto-fill pickup address when student is selected
   useEffect(() => {
     if (preselectedStudent) {
-      setStudentSearch(getStudentDisplay(preselectedStudent));
+      setSelectedStudentId(preselectedStudent.id);
+      const addr = getStudentFullAddress(preselectedStudent);
+      setPickupAddress(addr);
+      setPickupZip(extractZipCode(addr) || preselectedStudent.zipCode || null);
     }
-  }, [preselectedStudent, students]);
+  }, [preselectedStudent]);
 
-  // Initialize selectedSlot with preselected date/time
+  // Update pickup zip when address changes
   useEffect(() => {
-    if (preselectedDate && preselectedTime) {
-      // Format date as YYYY-MM-DD in local timezone (not UTC)
-      const year = preselectedDate.getFullYear();
-      const month = String(preselectedDate.getMonth() + 1).padStart(2, '0');
-      const day = String(preselectedDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+    const zip = extractZipCode(pickupAddress);
+    if (zip) {
+      setPickupZip(zip);
+    }
+  }, [pickupAddress]);
 
-      setSelectedSlot({
-        instructorId: selectedInstructorId,
-        date: dateStr,
-        startTime: preselectedTime.start,
-        endTime: preselectedTime.end,
-        available: true,
-      });
+  // Calculate suggested lesson number
+  useEffect(() => {
+    if (selectedStudentId && allLessons.length > 0) {
+      const studentLessons = allLessons.filter(
+        (l: Lesson) => l.studentId === selectedStudentId && 
+        (l.status === 'completed' || l.status === 'scheduled')
+      );
+      setLessonNumber(studentLessons.length + 1);
+    }
+  }, [selectedStudentId, allLessons]);
 
-      // Pre-fill pickup address with student's home address if student is selected
-      if (selectedStudentId) {
-        const student = students.find((s: Student) => s.id === selectedStudentId);
-        if (student) {
-          const fullAddress = getStudentFullAddress(student);
-          if (fullAddress) {
-            setPickupAddress(fullAddress);
-          }
-        }
+  // Get instructor's starting location for a specific slot
+  const getInstructorStartingPoint = (
+    instructorId: string,
+    slotDate: string,
+    slotStartTime: string
+  ): { zip: string | null; comingFrom: 'home' | 'lesson'; previousAddress?: string } => {
+    const instructor = instructors.find((i: Instructor) => i.id === instructorId);
+    if (!instructor) return { zip: null, comingFrom: 'home' };
+
+    // Parse slot start time
+    let slotStartHour: number;
+    if (slotStartTime.includes('T')) {
+      slotStartHour = new Date(slotStartTime).getHours();
+    } else {
+      slotStartHour = parseInt(slotStartTime.split(':')[0]);
+    }
+
+    // Find all lessons for this instructor on this date that END BEFORE this slot starts
+    const lessonsOnDate = allLessons.filter((l: Lesson) => {
+      if (l.instructorId !== instructorId) return false;
+      
+      // Compare dates
+      const lessonDate = new Date(l.date).toISOString().split('T')[0];
+      if (lessonDate !== slotDate) return false;
+      
+      // Get lesson end time
+      let lessonEndHour: number;
+      if (l.endTime) {
+        const endParts = l.endTime.split(':');
+        lessonEndHour = parseInt(endParts[0]);
+      } else {
+        return false;
       }
+      
+      // Lesson must end before or at slot start
+      return lessonEndHour <= slotStartHour;
+    });
+
+    if (lessonsOnDate.length === 0) {
+      // No prior lessons - use instructor's home base zip
+      return { 
+        zip: instructor.zipCode || null, 
+        comingFrom: 'home' 
+      };
     }
-  }, [preselectedDate, preselectedTime, selectedStudentId, students, selectedInstructorId]);
 
-  const handleFindSlots = async () => {
-    if (!selectedInstructorId) {
-      setError('Please select an instructor first');
-      return;
-    }
+    // Find the lesson that ends closest to the slot start (most recent before)
+    const sortedLessons = lessonsOnDate.sort((a: Lesson, b: Lesson) => {
+      const aEnd = parseInt(a.endTime?.split(':')[0] || '0');
+      const bEnd = parseInt(b.endTime?.split(':')[0] || '0');
+      return bEnd - aEnd; // Descending - latest first
+    });
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const twoWeeksLater = new Date();
-      twoWeeksLater.setDate(twoWeeksLater.getDate() + 14);
-
-      const slots = await schedulingApi.findAvailableSlots({
-        instructorId: selectedInstructorId,
-        startDate: tomorrow.toISOString().split('T')[0],
-        endDate: twoWeeksLater.toISOString().split('T')[0],
-        duration,
-        studentId: selectedStudentId || undefined,
-      });
-
-      setAvailableSlots(slots.filter(s => s.available));
-      setShowingSlots(true);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to find available slots');
-      console.error('Error finding slots:', err);
-    } finally {
-      setLoading(false);
-    }
+    const previousLesson = sortedLessons[0];
+    const previousZip = extractZipCode(previousLesson.pickupAddress);
+    
+    return {
+      zip: previousZip || instructor.zipCode || null,
+      comingFrom: 'lesson',
+      previousAddress: previousLesson.pickupAddress || undefined
+    };
   };
 
-  const handleSelectSlot = async (slot: TimeSlot) => {
-    setSelectedSlot(slot);
-    setShowingSlots(false);
+  // When student, instructor, date, and time are all preselected, skip the
+  // search entirely and seed the confirm step directly from those props
+  useEffect(() => {
+    if (!canSkipToConfirm || !preselectedInstructor || !preselectedDate || !preselectedTime) return;
+    if (instructors.length === 0) return; // wait for instructors query so proximity lookup works
 
-    // Pre-fill pickup address with student's home address
-    if (selectedStudentId && !pickupAddress) {
-      const student = students.find((s: Student) => s.id === selectedStudentId);
-      if (student) {
-        const fullAddress = getStudentFullAddress(student);
-        if (fullAddress) {
-          setPickupAddress(fullAddress);
-        }
+    const slotDate = preselectedDate.toISOString().split('T')[0];
+    const { zip, comingFrom } = getInstructorStartingPoint(preselectedInstructor.id, slotDate, preselectedTime.start);
+    const proximityScore = pickupZip ? calculateProximityScore(zip, pickupZip) : 0;
+
+    setSelectedSlot({
+      date: slotDate,
+      startTime: preselectedTime.start,
+      endTime: preselectedTime.end,
+      instructorId: preselectedInstructor.id,
+      available: true,
+      proximityScore,
+      instructorName: preselectedInstructor.fullName,
+      instructorZip: zip || undefined,
+      comingFrom,
+    });
+    setStep('confirm');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSkipToConfirm, preselectedInstructor, preselectedDate, preselectedTime, instructors, pickupZip]);
+
+  // Filter slots by time preference
+  const filterByTimePreference = (slots: TimeSlot[]): TimeSlot[] => {
+    if (timePreference === 'any') return slots;
+    
+    return slots.filter(slot => {
+      let hour: number;
+      if (slot.startTime.includes('T')) {
+        hour = new Date(slot.startTime).getHours();
+      } else {
+        hour = parseInt(slot.startTime.split(':')[0]);
       }
-    }
+      
+      switch (timePreference) {
+        case 'morning': return hour >= 6 && hour < 12;
+        case 'afternoon': return hour >= 12 && hour < 17;
+        case 'evening': return hour >= 17 && hour < 21;
+        default: return true;
+      }
+    });
   };
 
-  // Parse API error to get user-friendly conflict message
+  // Translate raw backend error text into friendly, actionable copy
   const getConflictMessage = (errorMessage: string): string => {
     if (errorMessage.includes('instructor already has a lesson')) {
       return 'This instructor already has another lesson at this time. Please choose a different time slot.';
@@ -495,24 +452,90 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return errorMessage;
   };
 
-  const handleContinueToConfirm = async () => {
-    if (!selectedStudentId) {
-      setError('Please select a student');
-      return;
-    }
-    if (!selectedInstructorId) {
-      setError('Please select an instructor');
-      return;
-    }
-    if (!selectedSlot) {
-      setError('Please select a time slot');
+  // Find all available slots across all instructors with proximity
+  const handleFindSlots = async () => {
+    if (!selectedStudentId || !pickupZip) {
+      setError('Please select a student and ensure pickup address has a valid zip code');
       return;
     }
 
-    // Clear previous warnings and proceed to confirm step
-    // Conflicts will be checked during final booking
-    setError(null);
-    setConflictWarning(null);
+    try {
+      setLoading(true);
+      setError(null);
+
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + dateRange);
+
+      // Fetch slots for the preselected instructor only, or ALL active instructors
+      const allSlots: SlotWithProximity[] = [];
+      const candidateInstructors = preselectedInstructor
+        ? [preselectedInstructor]
+        : instructors.filter((i: Instructor) => i.status === 'active');
+
+      for (const instructor of candidateInstructors) {
+        try {
+          const slots = await schedulingApi.findAvailableSlots({
+            instructorId: instructor.id,
+            startDate: tomorrow.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            duration,
+            studentId: selectedStudentId,
+          });
+
+          // Filter by time preference
+          const filteredSlots = filterByTimePreference(slots.filter(s => s.available));
+
+          // Add proximity info to each slot
+          for (const slot of filteredSlots) {
+            const { zip, comingFrom, previousAddress } = getInstructorStartingPoint(
+              instructor.id,
+              slot.date,
+              slot.startTime
+            );
+            
+            const proximityScore = calculateProximityScore(zip, pickupZip);
+            
+            allSlots.push({
+              ...slot,
+              instructorId: instructor.id,
+              instructorName: instructor.fullName,
+              instructorZip: zip || undefined,
+              proximityScore,
+              comingFrom,
+              previousLessonAddress: previousAddress,
+            });
+          }
+        } catch (err) {
+          // Skip instructor if error fetching slots
+          console.warn(`Could not fetch slots for ${instructor.fullName}:`, err);
+        }
+      }
+
+      // Sort by proximity score (highest first), then by date
+      allSlots.sort((a, b) => {
+        // Primary: proximity score (descending)
+        if (b.proximityScore !== a.proximityScore) {
+          return b.proximityScore - a.proximityScore;
+        }
+        // Secondary: date (ascending)
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
+
+      setSlotsWithProximity(allSlots);
+      setStep('slots');
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || 'Failed to find available slots';
+      setError(getConflictMessage(errorMsg));
+      console.error('Error finding slots:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSlot = (slot: SlotWithProximity) => {
+    setSelectedSlot(slot);
     setStep('confirm');
   };
 
@@ -523,42 +546,36 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setLoading(true);
       setError(null);
 
-      // Parse date and times from the selected slot
-      // Backend expects scheduledStart and scheduledEnd as ISO datetime strings
-      // Handle both ISO datetime strings and HH:MM time format from the slot
-      const dateStr = selectedSlot.date; // Already in YYYY-MM-DD format
-      
+      const dateStr = selectedSlot.date;
       let scheduledStart: string;
       let scheduledEnd: string;
       
       if (selectedSlot.startTime.includes('T')) {
-        // startTime is already an ISO datetime string - use it directly
         scheduledStart = selectedSlot.startTime;
         scheduledEnd = selectedSlot.endTime;
       } else {
-        // startTime is HH:MM format - construct datetime string
         scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
         scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
       }
 
       const lessonData: any = {
         studentId: selectedStudentId,
-        instructorId: selectedInstructorId,
+        instructorId: selectedSlot.instructorId,
         vehicleId: null,
-        scheduledStart: scheduledStart,
-        scheduledEnd: scheduledEnd,
+        scheduledStart,
+        scheduledEnd,
         lessonType,
         cost,
         pickupAddress: pickupAddress || null,
         notes: notes || null,
+        lessonNumber: lessonNumber || null,
       };
 
       const lesson = await lessonsApi.create(lessonData);
       onBookingComplete?.(lesson.data?.id || '');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create lesson';
-      const friendlyMessage = getConflictMessage(errorMsg);
-      setError(friendlyMessage);
+      setError(getConflictMessage(errorMsg));
       console.error('Error creating lesson:', err);
     } finally {
       setLoading(false);
@@ -566,548 +583,494 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   };
 
   const formatTime = (time: string) => {
-    // Handle both ISO datetime strings and HH:MM format
     let hour: number, minutes: string;
-
     if (time.includes('T')) {
-      // ISO datetime string
       const date = new Date(time);
       hour = date.getHours();
       minutes = date.getMinutes().toString().padStart(2, '0');
     } else {
-      // HH:MM format
       const parts = time.split(':');
       hour = parseInt(parts[0]);
       minutes = parts[1];
     }
-
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  // Use centralized date formatting utility that handles local timezone correctly
-  const formatSlotDate = (dateStr: string) => {
-    return formatShortDate(dateStr);
+  const getProximityBadge = (score: number) => {
+    if (score >= 90) return { label: '🏠 Very Close', class: 'bg-green-100 text-green-800' };
+    if (score >= 70) return { label: '📍 Nearby', class: 'bg-green-100 text-green-700' };
+    if (score >= 50) return { label: '🚗 Close', class: 'bg-yellow-100 text-yellow-700' };
+    return { label: '🗺️ Far', class: 'bg-surface2 text-tx-secondary' };
   };
 
+  const bookingSteps = [
+    { number: 1, label: 'Setup' },
+    { number: 2, label: 'Select Slot' },
+    { number: 3, label: 'Confirm' },
+  ];
+
+  const currentStepNumber = step === 'setup' ? 1 : step === 'slots' ? 2 : 3;
+
   return (
-    <div className="bg-surface rounded-2xl shadow-lg max-w-2xl mx-auto overflow-hidden">
-      {/* Header - Clean & Minimal */}
-      <div className="px-6 py-5 border-b border-[var(--border)]">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold text-tx-primary">Book a Lesson</h2>
-            <p className="text-sm text-tx-muted mt-0.5">
-              {step === 'setup' ? 'Select student, instructor & time' : 'Review and confirm'}
-            </p>
+    <div className="bg-surface rounded-lg shadow-xl max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="border-b border-[var(--border)] p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Sparkles className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-tx-primary">Smart Booking</h2>
+              <p className="text-sm text-tx-muted">Find the closest available instructor</p>
+            </div>
           </div>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="p-2 -mr-2 text-tx-muted hover:text-tx-secondary rounded-full transition-colors"
-              aria-label="Close"
+              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-colors"
             >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <span className="text-2xl">×</span>
             </button>
           )}
         </div>
-
-        {/* Minimal Step Indicator */}
-        <div className="flex items-center gap-2 mt-4">
-          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'setup' || step === 'confirm' ? 'bg-primary' : 'bg-surface3'}`} />
-          <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'confirm' ? 'bg-primary' : 'bg-surface3'}`} />
-        </div>
+        <ProgressStepper steps={bookingSteps} currentStep={currentStepNumber} />
       </div>
 
-      {/* Error Display - Minimal */}
+      {/* Error Display */}
       {error && (
-        <div className="mx-6 mt-4 bg-red-50 rounded-lg px-4 py-3">
-          <p className="text-red-700 text-sm">{error}</p>
+        <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm">{error}</p>
         </div>
       )}
 
       {/* Step 1: Setup */}
       {step === 'setup' && (
-        <div className="p-6 space-y-5">
-          {/* Student & Instructor Selection - Clean Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Student Selection */}
-            <div>
-              <label className="block text-sm font-medium text-tx-secondary mb-2">
-                Student {!preselectedStudent && <span className="text-red-500">*</span>}
+        <div className="p-6 space-y-6">
+          {/* Student Selection */}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <User className="h-5 w-5 text-primary" />
+              <label className="block text-sm font-semibold text-tx-primary">
+                Student <span className="text-red-500">*</span>
               </label>
-              {preselectedStudent ? (
-                <div className="flex items-center gap-3 p-3 bg-surface2 rounded-xl">
-                  <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-medium text-sm">
-                    {getInitials(preselectedStudent.fullName)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-tx-primary truncate">{preselectedStudent.fullName}</div>
-                    <div className="text-sm text-tx-muted truncate">{preselectedStudent.email}</div>
-                  </div>
-                </div>
-              ) : selectedStudentId && selectedStudent ? (
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
-                  <div className="h-10 w-10 rounded-full bg-primary text-white flex items-center justify-center font-medium text-sm">
-                    {getInitials(selectedStudent.fullName)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-tx-primary truncate">{selectedStudent.fullName}</div>
-                    <div className="text-sm text-tx-muted truncate">{selectedStudent.email}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedStudentId('');
-                      setStudentSearch('');
-                    }}
-                    className="text-xs text-tx-muted hover:text-tx-secondary px-2 py-1 rounded hover:bg-surface transition-colors"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={studentSearch}
-                    onChange={(e) => {
-                      setStudentSearch(e.target.value);
-                      setShowStudentDropdown(true);
-                    }}
-                    onFocus={() => setShowStudentDropdown(true)}
-                    placeholder="Search students..."
-                    autoComplete="nope"
-                    className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
-                  />
-                  {showStudentDropdown && studentSearch && filteredStudents.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-surface border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                      {filteredStudents.map((student) => (
-                        <button
-                          key={student.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedStudentId(student.id);
-                            setStudentSearch(getStudentDisplay(student));
-                            setShowStudentDropdown(false);
-                            const fullAddress = getStudentFullAddress(student);
-                            if (fullAddress) {
-                              setPickupAddress(fullAddress);
-                            }
-                          }}
-                          className="w-full px-3 py-2.5 text-left hover:bg-surface2 transition-colors flex items-center gap-3"
-                        >
-                          <div className="h-8 w-8 rounded-full bg-surface2 text-tx-secondary flex items-center justify-center font-medium text-xs">
-                            {getInitials(student.fullName)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-medium text-tx-primary text-sm truncate">{student.fullName}</div>
-                            <div className="text-xs text-tx-muted truncate">{student.email}</div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
-
-            {/* Instructor Selection */}
-            <div>
-              <label className="block text-sm font-medium text-tx-secondary mb-2">
-                Instructor {!preselectedInstructor && <span className="text-red-500">*</span>}
-              </label>
-              {preselectedInstructor ? (
-                <div className="flex items-center gap-3 p-3 bg-surface2 rounded-xl">
-                  <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-sm">
-                    {getInitials(preselectedInstructor.fullName)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-tx-primary truncate">{preselectedInstructor.fullName}</div>
-                    <div className="text-sm text-tx-muted truncate">{preselectedInstructor.email}</div>
-                  </div>
+            {preselectedStudent ? (
+              <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
+                  {getInitials(preselectedStudent.fullName)}
                 </div>
-              ) : selectedInstructorId && selectedInstructor ? (
-                <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-sm">
-                    {getInitials(selectedInstructor.fullName)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-tx-primary truncate">{selectedInstructor.fullName}</div>
-                    <div className="text-sm text-tx-muted truncate">{selectedInstructor.email}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedInstructorId('');
-                      setInstructorSearch('');
-                      setAvailableSlots([]);
-                      setSelectedSlot(null);
-                      setShowingSlots(false);
-                    }}
-                    className="text-xs text-tx-muted hover:text-tx-secondary px-2 py-1 rounded hover:bg-surface transition-colors"
-                  >
-                    Change
-                  </button>
+                <div className="flex-1">
+                  <div className="font-semibold text-tx-primary">{preselectedStudent.fullName}</div>
+                  <div className="text-sm text-tx-secondary">{preselectedStudent.email}</div>
                 </div>
-              ) : (
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={instructorSearch}
-                    onChange={(e) => {
-                      setInstructorSearch(e.target.value);
-                      setShowInstructorDropdown(true);
-                    }}
-                    onFocus={() => setShowInstructorDropdown(true)}
-                    placeholder="Search instructors..."
-                    autoComplete="nope"
-                    className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
-                  />
-                  {showInstructorDropdown && filteredInstructors.length > 0 && (
-                    <div className="absolute z-20 w-full mt-1 bg-surface border border-[var(--border)] rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                      {targetZipCode && (
-                        <div className="px-3 py-2 bg-surface2 text-xs text-tx-secondary flex items-center gap-1 border-b border-[var(--border)]">
-                          <MapPin className="h-3 w-3" />
-                          Sorted by proximity
+              </div>
+            ) : selectedStudent ? (
+              <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
+                  {getInitials(selectedStudent.fullName)}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-tx-primary">{selectedStudent.fullName}</div>
+                  <div className="text-sm text-tx-secondary">{selectedStudent.email}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStudentId('');
+                    setStudentSearch('');
+                    setPickupAddress('');
+                    setPickupZip(null);
+                  }}
+                  className="text-sm text-primary hover:text-blue-800 font-medium"
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={studentSearch}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setShowStudentDropdown(true);
+                  }}
+                  onFocus={() => setShowStudentDropdown(true)}
+                  placeholder="Search by name or email..."
+                  autoComplete="nope"
+                  className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+                {showStudentDropdown && filteredStudents.length > 0 && (
+                  <div className="absolute z-20 w-full mt-2 bg-surface border border-[var(--border-strong)] rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                    {filteredStudents.map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStudentId(student.id);
+                          setStudentSearch(getStudentDisplay(student));
+                          setShowStudentDropdown(false);
+                          const addr = getStudentFullAddress(student);
+                          setPickupAddress(addr);
+                          setPickupZip(extractZipCode(addr) || student.zipCode || null);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-[var(--border)] last:border-0 flex items-center space-x-3"
+                      >
+                        <div className="h-10 w-10 rounded-full bg-surface3 text-tx-secondary flex items-center justify-center font-semibold text-sm">
+                          {getInitials(student.fullName)}
                         </div>
-                      )}
-                      {filteredInstructors.map((instructor: any) => (
-                        <button
-                          key={instructor.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedInstructorId(instructor.id);
-                            setInstructorSearch(getInstructorDisplay(instructor));
-                            setShowInstructorDropdown(false);
-                          }}
-                          className={`w-full px-3 py-2.5 text-left hover:bg-surface2 transition-colors flex items-center gap-3 ${
-                            instructor.isAssignedInstructor ? 'bg-blue-50 border-l-2 border-primary' : ''
-                          }`}
-                        >
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center font-medium text-xs ${
-                            instructor.isAssignedInstructor ? 'bg-primary text-white' : 'bg-surface2 text-tx-secondary'
-                          }`}>
-                            {getInitials(instructor.fullName)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-tx-primary text-sm truncate">{instructor.fullName}</span>
-                              {instructor.isAssignedInstructor && (
-                                <span className="text-xs bg-blue-100 text-primary px-1.5 py-0.5 rounded font-medium">
-                                  Assigned
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-tx-muted truncate">{instructor.email}</div>
-                          </div>
-                          {targetZipCode && instructor.proximityBadge && (
-                            <span className={`text-xs px-2 py-1 rounded-md font-medium ${instructor.proximityBadge.color} whitespace-nowrap`}>
-                              <span className="mr-1">{instructor.proximityBadge.emoji}</span>
-                              {instructor.proximityBadge.text}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                        <div>
+                          <div className="font-medium text-tx-primary">{student.fullName}</div>
+                          <div className="text-sm text-tx-muted">{student.email}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Lesson Details - Inline Row */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Instructor (locked when preselected) */}
+          {preselectedInstructor && (
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <User className="h-5 w-5 text-primary" />
+                <label className="block text-sm font-semibold text-tx-primary">Instructor</label>
+              </div>
+              <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
+                  {getInitials(preselectedInstructor.fullName)}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-tx-primary">{preselectedInstructor.fullName}</div>
+                  <div className="text-sm text-tx-secondary">{preselectedInstructor.email}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pickup Address */}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <MapPin className="h-5 w-5 text-amber-600" />
+              <label className="block text-sm font-semibold text-tx-primary">
+                Pickup Location <span className="text-red-500">*</span>
+              </label>
+            </div>
+            <textarea
+              value={pickupAddress}
+              onChange={(e) => setPickupAddress(e.target.value)}
+              placeholder="Enter pickup address (include zip code for best results)..."
+              rows={2}
+              className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+            />
+            {pickupZip ? (
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Zip code detected: {pickupZip}
+              </p>
+            ) : pickupAddress && (
+              <p className="text-xs text-amber-600">
+                ⚠️ No zip code detected. Add a zip code for accurate proximity matching.
+              </p>
+            )}
+          </div>
+
+          {/* Lesson Details Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="duration-select" className="block text-sm font-medium text-tx-secondary mb-2">
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
+                <Calendar className="h-4 w-4 inline mr-1 text-purple-600" />
+                Lesson Type
+              </label>
+              <select
+                title="Select lesson type"
+                value={lessonType}
+                onChange={(e) => setLessonType(e.target.value as any)}
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="behind_wheel">Behind the Wheel</option>
+                <option value="classroom">Classroom</option>
+                <option value="observation">Observation</option>
+                <option value="road_test">Road Test</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
+                <Clock className="h-4 w-4 inline mr-1 text-orange-600" />
                 Duration
               </label>
               <select
-                id="duration-select"
                 title="Select lesson duration"
                 value={duration}
-                onChange={(e) => {
-                  setDuration(parseInt(e.target.value));
-                  setSelectedSlot(null);
-                  setAvailableSlots([]);
-                  setShowingSlots(false);
-                }}
-                className="w-full px-3 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
+                onChange={(e) => setDuration(parseInt(e.target.value))}
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-orange-500"
               >
-                <option value={30}>30 min</option>
                 <option value={60}>1 hour</option>
                 <option value={90}>1.5 hours</option>
                 <option value={120}>2 hours</option>
               </select>
             </div>
+          </div>
 
-            <div>
-              <label htmlFor="lesson-type-select" className="block text-sm font-medium text-tx-secondary mb-2">
-                Type
+          {/* Time Preference */}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Filter className="h-5 w-5 text-indigo-600" />
+              <label className="block text-sm font-semibold text-tx-primary">
+                Time Preference (optional)
               </label>
-              <select
-                id="lesson-type-select"
-                title="Select lesson type"
-                value={lessonType}
-                onChange={(e) => setLessonType(e.target.value as any)}
-                className="w-full px-3 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
-              >
-                <option value="behind_wheel">Driving</option>
-                <option value="classroom">Classroom</option>
-                <option value="road_test_prep">Test Prep</option>
-              </select>
             </div>
-
-            <div>
-              <label htmlFor="cost-input" className="block text-sm font-medium text-tx-secondary mb-2">
-                Cost
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-tx-muted text-sm">$</span>
-                <input
-                  id="cost-input"
-                  type="number"
-                  title="Enter lesson cost"
-                  placeholder="50"
-                  value={cost}
-                  onChange={(e) => setCost(parseFloat(e.target.value))}
-                  min="0"
-                  step="0.01"
-                  autoComplete="nope"
-                  className="w-full pl-7 pr-3 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
-                />
-              </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'any', label: 'Any Time', icon: null },
+                { value: 'morning', label: 'Morning (6am-12pm)', icon: Sun },
+                { value: 'afternoon', label: 'Afternoon (12pm-5pm)', icon: Sunset },
+                { value: 'evening', label: 'Evening (5pm-9pm)', icon: Moon },
+              ].map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTimePreference(value as TimePreference)}
+                  className={`px-4 py-2 rounded-lg border-2 transition-all flex items-center gap-2 ${
+                    timePreference === value
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-[var(--border)] hover:border-[var(--border-strong)] text-tx-secondary'
+                  }`}
+                >
+                  {Icon && <Icon className="h-4 w-4" />}
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Time Slot Selection - Clean */}
-          <div className="pt-4 border-t border-[var(--border)]">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-tx-secondary">
-                Date & Time <span className="text-red-500">*</span>
-              </label>
-              {!selectedSlot && (
-                <button
-                  type="button"
-                  onClick={handleFindSlots}
-                  disabled={loading || !selectedInstructorId}
-                  className="px-4 py-2 bg-primary text-white text-sm rounded-lg hover:brightness-90 hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                >
-                  {loading ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                      Finding...
-                    </span>
-                  ) : (
-                    'Find Times'
-                  )}
-                </button>
-              )}
-            </div>
-
-            {selectedSlot ? (
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-primary text-white flex items-center justify-center">
-                    <Calendar className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-tx-primary">
-                      {formatSlotDate(selectedSlot.date)}
-                    </div>
-                    <div className="text-sm text-tx-secondary">
-                      {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSlot(null);
-                    setShowingSlots(true);
-                  }}
-                  className="text-xs text-tx-muted hover:text-tx-secondary px-2 py-1 rounded hover:bg-surface transition-colors"
-                >
-                  Change
-                </button>
-              </div>
-            ) : showingSlots && availableSlots.length > 0 ? (
-              <GroupedAvailabilityView
-                slots={availableSlots}
-                onSelectSlot={handleSelectSlot}
-                formatSlotDate={formatSlotDate}
-                formatTime={formatTime}
-              />
-            ) : showingSlots && availableSlots.length === 0 ? (
-              <div className="text-center py-8 text-tx-muted bg-surface2 rounded-xl">
-                <p className="text-sm">No available slots found</p>
-                <p className="text-xs mt-1 text-tx-muted">Try a different duration or instructor</p>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-tx-muted bg-surface2 rounded-xl border border-dashed border-[var(--border)]">
-                <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Select an instructor, then find available times</p>
-              </div>
-            )}
-          </div>
-
-          {/* Pickup & Notes - Compact */}
-          {selectedSlot && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[var(--border)]">
-              <div>
-                <label className="block text-sm font-medium text-tx-secondary mb-2">
-                  Pickup Location
-                </label>
-                <input
-                  type="text"
-                  value={pickupAddress}
-                  onChange={(e) => setPickupAddress(e.target.value)}
-                  placeholder="Enter pickup address..."
-                  className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-tx-secondary mb-2">
-                  Notes <span className="text-tx-muted font-normal">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Focus areas, special requests..."
-                  className="w-full px-4 py-2.5 bg-surface2 border border-[var(--border)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent focus:bg-surface transition-all text-sm"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Conflict Warning - Minimal */}
-          {conflictWarning && (
-            <div className="bg-amber-50 rounded-xl px-4 py-3">
-              <p className="text-amber-700 text-sm">{conflictWarning}</p>
-            </div>
-          )}
-
-          {/* Continue Button - Clean */}
-          <div className="pt-4 border-t border-[var(--border)] flex gap-3">
+          {/* Continue Button */}
+          <div className="border-t border-[var(--border)] pt-6 flex space-x-3">
             {onCancel && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="flex-1 px-4 py-2.5 border border-[var(--border)] text-tx-secondary rounded-xl hover:bg-surface2 transition-colors text-sm font-medium"
+                className="flex-1 px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
               >
                 Cancel
               </button>
             )}
             <button
               type="button"
-              onClick={handleContinueToConfirm}
-              disabled={!selectedStudentId || !selectedInstructorId || !selectedSlot}
-              className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl hover:brightness-90 hover:bg-primary transition-colors text-sm font-medium disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed"
+              onClick={handleFindSlots}
+              disabled={!selectedStudentId || !pickupZip || loading}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg"
             >
-              Continue
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Finding Best Slots...
+                </span>
+              ) : preselectedInstructor ? (
+                'Find Available Times'
+              ) : (
+                'Find Available Instructors'
+              )}
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Confirm - Clean Summary */}
-      {step === 'confirm' && selectedSlot && (
-        <div className="p-6 space-y-5">
-          {/* Summary Card */}
-          <div className="bg-surface2 rounded-xl p-5 space-y-4">
-            {/* People Row */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {selectedStudent && (
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center font-medium text-xs">
-                      {getInitials(selectedStudent.fullName)}
-                    </div>
-                    <span className="text-sm font-medium text-tx-primary">{selectedStudent.fullName}</span>
-                  </div>
-                )}
-                <span className="text-gray-300">→</span>
-                {selectedInstructor && (
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-medium text-xs">
-                      {getInitials(selectedInstructor.fullName)}
-                    </div>
-                    <span className="text-sm font-medium text-tx-primary">{selectedInstructor.fullName}</span>
-                  </div>
-                )}
-              </div>
+      {/* Step 2: Slots with Proximity */}
+      {step === 'slots' && (
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-tx-primary">Available Time Slots</h3>
+              <p className="text-sm text-tx-muted">
+                Sorted by instructor proximity to pickup location
+              </p>
             </div>
-
-            {/* Date & Time */}
-            <div className="flex items-center gap-3 pt-3 border-t border-[var(--border)]">
-              <div className="h-10 w-10 rounded-lg bg-blue-100 text-primary flex items-center justify-center">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="font-medium text-tx-primary">{formatSlotDate(selectedSlot.date)}</div>
-                <div className="text-sm text-tx-muted">
-                  {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)} ({duration} min)
-                </div>
-              </div>
-            </div>
-
-            {/* Details Grid */}
-            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border)] text-sm">
-              <div>
-                <span className="text-tx-muted">Type</span>
-                <p className="font-medium text-tx-primary capitalize">{lessonType.replace(/_/g, ' ')}</p>
-              </div>
-              <div>
-                <span className="text-tx-muted">Cost</span>
-                <p className="font-semibold text-emerald-600">${cost.toFixed(2)}</p>
-              </div>
-              {pickupAddress && (
-                <div className="col-span-2">
-                  <span className="text-tx-muted">Pickup</span>
-                  <p className="font-medium text-tx-primary truncate">{pickupAddress}</p>
-                </div>
-              )}
-              {notes && (
-                <div className="col-span-2">
-                  <span className="text-tx-muted">Notes</span>
-                  <p className="text-tx-secondary">{notes}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
             <button
               type="button"
               onClick={() => setStep('setup')}
-              className="flex-1 px-4 py-2.5 border border-[var(--border)] text-tx-secondary rounded-xl hover:bg-surface2 transition-colors text-sm font-medium"
+              className="text-sm text-primary hover:text-blue-800 font-medium"
             >
-              Back
+              ← Change Filters
+            </button>
+          </div>
+
+          {/* Pickup reminder */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+            <MapPin className="h-4 w-4 text-amber-600 mt-0.5" />
+            <div className="text-sm">
+              <span className="font-medium text-amber-800">Pickup:</span>{' '}
+              <span className="text-amber-700">{pickupAddress}</span>
+            </div>
+          </div>
+
+          {slotsWithProximity.length === 0 ? (
+            <div className="text-center py-12 text-tx-muted bg-surface2 rounded-lg border-2 border-dashed border-[var(--border-strong)]">
+              <Calendar className="h-12 w-12 mx-auto mb-3 text-tx-muted" />
+              <p className="font-medium">No available slots found</p>
+              <p className="text-sm mt-1">Try changing the duration or time preference</p>
+            </div>
+          ) : (
+            <GroupedAvailabilityView
+              slots={slotsWithProximity}
+              onSelectSlot={handleSelectSlot}
+              formatSlotDate={formatShortDate}
+              formatTime={formatTime}
+              getProximityBadge={getProximityBadge}
+            />
+          )}
+
+          {/* Back button */}
+          <div className="border-t border-[var(--border)] pt-6">
+            <button
+              type="button"
+              onClick={() => setStep('setup')}
+              className="w-full px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
+            >
+              ← Back to Setup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Confirm */}
+      {step === 'confirm' && selectedSlot && (
+        <div className="p-6 space-y-6">
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+            <h3 className="text-lg font-semibold text-tx-primary mb-4 flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+              Booking Summary
+            </h3>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-tx-secondary">Student</span>
+                <span className="font-semibold text-tx-primary">{selectedStudent?.fullName}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-tx-secondary">Instructor</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-tx-primary">{selectedSlot.instructorName}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${getProximityBadge(selectedSlot.proximityScore).class}`}>
+                    {getProximityBadge(selectedSlot.proximityScore).label}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
+                <span className="text-sm text-tx-secondary">Date & Time</span>
+                <div className="text-right">
+                  <div className="font-semibold text-tx-primary">{formatShortDate(selectedSlot.date)}</div>
+                  <div className="text-sm text-tx-secondary">
+                    {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-tx-secondary">Lesson Type</span>
+                <span className="font-semibold text-tx-primary capitalize">{lessonType.replace(/_/g, ' ')}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-tx-secondary">Duration</span>
+                <span className="font-semibold text-tx-primary">{duration} minutes</span>
+              </div>
+
+              <div className="flex items-start justify-between">
+                <span className="text-sm text-tx-secondary">Pickup</span>
+                <span className="font-semibold text-tx-primary text-right max-w-xs">{pickupAddress}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Editable fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
+                Lesson # (auto-suggested)
+              </label>
+              <select
+                title="Select lesson number"
+                value={lessonNumber || ''}
+                onChange={(e) => setLessonNumber(e.target.value ? parseInt(e.target.value) : null)}
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Not set</option>
+                {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
+                  <option key={num} value={num}>Lesson #{num}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-tx-secondary mb-2">
+                Cost ($) - Edit for discounts
+              </label>
+              <input
+                type="number"
+                title="Lesson cost"
+                placeholder="Enter cost"
+                value={cost}
+                onChange={(e) => setCost(parseFloat(e.target.value) || 0)}
+                min="0"
+                step="0.01"
+                autoComplete="nope"
+                className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-tx-secondary mb-2">
+              <FileText className="h-4 w-4 inline mr-1" />
+              Notes (optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes for the instructor..."
+              rows={2}
+              className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setStep('slots')}
+              className="flex-1 px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
+            >
+              ← Back
             </button>
             <button
               type="button"
               onClick={handleConfirmBooking}
               disabled={loading}
-              className="flex-1 px-4 py-2.5 bg-primary text-white rounded-xl hover:brightness-90 hover:bg-primary transition-colors text-sm font-medium disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all disabled:opacity-50 font-medium shadow-lg"
             >
               {loading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   Booking...
                 </span>
               ) : (
-                'Confirm Booking'
+                `Confirm Booking - $${cost.toFixed(2)}`
               )}
             </button>
           </div>

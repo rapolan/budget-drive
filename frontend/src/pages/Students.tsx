@@ -5,7 +5,7 @@ import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, L
 import { studentsApi, lessonsApi } from '@/api';
 import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
-import { SmartBookingFormV2 } from '@/components/scheduling/SmartBookingFormV2';
+import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
@@ -969,11 +969,11 @@ export const StudentsPage: React.FC = () => {
         />
       )}
 
-      {/* SmartBookingFormV2 - for booking lessons */}
+      {/* SmartBookingForm - for booking lessons */}
       {isSmartBookingOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <SmartBookingFormV2
+            <SmartBookingForm
               preselectedStudent={studentForBooking || undefined}
               onBookingComplete={handleBookingComplete}
               onCancel={() => {
