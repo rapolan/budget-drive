@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText, Sun, Sunset, Moon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
-import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
-import { TimeSlot, Student, Instructor, Lesson } from '@/types';
+import { schedulingApi, lessonsApi, studentsApi } from '@/api';
+import { Student, Instructor, Lesson, RankedTimeSlot } from '@/types';
 import { ProgressStepper } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
-import { calculateProximityScore, extractZipCode } from '@/utils/zipCode';
+import { extractZipCode } from '@/utils/zipCode';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -16,14 +16,8 @@ interface SmartBookingFormProps {
   onCancel?: () => void;
 }
 
-// Extended slot type with proximity info
-interface SlotWithProximity extends TimeSlot {
-  proximityScore: number;
-  instructorName: string;
-  instructorZip?: string;
-  comingFrom: 'home' | 'lesson';
-  previousLessonAddress?: string;
-}
+// Slot with proximity info, computed server-side by findRankedAvailableSlots
+type SlotWithProximity = RankedTimeSlot;
 
 type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
 
@@ -207,6 +201,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [step, setStep] = useState<'setup' | 'slots' | 'confirm'>(canSkipToConfirm ? 'confirm' : 'setup');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedInstructorCount, setFailedInstructorCount] = useState(0);
 
   // Step 1: Setup data
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
@@ -238,19 +233,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     queryFn: () => studentsApi.getAll(1, 100),
   });
 
-  const { data: instructorsData } = useQuery({
-    queryKey: ['instructors'],
-    queryFn: () => instructorsApi.getAll(),
-  });
-
-  const { data: allLessonsData } = useQuery({
-    queryKey: ['lessons', 'all-for-proximity'],
-    queryFn: () => lessonsApi.getAll(1, 500),
-  });
-
   const students = studentsData?.data || [];
-  const instructors = instructorsData?.data || [];
-  const allLessons = allLessonsData?.data || [];
+
+  // Only needed for the "suggested lesson number" field - scoped to the
+  // selected student rather than fetching every lesson in the tenant.
+  const { data: studentLessonsData } = useQuery({
+    queryKey: ['lessons', 'by-student', selectedStudentId],
+    queryFn: () => lessonsApi.getByStudent(selectedStudentId),
+    enabled: !!selectedStudentId,
+  });
+  const studentLessons = studentLessonsData?.data || [];
 
   // Helper: Get full address string from student's structured fields
   const getStudentFullAddress = (student: Student): string => {
@@ -311,87 +303,23 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   // Calculate suggested lesson number
   useEffect(() => {
-    if (selectedStudentId && allLessons.length > 0) {
-      const studentLessons = allLessons.filter(
-        (l: Lesson) => l.studentId === selectedStudentId && 
-        (l.status === 'completed' || l.status === 'scheduled')
+    if (selectedStudentId && studentLessons.length > 0) {
+      const completedOrScheduled = studentLessons.filter(
+        (l: Lesson) => l.status === 'completed' || l.status === 'scheduled'
       );
-      setLessonNumber(studentLessons.length + 1);
+      setLessonNumber(completedOrScheduled.length + 1);
     }
-  }, [selectedStudentId, allLessons]);
-
-  // Get instructor's starting location for a specific slot
-  const getInstructorStartingPoint = (
-    instructorId: string,
-    slotDate: string,
-    slotStartTime: string
-  ): { zip: string | null; comingFrom: 'home' | 'lesson'; previousAddress?: string } => {
-    const instructor = instructors.find((i: Instructor) => i.id === instructorId);
-    if (!instructor) return { zip: null, comingFrom: 'home' };
-
-    // Parse slot start time
-    let slotStartHour: number;
-    if (slotStartTime.includes('T')) {
-      slotStartHour = new Date(slotStartTime).getHours();
-    } else {
-      slotStartHour = parseInt(slotStartTime.split(':')[0]);
-    }
-
-    // Find all lessons for this instructor on this date that END BEFORE this slot starts
-    const lessonsOnDate = allLessons.filter((l: Lesson) => {
-      if (l.instructorId !== instructorId) return false;
-      
-      // Compare dates
-      const lessonDate = new Date(l.date).toISOString().split('T')[0];
-      if (lessonDate !== slotDate) return false;
-      
-      // Get lesson end time
-      let lessonEndHour: number;
-      if (l.endTime) {
-        const endParts = l.endTime.split(':');
-        lessonEndHour = parseInt(endParts[0]);
-      } else {
-        return false;
-      }
-      
-      // Lesson must end before or at slot start
-      return lessonEndHour <= slotStartHour;
-    });
-
-    if (lessonsOnDate.length === 0) {
-      // No prior lessons - use instructor's home base zip
-      return { 
-        zip: instructor.zipCode || null, 
-        comingFrom: 'home' 
-      };
-    }
-
-    // Find the lesson that ends closest to the slot start (most recent before)
-    const sortedLessons = lessonsOnDate.sort((a: Lesson, b: Lesson) => {
-      const aEnd = parseInt(a.endTime?.split(':')[0] || '0');
-      const bEnd = parseInt(b.endTime?.split(':')[0] || '0');
-      return bEnd - aEnd; // Descending - latest first
-    });
-
-    const previousLesson = sortedLessons[0];
-    const previousZip = extractZipCode(previousLesson.pickupAddress);
-    
-    return {
-      zip: previousZip || instructor.zipCode || null,
-      comingFrom: 'lesson',
-      previousAddress: previousLesson.pickupAddress || undefined
-    };
-  };
+  }, [selectedStudentId, studentLessons]);
 
   // When student, instructor, date, and time are all preselected, skip the
-  // search entirely and seed the confirm step directly from those props
+  // search entirely and seed the confirm step directly from those props.
+  // Proximity is otherwise computed server-side by findRankedAvailableSlots,
+  // so this pre-seeded slot doesn't have a real score - use neutral
+  // placeholders (proximityScore/comingFrom aren't rendered for this path).
   useEffect(() => {
     if (!canSkipToConfirm || !preselectedInstructor || !preselectedDate || !preselectedTime) return;
-    if (instructors.length === 0) return; // wait for instructors query so proximity lookup works
 
     const slotDate = preselectedDate.toISOString().split('T')[0];
-    const { zip, comingFrom } = getInstructorStartingPoint(preselectedInstructor.id, slotDate, preselectedTime.start);
-    const proximityScore = pickupZip ? calculateProximityScore(zip, pickupZip) : 0;
 
     setSelectedSlot({
       date: slotDate,
@@ -399,35 +327,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       endTime: preselectedTime.end,
       instructorId: preselectedInstructor.id,
       available: true,
-      proximityScore,
+      proximityScore: 0,
       instructorName: preselectedInstructor.fullName,
-      instructorZip: zip || undefined,
-      comingFrom,
+      instructorZip: preselectedInstructor.zipCode || null,
+      comingFrom: 'home',
     });
     setStep('confirm');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSkipToConfirm, preselectedInstructor, preselectedDate, preselectedTime, instructors, pickupZip]);
-
-  // Filter slots by time preference
-  const filterByTimePreference = (slots: TimeSlot[]): TimeSlot[] => {
-    if (timePreference === 'any') return slots;
-    
-    return slots.filter(slot => {
-      let hour: number;
-      if (slot.startTime.includes('T')) {
-        hour = new Date(slot.startTime).getHours();
-      } else {
-        hour = parseInt(slot.startTime.split(':')[0]);
-      }
-      
-      switch (timePreference) {
-        case 'morning': return hour >= 6 && hour < 12;
-        case 'afternoon': return hour >= 12 && hour < 17;
-        case 'evening': return hour >= 17 && hour < 21;
-        default: return true;
-      }
-    });
-  };
+  }, [canSkipToConfirm, preselectedInstructor, preselectedDate, preselectedTime]);
 
   // Translate raw backend error text into friendly, actionable copy
   const getConflictMessage = (errorMessage: string): string => {
@@ -452,7 +358,9 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return errorMessage;
   };
 
-  // Find all available slots across all instructors with proximity
+  // Find available slots ranked by proximity - a single server call now
+  // does the 6D search across candidate instructors and computes proximity,
+  // rather than looping per-instructor and scoring client-side.
   const handleFindSlots = async () => {
     if (!selectedStudentId || !pickupZip) {
       setError('Please select a student and ensure pickup address has a valid zip code');
@@ -462,68 +370,19 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     try {
       setLoading(true);
       setError(null);
+      setFailedInstructorCount(0);
 
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + dateRange);
-
-      // Fetch slots for the preselected instructor only, or ALL active instructors
-      const allSlots: SlotWithProximity[] = [];
-      const candidateInstructors = preselectedInstructor
-        ? [preselectedInstructor]
-        : instructors.filter((i: Instructor) => i.status === 'active');
-
-      for (const instructor of candidateInstructors) {
-        try {
-          const slots = await schedulingApi.findAvailableSlots({
-            instructorId: instructor.id,
-            startDate: tomorrow.toISOString().split('T')[0],
-            endDate: endDate.toISOString().split('T')[0],
-            duration,
-            studentId: selectedStudentId,
-          });
-
-          // Filter by time preference
-          const filteredSlots = filterByTimePreference(slots.filter(s => s.available));
-
-          // Add proximity info to each slot
-          for (const slot of filteredSlots) {
-            const { zip, comingFrom, previousAddress } = getInstructorStartingPoint(
-              instructor.id,
-              slot.date,
-              slot.startTime
-            );
-            
-            const proximityScore = calculateProximityScore(zip, pickupZip);
-            
-            allSlots.push({
-              ...slot,
-              instructorId: instructor.id,
-              instructorName: instructor.fullName,
-              instructorZip: zip || undefined,
-              proximityScore,
-              comingFrom,
-              previousLessonAddress: previousAddress,
-            });
-          }
-        } catch (err) {
-          // Skip instructor if error fetching slots
-          console.warn(`Could not fetch slots for ${instructor.fullName}:`, err);
-        }
-      }
-
-      // Sort by proximity score (highest first), then by date
-      allSlots.sort((a, b) => {
-        // Primary: proximity score (descending)
-        if (b.proximityScore !== a.proximityScore) {
-          return b.proximityScore - a.proximityScore;
-        }
-        // Secondary: date (ascending)
-        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      const result = await schedulingApi.findRankedAvailableSlots({
+        studentId: selectedStudentId,
+        pickupZip,
+        duration,
+        dateRange,
+        timePreference,
+        instructorId: preselectedInstructor?.id,
       });
 
-      setSlotsWithProximity(allSlots);
+      setSlotsWithProximity(result.slots);
+      setFailedInstructorCount(result.failedInstructors.length);
       setStep('slots');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Failed to find available slots';
@@ -912,6 +771,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               <span className="text-amber-700">{pickupAddress}</span>
             </div>
           </div>
+
+          {/* Non-blocking notice: some instructors' lookups failed but the search still succeeded for the rest */}
+          {failedInstructorCount > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+              Couldn't check availability for {failedInstructorCount}{' '}
+              {failedInstructorCount === 1 ? 'instructor' : 'instructors'}. Showing results from everyone else.
+            </div>
+          )}
 
           {slotsWithProximity.length === 0 ? (
             <div className="text-center py-12 text-tx-muted bg-surface2 rounded-lg border-2 border-dashed border-[var(--border-strong)]">

@@ -476,10 +476,17 @@ export interface TimeSlot {
 }
 
 export interface SchedulingConflict {
-  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation';
+  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached';
   message: string;
   conflictingLessonId?: string;
   timeOffId?: string;
+}
+
+export interface RankedTimeSlot extends TimeSlot {
+  proximityScore: number;
+  instructorName: string;
+  instructorZip: string | null;
+  comingFrom: 'home' | 'lesson';
 }
 
 // Form Input Types for Phase 4A
@@ -519,6 +526,20 @@ export interface CheckConflictsRequest {
   date: string;
   startTime: string;
   endTime: string;
+}
+
+export interface FindRankedSlotsRequest {
+  studentId: string;
+  pickupZip: string;
+  duration: number;
+  dateRange: number;
+  timePreference?: 'any' | 'morning' | 'afternoon' | 'evening';
+  instructorId?: string;
+}
+
+export interface FindRankedSlotsResult {
+  slots: RankedTimeSlot[];
+  failedInstructors: string[];
 }
 
 // ===================================================================

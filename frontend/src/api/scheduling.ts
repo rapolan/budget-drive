@@ -4,10 +4,13 @@ import {
   InstructorTimeOff,
   SchedulingSettings,
   TimeSlot,
+  RankedTimeSlot,
   SchedulingConflict,
   CreateAvailabilityInput,
   CreateTimeOffInput,
   FindSlotsRequest,
+  FindRankedSlotsRequest,
+  FindRankedSlotsResult,
   CheckConflictsRequest,
   ApiResponse,
 } from '@/types';
@@ -173,6 +176,21 @@ export const schedulingApi = {
       request
     );
     return response.data.data || [];
+  },
+
+  /**
+   * Find available time slots ranked by proximity to a pickup zip code.
+   * Runs the 6D search across candidate instructors server-side and returns
+   * slots sorted by proximity (closest first), then date/time.
+   */
+  async findRankedAvailableSlots(request: FindRankedSlotsRequest): Promise<FindRankedSlotsResult> {
+    const response = await apiClient.post<
+      ApiResponse<RankedTimeSlot[]> & { failedInstructors?: string[] }
+    >('/availability/find-slots-ranked', request);
+    return {
+      slots: response.data.data || [],
+      failedInstructors: response.data.failedInstructors || [],
+    };
   },
 
   /**
