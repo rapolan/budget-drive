@@ -4,8 +4,16 @@
  */
 
 import { query } from '../config/database';
-import { TimeSlot, SchedulingConflict, AvailabilityRequest } from '../types';
+import {
+  TimeSlot,
+  SchedulingConflict,
+  AvailabilityRequest,
+  RankedTimeSlot,
+  RankedAvailabilityRequest,
+  RankedAvailabilityResult,
+} from '../types';
 import { getSchedulingSettings } from './availabilityService';
+import { extractZipCode, calculateProximityScore } from '../utils/zipCode';
 
 // Helper function to parse time string to minutes since midnight
 const timeToMinutes = (timeStr: string): number => {
@@ -558,4 +566,160 @@ export const validateLessonBooking = async (
     valid: conflicts.length === 0,
     conflicts,
   };
+};
+
+/**
+ * Find available slots ranked by proximity to a pickup zip code.
+ *
+ * Runs the (batched) 6D search across candidate instructors - either all
+ * active instructors, or just `instructorId` if scoped to one - then, for
+ * each slot, works out where the instructor would be coming from (their
+ * last lesson that day ending before the slot, else their home zip) and
+ * scores that against `pickupZip`. Slots are sorted by proximity score
+ * (descending) then date/time (ascending), matching the ordering the
+ * frontend previously computed client-side.
+ */
+export const findRankedAvailableSlots = async (
+  request: RankedAvailabilityRequest
+): Promise<RankedAvailabilityResult> => {
+  const { tenantId, studentId, pickupZip, duration, dateRange, timePreference, instructorId } = request;
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() + 1);
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + dateRange);
+  const startDateStr = formatDate(startDate);
+  const endDateStr = formatDate(endDate);
+
+  // Candidate instructors: either just the one requested, or every active instructor
+  let candidateInstructors: Array<{ id: string; full_name: string; zip_code: string | null }> = [];
+  if (instructorId) {
+    const result = await query(
+      `SELECT id, full_name, zip_code FROM instructors WHERE id = $1 AND tenant_id = $2`,
+      [instructorId, tenantId]
+    );
+    candidateInstructors = result.rows;
+  } else {
+    const result = await query(
+      `SELECT id, full_name, zip_code FROM instructors WHERE tenant_id = $1 AND status = 'active'`,
+      [tenantId]
+    );
+    candidateInstructors = result.rows;
+  }
+
+  const failedInstructors: string[] = [];
+  const rankedSlots: RankedTimeSlot[] = [];
+
+  if (candidateInstructors.length === 0) {
+    return { slots: [], failedInstructors: [] };
+  }
+
+  // Lessons for all candidate instructors in the search window, used to work
+  // out each instructor's "coming from" location for a given slot.
+  const candidateIds = candidateInstructors.map((i) => i.id);
+  const lessonsResult = await query(
+    `SELECT instructor_id, date, start_time, end_time, pickup_address
+     FROM lessons
+     WHERE instructor_id = ANY($1) AND tenant_id = $2
+     AND date >= $3 AND date <= $4
+     AND status NOT IN ('cancelled', 'no_show')`,
+    [candidateIds, tenantId, startDateStr, endDateStr]
+  );
+  const lessonsByInstructorDate = new Map<string, any[]>();
+  for (const row of lessonsResult.rows) {
+    const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
+    const key = `${row.instructor_id}|${dateKey}`;
+    const existing = lessonsByInstructorDate.get(key) || [];
+    existing.push(row);
+    lessonsByInstructorDate.set(key, existing);
+  }
+
+  // Determine an instructor's starting point (zip) for a given slot: the
+  // pickup zip of their most recent lesson that day ending before the slot
+  // starts, else their home zip.
+  const getInstructorStartingPoint = (
+    instId: string,
+    slotDate: string,
+    slotStartTime: string
+  ): { zip: string | null; comingFrom: 'home' | 'lesson' } => {
+    const instructor = candidateInstructors.find((i) => i.id === instId);
+    const homeZip = instructor?.zip_code || null;
+
+    const slotStartMinutes = timeToMinutes(
+      slotStartTime.includes('T') ? new Date(slotStartTime).toTimeString().slice(0, 5) : slotStartTime.slice(0, 5)
+    );
+
+    const lessonsOnDate = (lessonsByInstructorDate.get(`${instId}|${slotDate}`) || []).filter(
+      (l) => l.end_time && timeToMinutes(l.end_time.slice(0, 5)) <= slotStartMinutes
+    );
+
+    if (lessonsOnDate.length === 0) {
+      return { zip: homeZip, comingFrom: 'home' };
+    }
+
+    const mostRecent = lessonsOnDate.sort(
+      (a, b) => timeToMinutes(b.end_time.slice(0, 5)) - timeToMinutes(a.end_time.slice(0, 5))
+    )[0];
+    const previousZip = extractZipCode(mostRecent.pickup_address);
+
+    return { zip: previousZip || homeZip, comingFrom: 'lesson' };
+  };
+
+  const filterByTimePreference = (slots: TimeSlot[]): TimeSlot[] => {
+    if (!timePreference || timePreference === 'any') return slots;
+    return slots.filter((slot) => {
+      const hour = slot.startTime.includes('T')
+        ? new Date(slot.startTime).getHours()
+        : parseInt(slot.startTime.split(':')[0], 10);
+      switch (timePreference) {
+        case 'morning':
+          return hour >= 6 && hour < 12;
+        case 'afternoon':
+          return hour >= 12 && hour < 17;
+        case 'evening':
+          return hour >= 17 && hour < 21;
+        default:
+          return true;
+      }
+    });
+  };
+
+  for (const instructor of candidateInstructors) {
+    try {
+      const slots = await findAvailableSlots({
+        tenantId,
+        instructorId: instructor.id,
+        startDate,
+        endDate,
+        duration,
+        studentId,
+      });
+
+      const filteredSlots = filterByTimePreference(slots);
+
+      for (const slot of filteredSlots) {
+        const { zip, comingFrom } = getInstructorStartingPoint(instructor.id, slot.date, slot.startTime);
+        const proximityScore = calculateProximityScore(zip, pickupZip);
+
+        rankedSlots.push({
+          ...slot,
+          proximityScore,
+          instructorName: instructor.full_name,
+          instructorZip: zip,
+          comingFrom,
+        });
+      }
+    } catch (err) {
+      failedInstructors.push(instructor.id);
+    }
+  }
+
+  rankedSlots.sort((a, b) => {
+    if (b.proximityScore !== a.proximityScore) {
+      return b.proximityScore - a.proximityScore;
+    }
+    return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+  });
+
+  return { slots: rankedSlots, failedInstructors };
 };

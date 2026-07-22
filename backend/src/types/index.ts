@@ -1007,6 +1007,31 @@ export interface AvailabilityRequest {
   studentId?: string; // Optional: for checking if student has conflicts
 }
 
+// A TimeSlot annotated with proximity info, for the ranked-slots endpoint
+export interface RankedTimeSlot extends TimeSlot {
+  proximityScore: number; // 0-100, higher = closer
+  instructorName: string;
+  instructorZip: string | null;
+  comingFrom: 'home' | 'lesson';
+}
+
+// Request to find available slots ranked by proximity to a pickup zip
+export interface RankedAvailabilityRequest {
+  tenantId: string;
+  studentId: string;
+  pickupZip: string;
+  duration: number; // minutes
+  dateRange: number; // days ahead to search
+  timePreference?: 'any' | 'morning' | 'afternoon' | 'evening';
+  instructorId?: string; // Optional: scope to a single instructor
+}
+
+// Result of a ranked-slots search
+export interface RankedAvailabilityResult {
+  slots: RankedTimeSlot[];
+  failedInstructors: string[]; // instructor IDs whose slot lookup failed
+}
+
 // Conflict detection result
 export interface SchedulingConflict {
   type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached';

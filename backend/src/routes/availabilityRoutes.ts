@@ -123,6 +123,13 @@ router.post(
   availabilityController.findAvailableSlots
 );
 
+// Find available time slots ranked by proximity to a pickup zip
+router.post(
+  '/availability/find-slots-ranked',
+  validateRequired(['studentId', 'pickupZip', 'duration', 'dateRange']),
+  availabilityController.findRankedAvailableSlots
+);
+
 // Check for conflicts
 router.post(
   '/availability/check-conflicts',

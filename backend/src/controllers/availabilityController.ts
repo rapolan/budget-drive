@@ -274,6 +274,33 @@ export const findAvailableSlots = asyncHandler(async (req: Request, res: Respons
 });
 
 /**
+ * @route   POST /api/v1/availability/find-slots-ranked
+ * @desc    Find available time slots ranked by proximity to a pickup zip
+ * @access  Private
+ */
+export const findRankedAvailableSlots = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { studentId, pickupZip, duration, dateRange, timePreference, instructorId } = req.body;
+
+  const result = await schedulingService.findRankedAvailableSlots({
+    tenantId,
+    studentId,
+    pickupZip,
+    duration,
+    dateRange,
+    timePreference,
+    instructorId,
+  });
+
+  res.json({
+    success: true,
+    data: result.slots,
+    count: result.slots.length,
+    failedInstructors: result.failedInstructors,
+  });
+});
+
+/**
  * @route   POST /api/v1/availability/check-conflicts
  * @desc    Check for scheduling conflicts
  * @access  Private
