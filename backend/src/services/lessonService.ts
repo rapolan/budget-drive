@@ -226,40 +226,6 @@ export const createLesson = async (
     }
     logger.debug('Instructor validated', { tenantId, instructorId: data.instructorId });
 
-    // Vehicle: if none was provided, auto-assign the instructor's own vehicle
-    // (if they have one on file), else fall back to any active school-owned
-    // vehicle, so the Vehicle dimension's conflict check actually runs for
-    // the common case of booking without explicitly picking a vehicle.
-    if (data.vehicleId) {
-      const vehicleCheck = await query(
-        'SELECT id FROM vehicles WHERE id = $1 AND tenant_id = $2',
-        [data.vehicleId, tenantId]
-      );
-      if (vehicleCheck.rows.length === 0) {
-        logger.error('Vehicle not found', undefined, { tenantId, vehicleId: data.vehicleId });
-        throw new AppError('Vehicle not found or does not belong to this organization', 404);
-      }
-      logger.debug('Vehicle validated', { tenantId, vehicleId: data.vehicleId });
-    } else {
-      const defaultVehicleResult = await query(
-        `SELECT id FROM vehicles
-         WHERE tenant_id = $1 AND status = 'active'
-         AND (
-           (ownership_type = 'instructor_owned' AND owner_instructor_id = $2)
-           OR ownership_type = 'school_owned'
-         )
-         ORDER BY (ownership_type = 'instructor_owned') DESC
-         LIMIT 1`,
-        [tenantId, data.instructorId]
-      );
-      if (defaultVehicleResult.rows.length > 0) {
-        data.vehicleId = defaultVehicleResult.rows[0].id;
-        logger.debug('Auto-assigned default vehicle', { tenantId, instructorId: data.instructorId, vehicleId: data.vehicleId });
-      } else {
-        logger.debug('No vehicle available to auto-assign - instructor will assign later', { tenantId });
-      }
-    }
-
     // Extract date and time from scheduledStart/scheduledEnd if provided (ISO format)
     // Otherwise use separate date/startTime/endTime fields
     let lessonDate, lessonStartTime, endTime, duration, startDate, endDate;
@@ -298,6 +264,77 @@ export const createLesson = async (
         endTime,
         duration,
       });
+    }
+
+    // Vehicle: if none was provided, auto-assign the instructor's own vehicle
+    // (if they have one on file), else fall back to an active school-owned
+    // vehicle that has no overlapping lesson at the requested date/time, so
+    // the Vehicle dimension's conflict check actually runs for the common
+    // case of booking without explicitly picking a vehicle - and so the
+    // fallback doesn't always pick the same (possibly already-busy) car.
+    if (data.vehicleId) {
+      const vehicleCheck = await query(
+        'SELECT id FROM vehicles WHERE id = $1 AND tenant_id = $2',
+        [data.vehicleId, tenantId]
+      );
+      if (vehicleCheck.rows.length === 0) {
+        logger.error('Vehicle not found', undefined, { tenantId, vehicleId: data.vehicleId });
+        throw new AppError('Vehicle not found or does not belong to this organization', 404);
+      }
+      logger.debug('Vehicle validated', { tenantId, vehicleId: data.vehicleId });
+    } else {
+      const instructorVehicleResult = await query(
+        `SELECT id FROM vehicles
+         WHERE tenant_id = $1 AND status = 'active'
+         AND ownership_type = 'instructor_owned' AND owner_instructor_id = $2
+         LIMIT 1`,
+        [tenantId, data.instructorId]
+      );
+
+      if (instructorVehicleResult.rows.length > 0) {
+        data.vehicleId = instructorVehicleResult.rows[0].id;
+        logger.debug('Auto-assigned instructor-owned vehicle', { tenantId, instructorId: data.instructorId, vehicleId: data.vehicleId });
+      } else {
+        // No instructor-owned vehicle - does the tenant have any active
+        // school-owned vehicles at all? If not, keep the existing fallback
+        // (book without a vehicle, instructor assigns later). If some exist,
+        // pick one with no overlapping lesson at the requested date/time; if
+        // every one of them is busy, fail outright rather than silently
+        // booking without a vehicle a tenant clearly expects to be assigned.
+        const schoolVehiclesExistResult = await query(
+          `SELECT id FROM vehicles WHERE tenant_id = $1 AND status = 'active' AND ownership_type = 'school_owned'`,
+          [tenantId]
+        );
+
+        if (schoolVehiclesExistResult.rows.length === 0) {
+          logger.debug('No vehicle available to auto-assign - instructor will assign later', { tenantId });
+        } else {
+          const availableSchoolVehicleResult = await query(
+            `SELECT v.id FROM vehicles v
+             WHERE v.tenant_id = $1 AND v.status = 'active' AND v.ownership_type = 'school_owned'
+             AND NOT EXISTS (
+               SELECT 1 FROM lessons l
+               WHERE l.vehicle_id = v.id AND l.tenant_id = $1 AND l.date = $2
+               AND l.status NOT IN ('cancelled', 'no_show')
+               AND (
+                 (l.start_time <= $3 AND l.end_time > $3)
+                 OR (l.start_time < $4 AND l.end_time >= $4)
+                 OR (l.start_time >= $3 AND l.end_time <= $4)
+               )
+             )
+             LIMIT 1`,
+            [tenantId, lessonDate, lessonStartTime, endTime]
+          );
+
+          if (availableSchoolVehicleResult.rows.length > 0) {
+            data.vehicleId = availableSchoolVehicleResult.rows[0].id;
+            logger.debug('Auto-assigned available school-owned vehicle', { tenantId, instructorId: data.instructorId, vehicleId: data.vehicleId });
+          } else {
+            logger.warn('All school-owned vehicles are busy at the requested time', { tenantId, instructorId: data.instructorId, lessonDate, lessonStartTime, endTime });
+            throw new AppError('Scheduling conflict: Vehicle is already assigned to another lesson', 409);
+          }
+        }
+      }
     }
 
     // Check for scheduling conflicts before booking
