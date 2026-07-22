@@ -255,6 +255,91 @@ describe('scheduling conflict detection', () => {
     expect(conflicts).toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
   });
 
+  it('enforces the correct per-block max_students for a split-shift instructor (morning cap 2, evening cap 4)', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+
+    // Morning block 09:00-12:00, max 2; evening block 17:00-20:00, max 4.
+    // A lesson request at 18:00-20:00 falls inside the evening block only -
+    // the WHERE clause on the availability query already filters to
+    // containing blocks, but with an explicit ORDER BY the row is now
+    // deterministic even if more than one block could match.
+    mockQuery.mockReset();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'avail-evening', start_time: '17:00:00', end_time: '20:00:00', max_students: 4 }])
+      ) // availability - only the evening block matches the requested window
+      .mockResolvedValueOnce(queryResult([{ count: '3' }])) // capacity count: 3 lessons already booked today
+      .mockResolvedValueOnce(queryResult([])) // time off
+      .mockResolvedValueOnce(queryResult([])) // instructor overlap
+      .mockResolvedValueOnce(queryResult([])) // buffer violation
+      .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }])) // vehicle lookup
+      .mockResolvedValueOnce(queryResult([])) // vehicle overlap
+      .mockResolvedValueOnce(queryResult([])); // student overlap
+
+    // 3 lessons booked, evening cap is 4 -> under capacity, should succeed
+    const conflictsUnderCap = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T18:00:00'),
+      new Date('2026-08-03T20:00:00')
+    );
+    expect(conflictsUnderCap).not.toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
+
+    // Same evening block (cap 4), but now 4 lessons already booked -> at capacity
+    mockQuery.mockReset();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'avail-evening', start_time: '17:00:00', end_time: '20:00:00', max_students: 4 }])
+      )
+      .mockResolvedValueOnce(queryResult([{ count: '4' }]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]));
+
+    const conflictsAtCap = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T18:00:00'),
+      new Date('2026-08-03T20:00:00')
+    );
+    expect(conflictsAtCap).toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
+
+    // A morning-block request (09:00-11:00, cap 2) with only 2 lessons
+    // booked hits ITS OWN lower cap, even though the evening block's cap is 4
+    mockQuery.mockReset();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'avail-morning', start_time: '09:00:00', end_time: '12:00:00', max_students: 2 }])
+      ) // only the morning block matches a 09:00-11:00 request
+      .mockResolvedValueOnce(queryResult([{ count: '2' }])) // 2 lessons already booked -> at the morning cap
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]));
+
+    const conflictsMorningAtCap = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T09:00:00'),
+      new Date('2026-08-03T11:00:00')
+    );
+    expect(conflictsMorningAtCap).toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
+  });
+
   it('reports no conflicts on the happy path', async () => {
     const { checkSchedulingConflicts, validateLessonBooking } = await import('../services/schedulingService');
     mockConflictSequence();

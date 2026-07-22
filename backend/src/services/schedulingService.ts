@@ -329,10 +329,15 @@ export const checkSchedulingConflicts = async (
   const endTimeStr = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}:00`;
 
   // 1. Check if instructor has availability on this day/time
+  // ORDER BY narrows to the most specific containing block first, so that
+  // if more than one row happens to satisfy the containment filter (e.g.
+  // overlapping availability rows), which block's max_students gets used
+  // below is deterministic rather than whatever order Postgres returns.
   const availabilityResult = await query(
     `SELECT * FROM instructor_availability
      WHERE instructor_id = $1 AND tenant_id = $2 AND day_of_week = $3 AND is_active = true
-     AND start_time <= $4 AND end_time >= $5`,
+     AND start_time <= $4 AND end_time >= $5
+     ORDER BY start_time DESC, end_time ASC`,
     [instructorId, tenantId, dayOfWeek, startTimeStr, endTimeStr]
   );
 
@@ -344,7 +349,8 @@ export const checkSchedulingConflicts = async (
   }
 
   // 2. Check capacity: instructor's non-cancelled lesson count for this day
-  // against max_students (this availability block's override, else tenant default)
+  // against max_students (the containing availability block's override from
+  // check #1 above, else tenant default)
   const maxStudentsForDay =
     availabilityResult.rows[0]?.max_students ?? settings.defaultMaxStudentsPerDay;
 
