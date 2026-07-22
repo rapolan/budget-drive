@@ -32,7 +32,7 @@ const formatDate = (date: Date): string => {
 export const findAvailableSlots = async (
   request: AvailabilityRequest
 ): Promise<TimeSlot[]> => {
-  const { tenantId, instructorId, vehicleId, startDate, endDate, duration } = request;
+  const { tenantId, instructorId, vehicleId, startDate, endDate, duration, studentId } = request;
 
   // Get scheduling settings
   const settings = await getSchedulingSettings(tenantId);
@@ -50,6 +50,26 @@ export const findAvailableSlots = async (
       [tenantId]
     );
     instructorsToCheck = instructorsResult.rows.map((row: any) => row.id);
+  }
+
+  // Get the student's own lessons in the date range so we never offer a slot
+  // that overlaps a lesson the student already has booked (Student dimension)
+  const studentLessonsByDate: Map<string, Array<{ start_time: string; end_time: string }>> = new Map();
+  if (studentId) {
+    const studentLessonsResult = await query(
+      `SELECT date, start_time, end_time
+       FROM lessons
+       WHERE student_id = $1 AND tenant_id = $2
+       AND date >= $3 AND date <= $4
+       AND status NOT IN ('cancelled', 'no_show')`,
+      [studentId, tenantId, formatDate(startDate), formatDate(endDate)]
+    );
+    for (const row of studentLessonsResult.rows) {
+      const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
+      const existing = studentLessonsByDate.get(dateKey) || [];
+      existing.push(row);
+      studentLessonsByDate.set(dateKey, existing);
+    }
   }
 
   // Iterate through each day in the date range
@@ -107,7 +127,13 @@ export const findAvailableSlots = async (
         [instId, tenantId, dateStr]
       );
 
-      const existingLessons = lessonsResult.rows;
+      // Combine instructor's lessons with the student's own lessons that day
+      // (Student dimension) - findSlotsInBlock excludes any theoretical slot
+      // overlapping ANY entry in this list, regardless of whose lesson it is
+      const existingLessons = [
+        ...lessonsResult.rows,
+        ...(studentLessonsByDate.get(dateStr) || []),
+      ];
 
       // Vehicle ID is provided via request parameter or can be null
       const vehicleForLesson: string | null = vehicleId || null;

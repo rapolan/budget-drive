@@ -187,3 +187,63 @@ describe('scheduling conflict detection', () => {
     expect(result).toEqual({ valid: true, conflicts: [] });
   });
 });
+
+describe('findAvailableSlots - student dimension', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('never offers a slot overlapping the student\'s own existing lesson', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    // Single day, single instructor (instructorId provided, so no instructor-list query)
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
+      .mockResolvedValueOnce(
+        queryResult([{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }])
+      ) // student's own lessons in range
+      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', max_students: 3 }])) // instructor availability for the day
+      .mockResolvedValueOnce(queryResult([])) // time off
+      .mockResolvedValueOnce(queryResult([])); // instructor's lessons that day (none)
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T00:00:00'),
+      endDate: new Date('2026-08-03T00:00:00'),
+      duration: 120,
+      studentId: STUDENT_ID,
+    });
+
+    // Buffer is 30 (SETTINGS_ROW), so theoretical slots are 9:00-11:00, 11:30-1:30, 2:00-4:00.
+    // The student already has 9:00-11:00 booked, so that slot must be excluded.
+    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
+    expect(slotStartHours).not.toContain(9);
+    expect(slots.length).toBeGreaterThan(0);
+  });
+
+  it('still offers a non-overlapping slot for the same student/day', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
+      .mockResolvedValueOnce(
+        queryResult([{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }])
+      )
+      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', max_students: 3 }]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]));
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T00:00:00'),
+      endDate: new Date('2026-08-03T00:00:00'),
+      duration: 120,
+      studentId: STUDENT_ID,
+    });
+
+    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
+    expect(slotStartHours).toContain(11); // 11:30 local -> hour 11, still offered
+  });
+});
