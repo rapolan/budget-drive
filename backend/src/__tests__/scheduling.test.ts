@@ -199,6 +199,62 @@ describe('scheduling conflict detection', () => {
     expect(conflicts).not.toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
   });
 
+  it('capacity check excludes excludeLessonId, so rescheduling one of the instructor\'s own lessons at max capacity succeeds', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+    const RESCHEDULED_LESSON_ID = 'lesson-being-rescheduled';
+
+    // Instructor is at the tenant default capacity (3), but one of those 3
+    // lessons IS the one being rescheduled - excluding it should bring the
+    // count to 2, under the cap of 3.
+    mockQuery.mockReset();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
+      .mockResolvedValueOnce(queryResult([AVAILABLE_ROW])) // availability
+      .mockResolvedValueOnce(queryResult([{ count: '2' }])) // capacity count (excludeLessonId applied)
+      .mockResolvedValueOnce(queryResult([])) // time off
+      .mockResolvedValueOnce(queryResult([])) // instructor overlap
+      .mockResolvedValueOnce(queryResult([])) // buffer violation
+      .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }])) // vehicle lookup
+      .mockResolvedValueOnce(queryResult([])) // vehicle overlap
+      .mockResolvedValueOnce(queryResult([])); // student overlap
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00'),
+      RESCHEDULED_LESSON_ID
+    );
+
+    expect(conflicts).not.toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
+
+    // Confirm the capacity-count query actually received the exclusion
+    const capacityCountCall = mockQuery.mock.calls[2];
+    expect(capacityCountCall[0]).toContain('id !=');
+    expect(capacityCountCall[1]).toContain(RESCHEDULED_LESSON_ID);
+  });
+
+  it('booking a NEW lesson at max capacity still fails, even though excludeLessonId is supported', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+
+    // No excludeLessonId passed (this is a brand-new booking, not a
+    // reschedule) - instructor already has 3 lessons that day, at the cap.
+    mockConflictSequence({ dailyLessonCount: 3 });
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00')
+    );
+
+    expect(conflicts).toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
+  });
+
   it('reports no conflicts on the happy path', async () => {
     const { checkSchedulingConflicts, validateLessonBooking } = await import('../services/schedulingService');
     mockConflictSequence();

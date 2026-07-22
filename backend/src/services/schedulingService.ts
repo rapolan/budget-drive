@@ -348,12 +348,19 @@ export const checkSchedulingConflicts = async (
   const maxStudentsForDay =
     availabilityResult.rows[0]?.max_students ?? settings.defaultMaxStudentsPerDay;
 
-  const dailyLessonCountResult = await query(
-    `SELECT COUNT(*) FROM lessons
-     WHERE instructor_id = $1 AND tenant_id = $2 AND date = $3
-     AND status NOT IN ('cancelled', 'no_show')`,
-    [instructorId, tenantId, dateStr]
-  );
+  let dailyLessonCountQuery = `
+    SELECT COUNT(*) FROM lessons
+    WHERE instructor_id = $1 AND tenant_id = $2 AND date = $3
+    AND status NOT IN ('cancelled', 'no_show')
+  `;
+  const dailyLessonCountParams: any[] = [instructorId, tenantId, dateStr];
+
+  if (excludeLessonId) {
+    dailyLessonCountQuery += ` AND id != $4`;
+    dailyLessonCountParams.push(excludeLessonId);
+  }
+
+  const dailyLessonCountResult = await query(dailyLessonCountQuery, dailyLessonCountParams);
 
   const dailyLessonCount = parseInt(dailyLessonCountResult.rows[0].count, 10);
 
