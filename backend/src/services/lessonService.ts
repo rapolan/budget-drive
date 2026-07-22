@@ -226,7 +226,10 @@ export const createLesson = async (
     }
     logger.debug('Instructor validated', { tenantId, instructorId: data.instructorId });
 
-    // Vehicle is optional - instructors will assign vehicles later
+    // Vehicle: if none was provided, auto-assign the instructor's own vehicle
+    // (if they have one on file), else fall back to any active school-owned
+    // vehicle, so the Vehicle dimension's conflict check actually runs for
+    // the common case of booking without explicitly picking a vehicle.
     if (data.vehicleId) {
       const vehicleCheck = await query(
         'SELECT id FROM vehicles WHERE id = $1 AND tenant_id = $2',
@@ -238,7 +241,23 @@ export const createLesson = async (
       }
       logger.debug('Vehicle validated', { tenantId, vehicleId: data.vehicleId });
     } else {
-      logger.debug('No vehicle assigned - instructor will assign later', { tenantId });
+      const defaultVehicleResult = await query(
+        `SELECT id FROM vehicles
+         WHERE tenant_id = $1 AND status = 'active'
+         AND (
+           (ownership_type = 'instructor_owned' AND owner_instructor_id = $2)
+           OR ownership_type = 'school_owned'
+         )
+         ORDER BY (ownership_type = 'instructor_owned') DESC
+         LIMIT 1`,
+        [tenantId, data.instructorId]
+      );
+      if (defaultVehicleResult.rows.length > 0) {
+        data.vehicleId = defaultVehicleResult.rows[0].id;
+        logger.debug('Auto-assigned default vehicle', { tenantId, instructorId: data.instructorId, vehicleId: data.vehicleId });
+      } else {
+        logger.debug('No vehicle available to auto-assign - instructor will assign later', { tenantId });
+      }
     }
 
     // Extract date and time from scheduledStart/scheduledEnd if provided (ISO format)
