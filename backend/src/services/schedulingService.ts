@@ -278,7 +278,28 @@ export const checkSchedulingConflicts = async (
     });
   }
 
-  // 2. Check for instructor time off
+  // 2. Check capacity: instructor's non-cancelled lesson count for this day
+  // against max_students (this availability block's override, else tenant default)
+  const maxStudentsForDay =
+    availabilityResult.rows[0]?.max_students ?? settings.defaultMaxStudentsPerDay;
+
+  const dailyLessonCountResult = await query(
+    `SELECT COUNT(*) FROM lessons
+     WHERE instructor_id = $1 AND tenant_id = $2 AND date = $3
+     AND status NOT IN ('cancelled', 'no_show')`,
+    [instructorId, tenantId, dateStr]
+  );
+
+  const dailyLessonCount = parseInt(dailyLessonCountResult.rows[0].count, 10);
+
+  if (dailyLessonCount >= maxStudentsForDay) {
+    conflicts.push({
+      type: 'capacity_reached',
+      message: `Instructor has reached their maximum of ${maxStudentsForDay} lessons for this day`,
+    });
+  }
+
+  // 3. Check for instructor time off
   const timeOffResult = await query(
     `SELECT * FROM instructor_time_off
      WHERE instructor_id = $1 AND tenant_id = $2
@@ -309,7 +330,7 @@ export const checkSchedulingConflicts = async (
     }
   }
 
-  // 3. Check for overlapping lessons for instructor
+  // 4. Check for overlapping lessons for instructor
   let lessonQuery = `
     SELECT id FROM lessons
     WHERE instructor_id = $1 AND tenant_id = $2
@@ -338,7 +359,7 @@ export const checkSchedulingConflicts = async (
     });
   }
 
-  // 4. Check for buffer time violations
+  // 5. Check for buffer time violations
   const bufferMinutes = settings.bufferTimeBetweenLessons;
   const beforeBufferStart = new Date(startTime);
   beforeBufferStart.setMinutes(beforeBufferStart.getMinutes() - bufferMinutes);
@@ -379,7 +400,7 @@ export const checkSchedulingConflicts = async (
     });
   }
 
-  // 5. Check vehicle availability (if vehicle is school-owned)
+  // 6. Check vehicle availability (if vehicle is school-owned)
   if (vehicleId) {
     const vehicleCheck = await query(
       `SELECT ownership_type, owner_instructor_id FROM vehicles WHERE id = $1 AND tenant_id = $2`,
@@ -421,7 +442,7 @@ export const checkSchedulingConflicts = async (
     }
   }
 
-  // 6. Check for student conflicts (optional - if we want to prevent double-booking students)
+  // 7. Check for student conflicts (optional - if we want to prevent double-booking students)
   if (studentId) {
     let studentLessonQuery = `
       SELECT id FROM lessons

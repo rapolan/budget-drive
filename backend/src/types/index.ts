@@ -1009,7 +1009,7 @@ export interface AvailabilityRequest {
 
 // Conflict detection result
 export interface SchedulingConflict {
-  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation';
+  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached';
   message: string;
   conflictingLessonId?: string;
   conflictingTimeOffId?: string;
