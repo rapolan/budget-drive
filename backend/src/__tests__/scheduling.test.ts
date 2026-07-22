@@ -226,6 +226,32 @@ describe('scheduling conflict detection', () => {
   });
 });
 
+/**
+ * findAvailableSlots (batched) issues these queries in order, regardless of
+ * how many days/instructors are in the request:
+ *   1. getSchedulingSettings -> SELECT scheduling_settings
+ *   2. availability for all candidate instructors (all days at once)
+ *   3. time-off for all candidate instructors (whole date range)
+ *   4. lessons for all candidate instructors (whole date range)
+ *   5. student's own lessons in range (only if studentId is provided)
+ */
+function mockSlotsSequence(overrides: Partial<{
+  availability: any[];
+  timeOff: any[];
+  lessons: any[];
+  studentLessons: any[];
+}> = {}) {
+  mockQuery.mockReset();
+  mockQuery
+    .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
+    .mockResolvedValueOnce(queryResult(overrides.availability ?? []))
+    .mockResolvedValueOnce(queryResult(overrides.timeOff ?? []))
+    .mockResolvedValueOnce(queryResult(overrides.lessons ?? []));
+  if (overrides.studentLessons !== undefined) {
+    mockQuery.mockResolvedValueOnce(queryResult(overrides.studentLessons));
+  }
+}
+
 describe('findAvailableSlots - student dimension', () => {
   beforeEach(() => {
     resetMockQuery();
@@ -234,15 +260,12 @@ describe('findAvailableSlots - student dimension', () => {
   it('never offers a slot overlapping the student\'s own existing lesson', async () => {
     const { findAvailableSlots } = await import('../services/schedulingService');
 
-    // Single day, single instructor (instructorId provided, so no instructor-list query)
-    mockQuery
-      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
-      .mockResolvedValueOnce(
-        queryResult([{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }])
-      ) // student's own lessons in range
-      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])) // instructor availability for the day
-      .mockResolvedValueOnce(queryResult([])) // time off
-      .mockResolvedValueOnce(queryResult([])); // instructor's lessons that day (none)
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+      studentLessons: [{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }],
+    });
 
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
@@ -263,14 +286,12 @@ describe('findAvailableSlots - student dimension', () => {
   it('still offers a non-overlapping slot for the same student/day', async () => {
     const { findAvailableSlots } = await import('../services/schedulingService');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
-      .mockResolvedValueOnce(
-        queryResult([{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }])
-      )
-      .mockResolvedValueOnce(queryResult([{ start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }]))
-      .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([]));
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+      studentLessons: [{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }],
+    });
 
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
@@ -294,16 +315,12 @@ describe('findAvailableSlots - split shifts', () => {
   it('offers slots in both a morning and an evening block for the same instructor/day', async () => {
     const { findAvailableSlots } = await import('../services/schedulingService');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
-      .mockResolvedValueOnce(
-        queryResult([
-          { start_time: '09:00:00', end_time: '12:00:00', max_students: 1 }, // morning block
-          { start_time: '17:00:00', end_time: '20:00:00', max_students: 1 }, // evening block
-        ])
-      ) // instructor availability for the day (two blocks - a split shift)
-      .mockResolvedValueOnce(queryResult([])) // time off
-      .mockResolvedValueOnce(queryResult([])); // instructor's lessons that day (shared across both blocks)
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '12:00:00', max_students: 1 },
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '17:00:00', end_time: '20:00:00', max_students: 1 },
+      ],
+    });
 
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
@@ -320,16 +337,14 @@ describe('findAvailableSlots - split shifts', () => {
   it('never generates a slot that runs past its own block\'s end_time', async () => {
     const { findAvailableSlots } = await import('../services/schedulingService');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
-      // A tight 09:00-11:00 block with a 120-minute duration fits exactly one
-      // slot (9:00-11:00) - max_students of 3 should NOT force a second slot
-      // that would run past 11:00.
-      .mockResolvedValueOnce(
-        queryResult([{ start_time: '09:00:00', end_time: '11:00:00', max_students: 3 }])
-      )
-      .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([]));
+    // A tight 09:00-11:00 block with a 120-minute duration fits exactly one
+    // slot (9:00-11:00) - max_students of 3 should NOT force a second slot
+    // that would run past 11:00.
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '11:00:00', max_students: 3 },
+      ],
+    });
 
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
@@ -341,5 +356,61 @@ describe('findAvailableSlots - split shifts', () => {
 
     expect(slots).toHaveLength(1);
     expect(new Date(slots[0].startTime).getHours()).toBe(9);
+  });
+});
+
+describe('findAvailableSlots - partial-day time off', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('blocks the whole day when the time-off row has no start_time/end_time', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+      timeOff: [
+        { instructor_id: INSTRUCTOR_ID, start_date: '2026-08-03', end_date: '2026-08-03', start_time: null, end_time: null },
+      ],
+    });
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T00:00:00'),
+      endDate: new Date('2026-08-03T00:00:00'),
+      duration: 120,
+    });
+
+    expect(slots).toEqual([]);
+  });
+
+  it('only excludes slots overlapping a partial-day time-off window, leaving others available', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    // Theoretical slots: 9:00-11:00, 11:30-1:30, 2:00-4:00. Time off 9:00-11:00
+    // should only remove the first slot.
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+      timeOff: [
+        { instructor_id: INSTRUCTOR_ID, start_date: '2026-08-03', end_date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' },
+      ],
+    });
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T00:00:00'),
+      endDate: new Date('2026-08-03T00:00:00'),
+      duration: 120,
+    });
+
+    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
+    expect(slotStartHours).not.toContain(9);
+    expect(slots.length).toBeGreaterThan(0);
   });
 });

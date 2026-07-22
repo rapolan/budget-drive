@@ -27,18 +27,22 @@ const formatDate = (date: Date): string => {
 };
 
 /**
- * Find available time slots for scheduling lessons
+ * Find available time slots for scheduling lessons.
+ *
+ * Batched: issues a small, fixed number of queries for the whole request
+ * (settings, instructor list, availability, time-off, lessons) rather than
+ * looping per-day-per-instructor, then computes availability/time-off/slot
+ * generation entirely in memory from the pre-fetched data.
  */
 export const findAvailableSlots = async (
   request: AvailabilityRequest
 ): Promise<TimeSlot[]> => {
   const { tenantId, instructorId, vehicleId, startDate, endDate, duration, studentId } = request;
 
-  // Get scheduling settings
   const settings = await getSchedulingSettings(tenantId);
   const bufferTime = settings.bufferTimeBetweenLessons;
-
-  const availableSlots: TimeSlot[] = [];
+  const startDateStr = formatDate(startDate);
+  const endDateStr = formatDate(endDate);
 
   // Get instructors to check (either specific one or all active instructors)
   let instructorsToCheck: string[] = [];
@@ -52,9 +56,68 @@ export const findAvailableSlots = async (
     instructorsToCheck = instructorsResult.rows.map((row: any) => row.id);
   }
 
-  // Get the student's own lessons in the date range so we never offer a slot
-  // that overlaps a lesson the student already has booked (Student dimension)
-  const studentLessonsByDate: Map<string, Array<{ start_time: string; end_time: string }>> = new Map();
+  if (instructorsToCheck.length === 0) {
+    return [];
+  }
+
+  // Query 1: availability blocks for ALL candidate instructors, keyed by
+  // (instructorId, dayOfWeek). day_of_week is static, so one query covers
+  // every day in the range regardless of how many days are requested.
+  const availabilityResult = await query(
+    `SELECT instructor_id, day_of_week, start_time, end_time, max_students
+     FROM instructor_availability
+     WHERE instructor_id = ANY($1) AND tenant_id = $2 AND is_active = true
+     ORDER BY instructor_id, day_of_week, start_time`,
+    [instructorsToCheck, tenantId]
+  );
+  const availabilityByInstructorDay = new Map<string, any[]>();
+  for (const row of availabilityResult.rows) {
+    const key = `${row.instructor_id}|${row.day_of_week}`;
+    const existing = availabilityByInstructorDay.get(key) || [];
+    existing.push(row);
+    availabilityByInstructorDay.set(key, existing);
+  }
+
+  // Query 2: approved time-off for ALL candidate instructors overlapping the
+  // whole requested date range.
+  const timeOffResult = await query(
+    `SELECT instructor_id, start_date, end_date, start_time, end_time
+     FROM instructor_time_off
+     WHERE instructor_id = ANY($1) AND tenant_id = $2
+     AND start_date <= $4 AND end_date >= $3
+     AND is_approved = true`,
+    [instructorsToCheck, tenantId, startDateStr, endDateStr]
+  );
+  const timeOffByInstructor = new Map<string, any[]>();
+  for (const row of timeOffResult.rows) {
+    const existing = timeOffByInstructor.get(row.instructor_id) || [];
+    existing.push(row);
+    timeOffByInstructor.set(row.instructor_id, existing);
+  }
+
+  // Query 3: lessons for ALL candidate instructors in the date range (used
+  // for the Instructor dimension's overlap exclusion).
+  const lessonsResult = await query(
+    `SELECT instructor_id, date, start_time, end_time
+     FROM lessons
+     WHERE instructor_id = ANY($1) AND tenant_id = $2
+     AND date >= $3 AND date <= $4
+     AND status NOT IN ('cancelled', 'no_show')`,
+    [instructorsToCheck, tenantId, startDateStr, endDateStr]
+  );
+  const lessonsByInstructorDate = new Map<string, any[]>();
+  for (const row of lessonsResult.rows) {
+    const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
+    const key = `${row.instructor_id}|${dateKey}`;
+    const existing = lessonsByInstructorDate.get(key) || [];
+    existing.push(row);
+    lessonsByInstructorDate.set(key, existing);
+  }
+
+  // Query 4: the student's own lessons in the date range, so we never offer
+  // a slot that overlaps a lesson the student already has booked (Student
+  // dimension) - independent of which instructor the slot belongs to.
+  const studentLessonsByDate = new Map<string, any[]>();
   if (studentId) {
     const studentLessonsResult = await query(
       `SELECT date, start_time, end_time
@@ -62,7 +125,7 @@ export const findAvailableSlots = async (
        WHERE student_id = $1 AND tenant_id = $2
        AND date >= $3 AND date <= $4
        AND status NOT IN ('cancelled', 'no_show')`,
-      [studentId, tenantId, formatDate(startDate), formatDate(endDate)]
+      [studentId, tenantId, startDateStr, endDateStr]
     );
     for (const row of studentLessonsResult.rows) {
       const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
@@ -72,7 +135,10 @@ export const findAvailableSlots = async (
     }
   }
 
-  // Iterate through each day in the date range
+  const availableSlots: TimeSlot[] = [];
+  const vehicleForLesson: string | null = vehicleId || null;
+
+  // Everything below is computed in memory - no further queries.
   const currentDate = new Date(startDate);
   const end = new Date(endDate);
 
@@ -80,66 +146,39 @@ export const findAvailableSlots = async (
     const dayOfWeek = getDayOfWeek(currentDate);
     const dateStr = formatDate(currentDate);
 
-    // Check each instructor
     for (const instId of instructorsToCheck) {
-      // Get ALL of the instructor's active availability blocks for this day of
-      // week (a split shift, e.g. morning + evening, is more than one row)
-      const instructorResult = await query(
-        `SELECT ia.start_time, ia.end_time, ia.max_students
-         FROM instructor_availability ia
-         WHERE ia.instructor_id = $1 AND ia.tenant_id = $2 AND ia.day_of_week = $3 AND ia.is_active = true
-         ORDER BY ia.start_time`,
-        [instId, tenantId, dayOfWeek]
-      );
-
-      if (instructorResult.rows.length === 0) {
+      const blocksForDay = availabilityByInstructorDay.get(`${instId}|${dayOfWeek}`) || [];
+      if (blocksForDay.length === 0) {
         continue; // Instructor doesn't work on this day
       }
 
-      // Check for time off
-      const timeOffResult = await query(
-        `SELECT * FROM instructor_time_off
-         WHERE instructor_id = $1 AND tenant_id = $2
-         AND start_date <= $3 AND end_date >= $3
-         AND is_approved = true`,
-        [instId, tenantId, dateStr]
+      // Time off: whole-day time-off (no start_time/end_time set) blocks the
+      // entire day; partial-day time-off only excludes overlapping blocks,
+      // handled per-block below (matches checkSchedulingConflicts's logic).
+      const timeOffForInstructor = timeOffByInstructor.get(instId) || [];
+      const timeOffToday = timeOffForInstructor.filter(
+        (t) => t.start_date <= dateStr && t.end_date >= dateStr
       );
-
-      if (timeOffResult.rows.length > 0) {
-        continue; // Instructor has time off on this day
+      const wholeDayBlocked = timeOffToday.some((t) => !t.start_time || !t.end_time);
+      if (wholeDayBlocked) {
+        continue;
       }
+      const partialDayTimeOff = timeOffToday.filter((t) => t.start_time && t.end_time);
 
-      // Get existing lessons for this instructor on this day
-      const lessonsResult = await query(
-        `SELECT date, start_time, end_time
-         FROM lessons
-         WHERE instructor_id = $1 AND tenant_id = $2
-         AND date = $3
-         AND status NOT IN ('cancelled', 'no_show')
-         ORDER BY start_time`,
-        [instId, tenantId, dateStr]
-      );
+      const instructorLessons = lessonsByInstructorDate.get(`${instId}|${dateStr}`) || [];
+      const studentLessonsToday = studentLessonsByDate.get(dateStr) || [];
 
       // Combine instructor's lessons with the student's own lessons that day
       // (Student dimension) - findSlotsInBlock excludes any theoretical slot
       // overlapping ANY entry in this list, regardless of whose lesson it is
-      const existingLessons = [
-        ...lessonsResult.rows,
-        ...(studentLessonsByDate.get(dateStr) || []),
-      ];
+      const existingLessons = [...instructorLessons, ...studentLessonsToday];
 
-      // Vehicle ID is provided via request parameter or can be null
-      const vehicleForLesson: string | null = vehicleId || null;
-
-      // Generate capacity-based slots independently for each availability
-      // block (split shifts each get their own slots, capped to their own
-      // end_time so a block's slots never bleed into another block's window)
-      for (const block of instructorResult.rows) {
+      for (const block of blocksForDay) {
         const blockStart = timeToMinutes(block.start_time);
         const blockEnd = timeToMinutes(block.end_time);
         const maxSlotsForBlock = block.max_students ?? settings.defaultMaxStudentsPerDay;
 
-        const slots = findSlotsInBlock(
+        let slots = findSlotsInBlock(
           blockStart,
           blockEnd,
           maxSlotsForBlock,
@@ -148,7 +187,13 @@ export const findAvailableSlots = async (
           bufferTime
         );
 
-        // Create TimeSlot objects
+        // Exclude any slot overlapping a partial-day time-off window
+        for (const timeOff of partialDayTimeOff) {
+          const offStart = timeToMinutes(timeOff.start_time);
+          const offEnd = timeToMinutes(timeOff.end_time);
+          slots = slots.filter((slot) => !(slot.start < offEnd && slot.end > offStart));
+        }
+
         for (const slot of slots) {
           const slotStart = new Date(currentDate);
           slotStart.setHours(Math.floor(slot.start / 60), slot.start % 60, 0, 0);
@@ -170,7 +215,6 @@ export const findAvailableSlots = async (
       }
     }
 
-    // Move to next day
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
