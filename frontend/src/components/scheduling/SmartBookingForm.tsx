@@ -22,6 +22,18 @@ type SlotWithProximity = RankedTimeSlot;
 
 type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
 
+// Conflict types that can genuinely change between search and confirm
+// because another booking landed in between - worth an automatic re-search.
+// outside_working_hours/time_off reflect schedule configuration, not a
+// timing race, so those stay as a plain error instead.
+const RACE_CONDITION_CONFLICT_TYPES = new Set([
+  'instructor_busy',
+  'vehicle_busy',
+  'student_busy',
+  'capacity_reached',
+  'buffer_violation',
+]);
+
 // Instructor-Based Grouped Availability View Component for SmartBookingForm
 interface GroupedAvailabilityViewProps {
   slots: SlotWithProximity[];
@@ -203,6 +215,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedInstructorCount, setFailedInstructorCount] = useState(0);
+  const [staleSlotNotice, setStaleSlotNotice] = useState<string | null>(null);
 
   // Step 1: Setup data
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
@@ -339,16 +352,17 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // Find available slots ranked by proximity - a single server call now
   // does the 6D search across candidate instructors and computes proximity,
   // rather than looping per-instructor and scoring client-side.
-  const handleFindSlots = async () => {
+  const handleFindSlots = async (): Promise<boolean> => {
     if (!selectedStudentId || !pickupZip) {
       setError('Please select a student and ensure pickup address has a valid zip code');
-      return;
+      return false;
     }
 
     try {
       setLoading(true);
       setError(null);
       setFailedInstructorCount(0);
+      setStaleSlotNotice(null);
 
       const result = await schedulingApi.findRankedAvailableSlots({
         studentId: selectedStudentId,
@@ -362,10 +376,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setSlotsWithProximity(result.slots);
       setFailedInstructorCount(result.failedInstructors.length);
       setStep('slots');
+      return true;
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Failed to find available slots';
       setError(getConflictMessage(err.response?.data?.conflictType, errorMsg));
       console.error('Error finding slots:', err);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -411,8 +427,23 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       const lesson = await lessonsApi.create(lessonData);
       onBookingComplete?.(lesson.data?.id || '');
     } catch (err: any) {
+      const conflictType = err.response?.data?.conflictType;
       const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create lesson';
-      setError(getConflictMessage(err.response?.data?.conflictType, errorMsg));
+
+      if (RACE_CONDITION_CONFLICT_TYPES.has(conflictType)) {
+        // Another booking landed between search and confirm - the slot we
+        // picked is stale. Re-run the search rather than just showing an
+        // error, since the fix is usually "pick a different slot." Only
+        // show the recovery notice if the re-search actually succeeded -
+        // if it also failed, handleFindSlots already set its own error and
+        // the user stays wherever they were.
+        const researchSucceeded = await handleFindSlots();
+        if (researchSucceeded) {
+          setStaleSlotNotice('That slot was just taken - here are updated options.');
+        }
+      } else {
+        setError(getConflictMessage(conflictType, errorMsg));
+      }
       console.error('Error creating lesson:', err);
     } finally {
       setLoading(false);
@@ -749,6 +780,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               <span className="text-amber-700">{pickupAddress}</span>
             </div>
           </div>
+
+          {/* Stale-slot recovery notice: shown after a confirm-time conflict auto-triggers a re-search */}
+          {staleSlotNotice && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              {staleSlotNotice}
+            </div>
+          )}
 
           {/* Non-blocking notice: some instructors' lookups failed but the search still succeeded for the rest */}
           {failedInstructorCount > 0 && (
