@@ -6,6 +6,7 @@ import { Student, Instructor, Lesson, RankedTimeSlot } from '@/types';
 import { ProgressStepper } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
+import { getConflictMessage } from '@/utils/conflictMessages';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -335,29 +336,6 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     setStep('confirm');
   }, [canSkipToConfirm, preselectedInstructor, preselectedDate, preselectedTime]);
 
-  // Translate raw backend error text into friendly, actionable copy
-  const getConflictMessage = (errorMessage: string): string => {
-    if (errorMessage.includes('instructor already has a lesson')) {
-      return 'This instructor already has another lesson at this time. Please choose a different time slot.';
-    }
-    if (errorMessage.includes('student already has a lesson')) {
-      return 'This student already has another lesson scheduled at this time. Please choose a different time slot.';
-    }
-    if (errorMessage.includes('buffer time')) {
-      return 'There needs to be a 30-minute buffer between lessons. Please choose a time slot with more spacing.';
-    }
-    if (errorMessage.includes('capacity')) {
-      return 'This instructor has reached their maximum students for the day. Please choose a different day.';
-    }
-    if (errorMessage.includes('outside availability')) {
-      return 'This time is outside the instructor\'s available hours. Please choose a different time slot.';
-    }
-    if (errorMessage.includes('vehicle is not available')) {
-      return 'The vehicle is already in use at this time. Please choose a different time slot.';
-    }
-    return errorMessage;
-  };
-
   // Find available slots ranked by proximity - a single server call now
   // does the 6D search across candidate instructors and computes proximity,
   // rather than looping per-instructor and scoring client-side.
@@ -386,7 +364,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       setStep('slots');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Failed to find available slots';
-      setError(getConflictMessage(errorMsg));
+      setError(getConflictMessage(err.response?.data?.conflictType, errorMsg));
       console.error('Error finding slots:', err);
     } finally {
       setLoading(false);
@@ -434,7 +412,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       onBookingComplete?.(lesson.data?.id || '');
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create lesson';
-      setError(getConflictMessage(errorMsg));
+      setError(getConflictMessage(err.response?.data?.conflictType, errorMsg));
       console.error('Error creating lesson:', err);
     } finally {
       setLoading(false);

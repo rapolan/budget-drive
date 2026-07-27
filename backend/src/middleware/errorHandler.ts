@@ -4,15 +4,18 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
+import { SchedulingConflict } from '../types';
 
 export class AppError extends Error {
   statusCode: number;
   isOperational: boolean;
+  conflicts?: SchedulingConflict[];
 
-  constructor(message: string, statusCode: number = 500) {
+  constructor(message: string, statusCode: number = 500, conflicts?: SchedulingConflict[]) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
+    this.conflicts = conflicts;
 
     Error.captureStackTrace(this, this.constructor);
   }
@@ -30,10 +33,12 @@ export const errorHandler = (
   let isOperational = false;
 
   // Check if it's our custom AppError
+  let conflicts: SchedulingConflict[] | undefined;
   if (err instanceof AppError) {
     statusCode = err.statusCode;
     message = err.message;
     isOperational = err.isOperational;
+    conflicts = err.conflicts;
   }
 
   // Log error
@@ -50,6 +55,10 @@ export const errorHandler = (
   res.status(statusCode).json({
     success: false,
     error: message,
+    ...(conflicts?.length && {
+      conflictType: conflicts[0].type,
+      conflicts,
+    }),
     ...(process.env.NODE_ENV === 'development' && {
       stack: err.stack,
       details: err,

@@ -7,7 +7,7 @@
  */
 
 import { query } from '../config/database';
-import { Lesson } from '../types';
+import { Lesson, SchedulingConflict } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import treasuryService from './treasuryService';
 import { ledger } from './Ledger';
@@ -331,7 +331,10 @@ export const createLesson = async (
             logger.debug('Auto-assigned available school-owned vehicle', { tenantId, instructorId: data.instructorId, vehicleId: data.vehicleId });
           } else {
             logger.warn('All school-owned vehicles are busy at the requested time', { tenantId, instructorId: data.instructorId, lessonDate, lessonStartTime, endTime });
-            throw new AppError('Scheduling conflict: Vehicle is already assigned to another lesson', 409);
+            const vehicleConflict: SchedulingConflict[] = [
+              { type: 'vehicle_busy', message: 'Vehicle is already assigned to another lesson' },
+            ];
+            throw new AppError('Scheduling conflict: Vehicle is already assigned to another lesson', 409, vehicleConflict);
           }
         }
       }
@@ -348,7 +351,7 @@ export const createLesson = async (
     );
     if (!valid) {
       logger.warn('Scheduling conflict detected', { tenantId, conflicts });
-      throw new AppError('Scheduling conflict: ' + conflicts.map((c: any) => c.message).join('; '), 409);
+      throw new AppError('Scheduling conflict: ' + conflicts.map((c: any) => c.message).join('; '), 409, conflicts);
     }
 
     logger.debug('Inserting lesson into database', { tenantId });
