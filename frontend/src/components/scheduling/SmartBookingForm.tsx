@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText, Sun, Sunset, Moon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi } from '@/api';
-import { Student, Instructor, Lesson, RankedTimeSlot } from '@/types';
+import { Student, Instructor, Lesson, RankedTimeSlot, CreateLessonInput, FindRankedSlotsResult } from '@/types';
 import { ProgressStepper } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
@@ -212,7 +212,6 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   // Steps: 'setup' (student, pickup, duration, type) -> 'filter' (date/time prefs) -> 'slots' (ranked slots) -> 'confirm'
   const [step, setStep] = useState<'setup' | 'slots' | 'confirm'>(canSkipToConfirm ? 'confirm' : 'setup');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedInstructorCount, setFailedInstructorCount] = useState(0);
   const [staleSlotNotice, setStaleSlotNotice] = useState<string | null>(null);
@@ -240,6 +239,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // Search states
   const [studentSearch, setStudentSearch] = useState('');
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
+  const queryClient = useQueryClient();
 
   // Fetch data
   const { data: studentsData } = useQuery({
@@ -352,38 +353,43 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // Find available slots ranked by proximity - a single server call now
   // does the 6D search across candidate instructors and computes proximity,
   // rather than looping per-instructor and scoring client-side.
+  const findSlotsMutation = useMutation({
+    mutationFn: (): Promise<FindRankedSlotsResult> =>
+      schedulingApi.findRankedAvailableSlots({
+        studentId: selectedStudentId,
+        pickupZip: pickupZip!,
+        duration,
+        dateRange,
+        timePreference,
+        instructorId: preselectedInstructor?.id,
+      }),
+    onSuccess: (result) => {
+      setSlotsWithProximity(result.slots);
+      setFailedInstructorCount(result.failedInstructors.length);
+      setStep('slots');
+    },
+  });
+
+  // Returns whether the search succeeded, so callers (e.g. the stale-slot
+  // recovery path below) can tell if the re-search itself also failed.
   const handleFindSlots = async (): Promise<boolean> => {
     if (!selectedStudentId || !pickupZip) {
       setError('Please select a student and ensure pickup address has a valid zip code');
       return false;
     }
 
+    setError(null);
+    setFailedInstructorCount(0);
+    setStaleSlotNotice(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      setFailedInstructorCount(0);
-      setStaleSlotNotice(null);
-
-      const result = await schedulingApi.findRankedAvailableSlots({
-        studentId: selectedStudentId,
-        pickupZip,
-        duration,
-        dateRange,
-        timePreference,
-        instructorId: preselectedInstructor?.id,
-      });
-
-      setSlotsWithProximity(result.slots);
-      setFailedInstructorCount(result.failedInstructors.length);
-      setStep('slots');
+      await findSlotsMutation.mutateAsync();
       return true;
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || 'Failed to find available slots';
       setError(getConflictMessage(err.response?.data?.conflictType, errorMsg));
       console.error('Error finding slots:', err);
       return false;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -392,39 +398,51 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     setStep('confirm');
   };
 
+  const confirmBookingMutation = useMutation({
+    mutationFn: (lessonData: CreateLessonInput) => lessonsApi.create(lessonData),
+    onSuccess: () => {
+      // Match Lessons.tsx's invalidateAllLessonQueries: catches the Weekly
+      // view's 'instructor-lessons'-keyed queries too, not just 'lessons'.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === 'lessons' || query.queryKey[0] === 'instructor-lessons',
+      });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+    },
+  });
+
   const handleConfirmBooking = async () => {
     if (!selectedSlot) return;
 
+    setError(null);
+
+    const dateStr = selectedSlot.date;
+    let scheduledStart: string;
+    let scheduledEnd: string;
+
+    if (selectedSlot.startTime.includes('T')) {
+      scheduledStart = selectedSlot.startTime;
+      scheduledEnd = selectedSlot.endTime;
+    } else {
+      scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
+      scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
+    }
+
+    const lessonData: any = {
+      studentId: selectedStudentId,
+      instructorId: selectedSlot.instructorId,
+      vehicleId: null,
+      scheduledStart,
+      scheduledEnd,
+      lessonType,
+      cost,
+      pickupAddress: pickupAddress || null,
+      notes: notes || null,
+      lessonNumber: lessonNumber || null,
+    };
+
     try {
-      setLoading(true);
-      setError(null);
-
-      const dateStr = selectedSlot.date;
-      let scheduledStart: string;
-      let scheduledEnd: string;
-      
-      if (selectedSlot.startTime.includes('T')) {
-        scheduledStart = selectedSlot.startTime;
-        scheduledEnd = selectedSlot.endTime;
-      } else {
-        scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
-        scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
-      }
-
-      const lessonData: any = {
-        studentId: selectedStudentId,
-        instructorId: selectedSlot.instructorId,
-        vehicleId: null,
-        scheduledStart,
-        scheduledEnd,
-        lessonType,
-        cost,
-        pickupAddress: pickupAddress || null,
-        notes: notes || null,
-        lessonNumber: lessonNumber || null,
-      };
-
-      const lesson = await lessonsApi.create(lessonData);
+      const lesson = await confirmBookingMutation.mutateAsync(lessonData);
       onBookingComplete?.(lesson.data?.id || '');
     } catch (err: any) {
       const conflictType = err.response?.data?.conflictType;
@@ -445,10 +463,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         setError(getConflictMessage(conflictType, errorMsg));
       }
       console.error('Error creating lesson:', err);
-    } finally {
-      setLoading(false);
     }
   };
+
+  const loading = findSlotsMutation.isPending || confirmBookingMutation.isPending;
 
   const formatTime = (time: string) => {
     let hour: number, minutes: string;
