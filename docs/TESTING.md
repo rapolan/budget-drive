@@ -54,14 +54,14 @@ const client = new Client({ host: process.env.DB_HOST, port: process.env.DB_PORT
 
 ### 1.4 Run migrations
 
-> **Important:** `npm run migrate` (`database/run-migration.js`) only applies `001_complete_schema.sql`. It does **not** run later migration files. Use `run-all-migrations.js` directly so `002_idempotent_updates.sql` and `003_instructor_availability_columns.sql` are applied too:
+The full schema now lives in a single `001_baseline.sql` file, so either the direct migration runner or the "run all" script works:
 
 ```bash
 cd backend
 node database/run-all-migrations.js
 ```
 
-Expected output: all migration files listed with `✅ ... completed` (or `⏭️ already applied` on a re-run).
+Expected output: `001_baseline.sql` listed with `✅ ... completed` (or `⏭️ already applied` on a re-run).
 
 ### 1.5 Seed the database
 
@@ -215,5 +215,4 @@ curl http://localhost:4000/api/v1/treasury/status \
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.
-- **`npm run migrate` is incomplete** (see §1.4) — always use `run-all-migrations.js` for a full setup, not the `npm run migrate` script alone.
 - Port `4000` may already be in use by an unrelated local process on some machines — if `npm run dev` fails with `EADDRINUSE`, set `PORT` in `backend/.env` to a free port and update `frontend/.env`'s `VITE_API_URL` to match.

@@ -28,11 +28,11 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 - Typecheck frontend: `cd frontend && npx tsc --noEmit`
 - Tests: `cd backend && npm test` (Vitest). Tenant-isolation tests must always pass.
 - Lint: `npm run lint` in the relevant package
-- Migrations: `cd backend && npm run migrate` (numbered SQL files in `backend/database/migrations`)
+- Migrations: `cd backend && npm run migrate` (numbered SQL files in `backend/database/migrations`). A single `001_baseline.sql` currently holds the full schema, so this command alone is sufficient — no separate "run all migrations" step needed.
 
 ## Conventions
 
-- New migrations are **append-only**: add a new numbered `.sql` file; never edit an existing migration.
+- New migrations are **append-only**: add a new numbered `.sql` file; never edit an existing migration. `001_baseline` was squashed pre-production on 2026-07-27 (zero production databases existed at the time). From the first production deployment onward, migrations are append-only with NO exceptions — never squash, renumber, or edit an existing migration again.
 - API responses follow the existing `{ success, data, message }` envelope — match it.
 - Validation with `express-validator` at the route layer, mirroring existing routes.
 - No new dependencies without asking first. The dependency list was recently pruned — keep it lean.

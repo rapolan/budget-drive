@@ -22,16 +22,16 @@ async function runMigration() {
     console.log('✅ Connected to database');
 
     // Read migration file
-    const migrationPath = path.join(__dirname, 'migrations', '001_complete_schema.sql');
+    const migrationPath = path.join(__dirname, 'migrations', '001_baseline.sql');
     const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
 
-    console.log('📦 Running migration: 001_complete_schema.sql...');
+    console.log('📦 Running migration: 001_baseline.sql...');
 
     // Run migration
     await client.query(migrationSQL);
 
     console.log('✅ Migration completed successfully!');
-    console.log('\n📊 Tables created: 23');
+    console.log('\n📊 Tables created: 32');
     console.log('📊 Views created: 1');
     console.log('\nNext step: Run seed data with: node database/run-seed.js');
 
