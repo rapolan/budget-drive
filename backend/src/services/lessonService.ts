@@ -307,7 +307,7 @@ export const createLesson = async (
         );
 
         if (schoolVehiclesExistResult.rows.length === 0) {
-          logger.debug('No vehicle available to auto-assign - instructor will assign later', { tenantId });
+          logger.warn('No vehicle available to auto-assign - instructor will assign later', { tenantId });
         } else {
           const availableSchoolVehicleResult = await query(
             `SELECT v.id FROM vehicles v
