@@ -51,6 +51,26 @@ export const validateRequired = (fields: string[]) => {
   };
 };
 
+// Validate that at least one of several field groups is fully present in
+// the body. Useful when an endpoint accepts more than one equivalent
+// request shape (e.g. a composed scheduledStart/scheduledEnd datetime pair,
+// or separate date/startTime/endTime fields) and any one complete group is
+// sufficient.
+export const validateRequiredOneOf = (fieldGroups: string[][]) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const groupSatisfied = (fields: string[]) =>
+      fields.every((field) => req.body[field] || req.body[field] === 0 || req.body[field] === false);
+
+    if (fieldGroups.some(groupSatisfied)) {
+      next();
+      return;
+    }
+
+    const optionsDescription = fieldGroups.map((fields) => fields.join('+')).join(' OR ');
+    throw new AppError(`Missing required fields: one of (${optionsDescription})`, 400);
+  };
+};
+
 // Sanitize input (basic XSS prevention)
 export const sanitizeInput = (input: any): any => {
   if (typeof input === 'string') {

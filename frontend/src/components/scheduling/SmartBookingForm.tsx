@@ -4,7 +4,7 @@ import { Calendar, User, Clock, MapPin, CheckCircle, Sparkles, FileText, Sun, Su
 import { schedulingApi, lessonsApi, studentsApi } from '@/api';
 import { Student, Instructor, Lesson, RankedTimeSlot, CreateLessonInput, FindRankedSlotsResult } from '@/types';
 import { ProgressStepper } from '@/components/common';
-import { formatShortDate } from '@/utils/timeFormat';
+import { formatShortDate, formatLocalDate } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
 import { getConflictMessage } from '@/utils/conflictMessages';
 
@@ -334,7 +334,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   useEffect(() => {
     if (!canSkipToConfirm || !preselectedInstructor || !preselectedDate || !preselectedTime) return;
 
-    const slotDate = preselectedDate.toISOString().split('T')[0];
+    const slotDate = formatLocalDate(preselectedDate);
 
     setSelectedSlot({
       date: slotDate,
@@ -416,28 +416,35 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
     setError(null);
 
-    const dateStr = selectedSlot.date;
-    let scheduledStart: string;
-    let scheduledEnd: string;
+    // selectedSlot's start/end times come back either as bare HH:MM strings
+    // or as full ISO datetimes (ranked-slots vs. the preselected-slot-seed
+    // path) - extract just the LOCAL HH:MM:SS time portion either way (an
+    // ISO string's raw digits are UTC, not what formatTime displays to the
+    // user - must go through Date's local getters, same as formatTime does),
+    // and send date/startTime/endTime as separate fields (matching what
+    // lessonService.ts's else branch already parses with zero timezone
+    // conversion) instead of hand-composing a timezone-naive datetime string.
+    const extractTime = (value: string): string => {
+      if (!value.includes('T')) return `${value}:00`;
+      const date = new Date(value);
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${hours}:${minutes}:${seconds}`;
+    };
 
-    if (selectedSlot.startTime.includes('T')) {
-      scheduledStart = selectedSlot.startTime;
-      scheduledEnd = selectedSlot.endTime;
-    } else {
-      scheduledStart = `${dateStr}T${selectedSlot.startTime}:00`;
-      scheduledEnd = `${dateStr}T${selectedSlot.endTime}:00`;
-    }
-
-    const lessonData: any = {
+    const lessonData: CreateLessonInput = {
       studentId: selectedStudentId,
       instructorId: selectedSlot.instructorId,
       vehicleId: null,
-      scheduledStart,
-      scheduledEnd,
+      date: selectedSlot.date,
+      startTime: extractTime(selectedSlot.startTime),
+      endTime: extractTime(selectedSlot.endTime),
+      duration,
       lessonType,
       cost,
       pickupAddress: pickupAddress || null,
-      notes: notes || null,
+      notes: notes || undefined,
       lessonNumber: lessonNumber || null,
     };
 

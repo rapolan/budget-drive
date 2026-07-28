@@ -7,7 +7,7 @@ import { Router } from 'express';
 import * as lessonController from '../controllers/lessonController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import { validateUUID, validateRequired } from '../middleware/validate';
+import { validateUUID, validateRequired, validateRequiredOneOf } from '../middleware/validate';
 
 const router = Router();
 
@@ -47,10 +47,16 @@ router.get(
   lessonController.getAllLessons
 );
 
-// Create new lesson
+// Create new lesson - accepts either composed scheduledStart/scheduledEnd
+// datetimes, or separate date/startTime/endTime fields (lessonService.ts's
+// createLesson already supports both shapes)
 router.post(
   '/lessons',
-  validateRequired(['studentId', 'instructorId', 'scheduledStart', 'scheduledEnd']),
+  validateRequired(['studentId', 'instructorId']),
+  validateRequiredOneOf([
+    ['scheduledStart', 'scheduledEnd'],
+    ['date', 'startTime', 'endTime'],
+  ]),
   lessonController.createLesson
 );
 
