@@ -99,7 +99,7 @@ BEGIN
     VALUES (
         '11111111-0000-0000-0000-000000000003',
         'priya.patel@budgetdrivingschool.com',
-        '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        '$2b$10$1IviFMzjjx.zepMl8zzqJua4Cl.yI6KJcUaoUmSuwp8/H/2iDCG7i',
         'Priya Patel', TRUE, 'active'
     )
     ON CONFLICT (email) DO NOTHING;

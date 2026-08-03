@@ -31,7 +31,7 @@ BEGIN
     -- =====================================================
     -- INSTRUCTOR APP USER ACCOUNTS
     -- Password for both: InstructorPass123!
-    -- Hash: $2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
+    -- Hash: $2b$10$1IviFMzjjx.zepMl8zzqJua4Cl.yI6KJcUaoUmSuwp8/H/2iDCG7i
     -- =====================================================
 
     -- John Smith user account (instructor role)
@@ -39,7 +39,7 @@ BEGIN
     VALUES (
         '11111111-0000-0000-0000-000000000001',
         'john.smith@budgetdrivingschool.com',
-        '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        '$2b$10$1IviFMzjjx.zepMl8zzqJua4Cl.yI6KJcUaoUmSuwp8/H/2iDCG7i',
         'John Smith',
         TRUE,
         'active'
@@ -51,7 +51,7 @@ BEGIN
     VALUES (
         '11111111-0000-0000-0000-000000000002',
         'maria.rodriguez@budgetdrivingschool.com',
-        '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        '$2b$10$1IviFMzjjx.zepMl8zzqJua4Cl.yI6KJcUaoUmSuwp8/H/2iDCG7i',
         'Maria Rodriguez',
         TRUE,
         'active'

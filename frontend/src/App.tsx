@@ -19,6 +19,7 @@ import { PaymentsPage } from '@/pages/Payments';
 import NotificationHistory from '@/pages/NotificationHistory';
 import { SettingsPage } from '@/pages/Settings';
 import { LoginPage } from '@/pages/Login';
+import { AcceptInvitePage } from '@/pages/AcceptInvite';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -65,6 +66,7 @@ function AppRoutes() {
     <Routes>
       {/* Public route - Login */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
       {/* Protected routes */}
       <Route

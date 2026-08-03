@@ -49,3 +49,4 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 2. `npm run lint` clean
 3. Tests pass (and new logic has tests if it's auth, tenant scoping, scheduling conflicts, or payments)
 4. No secrets, keys, or WIFs in code or committed config
+5. Any change that adds or alters a schema-referenced column, table, or type includes its migration file in the SAME commit.

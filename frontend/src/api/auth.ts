@@ -54,4 +54,12 @@ export const authApi = {
     });
     return response.data;
   },
+
+  acceptInvite: async (token: string, password: string): Promise<ApiResponse<void>> => {
+    const response = await apiClient.post<ApiResponse<void>>('/auth/accept-invite', {
+      token,
+      password,
+    });
+    return response.data;
+  },
 };
