@@ -11,7 +11,7 @@ import { config } from './config/env';
 import { query } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { sanitizeBody } from './middleware/validate';
-import { apiLimiter, authLimiter } from './middleware/rateLimiter';
+import { apiLimiter } from './middleware/rateLimiter';
 import {
   requestLoggingMiddleware,
   errorLoggingMiddleware,
@@ -137,7 +137,7 @@ app.get(`${API_PREFIX}/calendar-feed/:token.ics`, async (req: Request, res: Resp
   }
 });
 
-app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes); // Auth routes (public)
+app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (authLimiter applied per-route in authRoutes.ts, credential endpoints only)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
 app.use(API_PREFIX, instructorRoutes);
