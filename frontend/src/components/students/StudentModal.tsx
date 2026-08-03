@@ -236,9 +236,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-[2px] p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-white/60">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
         {/* Header - Clean & Minimal */}
-        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-white/40 px-6 py-4 z-10">
+        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
@@ -305,8 +305,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
         {/* Tabs - Only show for existing students - Minimal pill style */}
         {isEditing && (
-          <div className="px-6 py-3 bg-surface/20 border-b border-white/30 backdrop-blur-sm">
-            <nav className="flex gap-1 bg-surface/40 border border-white/50 p-1 rounded-xl" aria-label="Tabs">
+          <div className="px-6 py-3 bg-surface/20 border-b border-edge-glass/30 backdrop-blur-sm">
+            <nav className="flex gap-1 bg-surface/40 border border-edge-glass/50 p-1 rounded-xl" aria-label="Tabs">
               <button
                 type="button"
                 onClick={() => setActiveTab('details')}

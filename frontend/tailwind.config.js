@@ -31,10 +31,12 @@ export default {
         // `edge` avoids the collision and is reachable as border-edge /
         // border-edge-strong - a clean alternative to the ~250 existing
         // border-[var(--border)] arbitrary-value call sites, which are left
-        // untouched, not swept in this change.
+        // untouched, not swept in this change. `glass` is the translucent
+        // white-channel border used by modal headers/containers.
         edge: {
           DEFAULT: 'rgb(var(--border-rgb) / <alpha-value>)',
           strong:  'rgb(var(--border-strong-rgb) / <alpha-value>)',
+          glass:   'rgb(var(--border-glass-rgb) / <alpha-value>)',
         },
       },
     },

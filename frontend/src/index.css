@@ -8,6 +8,14 @@
   --color-primary-rgb: 59 130 246;
 }
 
+/* Translucent glass-panel border (modal headers/containers) - always white
+   channels in both themes. The various /NN alpha suffixes already used at
+   each call site are what makes it read as a subtle hairline over a dark
+   surface in dark mode, same mechanism as light mode. */
+:root {
+  --border-glass-rgb: 255 255 255;
+}
+
 /* ─── Semantic surface/text tokens — light mode (default) ───────────────────── */
 /* Each token has a hex value (for direct var() consumers, e.g. body{}) and a
    space-separated -rgb companion (for Tailwind's rgb(var(...) / <alpha-value>)
