@@ -142,6 +142,12 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
           </div>
           <div>
             <label htmlFor="invite-role" className="block text-sm font-medium text-tx-secondary mb-1">Role</label>
+            {/* 'owner' is intentionally NOT offered here. Ownership is the
+                highest-privilege role (can grant/revoke other owners, is the
+                only role that can never be fully removed from a tenant), so
+                it's assigned only via an explicit role change made by an
+                existing owner - never through the invite flow. Don't add it
+                to this dropdown without reconsidering that boundary. */}
             <select
               id="invite-role"
               value={role}
@@ -152,11 +158,13 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
               <option value="admin">Admin</option>
               <option value="staff">Office Staff</option>
               <option value="instructor">Instructor</option>
+              <option value="viewer">Viewer</option>
             </select>
             <p className="mt-1 text-xs text-tx-muted">
               {role === 'instructor' && "Instructors can only view their own students and lessons."}
               {role === 'staff' && "Staff can manage all students and lessons but cannot access billing."}
               {role === 'admin' && "Admins have full access to everything in the school."}
+              {role === 'viewer' && "Viewers have read-only access to the school's data."}
             </p>
           </div>
           <div className="flex justify-end space-x-3 mt-6">
