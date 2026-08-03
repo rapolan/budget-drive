@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, AlertTriangle, CheckCircle, Clock, Hash, Calendar, User, FileText, MapPin } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson, CreateLessonInput } from '@/types';
+import { getConflictMessage } from '@/utils/conflictMessages';
 
 interface LessonModalProps {
   lesson: Lesson | null;
@@ -12,6 +13,7 @@ interface LessonModalProps {
 export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => {
   const queryClient = useQueryClient();
   const isEditing = Boolean(lesson);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<CreateLessonInput>({
     studentId: '',
@@ -241,6 +243,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
 
     // Validate required fields
     if (!formData.studentId || !formData.instructorId || !formData.vehicleId) {
@@ -281,10 +284,16 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       notes: formData.notes,
     };
 
-    if (isEditing) {
-      await updateMutation.mutateAsync(lessonData as any);
-    } else {
-      await createMutation.mutateAsync(lessonData as any);
+    try {
+      if (isEditing) {
+        await updateMutation.mutateAsync(lessonData as any);
+      } else {
+        await createMutation.mutateAsync(lessonData as any);
+      }
+    } catch (err: any) {
+      const conflictType = err.response?.data?.conflictType;
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to save lesson';
+      setSubmitError(getConflictMessage(conflictType, errorMsg));
     }
   };
 
@@ -644,6 +653,15 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Server-side conflict / error banner (e.g. an edit that collides
+              with another lesson once the 6D scheduling check runs) */}
+          {submitError && (
+            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+              <p className="text-sm text-red-900">{submitError}</p>
             </div>
           )}
 

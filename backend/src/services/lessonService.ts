@@ -596,6 +596,16 @@ export const updateLesson = async (
   });
 
   try {
+    const existingResult = await query(
+      'SELECT * FROM lessons WHERE id = $1 AND tenant_id = $2',
+      [id, tenantId]
+    );
+    if (existingResult.rows.length === 0) {
+      logger.warn('Lesson not found for update', { tenantId, lessonId: id });
+      throw new AppError('Lesson not found', 404);
+    }
+    const existing = keysToCamel(existingResult.rows[0]) as Lesson;
+
     const fields: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -632,6 +642,23 @@ export const updateLesson = async (
       }
       fields.push(`vehicle_id = $${paramCount++}`);
       values.push(data.vehicleId);
+    }
+
+    if (data.studentId !== undefined) {
+      const studentCheck = await query(
+        'SELECT id FROM students WHERE id = $1 AND tenant_id = $2',
+        [data.studentId, tenantId]
+      );
+      if (studentCheck.rows.length === 0) {
+        logger.error('Student not found for lesson update', undefined, {
+          tenantId,
+          lessonId: id,
+          studentId: data.studentId,
+        });
+        throw new AppError('Student not found or does not belong to this organization', 404);
+      }
+      fields.push(`student_id = $${paramCount++}`);
+      values.push(data.studentId);
     }
 
   if (data.date !== undefined) {
@@ -690,6 +717,50 @@ export const updateLesson = async (
   if (fields.length === 0) {
       logger.warn('No fields to update in lesson', { tenantId, lessonId: id });
       throw new AppError('No fields to update', 400);
+    }
+
+    // Only re-run the 6D scheduling check when this edit actually touches a
+    // schedule-relevant field. Edits to notes/status/cost/etc. never conflict
+    // with anything and shouldn't pay the cost of (or be blocked by) it.
+    const touchesSchedule =
+      data.date !== undefined ||
+      data.startTime !== undefined ||
+      data.endTime !== undefined ||
+      data.instructorId !== undefined ||
+      data.vehicleId !== undefined ||
+      data.studentId !== undefined;
+
+    if (touchesSchedule) {
+      const mergedInstructorId = data.instructorId ?? existing.instructorId;
+      const mergedStudentId = data.studentId ?? existing.studentId;
+      const mergedVehicleId = data.vehicleId !== undefined ? data.vehicleId : existing.vehicleId;
+      // existing.date comes back from pg as a native Date object (the `date`
+      // column type); data.date, if provided, is a plain YYYY-MM-DD string
+      // from the request body. Normalize both to the string form the create
+      // path already relies on for this same template-string construction.
+      const existingDateStr = existing.date instanceof Date
+        ? existing.date.toISOString().split('T')[0]
+        : existing.date;
+      const mergedDate = data.date ?? existingDateStr;
+      const mergedStartTime = data.startTime ?? existing.startTime;
+      const mergedEndTime = data.endTime ?? existing.endTime;
+
+      const startDate = new Date(`${mergedDate}T${mergedStartTime}`);
+      const endDate = new Date(`${mergedDate}T${mergedEndTime}`);
+
+      const { valid, conflicts } = await validateLessonBooking(
+        tenantId,
+        mergedInstructorId,
+        mergedStudentId,
+        mergedVehicleId || null,
+        startDate,
+        endDate,
+        id
+      );
+      if (!valid) {
+        logger.warn('Scheduling conflict detected on lesson update', { tenantId, lessonId: id, conflicts });
+        throw new AppError('Scheduling conflict: ' + conflicts.map((c: any) => c.message).join('; '), 409, conflicts);
+      }
     }
 
     values.push(id, tenantId);
