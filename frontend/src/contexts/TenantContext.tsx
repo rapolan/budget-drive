@@ -14,13 +14,17 @@ interface TenantContextType {
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
-/** Convert #rrggbb or #rgb to "r, g, b" for use in rgba(). Returns null on invalid input. */
+/**
+ * Convert #rrggbb or #rgb to "r g b" (space-separated) for Tailwind's
+ * rgb(var(--token) / <alpha-value>) opacity-modifier pattern. Returns null
+ * on invalid input.
+ */
 function hexToRgbString(hex: string): string | null {
   const clean = hex.replace('#', '');
   const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
   const num = parseInt(full, 16);
   if (isNaN(num)) return null;
-  return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`;
+  return `${(num >> 16) & 255} ${(num >> 8) & 255} ${num & 255}`;
 }
 
 function applyTheme(settings: TenantSettings, tenantName: string) {
