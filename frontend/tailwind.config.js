@@ -38,6 +38,33 @@ export default {
           strong:  'rgb(var(--border-strong-rgb) / <alpha-value>)',
           glass:   'rgb(var(--border-glass-rgb) / <alpha-value>)',
         },
+        // Status/intent tokens - each intent needs its own bg, text, and
+        // border value (they don't share one alpha-scalable value the way
+        // `edge` does), reachable as bg-status-info, text-status-info,
+        // border-status-info, etc. Replaces hardcoded Tailwind color
+        // classes (bg-blue-50, text-green-800, border-red-200...) app-wide.
+        status: {
+          info: {
+            bg:     'rgb(var(--status-info-bg-rgb) / <alpha-value>)',
+            text:   'rgb(var(--status-info-text-rgb) / <alpha-value>)',
+            border: 'rgb(var(--status-info-border-rgb) / <alpha-value>)',
+          },
+          success: {
+            bg:     'rgb(var(--status-success-bg-rgb) / <alpha-value>)',
+            text:   'rgb(var(--status-success-text-rgb) / <alpha-value>)',
+            border: 'rgb(var(--status-success-border-rgb) / <alpha-value>)',
+          },
+          warning: {
+            bg:     'rgb(var(--status-warning-bg-rgb) / <alpha-value>)',
+            text:   'rgb(var(--status-warning-text-rgb) / <alpha-value>)',
+            border: 'rgb(var(--status-warning-border-rgb) / <alpha-value>)',
+          },
+          danger: {
+            bg:     'rgb(var(--status-danger-bg-rgb) / <alpha-value>)',
+            text:   'rgb(var(--status-danger-text-rgb) / <alpha-value>)',
+            border: 'rgb(var(--status-danger-border-rgb) / <alpha-value>)',
+          },
+        },
       },
     },
   },

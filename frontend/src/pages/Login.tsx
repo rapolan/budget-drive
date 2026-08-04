@@ -77,9 +77,9 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error Message */}
             {displayError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{displayError}</p>
+              <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-status-danger-text flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-status-danger-text">{displayError}</p>
               </div>
             )}
 

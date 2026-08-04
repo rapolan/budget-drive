@@ -292,30 +292,30 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
     <div className="space-y-4">
       {/* Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+        <div className="bg-status-info-bg rounded-xl p-4 border border-status-info-border">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary rounded-lg">
               <CalendarDays className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-blue-900">{monthlyStats.totalLessons}</p>
+              <p className="text-2xl font-bold text-status-info-text">{monthlyStats.totalLessons}</p>
               <p className="text-xs text-primary font-medium">Lessons This Month</p>
             </div>
           </div>
         </div>
-        
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+
+        <div className="bg-status-success-bg rounded-xl p-4 border border-status-success-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500 rounded-lg">
+            <div className="p-2 bg-status-success-text rounded-lg">
               <Clock className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-900">{monthlyStats.openSlots}</p>
-              <p className="text-xs text-green-600 font-medium">Available Slots</p>
+              <p className="text-2xl font-bold text-status-success-text">{monthlyStats.openSlots}</p>
+              <p className="text-xs text-status-success-text font-medium">Available Slots</p>
             </div>
           </div>
         </div>
-        
+
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-500 rounded-lg">
@@ -327,15 +327,15 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             </div>
           </div>
         </div>
-        
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+
+        <div className="bg-status-warning-bg rounded-xl p-4 border border-status-warning-border">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-500 rounded-lg">
+            <div className="p-2 bg-status-warning-text rounded-lg">
               <TrendingUp className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-amber-900">{monthlyStats.utilizationRate}%</p>
-              <p className="text-xs text-amber-600 font-medium">Utilization</p>
+              <p className="text-2xl font-bold text-status-warning-text">{monthlyStats.utilizationRate}%</p>
+              <p className="text-xs text-status-warning-text font-medium">Utilization</p>
             </div>
           </div>
         </div>
@@ -385,8 +385,8 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
               <div
                 key={day}
                 className={`py-3 text-center text-xs font-semibold uppercase tracking-wider ${
-                  isTodayColumn 
-                    ? 'bg-gradient-to-b from-blue-100 to-blue-50 text-blue-900' 
+                  isTodayColumn
+                    ? 'bg-status-info-bg text-status-info-text'
                     : 'bg-surface2 text-tx-secondary'
                 }`}
               >
@@ -419,14 +419,14 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
           if (hasActivity && calendarDay.isCurrentMonth) {
             if (totalSlots > 0) {
               if (availableSlots === 0) {
-                bgColor = 'bg-red-50'; // Fully booked
-                borderColor = 'border-l-2 border-red-400';
+                bgColor = 'bg-status-danger-bg'; // Fully booked
+                borderColor = 'border-l-2 border-status-danger-border';
               } else if (availableSlots <= 2) {
-                bgColor = 'bg-yellow-50'; // Limited availability
-                borderColor = 'border-l-2 border-yellow-400';
+                bgColor = 'bg-status-warning-bg'; // Limited availability
+                borderColor = 'border-l-2 border-status-warning-border';
               } else {
-                bgColor = 'bg-green-50'; // Good availability
-                borderColor = 'border-l-2 border-green-400';
+                bgColor = 'bg-status-success-bg'; // Good availability
+                borderColor = 'border-l-2 border-status-success-border';
               }
             }
           }
@@ -446,7 +446,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                 !calendarDay.isCurrentMonth
                   ? 'bg-surface2/50 cursor-default opacity-40'
                   : isTodayDate
-                  ? 'bg-gradient-to-b from-blue-50 to-blue-100/50'
+                  ? 'bg-status-info-bg'
                   : hasActivity
                   ? bgColor
                   : 'bg-surface'
@@ -458,9 +458,9 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             >
               {/* Today indicator bar */}
               {isTodayDate && (
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500"></div>
+                <div className="absolute inset-x-0 top-0 h-1 bg-primary"></div>
               )}
-              
+
               {/* Day number */}
               <div className="flex items-center justify-between mb-2">
                 <div
@@ -468,7 +468,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                     !calendarDay.isCurrentMonth
                       ? 'text-tx-muted'
                       : isTodayDate
-                      ? 'flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md'
+                      ? 'flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-md'
                       : 'text-tx-primary'
                   }`}
                 >
@@ -479,15 +479,15 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                 {hasActivity && calendarDay.isCurrentMonth && totalSlots > 0 && (
                   <div className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     availableSlots === 0
-                      ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800'
+                      ? 'bg-status-danger-bg text-status-danger-text'
                       : availableSlots <= 2
-                      ? 'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800'
-                      : 'bg-gradient-to-r from-green-100 to-green-200 text-green-800'
+                      ? 'bg-status-warning-bg text-status-warning-text'
+                      : 'bg-status-success-bg text-status-success-text'
                   }`}>
                     {availableSlots === 0 ? 'FULL' : `${availableSlots} open`}
                   </div>
                 )}
-                
+
                 {/* Today badge */}
                 {isTodayDate && (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary text-white animate-pulse">
@@ -497,7 +497,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
 
                 {/* Search match badge */}
                 {hasSearchMatches && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-status-warning-text text-white">
                     {matchingCount} match{matchingCount > 1 ? 'es' : ''}
                   </span>
                 )}
@@ -537,19 +537,19 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         {/* Legend */}
         <div className="mt-4 flex items-center justify-center gap-8 text-sm text-tx-secondary py-3 bg-surface2 rounded-xl border border-[var(--border)]">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-green-50 to-green-100 border-l-2 border-green-400"></div>
+            <div className="w-5 h-5 rounded-lg bg-status-success-bg border-l-2 border-status-success-border"></div>
             <span className="font-medium">Available</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 border-l-2 border-amber-400"></div>
+            <div className="w-5 h-5 rounded-lg bg-status-warning-bg border-l-2 border-status-warning-border"></div>
             <span className="font-medium">Limited</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-lg bg-gradient-to-br from-red-50 to-red-100 border-l-2 border-red-400"></div>
+            <div className="w-5 h-5 rounded-lg bg-status-danger-bg border-l-2 border-status-danger-border"></div>
             <span className="font-medium">Full</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-lg bg-gradient-to-b from-blue-100 to-blue-50 border-t-2 border-primary"></div>
+            <div className="w-5 h-5 rounded-lg bg-status-info-bg border-t-2 border-primary"></div>
             <span className="font-medium">Today</span>
           </div>
         </div>
@@ -599,22 +599,22 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
                 <p className="text-xs font-semibold text-tx-muted uppercase tracking-wider mb-1.5">Lessons</p>
                 <div className="flex flex-wrap gap-2">
                   {data.scheduled > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-primary font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-status-info-bg text-primary font-medium">
                       {data.scheduled} scheduled
                     </span>
                   )}
                   {data.completed > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-status-success-bg text-status-success-text font-medium">
                       {data.completed} completed
                     </span>
                   )}
                   {data.cancelled > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-status-danger-bg text-status-danger-text font-medium">
                       {data.cancelled} cancelled
                     </span>
                   )}
                   {data.noShow > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-status-warning-bg text-status-warning-text font-medium">
                       {data.noShow} no-show
                     </span>
                   )}
@@ -626,8 +626,8 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             <div className="mb-3">
               <p className="text-xs font-semibold text-tx-muted uppercase tracking-wider mb-1">Availability</p>
               <span className={`text-sm font-bold ${
-                data.availableSlots === 0 ? 'text-red-600' :
-                data.availableSlots <= 2 ? 'text-amber-600' : 'text-green-600'
+                data.availableSlots === 0 ? 'text-status-danger-text' :
+                data.availableSlots <= 2 ? 'text-status-warning-text' : 'text-status-success-text'
               }`}>
                 {data.availableSlots === 0 ? 'Fully booked' : `${data.availableSlots} open slot${data.availableSlots > 1 ? 's' : ''}`}
               </span>

@@ -94,7 +94,7 @@ export const InstructorEarningsPage: React.FC = () => {
                 setStartDate('');
                 setEndDate('');
               }}
-              className="px-3 py-1 text-sm text-primary hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+              className="px-3 py-1 text-sm text-primary hover:brightness-75 hover:bg-status-info-bg rounded transition-colors"
             >
               Clear date filters
             </button>
@@ -107,7 +107,7 @@ export const InstructorEarningsPage: React.FC = () => {
         <div>
           {/* Instructor Info Header */}
           {selectedInstructor && (
-            <div className="mb-4 rounded-lg bg-blue-50 p-4">
+            <div className="mb-4 rounded-lg bg-status-info-bg p-4">
               <div className="flex items-center">
                 <Award className="mr-3 h-8 w-8 text-primary" />
                 <div>
@@ -148,7 +148,7 @@ export const InstructorEarningsPage: React.FC = () => {
                       ${earnings.grossEarnings.toFixed(2)}
                     </p>
                   </div>
-                  <DollarSign className="h-12 w-12 text-green-500" />
+                  <DollarSign className="h-12 w-12 text-status-success-text" />
                 </div>
               </div>
 
@@ -157,14 +157,14 @@ export const InstructorEarningsPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-tx-secondary">BDP Fees</p>
-                    <p className="mt-2 text-3xl font-bold text-orange-600">
+                    <p className="mt-2 text-3xl font-bold text-status-warning-text">
                       ${earnings.totalFees.toFixed(8)}
                     </p>
                     <p className="mt-1 text-xs text-tx-muted">
                       Satoshi-level fees
                     </p>
                   </div>
-                  <TrendingUp className="h-12 w-12 text-orange-500" />
+                  <TrendingUp className="h-12 w-12 text-status-warning-text" />
                 </div>
               </div>
 
@@ -202,7 +202,7 @@ export const InstructorEarningsPage: React.FC = () => {
                 <p>
                   <strong>Net Earnings:</strong> Amount instructor receives after tiny BDP fees
                 </p>
-                <p className="mt-4 rounded border-l-4 border-primary bg-blue-50 p-3">
+                <p className="mt-4 rounded border-l-4 border-primary bg-status-info-bg p-3">
                   <strong>Why satoshi-level fees?</strong> Unlike traditional platforms that charge
                   10-30% commission, Budget Drive Protocol uses cost-based fees aligned with Craig Wright's
                   Bitcoin philosophy. Instructors keep 99.999%+ of their earnings.

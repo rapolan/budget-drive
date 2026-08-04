@@ -30,7 +30,7 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
                     transition-all duration-300 ease-in-out
                     ${
                       isCompleted
-                        ? 'border-green-500 bg-green-500 text-white scale-110'
+                        ? 'border-status-success-text bg-status-success-text text-white scale-110'
                         : isActive
                         ? 'border-primary bg-primary text-white scale-110 shadow-lg'
                         : 'border-[var(--border-strong)] bg-surface text-tx-muted'
@@ -66,7 +66,7 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
                         absolute left-0 top-0 h-full transition-all duration-500 ease-in-out
                         ${
                           isCompleted
-                            ? 'w-full bg-green-500'
+                            ? 'w-full bg-status-success-text'
                             : isActive
                             ? 'w-1/2 bg-primary'
                             : 'w-0 bg-surface3'

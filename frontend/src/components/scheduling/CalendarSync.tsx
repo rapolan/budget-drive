@@ -68,7 +68,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
   if (error) {
     return (
       <div className="bg-surface rounded-lg shadow p-6">
-        <div className="text-red-600">
+        <div className="text-status-danger-text">
           Failed to load calendar feed status. Please try again.
         </div>
       </div>
@@ -79,7 +79,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
     <div className="bg-surface rounded-lg shadow p-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-blue-100 rounded-lg">
+        <div className="p-2 bg-status-info-bg rounded-lg">
           <Calendar className="h-6 w-6 text-primary" />
         </div>
         <div>
@@ -89,15 +89,15 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
           </p>
         </div>
         {hasCalendarFeed && (
-          <span className="ml-auto text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+          <span className="ml-auto text-xs bg-status-success-bg text-status-success-text px-3 py-1 rounded-full font-medium">
             ✓ Active
           </span>
         )}
       </div>
 
       {/* Description */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-blue-800">
+      <div className="bg-status-info-bg border border-status-info-border rounded-lg p-4 mb-6">
+        <p className="text-sm text-status-info-text">
           <strong>How it works:</strong> Generate a calendar feed URL, then subscribe to it in your preferred calendar app 
           (Google Calendar, Apple Calendar, Outlook, etc.). All scheduled lessons will automatically appear in your calendar 
           and stay updated.
@@ -125,7 +125,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 title="Copy URL to clipboard"
                 className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 font-medium ${
                   copied
-                    ? 'bg-green-500 text-white'
+                    ? 'bg-status-success-text text-white'
                     : 'bg-primary text-white hover:brightness-90 hover:bg-primary'
                 }`}
               >
@@ -233,7 +233,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
           </div>
 
           {regenerateMutation.isSuccess && (
-            <div className="mt-3 text-sm text-amber-600 bg-amber-50 rounded-lg p-3 border border-amber-200">
+            <div className="mt-3 text-sm text-status-warning-text bg-status-warning-bg rounded-lg p-3 border border-status-warning-border">
               ⚠️ URL has been regenerated. The instructor will need to re-subscribe with the new URL.
             </div>
           )}

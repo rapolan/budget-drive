@@ -73,8 +73,8 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen bg-surface2 flex items-center justify-center p-4">
           <div className="max-w-2xl w-full bg-surface rounded-lg shadow-lg p-8">
-            <div className="flex items-center justify-center w-16 h-16 mx-auto bg-red-100 rounded-full">
-              <AlertTriangle className="w-8 h-8 text-red-600" />
+            <div className="flex items-center justify-center w-16 h-16 mx-auto bg-status-danger-bg rounded-full">
+              <AlertTriangle className="w-8 h-8 text-status-danger-text" />
             </div>
 
             <h1 className="mt-6 text-2xl font-bold text-center text-tx-primary">
@@ -89,7 +89,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {import.meta.env.DEV && this.state.error && (
               <div className="mt-6 p-4 bg-surface2 rounded-lg border border-[var(--border)]">
                 <h3 className="text-sm font-semibold text-tx-primary mb-2">Error Details (Development Only):</h3>
-                <div className="text-xs font-mono text-red-600 overflow-auto max-h-48">
+                <div className="text-xs font-mono text-status-danger-text overflow-auto max-h-48">
                   <p className="font-bold">{this.state.error.toString()}</p>
                   {this.state.errorInfo && (
                     <pre className="mt-2 whitespace-pre-wrap text-tx-secondary">

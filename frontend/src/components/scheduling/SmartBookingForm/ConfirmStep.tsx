@@ -44,9 +44,9 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
 }) => {
   return (
     <div className="p-6 space-y-6">
-      <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-6 border border-blue-200">
+      <div className="bg-status-info-bg rounded-lg p-6 border border-status-info-border">
         <h3 className="text-lg font-semibold text-tx-primary mb-4 flex items-center">
-          <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+          <CheckCircle className="h-5 w-5 text-status-success-text mr-2" />
           Booking Summary
         </h3>
 

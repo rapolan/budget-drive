@@ -57,23 +57,23 @@ export const AcceptInvitePage: React.FC = () => {
 
         <div className="bg-surface rounded-2xl shadow-xl p-8">
           {success ? (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-700">Invite accepted. Redirecting to login...</p>
+            <div className="bg-status-success-bg border border-status-success-border rounded-lg p-4 flex items-start gap-3">
+              <CheckCircle2 className="h-5 w-5 text-status-success-text flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-status-success-text">Invite accepted. Redirecting to login...</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{error}</p>
+                <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-status-danger-text flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-status-danger-text">{error}</p>
                 </div>
               )}
 
               {!token && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-amber-700">
+                <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-status-warning-text flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-status-warning-text">
                     No invite token found in this link. Make sure you used the exact link from your invite.
                   </p>
                 </div>

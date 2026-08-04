@@ -52,9 +52,9 @@ export const PaymentsPage: React.FC = () => {
           </div>
 
           {/* Auth Notice */}
-          <div className="rounded-lg border-l-4 border-yellow-500 bg-yellow-50 p-6">
-            <h3 className="mb-2 font-semibold text-yellow-900">Authentication Required</h3>
-            <div className="space-y-2 text-sm text-yellow-800">
+          <div className="rounded-lg border-l-4 border-status-warning-border bg-status-warning-bg p-6">
+            <h3 className="mb-2 font-semibold text-status-warning-text">Authentication Required</h3>
+            <div className="space-y-2 text-sm text-status-warning-text">
               <p>
                 This page requires authentication to load student payment data.
               </p>
@@ -86,7 +86,7 @@ export const PaymentsPage: React.FC = () => {
     }
 
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+      <div className="bg-status-danger-bg border border-status-danger-border text-status-danger-text px-4 py-3 rounded">
         Error loading students data. Please try again.
       </div>
     );
@@ -154,11 +154,11 @@ export const PaymentsPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid':
-        return 'bg-green-100 text-green-800';
+        return 'bg-status-success-bg text-status-success-text';
       case 'partial':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-status-warning-bg text-status-warning-text';
       case 'unpaid':
-        return 'bg-red-100 text-red-800';
+        return 'bg-status-danger-bg text-status-danger-text';
       default:
         return 'bg-surface2 text-tx-primary';
     }
@@ -240,11 +240,11 @@ export const PaymentsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-tx-secondary">Total Collected</p>
-              <p className="mt-2 text-3xl font-bold text-green-600">
+              <p className="mt-2 text-3xl font-bold text-status-success-text">
                 ${totals.totalPaid.toFixed(2)}
               </p>
             </div>
-            <DollarSign className="h-12 w-12 text-green-500" />
+            <DollarSign className="h-12 w-12 text-status-success-text" />
           </div>
         </div>
 
@@ -253,11 +253,11 @@ export const PaymentsPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
-              <p className="mt-2 text-3xl font-bold text-red-600">
+              <p className="mt-2 text-3xl font-bold text-status-danger-text">
                 ${totals.totalOutstanding.toFixed(2)}
               </p>
             </div>
-            <CreditCard className="h-12 w-12 text-red-500" />
+            <CreditCard className="h-12 w-12 text-status-danger-text" />
           </div>
         </div>
       </div>
@@ -320,8 +320,8 @@ export const PaymentsPage: React.FC = () => {
                 <div
                   key={student.id}
                   className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all ${
-                    payment.status === 'paid' ? 'border-green-200' :
-                    payment.status === 'unpaid' ? 'border-red-200' :
+                    payment.status === 'paid' ? 'border-status-success-border' :
+                    payment.status === 'unpaid' ? 'border-status-danger-border' :
                     'border-[var(--border)] hover:brightness-110 hover:border-primary'
                   }`}
                 >
@@ -354,7 +354,7 @@ export const PaymentsPage: React.FC = () => {
                     <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-primary' : 'bg-amber-500'
+                          progressPercent >= 100 ? 'bg-status-success-text' : progressPercent >= 50 ? 'bg-primary' : 'bg-status-warning-text'
                         }`}
                         style={{ width: `${Math.min(100, progressPercent)}%` }}
                       />
@@ -367,13 +367,13 @@ export const PaymentsPage: React.FC = () => {
                       <div className="text-xs text-tx-muted">Total Due</div>
                       <div className="text-sm font-semibold text-tx-primary">${payment.totalDue.toFixed(2)}</div>
                     </div>
-                    <div className="bg-green-50 rounded-lg p-2">
+                    <div className="bg-status-success-bg rounded-lg p-2">
                       <div className="text-xs text-tx-muted">Paid</div>
-                      <div className="text-sm font-semibold text-green-600">${payment.paid.toFixed(2)}</div>
+                      <div className="text-sm font-semibold text-status-success-text">${payment.paid.toFixed(2)}</div>
                     </div>
-                    <div className={`rounded-lg p-2 ${payment.balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                    <div className={`rounded-lg p-2 ${payment.balance > 0 ? 'bg-status-danger-bg' : 'bg-status-success-bg'}`}>
                       <div className="text-xs text-tx-muted">Balance</div>
-                      <div className={`text-sm font-semibold ${payment.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <div className={`text-sm font-semibold ${payment.balance > 0 ? 'text-status-danger-text' : 'text-status-success-text'}`}>
                         ${payment.balance.toFixed(2)}
                       </div>
                     </div>
@@ -412,7 +412,7 @@ export const PaymentsPage: React.FC = () => {
                         setSelectedStudent(student);
                         setIsHistoryModalOpen(true);
                       }}
-                      className="p-2 text-tx-secondary hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-colors"
                       title="View History"
                     >
                       <History className="h-4 w-4" />
@@ -493,14 +493,14 @@ export const PaymentsPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
-                        <div className="text-sm font-medium text-green-600">
+                        <div className="text-sm font-medium text-status-success-text">
                           ${payment.paid.toFixed(2)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div
                           className={`text-sm font-medium ${
-                            payment.balance > 0 ? 'text-red-600' : 'text-green-600'
+                            payment.balance > 0 ? 'text-status-danger-text' : 'text-status-success-text'
                           }`}
                         >
                           ${payment.balance.toFixed(2)}
@@ -552,9 +552,9 @@ export const PaymentsPage: React.FC = () => {
       )}
 
       {/* BDP Integration Notice */}
-      <div className="rounded-lg border-l-4 border-primary bg-blue-50 p-6">
-        <h3 className="mb-2 font-semibold text-blue-900">Budget Drive Protocol Integration</h3>
-        <div className="space-y-2 text-sm text-blue-800">
+      <div className="rounded-lg border-l-4 border-primary bg-status-info-bg p-6">
+        <h3 className="mb-2 font-semibold text-status-info-text">Budget Drive Protocol Integration</h3>
+        <div className="space-y-2 text-sm text-status-info-text">
           <p>
             Payment tracking is integrated with the Budget Drive Protocol (BDP) treasury system.
           </p>

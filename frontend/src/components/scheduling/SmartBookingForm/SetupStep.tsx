@@ -101,11 +101,11 @@ export const SetupStep: React.FC<SetupStepProps> = ({
         <div className="flex items-center space-x-2">
           <User className="h-5 w-5 text-primary" />
           <label className="block text-sm font-semibold text-tx-primary">
-            Student <span className="text-red-500">*</span>
+            Student <span className="text-status-danger-text">*</span>
           </label>
         </div>
         {preselectedStudent ? (
-          <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
             <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
               {getInitials(preselectedStudent.fullName)}
             </div>
@@ -115,7 +115,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             </div>
           </div>
         ) : selectedStudent ? (
-          <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
             <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
               {getInitials(selectedStudent.fullName)}
             </div>
@@ -131,7 +131,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                 setPickupAddress('');
                 setPickupZip(null);
               }}
-              className="text-sm text-primary hover:text-blue-800 font-medium"
+              className="text-sm text-primary hover:brightness-75 font-medium"
             >
               Change
             </button>
@@ -164,7 +164,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                       setPickupAddress(addr);
                       setPickupZip(extractZipCode(addr) || student.zipCode || null);
                     }}
-                    className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-[var(--border)] last:border-0 flex items-center space-x-3"
+                    className="w-full px-4 py-3 text-left hover:bg-status-info-bg transition-colors border-b border-[var(--border)] last:border-0 flex items-center space-x-3"
                   >
                     <div className="h-10 w-10 rounded-full bg-surface3 text-tx-secondary flex items-center justify-center font-semibold text-sm">
                       {getInitials(student.fullName)}
@@ -188,7 +188,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             <User className="h-5 w-5 text-primary" />
             <label className="block text-sm font-semibold text-tx-primary">Instructor</label>
           </div>
-          <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
             <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
               {getInitials(preselectedInstructor.fullName)}
             </div>
@@ -203,9 +203,9 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Pickup Address */}
       <div className="space-y-3">
         <div className="flex items-center space-x-2">
-          <MapPin className="h-5 w-5 text-amber-600" />
+          <MapPin className="h-5 w-5 text-status-warning-text" />
           <label className="block text-sm font-semibold text-tx-primary">
-            Pickup Location <span className="text-red-500">*</span>
+            Pickup Location <span className="text-status-danger-text">*</span>
           </label>
         </div>
         <textarea
@@ -216,12 +216,12 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
         />
         {pickupZip ? (
-          <p className="text-xs text-green-600 flex items-center gap-1">
+          <p className="text-xs text-status-success-text flex items-center gap-1">
             <CheckCircle className="h-3 w-3" />
             Zip code detected: {pickupZip}
           </p>
         ) : pickupAddress && (
-          <p className="text-xs text-amber-600">
+          <p className="text-xs text-status-warning-text">
             ⚠️ No zip code detected. Add a zip code for accurate proximity matching.
           </p>
         )}

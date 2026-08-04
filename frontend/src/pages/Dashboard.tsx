@@ -278,7 +278,7 @@ export const DashboardPage: React.FC = () => {
                   <div className="px-5 pt-4 pb-3">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex gap-4">
-                        <span className="text-xs font-medium text-green-600">
+                        <span className="text-xs font-medium text-status-success-text">
                           {completedLessons.length} completed
                         </span>
                         <span className="text-xs font-medium text-tx-muted">
@@ -291,7 +291,7 @@ export const DashboardPage: React.FC = () => {
                     </div>
                     <div className="bg-surface2 rounded-full h-1.5 overflow-hidden">
                       <div
-                        className="bg-green-500 h-full transition-all duration-500"
+                        className="bg-status-success-text h-full transition-all duration-500"
                         style={{ width: `${(completedLessons.length / todaysLessons.length) * 100}%` }}
                       />
                     </div>
@@ -331,9 +331,9 @@ export const DashboardPage: React.FC = () => {
 
                   {/* All done state */}
                   {completedLessons.length === todaysLessons.length && (
-                    <div className="mx-5 mb-3 bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-center">
+                    <div className="mx-5 mb-3 bg-status-success-bg/10 border border-status-success-border/20 rounded-lg p-4 text-center">
                       <p className="text-2xl mb-1">🎉</p>
-                      <p className="font-semibold text-green-600">All done for today!</p>
+                      <p className="font-semibold text-status-success-text">All done for today!</p>
                       <p className="text-xs text-tx-muted mt-0.5">{completedLessons.length} lesson{completedLessons.length > 1 ? 's' : ''} completed</p>
                     </div>
                   )}
@@ -416,8 +416,8 @@ export const DashboardPage: React.FC = () => {
                 className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-[var(--border)] group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-green-500/10 rounded-md">
-                    <CalendarIcon className="h-4 w-4 text-green-600" />
+                  <div className="p-1.5 bg-status-success-bg/10 rounded-md">
+                    <CalendarIcon className="h-4 w-4 text-status-success-text" />
                   </div>
                   <span className="text-sm text-tx-secondary">Lessons This Week</span>
                 </div>
@@ -455,8 +455,8 @@ export const DashboardPage: React.FC = () => {
                   className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-orange-500/10 rounded-md">
-                      <User className="h-4 w-4 text-orange-600" />
+                    <div className="p-1.5 bg-status-warning-bg/10 rounded-md">
+                      <User className="h-4 w-4 text-status-warning-text" />
                     </div>
                     <span className="text-sm text-tx-secondary">Active Instructors</span>
                   </div>
@@ -530,8 +530,8 @@ export const DashboardPage: React.FC = () => {
                       onClick={() => navigate('/students', { state: { filter: 'needs_attention' } })}
                       className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
                     >
-                      <div className="p-1.5 bg-amber-500/10 rounded-md flex-shrink-0">
-                        <Phone className="h-4 w-4 text-amber-600" />
+                      <div className="p-1.5 bg-status-warning-bg/10 rounded-md flex-shrink-0">
+                        <Phone className="h-4 w-4 text-status-warning-text" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-tx-primary">Needs Attention</p>
@@ -541,7 +541,7 @@ export const DashboardPage: React.FC = () => {
                             : `${studentsNeedingAttention.length} students`}
                         </p>
                       </div>
-                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600">
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-warning-bg/10 text-status-warning-text">
                         {studentsNeedingAttention.length}
                       </span>
                     </button>
@@ -553,8 +553,8 @@ export const DashboardPage: React.FC = () => {
                       onClick={() => navigate('/students')}
                       className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
                     >
-                      <div className="p-1.5 bg-red-500/10 rounded-md flex-shrink-0">
-                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <div className="p-1.5 bg-status-danger-bg/10 rounded-md flex-shrink-0">
+                        <AlertTriangle className="h-4 w-4 text-status-danger-text" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-tx-primary">Permits Expiring</p>
@@ -564,7 +564,7 @@ export const DashboardPage: React.FC = () => {
                             : `${expiringPermits.length} within 30 days`}
                         </p>
                       </div>
-                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-600">
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-danger-bg/10 text-status-danger-text">
                         {expiringPermits.length}
                       </span>
                     </button>

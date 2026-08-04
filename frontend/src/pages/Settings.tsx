@@ -150,7 +150,7 @@ const GeneralSettings: React.FC = () => {
 
       {message && (
         <div className={`rounded-md p-4 text-sm font-medium ${
-          message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+          message.type === 'success' ? 'bg-status-success-bg text-status-success-text border border-status-success-border' : 'bg-status-danger-bg text-status-danger-text border border-status-danger-border'
         }`}>
           {message.type === 'success' ? '✓ ' : '✗ '}{message.text}
         </div>
@@ -443,7 +443,7 @@ const SchedulingSettings: React.FC = () => {
       {/* Success/Error Message */}
       {message && (
         <div
-          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-status-success-bg text-status-success-text' : 'bg-status-danger-bg text-status-danger-text'
             }`}
         >
           {message.text}
@@ -617,15 +617,15 @@ const SchedulingSettings: React.FC = () => {
         </div>
 
         {/* Example Preview */}
-        <div className="bg-blue-50 border-l-4 border-primary p-6 rounded">
+        <div className="bg-status-info-bg border-l-4 border-primary p-6 rounded">
           <div className="flex items-start">
             <Calendar className="h-6 w-6 text-primary mt-0.5" />
             <div className="ml-3 flex-1">
-              <h3 className="text-sm font-medium text-blue-900">Example Schedule</h3>
-              <p className="mt-2 text-sm text-blue-800">
+              <h3 className="text-sm font-medium text-status-info-text">Example Schedule</h3>
+              <p className="mt-2 text-sm text-status-info-text">
                 With these settings, if an instructor starts at <strong>9:00 AM</strong>, their day will look like:
               </p>
-              <ul className="mt-3 space-y-2 text-sm text-blue-800">
+              <ul className="mt-3 space-y-2 text-sm text-status-info-text">
                 {[...Array(defaultMaxStudentsPerDay)].map((_, i) => {
                   const startMin = (9 * 60) + (i * (defaultLessonDuration + bufferTimeBetweenLessons));
                   const endMin = startMin + defaultLessonDuration;
@@ -651,7 +651,7 @@ const SchedulingSettings: React.FC = () => {
                   );
                 })}
               </ul>
-              <p className="mt-4 text-sm font-medium text-blue-900">
+              <p className="mt-4 text-sm font-medium text-status-info-text">
                 Day ends at: <strong>{calculateDayEndTime()}</strong>
               </p>
             </div>
@@ -740,7 +740,7 @@ const FeaturesSettings: React.FC = () => {
       {/* Success/Error Message */}
       {message && (
         <div
-          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-status-success-bg text-status-success-text' : 'bg-status-danger-bg text-status-danger-text'
             }`}
         >
           {message.text}
@@ -768,7 +768,7 @@ const FeaturesSettings: React.FC = () => {
               <li>Immutable proof of all treasury transactions</li>
             </ul>
 
-            <div className="mt-4 bg-blue-50 border-l-4 border-primary p-4">
+            <div className="mt-4 bg-status-info-bg border-l-4 border-primary p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
                   <SettingsIcon className="h-5 w-5 text-primary" />
@@ -815,7 +815,7 @@ const FeaturesSettings: React.FC = () => {
         <div className="mt-4 pt-4 border-t border-[var(--border)]">
           <p className="text-xs text-tx-muted">
             Status: {powerModeEnabled ? (
-              <span className="text-green-600 font-medium">Power mode active - BSV features visible</span>
+              <span className="text-status-success-text font-medium">Power mode active - BSV features visible</span>
             ) : (
               <span className="text-tx-secondary font-medium">Standard mode - Clean UI without blockchain details</span>
             )}
@@ -824,12 +824,12 @@ const FeaturesSettings: React.FC = () => {
       </div>
 
       {/* Calendar Sync - Now Available! */}
-      <div className="border border-green-200 rounded-lg p-6 bg-green-50">
+      <div className="border border-status-success-border rounded-lg p-6 bg-status-success-bg">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-medium text-tx-primary flex items-center gap-2">
               📅 Calendar Sync
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Available</span>
+              <span className="text-xs bg-status-success-bg text-status-success-text px-2 py-0.5 rounded-full">Available</span>
             </h3>
             <p className="mt-1 text-sm text-tx-secondary">
               Instructors can subscribe to their lesson calendar using any calendar app (Google Calendar, Apple Calendar, Outlook).
@@ -840,7 +840,7 @@ const FeaturesSettings: React.FC = () => {
           </div>
           <a
             href="/instructors"
-            className="text-sm text-primary hover:text-blue-800 font-medium whitespace-nowrap"
+            className="text-sm text-primary hover:brightness-75 font-medium whitespace-nowrap"
           >
             Go to Instructors →
           </a>
@@ -941,7 +941,7 @@ const BrandingSettings: React.FC = () => {
 
       {message && (
         <div className={`rounded-md p-4 text-sm font-medium ${
-          message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'
+          message.type === 'success' ? 'bg-status-success-bg text-status-success-text border border-status-success-border' : 'bg-status-danger-bg text-status-danger-text border border-status-danger-border'
         }`}>
           {message.type === 'success' ? '✓ ' : '✗ '}{message.text}
         </div>

@@ -25,11 +25,11 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
+        return <CheckCircle className="h-5 w-5 text-status-success-text" />;
       case 'scheduled':
         return <Clock className="h-5 w-5 text-primary" />;
       case 'cancelled':
-        return <XCircle className="h-5 w-5 text-red-600" />;
+        return <XCircle className="h-5 w-5 text-status-danger-text" />;
       default:
         return <Calendar className="h-5 w-5 text-tx-secondary" />;
     }
@@ -38,11 +38,11 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-50 border-green-200';
+        return 'bg-status-success-bg border-status-success-border';
       case 'scheduled':
-        return 'bg-blue-50 border-blue-200';
+        return 'bg-status-info-bg border-status-info-border';
       case 'cancelled':
-        return 'bg-red-50 border-red-200';
+        return 'bg-status-danger-bg border-status-danger-border';
       default:
         return 'bg-surface2 border-[var(--border)]';
     }
@@ -105,10 +105,10 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
                   <span
                     className={`text-xs font-medium px-2 py-1 rounded ${
                       lesson.status === 'completed'
-                        ? 'bg-green-100 text-green-800'
+                        ? 'bg-status-success-bg text-status-success-text'
                         : lesson.status === 'scheduled'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-status-info-bg text-status-info-text'
+                        : 'bg-status-danger-bg text-status-danger-text'
                     }`}
                   >
                     {getStatusLabel(lesson.status)}

@@ -331,7 +331,7 @@ export const NotificationSettingsPage: React.FC = () => {
 
         <div className="flex items-center space-x-3">
           {saveMessage && (
-            <span className="text-sm font-medium text-green-600">
+            <span className="text-sm font-medium text-status-success-text">
               {saveMessage}
             </span>
           )}
@@ -347,15 +347,15 @@ export const NotificationSettingsPage: React.FC = () => {
       </div>
 
       {/* Setup Instructions */}
-      <div className="rounded-lg border-l-4 border-primary bg-blue-50 p-6">
-        <h3 className="mb-2 font-semibold text-blue-900">Gmail SMTP Setup Required</h3>
-        <div className="space-y-2 text-sm text-blue-800">
+      <div className="rounded-lg border-l-4 border-primary bg-status-info-bg p-6">
+        <h3 className="mb-2 font-semibold text-status-info-text">Gmail SMTP Setup Required</h3>
+        <div className="space-y-2 text-sm text-status-info-text">
           <p>
-            To enable email notifications, configure the following in your <code className="rounded bg-blue-100 px-1">.env</code> file:
+            To enable email notifications, configure the following in your <code className="rounded bg-status-info-bg px-1">.env</code> file:
           </p>
           <ul className="ml-6 list-disc space-y-1">
-            <li><code className="rounded bg-blue-100 px-1">EMAIL_USER</code> - Your Gmail address</li>
-            <li><code className="rounded bg-blue-100 px-1">EMAIL_PASSWORD</code> - Gmail app-specific password (not your regular password)</li>
+            <li><code className="rounded bg-status-info-bg px-1">EMAIL_USER</code> - Your Gmail address</li>
+            <li><code className="rounded bg-status-info-bg px-1">EMAIL_PASSWORD</code> - Gmail app-specific password (not your regular password)</li>
           </ul>
           <p className="mt-3">
             <strong>Free Tier:</strong> 500 emails/day (15,000/month) - Perfect for pilot phase

@@ -163,7 +163,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
   };
 
   const getStatusColor = (timeOff: InstructorTimeOff): string => {
-    return timeOff.isApproved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800';
+    return timeOff.isApproved ? 'bg-status-success-bg text-status-success-text' : 'bg-status-warning-bg text-status-warning-text';
   };
 
   const getStatusLabel = (timeOff: InstructorTimeOff): string => {
@@ -181,8 +181,8 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4">
+          <p className="text-status-danger-text">{error}</p>
         </div>
       )}
 
@@ -373,7 +373,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                       {allowApproval && !timeOff.isApproved && (
                         <button
                           onClick={() => handleUpdateStatus(timeOff.id, true)}
-                          className="px-3 py-1 text-green-600 hover:text-green-900 hover:bg-green-50 rounded transition-colors"
+                          className="px-3 py-1 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded transition-colors"
                         >
                           Approve
                         </button>
@@ -381,7 +381,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                       {!timeOff.isApproved && (
                         <button
                           onClick={() => handleDelete(timeOff.id)}
-                          className="px-3 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                          className="px-3 py-1 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded transition-colors"
                         >
                           Delete
                         </button>

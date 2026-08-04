@@ -51,13 +51,13 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Scheduled</span>;
+        return <span className="text-xs px-2 py-0.5 rounded-full bg-status-info-bg text-status-info-text">Scheduled</span>;
       case 'completed':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800">Completed</span>;
+        return <span className="text-xs px-2 py-0.5 rounded-full bg-status-success-bg text-status-success-text">Completed</span>;
       case 'cancelled':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800">Cancelled</span>;
+        return <span className="text-xs px-2 py-0.5 rounded-full bg-status-danger-bg text-status-danger-text">Cancelled</span>;
       case 'no_show':
-        return <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800">No Show</span>;
+        return <span className="text-xs px-2 py-0.5 rounded-full bg-status-warning-bg text-status-warning-text">No Show</span>;
       default:
         return null;
     }
@@ -248,7 +248,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       type="button"
                       onClick={() => onLessonClick(lesson)}
                       className={`w-full px-4 py-3 hover:bg-surface2 transition-colors text-left ${
-                        isMatch ? 'bg-amber-50 ring-1 ring-amber-300' : ''
+                        isMatch ? 'bg-status-warning-bg ring-1 ring-status-warning-border' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -282,16 +282,16 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                       key={`avail-${idx}`}
                       type="button"
                       onClick={() => onAvailabilityClick?.(instructorId, date, slot.startTime, slot.endTime)}
-                      className="w-full px-4 py-3 hover:bg-blue-50 transition-colors text-left border-l-2 border-dashed border-blue-300"
+                      className="w-full px-4 py-3 hover:bg-status-info-bg transition-colors text-left border-l-2 border-dashed border-status-info-border"
                     >
                       <div className="flex items-start gap-3">
-                        <Clock className="h-4 w-4 text-blue-400 mt-1 flex-shrink-0" />
+                        <Clock className="h-4 w-4 text-primary mt-1 flex-shrink-0" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-medium text-tx-secondary">
                               {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
                             </span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-primary">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-status-info-bg text-primary">
                               Available
                             </span>
                           </div>

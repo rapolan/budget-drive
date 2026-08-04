@@ -64,8 +64,8 @@ export const TeamSettings: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      user.membershipStatus === 'active' ? 'bg-green-100 text-green-800' :
-                      user.membershipStatus === 'invited' ? 'bg-yellow-100 text-yellow-800' :
+                      user.membershipStatus === 'active' ? 'bg-status-success-bg text-status-success-text' :
+                      user.membershipStatus === 'invited' ? 'bg-status-warning-bg text-status-warning-text' :
                       'bg-surface2 text-tx-primary'
                     }`}>
                       {user.membershipStatus === 'active' && <CheckCircle2 className="w-3 h-3 mr-1" />}

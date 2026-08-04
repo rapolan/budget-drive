@@ -159,11 +159,11 @@ export const InstructorsPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
-        return 'bg-green-100 text-green-800';
+        return 'bg-status-success-bg text-status-success-text';
       case 'on_leave':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-status-warning-bg text-status-warning-text';
       case 'terminated':
-        return 'bg-red-100 text-red-800';
+        return 'bg-status-danger-bg text-status-danger-text';
       default:
         return 'bg-surface2 text-tx-primary';
     }
@@ -185,11 +185,11 @@ export const InstructorsPage: React.FC = () => {
   const getEmploymentTypeColor = (type: string) => {
     switch (type) {
       case 'w2_employee':
-        return 'bg-blue-50 text-primary';
+        return 'bg-status-info-bg text-primary';
       case '1099_contractor':
         return 'bg-purple-50 text-purple-700';
       case 'volunteer':
-        return 'bg-green-50 text-green-700';
+        return 'bg-status-success-bg text-status-success-text';
       default:
         return 'bg-surface2 text-tx-secondary';
     }
@@ -245,8 +245,8 @@ export const InstructorsPage: React.FC = () => {
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-              <UserCheck className="h-5 w-5 text-green-600" />
+            <div className="p-2 bg-status-success-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <UserCheck className="h-5 w-5 text-status-success-text" />
             </div>
           </div>
           <div className="mt-3">
@@ -261,10 +261,10 @@ export const InstructorsPage: React.FC = () => {
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
               <Calendar className="h-5 w-5 text-primary" />
             </div>
-            <span className="text-xs font-medium text-primary bg-blue-50 px-2 py-1 rounded-full">
+            <span className="text-xs font-medium text-primary bg-status-info-bg px-2 py-1 rounded-full">
               {stats.totalHoursThisMonth} hrs
             </span>
           </div>
@@ -280,11 +280,11 @@ export const InstructorsPage: React.FC = () => {
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
-              <TrendingUp className="h-5 w-5 text-amber-600" />
+            <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <TrendingUp className="h-5 w-5 text-status-warning-text" />
             </div>
             {stats.topLessonCount > 0 && (
-              <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-status-warning-text bg-status-warning-bg px-2 py-1 rounded-full">
                 {stats.topLessonCount} lessons
               </span>
             )}
@@ -407,9 +407,9 @@ export const InstructorsPage: React.FC = () => {
                 key={instructor.id}
                 onClick={() => handleEdit(instructor)}
                 className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
-                  instructor.status === 'active' ? 'border-green-200 hover:border-green-300' :
-                  instructor.status === 'on_leave' ? 'border-yellow-200' :
-                  instructor.status === 'terminated' ? 'border-red-200' :
+                  instructor.status === 'active' ? 'border-status-success-border hover:brightness-90' :
+                  instructor.status === 'on_leave' ? 'border-status-warning-border' :
+                  instructor.status === 'terminated' ? 'border-status-danger-border' :
                   'border-[var(--border)] hover:brightness-110 hover:border-primary'
                 }`}
               >
@@ -477,7 +477,7 @@ export const InstructorsPage: React.FC = () => {
                       e.stopPropagation();
                       handleDelete(instructor.id);
                     }}
-                    className="p-2 text-tx-secondary hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-tx-secondary hover:text-status-danger-text hover:bg-status-danger-bg rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -609,7 +609,7 @@ export const InstructorsPage: React.FC = () => {
                             e.stopPropagation();
                             handleEdit(instructor);
                           }}
-                          className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                          className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                           title="Edit instructor"
                         >
                           <Edit className="h-4 w-4" />
@@ -620,7 +620,7 @@ export const InstructorsPage: React.FC = () => {
                             e.stopPropagation();
                             handleDelete(instructor.id);
                           }}
-                          className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
+                          className="p-2 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
                           title="Delete instructor"
                         >
                           <Trash2 className="h-4 w-4" />

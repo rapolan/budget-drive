@@ -37,31 +37,31 @@ export const SlotsStep: React.FC<SlotsStepProps> = ({
         <button
           type="button"
           onClick={onChangeFilters}
-          className="text-sm text-primary hover:text-blue-800 font-medium"
+          className="text-sm text-primary hover:brightness-75 font-medium"
         >
           ← Change Filters
         </button>
       </div>
 
       {/* Pickup reminder */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-        <MapPin className="h-4 w-4 text-amber-600 mt-0.5" />
+      <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3 flex items-start gap-2">
+        <MapPin className="h-4 w-4 text-status-warning-text mt-0.5" />
         <div className="text-sm">
-          <span className="font-medium text-amber-800">Pickup:</span>{' '}
-          <span className="text-amber-700">{pickupAddress}</span>
+          <span className="font-medium text-status-warning-text">Pickup:</span>{' '}
+          <span className="text-status-warning-text">{pickupAddress}</span>
         </div>
       </div>
 
       {/* Stale-slot recovery notice: shown after a confirm-time conflict auto-triggers a re-search */}
       {staleSlotNotice && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+        <div className="bg-status-info-bg border border-status-info-border rounded-lg p-3 text-sm text-status-info-text">
           {staleSlotNotice}
         </div>
       )}
 
       {/* Non-blocking notice: some instructors' lookups failed but the search still succeeded for the rest */}
       {failedInstructorCount > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+        <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3 text-sm text-status-warning-text">
           Couldn't check availability for {failedInstructorCount}{' '}
           {failedInstructorCount === 1 ? 'instructor' : 'instructors'}. Showing results from everyone else.
         </div>

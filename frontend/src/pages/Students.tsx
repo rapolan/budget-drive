@@ -316,11 +316,11 @@ export const StudentsPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'scheduled':
-        return 'bg-green-100 text-green-800';
+        return 'bg-status-success-bg text-status-success-text';
       case 'ready_to_book':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-status-info-bg text-status-info-text';
       case 'needs_attention':
-        return 'bg-amber-100 text-amber-800';
+        return 'bg-status-warning-bg text-status-warning-text';
       case 'completed':
         return 'bg-purple-100 text-purple-800';
       case 'inactive':
@@ -357,7 +357,7 @@ export const StudentsPage: React.FC = () => {
         <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('new_this_month')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
               <Users className="h-5 w-5 text-primary" />
             </div>
             {/* Comparison Toggle */}
@@ -368,8 +368,8 @@ export const StudentsPage: React.FC = () => {
               }}
               className={`flex items-center text-xs font-medium px-2 py-1 rounded-full transition-colors ${
                 (comparisonMode === 'month' ? stats.diffVsLastMonth : stats.diffVsLastYear) >= 0
-                  ? 'text-green-600 bg-green-50 hover:bg-green-100'
-                  : 'text-red-600 bg-red-50 hover:bg-red-100'
+                  ? 'text-status-success-text bg-status-success-bg hover:brightness-95'
+                  : 'text-status-danger-text bg-status-danger-bg hover:brightness-95'
               }`}
               title="Click to toggle comparison"
             >
@@ -394,11 +394,11 @@ export const StudentsPage: React.FC = () => {
         <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('scheduled')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-              <Calendar className="h-5 w-5 text-green-600" />
+            <div className="p-2 bg-status-success-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <Calendar className="h-5 w-5 text-status-success-text" />
             </div>
             {statusCounts.scheduled > 0 && (
-              <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-status-success-text bg-status-success-bg px-2 py-1 rounded-full">
                 On calendar
               </span>
             )}
@@ -413,11 +413,11 @@ export const StudentsPage: React.FC = () => {
         <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('ready_to_book')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
               <UserCheck className="h-5 w-5 text-primary" />
             </div>
             {statusCounts.ready_to_book > 0 && (
-              <span className="text-xs font-medium text-primary bg-blue-50 px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-primary bg-status-info-bg px-2 py-1 rounded-full">
                 Book now
               </span>
             )}
@@ -432,11 +432,11 @@ export const StudentsPage: React.FC = () => {
         <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('needs_attention')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
+            <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <AlertCircle className="h-5 w-5 text-status-warning-text" />
             </div>
             {statusCounts.needs_attention > 0 && (
-              <span className="flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full animate-pulse">
+              <span className="flex items-center text-xs font-medium text-status-warning-text bg-status-warning-bg px-2 py-1 rounded-full animate-pulse">
                 Action needed
               </span>
             )}
@@ -646,7 +646,7 @@ export const StudentsPage: React.FC = () => {
                 <div
                   key={student.id}
                   className={`bg-surface rounded-xl shadow-sm border p-5 hover:shadow-md transition-all ${
-                    statusInfo.status === 'needs_attention' ? 'border-amber-300' : 'border-[var(--border)] hover:brightness-110 hover:border-primary'
+                    statusInfo.status === 'needs_attention' ? 'border-status-warning-border' : 'border-[var(--border)] hover:brightness-110 hover:border-primary'
                   }`}
                 >
                   {/* Header */}
@@ -683,7 +683,7 @@ export const StudentsPage: React.FC = () => {
                     <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-primary' : 'bg-amber-500'
+                          progressPercent >= 100 ? 'bg-status-success-text' : progressPercent >= 50 ? 'bg-primary' : 'bg-status-warning-text'
                         }`}
                         style={{ width: `${progressPercent}%` }}
                       />
@@ -715,7 +715,7 @@ export const StudentsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleEdit(student)}
-                      className="p-2 text-tx-secondary hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-colors"
                       title="Edit"
                     >
                       <Edit className="h-4 w-4" />
@@ -724,7 +724,7 @@ export const StudentsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleMarkAsContacted(student.id)}
-                        className="p-2 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                        className="p-2 text-status-warning-text hover:text-amber-700 hover:bg-status-warning-bg rounded-lg transition-colors"
                         title="Mark as contacted"
                       >
                         <CheckCircle className="h-4 w-4" />
@@ -805,7 +805,7 @@ export const StudentsPage: React.FC = () => {
                     : 0;
                   
                   return (
-                    <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-amber-50/50' : ''}`} onClick={() => handleEdit(student)}>
+                    <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg/50' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -848,7 +848,7 @@ export const StudentsPage: React.FC = () => {
                           <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${
-                                progressPercent >= 100 ? 'bg-green-500' : progressPercent >= 50 ? 'bg-primary' : 'bg-amber-500'
+                                progressPercent >= 100 ? 'bg-status-success-text' : progressPercent >= 50 ? 'bg-primary' : 'bg-status-warning-text'
                               }`}
                               style={{ width: `${progressPercent}%` }}
                             />
@@ -871,7 +871,7 @@ export const StudentsPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleMarkAsContacted(student.id)}
-                              className="p-2 text-amber-600 hover:text-amber-900 hover:bg-amber-50 rounded-lg transition-all hover:scale-110"
+                              className="p-2 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
                               title="Mark as contacted"
                             >
                               <CheckCircle className="h-4 w-4" />
@@ -883,7 +883,7 @@ export const StudentsPage: React.FC = () => {
                               e.stopPropagation();
                               handleBookLesson(student);
                             }}
-                            className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-all hover:scale-110"
+                            className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
                             title="Book lesson"
                           >
                             <Calendar className="h-4 w-4" />
@@ -894,7 +894,7 @@ export const StudentsPage: React.FC = () => {
                               e.stopPropagation();
                               handleEdit(student);
                             }}
-                            className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                            className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                             title="Edit student"
                           >
                             <Edit className="h-4 w-4" />
@@ -905,7 +905,7 @@ export const StudentsPage: React.FC = () => {
                               e.stopPropagation();
                               handleDelete(student.id);
                             }}
-                            className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
+                            className="p-2 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
                             title="Delete student"
                           >
                             <Trash2 className="h-4 w-4" />

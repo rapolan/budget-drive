@@ -55,13 +55,13 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
     <button
       type="button"
       onClick={() => setExpanded(!expanded)}
-      className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
+      className="w-full flex items-center justify-between p-3 bg-status-info-bg rounded-lg border border-status-info-border hover:brightness-95 transition-colors"
     >
       <div className="flex items-center gap-2">
         <Calendar className="h-5 w-5 text-primary" />
         <span className="font-semibold text-tx-primary">Calendar Sync</span>
         {hasCalendarFeed && (
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>
+          <span className="text-xs bg-status-success-bg text-status-success-text px-2 py-0.5 rounded-full">Active</span>
         )}
       </div>
       {expanded ? (
@@ -87,7 +87,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
       {header}
 
       {expanded && (
-        <div className="mt-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+        <div className="mt-2 bg-status-info-bg rounded-lg p-4 border border-status-info-border">
           <p className="text-sm text-tx-secondary mb-3">
             Subscribe to this instructor's lesson calendar in any calendar app (Google, Apple, Outlook).
             Lessons will automatically appear in their calendar.
@@ -110,7 +110,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                   title="Copy URL to clipboard"
                   className={`px-3 py-2 rounded-lg transition-all flex items-center gap-1 ${
                     copied
-                      ? 'bg-green-500 text-white'
+                      ? 'bg-status-success-text text-white'
                       : 'bg-primary text-white hover:brightness-90 hover:bg-primary'
                   }`}
                 >
@@ -133,7 +133,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowInstructions(!showInstructions)}
-                  className="text-sm text-primary hover:text-blue-800 flex items-center gap-1"
+                  className="text-sm text-primary hover:brightness-75 flex items-center gap-1"
                 >
                   <ExternalLink className="h-4 w-4" />
                   {showInstructions ? 'Hide' : 'Show'} Setup Instructions
@@ -186,7 +186,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
               )}
 
               {regenerateMutation.isSuccess && (
-                <div className="mt-2 text-sm text-amber-600 bg-amber-50 rounded p-2">
+                <div className="mt-2 text-sm text-status-warning-text bg-status-warning-bg rounded p-2">
                   ⚠️ URL regenerated. The instructor will need to re-subscribe with the new URL.
                 </div>
               )}

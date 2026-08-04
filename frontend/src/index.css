@@ -41,6 +41,35 @@
   --text-secondary-rgb: 71 85 105;
   --text-muted:     #64748b;
   --text-muted-rgb:     100 116 139;
+
+  /* Status/intent tokens - bg, text, and border per intent. Used by callout
+     boxes, badges, and any UI communicating "this is informational / good /
+     needs attention / bad", replacing hardcoded Tailwind color classes
+     (bg-blue-50, text-green-800, border-red-200, etc.) app-wide. */
+  --status-info-bg:        #eff6ff;
+  --status-info-bg-rgb:        239 246 255;
+  --status-info-text:      #1e3a8a;
+  --status-info-text-rgb:      30 58 138;
+  --status-info-border:    #bfdbfe;
+  --status-info-border-rgb:    191 219 254;
+  --status-success-bg:     #f0fdf4;
+  --status-success-bg-rgb:     240 253 244;
+  --status-success-text:   #166534;
+  --status-success-text-rgb:   22 101 52;
+  --status-success-border: #bbf7d0;
+  --status-success-border-rgb: 187 247 208;
+  --status-warning-bg:     #fffbeb;
+  --status-warning-bg-rgb:     255 251 235;
+  --status-warning-text:   #92400e;
+  --status-warning-text-rgb:   146 64 14;
+  --status-warning-border: #fde68a;
+  --status-warning-border-rgb: 253 230 138;
+  --status-danger-bg:      #fef2f2;
+  --status-danger-bg-rgb:      254 242 242;
+  --status-danger-text:    #991b1b;
+  --status-danger-text-rgb:    153 27 27;
+  --status-danger-border:  #fecaca;
+  --status-danger-border-rgb:  254 202 202;
 }
 
 /* ─── Semantic surface/text tokens — dark mode ──────────────────────────────── */
@@ -64,6 +93,34 @@
   --text-secondary-rgb: 203 213 225;
   --text-muted:     #94a3b8;
   --text-muted-rgb:     148 163 184;
+
+  /* Status/intent tokens - dark-mode backgrounds are a deep muted tone, not
+     a pastel -50/-100 tint, so callouts read as "a colored box on a dark
+     page" instead of a light-mode box pasted on top. */
+  --status-info-bg:        #1e3a5f;
+  --status-info-bg-rgb:        30 58 95;
+  --status-info-text:      #93c5fd;
+  --status-info-text-rgb:      147 197 253;
+  --status-info-border:    #2c5282;
+  --status-info-border-rgb:    44 82 130;
+  --status-success-bg:     #1c3829;
+  --status-success-bg-rgb:     28 56 41;
+  --status-success-text:   #86efac;
+  --status-success-text-rgb:   134 239 172;
+  --status-success-border: #2f5540;
+  --status-success-border-rgb: 47 85 64;
+  --status-warning-bg:     #453214;
+  --status-warning-bg-rgb:     69 50 20;
+  --status-warning-text:   #fcd34d;
+  --status-warning-text-rgb:   252 211 77;
+  --status-warning-border: #6b4a1e;
+  --status-warning-border-rgb: 107 74 30;
+  --status-danger-bg:      #450a0a;
+  --status-danger-bg-rgb:      69 10 10;
+  --status-danger-text:    #fca5a5;
+  --status-danger-text-rgb:    252 165 165;
+  --status-danger-border:  #7f1d1d;
+  --status-danger-border-rgb:  127 29 29;
 }
 
 /* ─── Base styles ───────────────────────────────────────────────────────────── */

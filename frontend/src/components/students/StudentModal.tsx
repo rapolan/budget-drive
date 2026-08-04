@@ -360,7 +360,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 {/* Name */}
                 <div>
                   <label className="block text-sm font-medium text-tx-secondary mb-1.5">
-                    Full Name <span className="text-red-500">*</span>
+                    Full Name <span className="text-status-danger-text">*</span>
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <input
@@ -399,7 +399,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-tx-secondary mb-1.5">
-                      Email <span className="text-red-500">*</span>
+                      Email <span className="text-status-danger-text">*</span>
                     </label>
                     <input
                       type="email"
@@ -457,7 +457,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       />
                       <span className="text-sm text-tx-muted">hrs</span>
                       {studentAge !== null && (
-                        <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-blue-100 text-primary' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-status-info-bg text-primary' : 'bg-status-warning-bg text-status-warning-text'}`}>
                           {isAdult ? `Adult (${studentAge})` : `Minor (${studentAge})`}
                         </span>
                       )}
@@ -534,7 +534,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   <Users className="h-4 w-4 text-tx-muted" />
                   Parent/Guardian
                   {!hasAtLeastOnePhone && (
-                    <span className="text-xs font-normal text-red-500 normal-case">* Phone required if student has none</span>
+                    <span className="text-xs font-normal text-status-danger-text normal-case">* Phone required if student has none</span>
                   )}
                 </h3>
 
@@ -664,9 +664,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
               {/* Error Message */}
               {errorMessage && (
-                <div className="bg-red-50 rounded-lg px-4 py-3 flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-red-700">{errorMessage}</p>
+                <div className="bg-status-danger-bg rounded-lg px-4 py-3 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-status-danger-text">{errorMessage}</p>
                 </div>
               )}
 
@@ -694,14 +694,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 </div>
               ) : (
                 <div className="pt-4 border-t border-[var(--border)]">
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                  <div className="bg-status-success-bg border border-status-success-border rounded-xl p-4 mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded-full">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      <div className="p-2 bg-status-success-bg rounded-full">
+                        <CheckCircle className="h-5 w-5 text-status-success-text" />
                       </div>
                       <div>
-                        <p className="text-green-800 font-medium">Student Added!</p>
-                        <p className="text-green-700 text-sm">
+                        <p className="text-status-success-text font-medium">Student Added!</p>
+                        <p className="text-status-success-text text-sm">
                           {createdStudent.fullName} is ready for their first lesson
                         </p>
                       </div>

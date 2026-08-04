@@ -58,7 +58,7 @@ const Treasury: React.FC = () => {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+      <div className="bg-status-danger-bg border border-status-danger-border text-status-danger-text px-4 py-3 rounded">
         Error loading treasury data. Please try again.
       </div>
     );
@@ -91,22 +91,22 @@ const Treasury: React.FC = () => {
           )}
         </div>
         {showBlockchainDetails && (
-          <div className="flex items-center justify-center space-x-2 bg-green-50 px-4 py-2 rounded-lg border border-green-200">
-            <Check className="h-5 w-5 text-green-600" />
-            <span className="text-sm font-medium text-green-900">Wright-Aligned</span>
+          <div className="flex items-center justify-center space-x-2 bg-status-success-bg px-4 py-2 rounded-lg border border-status-success-border">
+            <Check className="h-5 w-5 text-status-success-text" />
+            <span className="text-sm font-medium text-status-success-text">Wright-Aligned</span>
           </div>
         )}
       </div>
 
       {/* Wright Philosophy Banner */}
       {showBlockchainDetails && (
-        <div className="bg-blue-50 border-l-4 border-primary p-4 rounded">
+        <div className="bg-status-info-bg border-l-4 border-primary p-4 rounded">
           <div className="flex">
             <div className="flex-shrink-0">
               <Coins className="h-5 w-5 text-primary" />
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-900">Cost-Based Satoshi Fees</h3>
+              <h3 className="text-sm font-medium text-status-info-text">Cost-Based Satoshi Fees</h3>
               <p className="mt-2 text-sm text-primary">
                 <strong>NOT percentage extraction.</strong> Each transaction pays a fixed satoshi fee
                 based on computational cost (5 sats = ~$0.000002). Providers get 99.999996% of transaction
@@ -144,7 +144,7 @@ const Treasury: React.FC = () => {
                 </>
               )}
             </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+            <div className="h-12 w-12 bg-status-info-bg rounded-full flex items-center justify-center">
               <Coins className="h-6 w-6 text-primary" />
             </div>
           </div>
@@ -162,8 +162,8 @@ const Treasury: React.FC = () => {
                 {showBlockchainDetails ? `${totalSatoshis} sats collected` : 'Fee transactions recorded'}
               </p>
             </div>
-            <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-              <Activity className="h-6 w-6 text-green-600" />
+            <div className="h-12 w-12 bg-status-success-bg rounded-full flex items-center justify-center">
+              <Activity className="h-6 w-6 text-status-success-text" />
             </div>
           </div>
         </div>
@@ -197,8 +197,8 @@ const Treasury: React.FC = () => {
                   ${statistics?.total_provider?.toLocaleString() || '0'}
                 </p>
               </div>
-              <div className="h-12 w-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Check className="h-6 w-6 text-yellow-600" />
+              <div className="h-12 w-12 bg-status-warning-bg rounded-full flex items-center justify-center">
+                <Check className="h-6 w-6 text-status-warning-text" />
               </div>
             </div>
           </div>
@@ -251,7 +251,7 @@ const Treasury: React.FC = () => {
                       {new Date(tx.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-status-info-bg text-status-info-text">
                         {tx.bsv_action}
                       </span>
                     </td>
@@ -273,17 +273,17 @@ const Treasury: React.FC = () => {
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       {tx.bsv_status === 'pending' && (
-                        <span className="inline-flex items-center text-yellow-600">
+                        <span className="inline-flex items-center text-status-warning-text">
                           <Clock className="h-4 w-4" />
                         </span>
                       )}
                       {tx.bsv_status === 'confirmed' && (
-                        <span className="inline-flex items-center text-green-600">
+                        <span className="inline-flex items-center text-status-success-text">
                           <Check className="h-4 w-4" />
                         </span>
                       )}
                       {tx.bsv_status === 'failed' && (
-                        <span className="inline-flex items-center text-red-600">
+                        <span className="inline-flex items-center text-status-danger-text">
                           <AlertCircle className="h-4 w-4" />
                         </span>
                       )}
@@ -295,7 +295,7 @@ const Treasury: React.FC = () => {
                             href={getWhatsOnChainUrl(tx.bsv_txid)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center text-primary hover:text-blue-800 text-sm"
+                            className="inline-flex items-center text-primary hover:brightness-75 text-sm"
                             title="View transaction on WhatsOnChain"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -325,42 +325,42 @@ const Treasury: React.FC = () => {
           <h3 className="text-lg font-semibold text-tx-primary mb-4">Craig Wright Philosophy Alignment</h3>
           <div className="space-y-3">
             <div className="flex items-start">
-              <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-status-success-text mr-3 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-tx-primary">Cost-Based Fees</p>
                 <p className="text-sm text-tx-secondary">5 sats per booking reflects computational cost, NOT arbitrary percentage</p>
               </div>
             </div>
             <div className="flex items-start">
-              <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-status-success-text mr-3 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-tx-primary">Fixed Fees</p>
                 <p className="text-sm text-tx-secondary">NOT percentage-based extraction that punishes higher-value transactions</p>
               </div>
             </div>
             <div className="flex items-start">
-              <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-status-success-text mr-3 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-tx-primary">Scales at Volume</p>
                 <p className="text-sm text-tx-secondary">Profitable at millions of transactions, not through rent-seeking</p>
               </div>
             </div>
             <div className="flex items-start">
-              <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-status-success-text mr-3 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-tx-primary">No Rent-Seeking</p>
                 <p className="text-sm text-tx-secondary">Honest money principle - providers keep 99.999996% of value</p>
               </div>
             </div>
             <div className="flex items-start">
-              <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-status-success-text mr-3 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-tx-primary">Satoshi-Denominated</p>
                 <p className="text-sm text-tx-secondary">Bitcoin-native pricing in satoshis, not fiat percentages</p>
               </div>
             </div>
             <div className="flex items-start">
-              <Check className="h-5 w-5 text-green-600 mr-3 flex-shrink-0 mt-0.5" />
+              <Check className="h-5 w-5 text-status-success-text mr-3 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-tx-primary">Transparent</p>
                 <p className="text-sm text-tx-secondary">All fees documented and logged on-chain (Phase 3)</p>
@@ -372,9 +372,9 @@ const Treasury: React.FC = () => {
 
       {/* BSV Blockchain Info */}
       {showBlockchainDetails && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+        <div className="bg-status-success-bg border border-status-success-border rounded-lg p-6">
           <h3 className="text-lg font-semibold text-tx-primary mb-2 flex items-center">
-            <Check className="h-5 w-5 text-green-600 mr-2" />
+            <Check className="h-5 w-5 text-status-success-text mr-2" />
             Blockchain Integration Status: LIVE ✅
           </h3>
           <p className="text-sm text-tx-secondary mb-4">

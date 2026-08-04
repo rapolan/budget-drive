@@ -45,9 +45,9 @@ export default function NotificationHistory() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'sent':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-status-success-text" />;
       case 'failed':
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return <XCircle className="w-5 h-5 text-status-danger-text" />;
       default:
         return <Clock className="w-5 h-5 text-tx-muted" />;
     }
@@ -55,9 +55,9 @@ export default function NotificationHistory() {
 
   const getStatusBadge = (status: string) => {
     const colors = {
-      sent: 'bg-green-100 text-green-800',
-      failed: 'bg-red-100 text-red-800',
-      pending: 'bg-yellow-100 text-yellow-800',
+      sent: 'bg-status-success-bg text-status-success-text',
+      failed: 'bg-status-danger-bg text-status-danger-text',
+      pending: 'bg-status-warning-bg text-status-warning-text',
     };
 
     return (
@@ -109,9 +109,9 @@ export default function NotificationHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-tx-secondary">Total Sent</p>
-                  <p className="text-2xl font-bold text-green-600">{data.stats.totalSent.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-status-success-text">{data.stats.totalSent.toLocaleString()}</p>
                 </div>
-                <CheckCircle className="w-12 h-12 text-green-500 opacity-20" />
+                <CheckCircle className="w-12 h-12 text-status-success-text opacity-20" />
               </div>
             </div>
 
@@ -119,9 +119,9 @@ export default function NotificationHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-tx-secondary">Failed</p>
-                  <p className="text-2xl font-bold text-red-600">{data.stats.totalFailed.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-status-danger-text">{data.stats.totalFailed.toLocaleString()}</p>
                 </div>
-                <XCircle className="w-12 h-12 text-red-500 opacity-20" />
+                <XCircle className="w-12 h-12 text-status-danger-text opacity-20" />
               </div>
             </div>
 
@@ -129,13 +129,13 @@ export default function NotificationHistory() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-tx-secondary">Pending</p>
-                  <p className="text-2xl font-bold text-yellow-600">{data.stats.totalPending.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-status-warning-text">{data.stats.totalPending.toLocaleString()}</p>
                 </div>
-                <Clock className="w-12 h-12 text-yellow-500 opacity-20" />
+                <Clock className="w-12 h-12 text-status-warning-text opacity-20" />
               </div>
             </div>
 
-            <div className="bg-surface rounded-lg shadow p-6 border-2 border-blue-200">
+            <div className="bg-surface rounded-lg shadow p-6 border-2 border-status-info-border">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-tx-secondary">BDP Fees</p>
@@ -179,7 +179,7 @@ export default function NotificationHistory() {
               <span className="ml-3 text-tx-secondary">Loading notifications...</span>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center py-12 text-red-600">
+            <div className="flex items-center justify-center py-12 text-status-danger-text">
               <AlertCircle className="w-8 h-8 mr-3" />
               <span>Failed to load notifications</span>
             </div>
@@ -263,7 +263,7 @@ export default function NotificationHistory() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-tx-primary">{notification.attemptCount}</div>
                         {notification.errorMessage && (
-                          <div className="text-xs text-red-500 mt-1" title={notification.errorMessage}>
+                          <div className="text-xs text-status-danger-text mt-1" title={notification.errorMessage}>
                             Error
                           </div>
                         )}
@@ -277,10 +277,10 @@ export default function NotificationHistory() {
         </div>
 
         {/* Footer Info */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="mt-6 bg-status-info-bg border border-status-info-border rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Bell className="w-5 h-5 text-primary mt-0.5" />
-            <div className="text-sm text-blue-900">
+            <div className="text-sm text-status-info-text">
               <p className="font-semibold mb-1">Budget Drive Protocol (BDP) Notification System</p>
               <p>
                 Automated email notifications powered by BSV blockchain micropayments. Each sent notification costs 1

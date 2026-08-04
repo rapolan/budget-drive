@@ -45,12 +45,12 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
           <div
             className={`h-full rounded-full transition-all duration-500 ${
               progressPercentage >= 100
-                ? 'bg-green-500'
+                ? 'bg-status-success-text'
                 : progressPercentage >= 75
                 ? 'bg-primary'
                 : progressPercentage >= 50
-                ? 'bg-yellow-500'
-                : 'bg-orange-500'
+                ? 'bg-status-warning-text'
+                : 'bg-status-warning-text'
             }`}
             style={{ width: `${progressPercentage}%` }}
           />
@@ -63,11 +63,11 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="text-center p-3 bg-green-50 rounded-lg">
-          <div className="text-2xl font-bold text-green-700">{completedLessons}</div>
-          <div className="text-xs text-green-600 mt-1">Completed</div>
+        <div className="text-center p-3 bg-status-success-bg rounded-lg">
+          <div className="text-2xl font-bold text-status-success-text">{completedLessons}</div>
+          <div className="text-xs text-status-success-text mt-1">Completed</div>
         </div>
-        <div className="text-center p-3 bg-blue-50 rounded-lg">
+        <div className="text-center p-3 bg-status-info-bg rounded-lg">
           <div className="text-2xl font-bold text-primary">{scheduledLessons}</div>
           <div className="text-xs text-primary mt-1">Scheduled</div>
         </div>
@@ -94,26 +94,26 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
                 key={index}
                 className={`flex items-center gap-3 p-2 rounded transition-colors ${
                   milestone.achieved
-                    ? 'bg-green-50 border-l-4 border-green-500'
+                    ? 'bg-status-success-bg border-l-4 border-status-success-text'
                     : 'bg-surface2 border-l-4 border-[var(--border-strong)]'
                 }`}
               >
                 <Icon
                   className={`h-4 w-4 ${
-                    milestone.achieved ? 'text-green-600' : 'text-tx-muted'
+                    milestone.achieved ? 'text-status-success-text' : 'text-tx-muted'
                   }`}
                 />
                 <span
                   className={`text-sm ${
                     milestone.achieved
-                      ? 'text-green-800 font-medium'
+                      ? 'text-status-success-text font-medium'
                       : 'text-tx-muted'
                   }`}
                 >
                   {milestone.label}
                 </span>
                 {milestone.achieved && (
-                  <CheckCircle className="h-4 w-4 text-green-600 ml-auto" />
+                  <CheckCircle className="h-4 w-4 text-status-success-text ml-auto" />
                 )}
               </div>
             );
@@ -123,8 +123,8 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
 
       {/* Next Lesson Indicator */}
       {scheduledLessons > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-blue-800">
+        <div className="bg-status-info-bg border border-status-info-border rounded-lg p-3">
+          <div className="flex items-center gap-2 text-status-info-text">
             <Clock className="h-4 w-4" />
             <span className="text-sm font-medium">
               {scheduledLessons} lesson{scheduledLessons > 1 ? 's' : ''} scheduled

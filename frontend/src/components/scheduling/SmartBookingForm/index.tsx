@@ -299,9 +299,9 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   };
 
   const getProximityBadge = (score: number) => {
-    if (score >= 90) return { label: '🏠 Very Close', class: 'bg-green-100 text-green-800' };
-    if (score >= 70) return { label: '📍 Nearby', class: 'bg-green-100 text-green-700' };
-    if (score >= 50) return { label: '🚗 Close', class: 'bg-yellow-100 text-yellow-700' };
+    if (score >= 90) return { label: '🏠 Very Close', class: 'bg-status-success-bg text-status-success-text' };
+    if (score >= 70) return { label: '📍 Nearby', class: 'bg-status-success-bg text-status-success-text' };
+    if (score >= 50) return { label: '🚗 Close', class: 'bg-status-warning-bg text-status-warning-text' };
     return { label: '🗺️ Far', class: 'bg-surface2 text-tx-secondary' };
   };
 
@@ -319,7 +319,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       <div className="border-b border-[var(--border)] p-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
+            <div className="p-2 bg-status-info-bg rounded-lg">
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
             <div>
@@ -341,8 +341,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
       {/* Error Display */}
       {error && (
-        <div className="mx-6 mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm">{error}</p>
+        <div className="mx-6 mt-6 bg-status-danger-bg border border-status-danger-border rounded-lg p-4">
+          <p className="text-status-danger-text text-sm">{error}</p>
         </div>
       )}
 

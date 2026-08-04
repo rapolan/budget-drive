@@ -155,7 +155,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           <form onSubmit={handleSubmit} className="px-6 py-4">
             {/* Student Info or Selector */}
             {student ? (
-              <div className="mb-6 rounded-lg bg-blue-50 p-4">
+              <div className="mb-6 rounded-lg bg-status-info-bg p-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm font-medium text-tx-secondary">Student</p>
@@ -166,7 +166,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-tx-secondary">Current Balance</p>
-                    <p className="mt-1 text-lg font-semibold text-red-600">
+                    <p className="mt-1 text-lg font-semibold text-status-danger-text">
                       ${(Number(student.outstandingBalance) || 0).toFixed(2)}
                     </p>
                   </div>
@@ -175,7 +175,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             ) : (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-tx-secondary">
-                  Select Student <span className="text-red-500">*</span>
+                  Select Student <span className="text-status-danger-text">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -196,12 +196,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </select>
                 </div>
                 {errors.studentId && (
-                  <p className="mt-1 text-sm text-red-600">{errors.studentId}</p>
+                  <p className="mt-1 text-sm text-status-danger-text">{errors.studentId}</p>
                 )}
                 {selectedStudentData && (
-                  <div className="mt-2 rounded-md bg-blue-50 p-3">
+                  <div className="mt-2 rounded-md bg-status-info-bg p-3">
                     <p className="text-sm font-medium text-tx-secondary">Current Balance</p>
-                    <p className="mt-1 text-lg font-semibold text-red-600">
+                    <p className="mt-1 text-lg font-semibold text-status-danger-text">
                       ${(Number(selectedStudentData.outstandingBalance) || 0).toFixed(2)}
                     </p>
                   </div>
@@ -214,7 +214,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Amount */}
               <div>
                 <label className="block text-sm font-medium text-tx-secondary">
-                  Amount <span className="text-red-500">*</span>
+                  Amount <span className="text-status-danger-text">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -233,14 +233,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   />
                 </div>
                 {errors.amount && (
-                  <p className="mt-1 text-sm text-red-600">{errors.amount}</p>
+                  <p className="mt-1 text-sm text-status-danger-text">{errors.amount}</p>
                 )}
               </div>
 
               {/* Payment Method */}
               <div>
                 <label className="block text-sm font-medium text-tx-secondary">
-                  Payment Method <span className="text-red-500">*</span>
+                  Payment Method <span className="text-status-danger-text">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -262,7 +262,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </select>
                 </div>
                 {errors.paymentMethod && (
-                  <p className="mt-1 text-sm text-red-600">{errors.paymentMethod}</p>
+                  <p className="mt-1 text-sm text-status-danger-text">{errors.paymentMethod}</p>
                 )}
               </div>
 
@@ -288,7 +288,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Date */}
               <div>
                 <label className="block text-sm font-medium text-tx-secondary">
-                  Date <span className="text-red-500">*</span>
+                  Date <span className="text-status-danger-text">*</span>
                 </label>
                 <div className="relative mt-1">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -303,7 +303,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
-                {errors.date && <p className="mt-1 text-sm text-red-600">{errors.date}</p>}
+                {errors.date && <p className="mt-1 text-sm text-status-danger-text">{errors.date}</p>}
               </div>
 
               {/* Status */}
@@ -337,14 +337,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
             {/* Error Message */}
             {errors.submit && (
-              <div className="mt-4 rounded-md bg-red-50 p-3">
-                <p className="text-sm text-red-800">{errors.submit}</p>
+              <div className="mt-4 rounded-md bg-status-danger-bg p-3">
+                <p className="text-sm text-status-danger-text">{errors.submit}</p>
               </div>
             )}
 
             {/* BDP Notice */}
-            <div className="mt-4 rounded-md border-l-4 border-primary bg-blue-50 p-3">
-              <p className="text-sm text-blue-800">
+            <div className="mt-4 rounded-md border-l-4 border-primary bg-status-info-bg p-3">
+              <p className="text-sm text-status-info-text">
                 <strong>BDP Integration:</strong> Recording this payment will update the
                 student's balance and may trigger BSV blockchain treasury transactions.
               </p>

@@ -100,7 +100,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
               >
                 {/* Rank indicator */}
                 <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-base flex-shrink-0 ${
-                  index < 3 ? 'bg-green-100 text-green-700' : 'bg-surface2 text-tx-muted'
+                  index < 3 ? 'bg-status-success-bg text-status-success-text' : 'bg-surface2 text-tx-muted'
                 }`}>
                   #{index + 1}
                 </div>
@@ -148,7 +148,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
                               e.stopPropagation();
                               onSelectSlot(slot);
                             }}
-                            className="w-full p-3 bg-surface border border-[var(--border)] rounded-lg hover:border-primary hover:bg-blue-50 transition-all text-left flex items-center justify-between active:scale-[0.98]"
+                            className="w-full p-3 bg-surface border border-[var(--border)] rounded-lg hover:border-primary hover:bg-status-info-bg transition-all text-left flex items-center justify-between active:scale-[0.98]"
                           >
                             <span className="text-sm font-medium text-tx-primary">
                               {formatTime(slot.startTime)} - {formatTime(slot.endTime)}

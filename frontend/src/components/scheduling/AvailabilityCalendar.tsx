@@ -231,11 +231,11 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">{error}</p>
+      <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4">
+        <p className="text-status-danger-text">{error}</p>
         <button
           onClick={loadData}
-          className="mt-2 text-red-600 hover:text-red-800 font-medium"
+          className="mt-2 text-status-danger-text hover:brightness-75 font-medium"
         >
           Try Again
         </button>
@@ -248,11 +248,11 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       {/* Legend */}
       <div className="px-4 py-2 bg-surface2 border-b border-[var(--border)] flex flex-wrap items-center gap-4 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-green-500 rounded"></div>
+          <div className="w-4 h-4 bg-status-success-text rounded"></div>
           <span>Lesson Start</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-4 h-4 bg-green-100 rounded"></div>
+          <div className="w-4 h-4 bg-status-success-bg rounded"></div>
           <span>Lesson Time</span>
         </div>
         <div className="text-tx-muted">
@@ -295,9 +295,9 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
                       onClick={() => handleSlotClick(day.value, timeSlot)}
                       className={`px-3 py-2 text-center text-sm ${editable && slotStart ? 'cursor-pointer' : ''
                         } ${slotStart
-                          ? 'bg-green-500 hover:bg-green-600'
+                          ? 'bg-status-success-text hover:bg-green-600'
                           : isInSlot
-                            ? 'bg-green-100'
+                            ? 'bg-status-success-bg'
                             : 'bg-surface2'
                         }`}
                     >

@@ -209,15 +209,15 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
   return (
     <div className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4">
+          <p className="text-status-danger-text">{error}</p>
         </div>
       )}
 
       {/* Info Banner */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start space-x-3">
+      <div className="bg-status-info-bg border border-status-info-border rounded-lg p-4 flex items-start space-x-3">
         <Info className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-        <div className="text-sm text-blue-800">
+        <div className="text-sm text-status-info-text">
           <p className="font-semibold mb-1">Capacity-Based Scheduling</p>
           <p>
             Set only the <strong>start time</strong> for each day. End time is automatically calculated based on school settings:{' '}
@@ -360,7 +360,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                       {slot.maxStudents === null ? (
                         <span className="text-tx-muted">{slotMaxStudents} <span className="text-xs">(default)</span></span>
                       ) : (
-                        <span className={slot.maxStudents === 1 ? 'text-orange-600 font-medium' : ''}>
+                        <span className={slot.maxStudents === 1 ? 'text-status-warning-text font-medium' : ''}>
                           {slot.maxStudents} {slot.maxStudents === 1 && <span className="text-xs">(single)</span>}
                         </span>
                       )}
@@ -371,7 +371,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${slot.isActive
-                          ? 'bg-green-100 text-green-800'
+                          ? 'bg-status-success-bg text-status-success-text'
                           : 'bg-surface2 text-tx-primary'
                           }`}
                       >
@@ -382,13 +382,13 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleToggleActive(slot)}
-                          className="px-3 py-1 text-primary hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                          className="px-3 py-1 text-primary hover:brightness-75 hover:bg-status-info-bg rounded transition-colors"
                         >
                           {slot.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                         <button
                           onClick={() => handleDelete(slot.id)}
-                          className="px-3 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                          className="px-3 py-1 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded transition-colors"
                         >
                           Delete
                         </button>

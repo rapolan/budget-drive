@@ -55,11 +55,11 @@ export const VehiclesPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
-        return 'bg-green-100 text-green-800';
+        return 'bg-status-success-bg text-status-success-text';
       case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-status-warning-bg text-status-warning-text';
       case 'retired':
-        return 'bg-red-100 text-red-800';
+        return 'bg-status-danger-bg text-status-danger-text';
       default:
         return 'bg-surface2 text-tx-primary';
     }
@@ -168,9 +168,9 @@ export const VehiclesPage: React.FC = () => {
                 key={vehicle.id}
                 onClick={() => handleEdit(vehicle)}
                 className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
-                  vehicle.status === 'active' ? 'border-green-200 hover:border-green-300' :
-                  vehicle.status === 'maintenance' ? 'border-yellow-200' :
-                  vehicle.status === 'retired' ? 'border-red-200' :
+                  vehicle.status === 'active' ? 'border-status-success-border hover:brightness-90' :
+                  vehicle.status === 'maintenance' ? 'border-status-warning-border' :
+                  vehicle.status === 'retired' ? 'border-status-danger-border' :
                   'border-[var(--border)] hover:brightness-110 hover:border-primary'
                 }`}
               >
@@ -239,7 +239,7 @@ export const VehiclesPage: React.FC = () => {
                       e.stopPropagation();
                       handleDelete(vehicle.id);
                     }}
-                    className="p-2 text-tx-secondary hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 text-tx-secondary hover:text-status-danger-text hover:bg-status-danger-bg rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -345,7 +345,7 @@ export const VehiclesPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleEdit(vehicle)}
-                        className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+                        className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded transition-colors"
                         title="Edit vehicle"
                       >
                         <Edit className="h-5 w-5" />
@@ -353,7 +353,7 @@ export const VehiclesPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDelete(vehicle.id)}
-                        className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+                        className="p-2 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded transition-colors"
                         title="Delete vehicle"
                       >
                         <Trash2 className="h-5 w-5" />

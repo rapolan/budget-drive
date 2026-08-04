@@ -466,13 +466,13 @@ export const LessonsPage: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-status-info-bg text-status-info-text';
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-status-success-bg text-status-success-text';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'bg-status-danger-bg text-status-danger-text';
       case 'no_show':
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-status-warning-bg text-status-warning-text';
       default:
         return 'bg-surface2 text-tx-primary';
     }
@@ -559,13 +559,13 @@ export const LessonsPage: React.FC = () => {
     return (
       <tr
         key={lesson.id}
-        className={`hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-amber-400 bg-amber-50/50' : ''}`}
+        className={`hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-status-warning-text bg-status-warning-bg/50' : ''}`}
         onClick={() => handleEdit(lesson)}
       >
         <td className="whitespace-nowrap px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${upcoming ? 'bg-amber-100' : 'bg-blue-50'}`}>
-              <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-primary'}`} />
+            <div className={`p-2 rounded-lg ${upcoming ? 'bg-status-warning-bg' : 'bg-status-info-bg'}`}>
+              <Clock className={`h-4 w-4 ${upcoming ? 'text-status-warning-text' : 'text-primary'}`} />
             </div>
             <div>
               <div className="text-sm font-medium text-tx-primary">
@@ -576,7 +576,7 @@ export const LessonsPage: React.FC = () => {
               </div>
             </div>
             {upcoming && (
-              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 animate-pulse">
+              <span className="inline-flex items-center rounded-full bg-status-warning-bg px-2 py-0.5 text-xs font-medium text-status-warning-text animate-pulse">
                 <AlertCircle className="h-3 w-3 mr-1" />
                 Soon
               </span>
@@ -648,7 +648,7 @@ export const LessonsPage: React.FC = () => {
                     e.stopPropagation();
                     handleEdit(lesson);
                   }}
-                  className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                  className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                   title="Edit lesson"
                 >
                   <Edit className="h-4 w-4" />
@@ -659,7 +659,7 @@ export const LessonsPage: React.FC = () => {
                     e.stopPropagation();
                     handleComplete(lesson.id);
                   }}
-                  className="p-2 text-green-600 hover:text-green-900 hover:bg-green-50 rounded-lg transition-all hover:scale-110"
+                  className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
                   title="Mark as completed"
                 >
                   <CheckCircle className="h-4 w-4" />
@@ -670,7 +670,7 @@ export const LessonsPage: React.FC = () => {
                     e.stopPropagation();
                     handleNoShow(lesson.id);
                   }}
-                  className="p-2 text-orange-600 hover:text-orange-900 hover:bg-orange-50 rounded-lg transition-all hover:scale-110"
+                  className="p-2 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
                   title="Mark as no-show"
                 >
                   <AlertCircle className="h-4 w-4" />
@@ -681,7 +681,7 @@ export const LessonsPage: React.FC = () => {
                     e.stopPropagation();
                     handleCancel(lesson.id);
                   }}
-                  className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-all hover:scale-110"
+                  className="p-2 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
                   title="Cancel lesson"
                 >
                   <X className="h-4 w-4" />
@@ -695,7 +695,7 @@ export const LessonsPage: React.FC = () => {
                   e.stopPropagation();
                   handleReschedule(lesson);
                 }}
-                className="p-2 text-primary hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all hover:scale-110"
+                className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                 title="Reschedule lesson"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -814,11 +814,11 @@ export const LessonsPage: React.FC = () => {
           onClick={() => handleStatCardClick('today')}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
               <CalendarDays className="h-5 w-5 text-primary" />
             </div>
             {stats.upcomingToday > 0 && (
-              <span className="flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+              <span className="flex items-center text-xs font-medium text-status-warning-text bg-status-warning-bg px-2 py-1 rounded-full">
                 <Clock className="h-3 w-3 mr-1" />
                 {stats.upcomingToday} upcoming
               </span>
@@ -856,10 +856,10 @@ export const LessonsPage: React.FC = () => {
           onClick={() => handleStatCardClick('completed')}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+            <div className="p-2 bg-status-success-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <CheckCircle className="h-5 w-5 text-status-success-text" />
             </div>
-            <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+            <span className="text-xs font-medium text-status-success-text bg-status-success-bg px-2 py-1 rounded-full">
               {stats.totalHoursThisMonth} hrs
             </span>
           </div>
@@ -875,8 +875,8 @@ export const LessonsPage: React.FC = () => {
           onClick={() => handleStatCardClick('scheduled')}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
-              <TrendingUp className="h-5 w-5 text-amber-600" />
+            <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <TrendingUp className="h-5 w-5 text-status-warning-text" />
             </div>
           </div>
           <div className="mt-3">
@@ -1041,17 +1041,17 @@ export const LessonsPage: React.FC = () => {
                     key={lesson.id}
                     onClick={() => handleEdit(lesson)}
                     className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
-                      upcoming ? 'border-amber-300 bg-amber-50/30' :
-                      lesson.status === 'completed' ? 'border-green-200' :
-                      lesson.status === 'cancelled' ? 'border-red-200' :
+                      upcoming ? 'border-status-warning-border bg-status-warning-bg/30' :
+                      lesson.status === 'completed' ? 'border-status-success-border' :
+                      lesson.status === 'cancelled' ? 'border-status-danger-border' :
                       'border-[var(--border)] hover:brightness-110 hover:border-primary'
                     }`}
                   >
                     {/* Header - Date & Status */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <div className={`p-2 rounded-lg ${upcoming ? 'bg-amber-100' : 'bg-blue-50'}`}>
-                          <Clock className={`h-4 w-4 ${upcoming ? 'text-amber-600' : 'text-primary'}`} />
+                        <div className={`p-2 rounded-lg ${upcoming ? 'bg-status-warning-bg' : 'bg-status-info-bg'}`}>
+                          <Clock className={`h-4 w-4 ${upcoming ? 'text-status-warning-text' : 'text-primary'}`} />
                         </div>
                         <div>
                           <div className="text-sm font-semibold text-tx-primary">
@@ -1073,7 +1073,7 @@ export const LessonsPage: React.FC = () => {
                           {lesson.status.replace(/_/g, ' ')}
                         </span>
                         {upcoming && (
-                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 animate-pulse">
+                          <span className="inline-flex items-center rounded-full bg-status-warning-bg px-2 py-0.5 text-xs font-medium text-status-warning-text animate-pulse">
                             <AlertCircle className="h-3 w-3 mr-1" />
                             Soon
                           </span>
@@ -1128,7 +1128,7 @@ export const LessonsPage: React.FC = () => {
                               e.stopPropagation();
                               handleComplete(lesson.id);
                             }}
-                            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                            className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-status-success-text text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
                           >
                             <CheckCircle className="h-4 w-4" />
                             Complete
@@ -1139,7 +1139,7 @@ export const LessonsPage: React.FC = () => {
                               e.stopPropagation();
                               handleEdit(lesson);
                             }}
-                            className="p-2 text-tx-secondary hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
+                            className="p-2 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-colors"
                             title="Edit"
                           >
                             <Edit className="h-4 w-4" />
@@ -1150,7 +1150,7 @@ export const LessonsPage: React.FC = () => {
                               e.stopPropagation();
                               handleCancel(lesson.id);
                             }}
-                            className="p-2 text-tx-secondary hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-2 text-tx-secondary hover:text-status-danger-text hover:bg-status-danger-bg rounded-lg transition-colors"
                             title="Cancel"
                           >
                             <X className="h-4 w-4" />
@@ -1254,12 +1254,12 @@ export const LessonsPage: React.FC = () => {
                 {/* Today's Lessons */}
                 {groupedLessons?.today && groupedLessons.today.length > 0 && (
                   <>
-                    <tr className="bg-gradient-to-r from-blue-50 to-blue-100/50">
+                    <tr className="bg-status-info-bg">
                       <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-primary" />
-                          <h3 className="text-sm font-semibold text-blue-900">Today</h3>
-                          <span className="ml-2 px-2 py-0.5 bg-blue-200 text-blue-800 text-xs font-medium rounded-full">
+                          <h3 className="text-sm font-semibold text-status-info-text">Today</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-status-info-bg text-status-info-text text-xs font-medium rounded-full">
                             {groupedLessons.today.length}
                           </span>
                         </div>
@@ -1272,12 +1272,12 @@ export const LessonsPage: React.FC = () => {
                 {/* Tomorrow's Lessons */}
                 {groupedLessons?.tomorrow && groupedLessons.tomorrow.length > 0 && (
                   <>
-                    <tr className="bg-gradient-to-r from-green-50 to-green-100/50">
+                    <tr className="bg-status-success-bg">
                       <td colSpan={8} className="px-6 py-3">
                         <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-green-600" />
-                          <h3 className="text-sm font-semibold text-green-900">Tomorrow</h3>
-                          <span className="ml-2 px-2 py-0.5 bg-green-200 text-green-800 text-xs font-medium rounded-full">
+                          <Calendar className="h-4 w-4 text-status-success-text" />
+                          <h3 className="text-sm font-semibold text-status-success-text">Tomorrow</h3>
+                          <span className="ml-2 px-2 py-0.5 bg-status-success-bg text-status-success-text text-xs font-medium rounded-full">
                             {groupedLessons.tomorrow.length}
                           </span>
                         </div>

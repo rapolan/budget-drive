@@ -53,11 +53,11 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-status-success-bg text-status-success-text';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-status-warning-bg text-status-warning-text';
       case 'failed':
-        return 'bg-red-100 text-red-800';
+        return 'bg-status-danger-bg text-status-danger-text';
       case 'refunded':
         return 'bg-surface2 text-tx-primary';
       default:
@@ -102,19 +102,19 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
             {/* Summary */}
             {student && (
               <div className="mb-6 grid gap-4 md:grid-cols-3">
-                <div className="rounded-lg bg-blue-50 p-4">
+                <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Total Paid</p>
-                  <p className="mt-1 text-2xl font-bold text-green-600">
+                  <p className="mt-1 text-2xl font-bold text-status-success-text">
                     ${(Number(student.totalPaid) || 0).toFixed(2)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-blue-50 p-4">
+                <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
-                  <p className="mt-1 text-2xl font-bold text-red-600">
+                  <p className="mt-1 text-2xl font-bold text-status-danger-text">
                     ${(Number(student.outstandingBalance) || 0).toFixed(2)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-blue-50 p-4">
+                <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Total Payments</p>
                   <p className="mt-1 text-2xl font-bold text-tx-primary">{payments.length}</p>
                 </div>
@@ -130,8 +130,8 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
 
             {/* Error State */}
             {error && (
-              <div className="rounded-md bg-red-50 p-4">
-                <p className="text-sm text-red-800">
+              <div className="rounded-md bg-status-danger-bg p-4">
+                <p className="text-sm text-status-danger-text">
                   Failed to load payment history. Please try again.
                 </p>
               </div>
@@ -192,7 +192,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                 </div>
                               </td>
                               <td className="whitespace-nowrap px-4 py-3 text-right">
-                                <div className="text-sm font-semibold text-green-600">
+                                <div className="text-sm font-semibold text-status-success-text">
                                   ${Number(payment.amount).toFixed(2)}
                                 </div>
                               </td>

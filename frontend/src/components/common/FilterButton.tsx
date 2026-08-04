@@ -23,16 +23,16 @@ const variantClasses = {
     inactive: 'bg-surface text-purple-600 border-purple-300/50 hover:bg-purple-500/10 focus-visible:ring-purple-500',
   },
   success: {
-    active: 'bg-green-600 text-white focus-visible:ring-green-500',
-    inactive: 'bg-surface text-green-600 border-green-300/50 hover:bg-green-500/10 focus-visible:ring-green-500',
+    active: 'bg-status-success-text text-white focus-visible:ring-green-500',
+    inactive: 'bg-surface text-status-success-text border-status-success-border/50 hover:bg-status-success-text/10 focus-visible:ring-green-500',
   },
   warning: {
-    active: 'bg-yellow-600 text-white focus-visible:ring-yellow-500',
-    inactive: 'bg-surface text-yellow-600 border-yellow-300/50 hover:bg-yellow-500/10 focus-visible:ring-yellow-500',
+    active: 'bg-status-warning-text text-white focus-visible:ring-yellow-500',
+    inactive: 'bg-surface text-status-warning-text border-status-warning-border/50 hover:bg-status-warning-text/10 focus-visible:ring-yellow-500',
   },
   danger: {
-    active: 'bg-red-600 text-white focus-visible:ring-red-500',
-    inactive: 'bg-surface text-red-600 border-red-300/50 hover:bg-red-500/10 focus-visible:ring-red-500',
+    active: 'bg-status-danger-text text-white focus-visible:ring-red-500',
+    inactive: 'bg-surface text-status-danger-text border-status-danger-border/50 hover:bg-status-danger-text/10 focus-visible:ring-red-500',
   },
   info: {
     active: 'bg-primary text-white focus-visible:ring-primary',

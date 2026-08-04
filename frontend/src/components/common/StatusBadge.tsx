@@ -20,45 +20,76 @@ type Status =
   | 'on_leave'
   | 'terminated';
 
+type Intent = 'info' | 'success' | 'warning' | 'danger' | 'neutral';
+
 interface StatusBadgeProps {
   status: Status;
   className?: string;
 }
 
-const statusConfig: Record<Status, { label: string; className: string }> = {
+const statusIntent: Record<Status, Intent> = {
   // Student statuses
-  active: { label: 'Active', className: 'bg-green-100 text-green-800' },
-  inactive: { label: 'Inactive', className: 'bg-surface2 text-tx-primary' },
-  enrolled: { label: 'Enrolled', className: 'bg-blue-100 text-blue-800' },
-  completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
-  dropped: { label: 'Dropped', className: 'bg-red-100 text-red-800' },
-  suspended: { label: 'Suspended', className: 'bg-red-100 text-red-800' },
-  permit_expired: { label: 'Permit Expired', className: 'bg-orange-100 text-orange-800' },
+  active: 'success',
+  inactive: 'neutral',
+  enrolled: 'info',
+  completed: 'success',
+  dropped: 'danger',
+  suspended: 'danger',
+  permit_expired: 'warning',
 
   // Lesson statuses
-  scheduled: { label: 'Scheduled', className: 'bg-blue-100 text-blue-800' },
-  cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
-  no_show: { label: 'No Show', className: 'bg-orange-100 text-orange-800' },
+  scheduled: 'info',
+  cancelled: 'danger',
+  no_show: 'warning',
 
   // Payment statuses
-  pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
-  confirmed: { label: 'Confirmed', className: 'bg-green-100 text-green-800' },
-  failed: { label: 'Failed', className: 'bg-red-100 text-red-800' },
-  refunded: { label: 'Refunded', className: 'bg-surface2 text-tx-primary' },
+  pending: 'warning',
+  confirmed: 'success',
+  failed: 'danger',
+  refunded: 'neutral',
 
   // Vehicle statuses
-  maintenance: { label: 'Maintenance', className: 'bg-yellow-100 text-yellow-800' },
-  retired: { label: 'Retired', className: 'bg-surface2 text-tx-primary' },
+  maintenance: 'warning',
+  retired: 'neutral',
 
   // Instructor statuses
-  on_leave: { label: 'On Leave', className: 'bg-yellow-100 text-yellow-800' },
-  terminated: { label: 'Terminated', className: 'bg-red-100 text-red-800' },
+  on_leave: 'warning',
+  terminated: 'danger',
+};
+
+const intentClassName: Record<Intent, string> = {
+  info: 'bg-status-info-bg text-status-info-text',
+  success: 'bg-status-success-bg text-status-success-text',
+  warning: 'bg-status-warning-bg text-status-warning-text',
+  danger: 'bg-status-danger-bg text-status-danger-text',
+  neutral: 'bg-surface2 text-tx-primary',
+};
+
+const statusLabel: Record<Status, string> = {
+  active: 'Active',
+  inactive: 'Inactive',
+  enrolled: 'Enrolled',
+  completed: 'Completed',
+  dropped: 'Dropped',
+  suspended: 'Suspended',
+  permit_expired: 'Permit Expired',
+  scheduled: 'Scheduled',
+  cancelled: 'Cancelled',
+  no_show: 'No Show',
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  failed: 'Failed',
+  refunded: 'Refunded',
+  maintenance: 'Maintenance',
+  retired: 'Retired',
+  on_leave: 'On Leave',
+  terminated: 'Terminated',
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = '' }) => {
-  const config = statusConfig[status];
+  const intent = statusIntent[status];
 
-  if (!config) {
+  if (!intent) {
     console.warn(`Unknown status: ${status}`);
     return (
       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-surface2 text-tx-primary ${className}`}>
@@ -68,8 +99,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = ''
   }
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${config.className} ${className}`}>
-      {config.label}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${intentClassName[intent]} ${className}`}>
+      {statusLabel[status]}
     </span>
   );
 };

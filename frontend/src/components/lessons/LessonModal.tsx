@@ -346,7 +346,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
                 <User className="h-4 w-4 text-primary" />
                 Student
-                <span className="text-red-500">*</span>
+                <span className="text-status-danger-text">*</span>
               </label>
               <select
                 name="studentId"
@@ -407,7 +407,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
                 <User className="h-4 w-4 text-primary" />
                 Instructor
-                <span className="text-red-500">*</span>
+                <span className="text-status-danger-text">*</span>
               </label>
               <select
                 name="instructorId"
@@ -433,7 +433,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
                 <FileText className="h-4 w-4 text-primary" />
                 Lesson Type
-                <span className="text-red-500">*</span>
+                <span className="text-status-danger-text">*</span>
               </label>
               <select
                 name="lessonType"
@@ -455,7 +455,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
             <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
               <Calendar className="h-4 w-4 text-primary" />
               Date
-              <span className="text-red-500">*</span>
+              <span className="text-status-danger-text">*</span>
             </label>
             <input
               type="date"
@@ -476,7 +476,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
                 <Clock className="h-4 w-4 text-primary" />
                 Start Time
-                <span className="text-red-500">*</span>
+                <span className="text-status-danger-text">*</span>
               </label>
               <input
                 type="time"
@@ -495,7 +495,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
                 <Clock className="h-4 w-4 text-primary" />
                 End Time
-                <span className="text-red-500">*</span>
+                <span className="text-status-danger-text">*</span>
               </label>
               <input
                 type="time"
@@ -531,7 +531,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               <label className="flex items-center gap-2 text-sm font-medium text-tx-primary mb-2">
                 <span className="text-primary">$</span>
                 Cost
-                <span className="text-red-500">*</span>
+                <span className="text-status-danger-text">*</span>
               </label>
               <input
                 type="number"
@@ -590,23 +590,23 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           {formData.instructorId && formData.date && (
             <div className="space-y-3">
               {sameDayLessons.length === 0 ? (
-                <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
-                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+                <div className="flex items-start gap-3 rounded-lg border border-status-success-border bg-status-success-bg p-4">
+                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-status-success-text mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-green-900">
+                    <p className="text-sm font-medium text-status-success-text">
                       Instructor is available all day
                     </p>
-                    <p className="text-xs text-green-700 mt-0.5">
+                    <p className="text-xs text-status-success-text mt-0.5">
                       No other lessons scheduled for this date
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                  <div className="flex items-start gap-3 rounded-lg border border-status-info-border bg-status-info-bg p-4">
                     <Clock className="h-5 w-5 flex-shrink-0 text-primary mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-blue-900">
+                      <p className="text-sm font-medium text-status-info-text">
                         Instructor's schedule for this day:
                       </p>
                       <div className="mt-2 space-y-1">
@@ -620,13 +620,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                   </div>
 
                   {conflict && (
-                    <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
-                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
+                    <div className="flex items-start gap-3 rounded-lg border border-status-danger-border bg-status-danger-bg p-4">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-status-danger-text mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium text-red-900">
+                        <p className="text-sm font-medium text-status-danger-text">
                           Time conflict detected
                         </p>
-                        <p className="text-xs text-red-700 mt-0.5">
+                        <p className="text-xs text-status-danger-text mt-0.5">
                           The instructor is already booked during this time.
                           {nextAvailable && (
                             <span className="ml-1 font-medium">
@@ -639,13 +639,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                   )}
 
                   {!conflict && formData.startTime && formData.endTime && (
-                    <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
-                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-green-600 mt-0.5" />
+                    <div className="flex items-start gap-3 rounded-lg border border-status-success-border bg-status-success-bg p-4">
+                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-status-success-text mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium text-green-900">
+                        <p className="text-sm font-medium text-status-success-text">
                           Selected time is available
                         </p>
-                        <p className="text-xs text-green-700 mt-0.5">
+                        <p className="text-xs text-status-success-text mt-0.5">
                           No conflicts with existing lessons
                         </p>
                       </div>
@@ -659,16 +659,16 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           {/* Server-side conflict / error banner (e.g. an edit that collides
               with another lesson once the 6D scheduling check runs) */}
           {submitError && (
-            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
-              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 mt-0.5" />
-              <p className="text-sm text-red-900">{submitError}</p>
+            <div className="flex items-start gap-3 rounded-lg border border-status-danger-border bg-status-danger-bg p-4">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-status-danger-text mt-0.5" />
+              <p className="text-sm text-status-danger-text">{submitError}</p>
             </div>
           )}
 
           {/* BDP Info Banner */}
           {!isEditing && (
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-              <p className="text-xs text-blue-800">
+            <div className="rounded-lg bg-status-info-bg border border-status-info-border p-4">
+              <p className="text-xs text-status-info-text">
                 <strong>Note:</strong> Creating this lesson will automatically record a 5 satoshi treasury fee
                 and queue email notifications (booking confirmation, 24hr reminder, 1hr reminder) for both
                 student and instructor.

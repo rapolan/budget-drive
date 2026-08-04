@@ -144,7 +144,7 @@ export const RecurringPatterns: React.FC = () => {
     <div className="space-y-6">
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-status-danger-bg border border-status-danger-border text-status-danger-text px-4 py-3 rounded-lg">
           <div className="flex items-center">
             <span className="text-xl mr-3">⚠️</span>
             <div>
@@ -396,8 +396,8 @@ export const RecurringPatterns: React.FC = () => {
           </div>
 
           {/* Payment Notice */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800">
+          <div className="bg-status-info-bg border border-status-info-border rounded-lg p-4">
+            <p className="text-sm text-status-info-text">
               <strong>Payment:</strong> Students pay after each lesson by default. No upfront payment required.
             </p>
           </div>
@@ -449,7 +449,7 @@ export const RecurringPatterns: React.FC = () => {
                       <span
                         className={`px-2 py-1 text-xs font-medium rounded ${
                           pattern.isActive
-                            ? 'bg-green-100 text-green-800'
+                            ? 'bg-status-success-bg text-status-success-text'
                             : 'bg-surface2 text-tx-primary'
                         }`}
                       >
