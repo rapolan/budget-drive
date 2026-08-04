@@ -39,7 +39,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-base flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
       </div>
     );
@@ -164,7 +164,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppLayout>
-              <div className="text-center text-gray-500">Certificates page - Coming soon</div>
+              <div className="text-center text-tx-muted">Certificates page - Coming soon</div>
             </AppLayout>
           </ProtectedRoute>
         }
@@ -174,7 +174,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppLayout>
-              <div className="text-center text-gray-500">Follow-ups page - Coming soon</div>
+              <div className="text-center text-tx-muted">Follow-ups page - Coming soon</div>
             </AppLayout>
           </ProtectedRoute>
         }

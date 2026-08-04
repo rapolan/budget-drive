@@ -111,7 +111,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               <button
                 onClick={this.handleGoHome}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-surface border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 hover:border-gray-400 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-all font-medium"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-surface border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 hover:border-edge-strong hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-edge-strong focus:ring-offset-2 transition-all font-medium"
               >
                 <Home className="w-5 h-5" />
                 Go to Dashboard

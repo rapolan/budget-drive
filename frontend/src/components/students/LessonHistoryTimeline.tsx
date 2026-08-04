@@ -64,7 +64,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
   if (sortedLessons.length === 0) {
     return (
       <div className="text-center py-12">
-        <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+        <Calendar className="h-12 w-12 text-tx-muted mx-auto mb-3" />
         <p className="text-sm text-tx-muted">No lessons scheduled yet</p>
       </div>
     );
