@@ -22,6 +22,7 @@
    opacity-modifier classes, e.g. bg-surface/80 - Tailwind can't apply an alpha
    channel to a bare hex/var() string, only to channels it can interpolate). */
 :root {
+  color-scheme: light;
   --bg-base:        #f8fafc;
   --bg-base-rgb:        248 250 252;
   --bg-surface:     #ffffff;
@@ -44,6 +45,7 @@
 
 /* ─── Semantic surface/text tokens — dark mode ──────────────────────────────── */
 :root.dark {
+  color-scheme: dark;
   --bg-base:        #0f172a;
   --bg-base-rgb:        15 23 42;
   --bg-surface:     #1e293b;
