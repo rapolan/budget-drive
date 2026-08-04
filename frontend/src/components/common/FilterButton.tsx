@@ -8,30 +8,35 @@ interface FilterButtonProps {
   variant?: 'default' | 'secondary' | 'success' | 'warning' | 'danger' | 'info';
 }
 
+// Each variant's focus ring is listed explicitly (not built from a template
+// literal like `focus:ring-${variant}-500`) - Tailwind's static JIT scanner
+// can only generate classes it can see written out in source, so a dynamic
+// class name silently produces no CSS at all. This is the same fix Button
+// (components/common/Button.tsx) applies via its own static variant map.
 const variantClasses = {
   default: {
-    active: 'bg-tx-primary text-surface',
-    inactive: 'bg-surface text-tx-secondary border-[var(--border-strong)] hover:bg-surface2',
+    active: 'bg-tx-primary text-surface focus-visible:ring-edge-strong',
+    inactive: 'bg-surface text-tx-secondary border-[var(--border-strong)] hover:bg-surface2 focus-visible:ring-edge-strong',
   },
   secondary: {
-    active: 'bg-purple-600 text-white',
-    inactive: 'bg-surface text-purple-600 border-purple-300/50 hover:bg-purple-500/10',
+    active: 'bg-purple-600 text-white focus-visible:ring-purple-500',
+    inactive: 'bg-surface text-purple-600 border-purple-300/50 hover:bg-purple-500/10 focus-visible:ring-purple-500',
   },
   success: {
-    active: 'bg-green-600 text-white',
-    inactive: 'bg-surface text-green-600 border-green-300/50 hover:bg-green-500/10',
+    active: 'bg-green-600 text-white focus-visible:ring-green-500',
+    inactive: 'bg-surface text-green-600 border-green-300/50 hover:bg-green-500/10 focus-visible:ring-green-500',
   },
   warning: {
-    active: 'bg-yellow-600 text-white',
-    inactive: 'bg-surface text-yellow-600 border-yellow-300/50 hover:bg-yellow-500/10',
+    active: 'bg-yellow-600 text-white focus-visible:ring-yellow-500',
+    inactive: 'bg-surface text-yellow-600 border-yellow-300/50 hover:bg-yellow-500/10 focus-visible:ring-yellow-500',
   },
   danger: {
-    active: 'bg-red-600 text-white',
-    inactive: 'bg-surface text-red-600 border-red-300/50 hover:bg-red-500/10',
+    active: 'bg-red-600 text-white focus-visible:ring-red-500',
+    inactive: 'bg-surface text-red-600 border-red-300/50 hover:bg-red-500/10 focus-visible:ring-red-500',
   },
   info: {
-    active: 'bg-primary text-white',
-    inactive: 'bg-surface text-primary border-primary/30 hover:bg-primary/10',
+    active: 'bg-primary text-white focus-visible:ring-primary',
+    inactive: 'bg-surface text-primary border-primary/30 hover:bg-primary/10 focus-visible:ring-primary',
   },
 };
 
@@ -48,10 +53,8 @@ export const FilterButton: React.FC<FilterButtonProps> = ({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-        isActive
-          ? `${classes.active} focus:ring-${variant === 'default' ? 'gray' : variant === 'secondary' ? 'purple' : variant}-500`
-          : `${classes.inactive} focus:ring-gray-400`
+      className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+        isActive ? classes.active : classes.inactive
       }`}
     >
       {label}

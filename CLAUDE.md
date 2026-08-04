@@ -37,6 +37,7 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 - Validation with `express-validator` at the route layer, mirroring existing routes.
 - No new dependencies without asking first. The dependency list was recently pruned — keep it lean.
 - Frontend data fetching goes through `frontend/src/api/*` modules and TanStack Query. No fetch/axios calls inside components.
+- New buttons use `common/Button`. Do not hand-roll button classes.
 
 ## Do not touch
 

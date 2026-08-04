@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/api/users';
 import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/common/Button';
 
 export const TeamSettings: React.FC = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -22,13 +23,10 @@ export const TeamSettings: React.FC = () => {
             Manage staff and instructor access to your school's dashboard.
           </p>
         </div>
-        <button
-          onClick={() => setIsInviteModalOpen(true)}
-          className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition"
-        >
-          <UserPlus className="h-4 w-4 mr-2" />
+        <Button onClick={() => setIsInviteModalOpen(true)}>
+          <UserPlus className="h-4 w-4" />
           Invite User
-        </button>
+        </Button>
       </div>
 
       {isLoading ? (
@@ -82,9 +80,14 @@ export const TeamSettings: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-tx-muted hover:text-tx-secondary" aria-label="More actions" title="More actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="More actions"
+                      title="More actions"
+                    >
                       <MoreVertical className="h-5 w-5" />
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -168,20 +171,12 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
             </p>
           </div>
           <div className="flex justify-end space-x-3 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-[var(--border-strong)] rounded-lg text-tx-secondary hover:bg-surface2"
-            >
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={inviteMutation.isPending}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary disabled:opacity-50"
-            >
+            </Button>
+            <Button type="submit" loading={inviteMutation.isPending}>
               {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
