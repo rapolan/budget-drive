@@ -38,8 +38,8 @@
   --text-primary-rgb:   15 23 42;
   --text-secondary: #475569;
   --text-secondary-rgb: 71 85 105;
-  --text-muted:     #94a3b8;
-  --text-muted-rgb:     148 163 184;
+  --text-muted:     #64748b;
+  --text-muted-rgb:     100 116 139;
 }
 
 /* ─── Semantic surface/text tokens — dark mode ──────────────────────────────── */
@@ -60,8 +60,8 @@
   --text-primary-rgb:   248 250 252;
   --text-secondary: #cbd5e1;
   --text-secondary-rgb: 203 213 225;
-  --text-muted:     #64748b;
-  --text-muted-rgb:     100 116 139;
+  --text-muted:     #94a3b8;
+  --text-muted-rgb:     148 163 184;
 }
 
 /* ─── Base styles ───────────────────────────────────────────────────────────── */
