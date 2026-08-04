@@ -246,7 +246,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
   return (
     <div className="bg-surface rounded-lg shadow overflow-hidden">
       {/* Legend */}
-      <div className="px-4 py-2 bg-surface2 border-b border-[var(--border)] flex flex-wrap items-center gap-4 text-xs">
+      <div className="px-4 py-2 bg-surface2 border-b border-edge flex flex-wrap items-center gap-4 text-xs">
         <div className="flex items-center gap-1">
           <div className="w-4 h-4 bg-status-success-text rounded"></div>
           <span>Lesson Start</span>
@@ -261,7 +261,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-[var(--border)]">
+        <table className="min-w-full divide-y divide-edge">
           <thead className="bg-surface2">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider sticky left-0 bg-surface2">
@@ -278,7 +278,7 @@ export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-surface divide-y divide-[var(--border)]">
+          <tbody className="bg-surface divide-y divide-edge">
             {TIME_SLOTS.map((timeSlot) => (
               <tr key={timeSlot} className="hover:bg-surface2">
                 <td className="px-3 py-2 whitespace-nowrap text-sm text-tx-muted sticky left-0 bg-surface font-medium">

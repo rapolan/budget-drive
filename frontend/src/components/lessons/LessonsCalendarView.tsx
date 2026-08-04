@@ -341,7 +341,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         </div>
       </div>
 
-      <div className="rounded-xl bg-surface p-6 shadow-sm border border-[var(--border)]">
+      <div className="rounded-xl bg-surface p-6 shadow-sm border border-edge">
         {/* Calendar Header */}
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-tx-primary">
@@ -350,21 +350,21 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
           <div className="flex items-center gap-2">
             <button
               onClick={goToToday}
-              className="flex items-center gap-1 rounded-lg border border-[var(--border-strong)] px-3 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
+              className="flex items-center gap-1 rounded-lg border border-edge-strong px-3 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
             >
               <Calendar className="h-4 w-4" />
               Today
             </button>
             <button
               onClick={previousMonth}
-              className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors"
+              className="rounded-lg border border-edge-strong p-2 text-tx-secondary hover:bg-surface2 transition-colors"
               aria-label="Previous month"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               onClick={nextMonth}
-              className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors"
+              className="rounded-lg border border-edge-strong p-2 text-tx-secondary hover:bg-surface2 transition-colors"
               aria-label="Next month"
             >
               <ChevronRight className="h-5 w-5" />
@@ -373,7 +373,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         </div>
 
         {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-px rounded-xl border border-[var(--border)] bg-surface3 overflow-hidden">
+        <div className="grid grid-cols-7 gap-px rounded-xl border border-edge bg-surface3 overflow-hidden">
           {/* Day headers */}
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
             const today = new Date();
@@ -535,7 +535,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         </div>
 
         {/* Legend */}
-        <div className="mt-4 flex items-center justify-center gap-8 text-sm text-tx-secondary py-3 bg-surface2 rounded-xl border border-[var(--border)]">
+        <div className="mt-4 flex items-center justify-center gap-8 text-sm text-tx-secondary py-3 bg-surface2 rounded-xl border border-edge">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-lg bg-status-success-bg border-l-2 border-status-success-border"></div>
             <span className="font-medium">Available</span>
@@ -577,7 +577,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
 
         return (
           <div
-            className="fixed z-50 bg-surface rounded-xl shadow-xl border border-[var(--border)] p-4 pointer-events-none"
+            className="fixed z-50 bg-surface rounded-xl shadow-xl border border-edge p-4 pointer-events-none"
             style={{
               left: `${left}px`,
               top: `${top}px`,
@@ -585,7 +585,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             }}
           >
             {/* Date header */}
-            <div className="text-sm font-bold text-tx-primary mb-3 pb-2 border-b border-[var(--border)]">
+            <div className="text-sm font-bold text-tx-primary mb-3 pb-2 border-b border-edge">
               {hoveredDay.date.toLocaleDateString('en-US', {
                 weekday: 'short',
                 month: 'short',
@@ -651,7 +651,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
             )}
 
             {/* Click hint */}
-            <p className="text-[10px] text-tx-muted mt-2 pt-2 border-t border-[var(--border)]">
+            <p className="text-[10px] text-tx-muted mt-2 pt-2 border-t border-edge">
               Click to view details
             </p>
           </div>

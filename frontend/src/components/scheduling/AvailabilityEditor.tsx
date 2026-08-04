@@ -251,7 +251,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, dayOfWeek: parseInt(e.target.value) })
                 }
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 title="Select day of week"
                 required
               >
@@ -272,7 +272,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 value={formData.startTime}
                 onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -289,7 +289,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                     maxStudents: e.target.value === '' ? null : parseInt(e.target.value)
                   })
                 }
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 title="Select max students for this slot"
               >
                 <option value="">Default ({schedulingSettings?.defaultMaxStudentsPerDay || 3})</option>
@@ -322,7 +322,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
             No availability slots configured. Click "Add Availability" to get started.
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-[var(--border)]">
+          <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
@@ -345,7 +345,7 @@ export const AvailabilityEditor: React.FC<AvailabilityEditorProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-surface divide-y divide-[var(--border)]">
+            <tbody className="bg-surface divide-y divide-edge">
               {availability.map((slot) => {
                 const slotMaxStudents = slot.maxStudents ?? schedulingSettings?.defaultMaxStudentsPerDay ?? 3;
                 return (

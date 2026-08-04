@@ -66,7 +66,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
+          <div className="flex items-center justify-between border-t border-edge pt-4">
             <span className="text-sm text-tx-secondary">Date & Time</span>
             <div className="text-right">
               <div className="font-semibold text-tx-primary">{formatShortDate(selectedSlot.date)}</div>
@@ -103,7 +103,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
             title="Select lesson number"
             value={lessonNumber || ''}
             onChange={(e) => setLessonNumber(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary"
+            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary"
           >
             <option value="">Not set</option>
             {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
@@ -125,7 +125,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
             min="0"
             step="0.01"
             autoComplete="nope"
-            className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-green-500"
+            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-green-500"
           />
         </div>
       </div>
@@ -141,7 +141,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Add any notes for the instructor..."
           rows={2}
-          className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
+          className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
         />
       </div>
 
@@ -150,7 +150,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
+          className="flex-1 px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
         >
           ← Back
         </button>

@@ -91,7 +91,7 @@ export const VehiclesPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-surface p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-edge bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('table')}
@@ -121,7 +121,7 @@ export const VehiclesPage: React.FC = () => {
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-lg border border-[var(--border-strong)] bg-surface px-4 py-2 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+      <div className="flex items-center rounded-lg border border-edge-strong bg-surface px-4 py-2 focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
         <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
@@ -171,7 +171,7 @@ export const VehiclesPage: React.FC = () => {
                   vehicle.status === 'active' ? 'border-status-success-border hover:brightness-90' :
                   vehicle.status === 'maintenance' ? 'border-status-warning-border' :
                   vehicle.status === 'retired' ? 'border-status-danger-border' :
-                  'border-[var(--border)] hover:brightness-110 hover:border-primary'
+                  'border-edge hover:brightness-110 hover:border-primary'
                 }`}
               >
                 {/* Header - Vehicle Name & Status */}
@@ -201,7 +201,7 @@ export const VehiclesPage: React.FC = () => {
                   {vehicle.color && (
                     <div className="flex items-center gap-2 text-sm text-tx-secondary">
                       <div
-                        className="w-4 h-4 rounded-full border border-[var(--border-strong)] flex-shrink-0"
+                        className="w-4 h-4 rounded-full border border-edge-strong flex-shrink-0"
                         style={{ backgroundColor: vehicle.color.toLowerCase() }}
                       />
                       <span className="capitalize">{vehicle.color}</span>
@@ -221,7 +221,7 @@ export const VehiclesPage: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
+                <div className="flex items-center gap-2 pt-3 border-t border-edge">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -255,7 +255,7 @@ export const VehiclesPage: React.FC = () => {
       {viewMode === 'table' && (
       <div className="rounded-lg bg-surface shadow">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[var(--border)]">
+          <table className="min-w-full divide-y divide-edge">
           <thead className="bg-surface2">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
@@ -278,7 +278,7 @@ export const VehiclesPage: React.FC = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)] bg-surface">
+          <tbody className="divide-y divide-edge bg-surface">
             {isLoading ? (
               <tr>
                 <td colSpan={6} className="py-12">

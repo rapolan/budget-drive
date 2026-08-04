@@ -87,7 +87,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
             {/* Error details (only show in development) */}
             {import.meta.env.DEV && this.state.error && (
-              <div className="mt-6 p-4 bg-surface2 rounded-lg border border-[var(--border)]">
+              <div className="mt-6 p-4 bg-surface2 rounded-lg border border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary mb-2">Error Details (Development Only):</h3>
                 <div className="text-xs font-mono text-status-danger-text overflow-auto max-h-48">
                   <p className="font-bold">{this.state.error.toString()}</p>
@@ -111,7 +111,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               <button
                 onClick={this.handleGoHome}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-surface border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 hover:border-edge-strong hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-edge-strong focus:ring-offset-2 transition-all font-medium"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-surface border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 hover:border-edge-strong hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-edge-strong focus:ring-offset-2 transition-all font-medium"
               >
                 <Home className="w-5 h-5" />
                 Go to Dashboard

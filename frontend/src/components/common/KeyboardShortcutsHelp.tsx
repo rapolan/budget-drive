@@ -28,7 +28,7 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md rounded-xl bg-surface shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-edge">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Keyboard className="h-5 w-5 text-primary" />
@@ -54,7 +54,7 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
                   {shortcut.keys.map((key, keyIdx) => (
                     <React.Fragment key={keyIdx}>
                       {keyIdx > 0 && <span className="text-tx-muted text-xs mx-1">/</span>}
-                      <kbd className="px-2 py-1 text-xs font-semibold text-tx-secondary bg-surface2 border border-[var(--border-strong)] rounded-md shadow-sm">
+                      <kbd className="px-2 py-1 text-xs font-semibold text-tx-secondary bg-surface2 border border-edge-strong rounded-md shadow-sm">
                         {key}
                       </kbd>
                     </React.Fragment>
@@ -64,9 +64,9 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
             ))}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-[var(--border)]">
+          <div className="mt-6 pt-4 border-t border-edge">
             <p className="text-xs text-tx-muted text-center">
-              Press <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-tx-secondary bg-surface2 border border-[var(--border)] rounded">Esc</kbd> to close
+              Press <kbd className="px-1.5 py-0.5 text-[10px] font-semibold text-tx-secondary bg-surface2 border border-edge rounded">Esc</kbd> to close
             </p>
           </div>
         </div>

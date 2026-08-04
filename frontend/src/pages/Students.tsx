@@ -354,7 +354,7 @@ export const StudentsPage: React.FC = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* New Students This Month */}
-        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('new_this_month')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
@@ -391,7 +391,7 @@ export const StudentsPage: React.FC = () => {
         </div>
 
         {/* Scheduled - Students with upcoming lessons */}
-        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('scheduled')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-success-bg rounded-lg group-hover:brightness-95 transition-colors">
@@ -410,7 +410,7 @@ export const StudentsPage: React.FC = () => {
         </div>
 
         {/* Ready to Book - Students needing their next lesson */}
-        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('ready_to_book')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
@@ -429,7 +429,7 @@ export const StudentsPage: React.FC = () => {
         </div>
 
         {/* Needs Attention */}
-        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('needs_attention')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
@@ -448,7 +448,7 @@ export const StudentsPage: React.FC = () => {
         </div>
 
         {/* Completed */}
-        <div className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('completed')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
@@ -468,7 +468,7 @@ export const StudentsPage: React.FC = () => {
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-xl border border-[var(--border)] bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+      <div className="flex items-center rounded-xl border border-edge bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
         <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
@@ -490,7 +490,7 @@ export const StudentsPage: React.FC = () => {
       </div>
 
       {/* Status Filter & Sort */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
         <div className="flex items-center justify-between sm:justify-start gap-3">
           <span className="text-sm font-medium text-tx-secondary">Filter:</span>
           {/* View Toggle - Mobile only shows on the right */}
@@ -646,7 +646,7 @@ export const StudentsPage: React.FC = () => {
                 <div
                   key={student.id}
                   className={`bg-surface rounded-xl shadow-sm border p-5 hover:shadow-md transition-all ${
-                    statusInfo.status === 'needs_attention' ? 'border-status-warning-border' : 'border-[var(--border)] hover:brightness-110 hover:border-primary'
+                    statusInfo.status === 'needs_attention' ? 'border-status-warning-border' : 'border-edge hover:brightness-110 hover:border-primary'
                   }`}
                 >
                   {/* Header */}
@@ -703,7 +703,7 @@ export const StudentsPage: React.FC = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center gap-2 pt-3 border-t border-edge">
                     <button
                       type="button"
                       onClick={() => handleBookLesson(student)}
@@ -740,7 +740,7 @@ export const StudentsPage: React.FC = () => {
 
       {/* Table View */}
       {viewMode === 'table' && (
-        <div className="overflow-x-auto rounded-xl bg-surface shadow-sm border border-[var(--border)]">
+        <div className="overflow-x-auto rounded-xl bg-surface shadow-sm border border-edge">
           <table className="min-w-full divide-y divide-white/20">
             <thead className="bg-surface/8">
               <tr>
@@ -924,7 +924,7 @@ export const StudentsPage: React.FC = () => {
 
       {/* Pagination */}
       {data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm border border-[var(--border)]">
+        <div className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm border border-edge">
           <div className="text-sm text-tx-secondary">
             <span className="font-medium">{filteredStudents?.length || 0}</span> of{' '}
             <span className="font-medium">{data.pagination.total}</span> students
@@ -941,7 +941,7 @@ export const StudentsPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage === 1}
-              className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
+              className="rounded-lg border border-edge-strong px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
             >
               Previous
             </button>
@@ -949,7 +949,7 @@ export const StudentsPage: React.FC = () => {
               type="button"
               onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage === data.pagination.totalPages}
-              className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
+              className="rounded-lg border border-edge-strong px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
             >
               Next
             </button>

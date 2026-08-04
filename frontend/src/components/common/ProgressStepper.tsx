@@ -33,7 +33,7 @@ export const ProgressStepper: React.FC<ProgressStepperProps> = ({ steps, current
                         ? 'border-status-success-text bg-status-success-text text-white scale-110'
                         : isActive
                         ? 'border-primary bg-primary text-white scale-110 shadow-lg'
-                        : 'border-[var(--border-strong)] bg-surface text-tx-muted'
+                        : 'border-edge-strong bg-surface text-tx-muted'
                     }
                   `}
                 >

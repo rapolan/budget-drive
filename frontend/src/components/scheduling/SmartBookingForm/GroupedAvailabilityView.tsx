@@ -91,7 +91,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
           const badge = getProximityBadge(instructor.bestProximityScore);
 
           return (
-            <div key={instructor.instructorId} className="bg-surface rounded-xl border-2 border-[var(--border)] overflow-hidden">
+            <div key={instructor.instructorId} className="bg-surface rounded-xl border-2 border-edge overflow-hidden">
               {/* Instructor Header - Clickable */}
               <button
                 type="button"
@@ -130,7 +130,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
 
               {/* Expanded: Show slots grouped by date */}
               {isExpanded && (
-                <div className="border-t border-[var(--border)] bg-surface2 p-3 space-y-3">
+                <div className="border-t border-edge bg-surface2 p-3 space-y-3">
                   {instructor.dateGroups.map(dateGroup => (
                     <div key={dateGroup.date}>
                       {/* Date header */}
@@ -148,7 +148,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
                               e.stopPropagation();
                               onSelectSlot(slot);
                             }}
-                            className="w-full p-3 bg-surface border border-[var(--border)] rounded-lg hover:border-primary hover:bg-status-info-bg transition-all text-left flex items-center justify-between active:scale-[0.98]"
+                            className="w-full p-3 bg-surface border border-edge rounded-lg hover:border-primary hover:bg-status-info-bg transition-all text-left flex items-center justify-between active:scale-[0.98]"
                           >
                             <span className="text-sm font-medium text-tx-primary">
                               {formatTime(slot.startTime)} - {formatTime(slot.endTime)}

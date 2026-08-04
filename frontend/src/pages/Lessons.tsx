@@ -723,7 +723,7 @@ export const LessonsPage: React.FC = () => {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* View Toggle */}
-          <div className="flex rounded-lg border border-[var(--border-strong)] bg-surface overflow-hidden">
+          <div className="flex rounded-lg border border-edge-strong bg-surface overflow-hidden">
             {/* Table/Cards toggle - show icons on mobile, text on larger screens */}
             <button
               onClick={() => {
@@ -790,7 +790,7 @@ export const LessonsPage: React.FC = () => {
           {/* Keyboard Shortcuts Button */}
           <button
             onClick={() => setShowShortcutsHelp(true)}
-            className="flex items-center justify-center rounded-lg border border-[var(--border)] p-2 text-tx-muted hover:bg-surface2 hover:text-tx-secondary transition-all"
+            className="flex items-center justify-center rounded-lg border border-edge p-2 text-tx-muted hover:bg-surface2 hover:text-tx-secondary transition-all"
             title="Keyboard shortcuts (?)"
           >
             <Keyboard className="h-5 w-5" />
@@ -810,7 +810,7 @@ export const LessonsPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Today's Lessons */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('today')}
         >
           <div className="flex items-center justify-between">
@@ -832,7 +832,7 @@ export const LessonsPage: React.FC = () => {
 
         {/* This Week */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => {
             setStatusFilter('scheduled');
             setViewMode('weekly');
@@ -852,7 +852,7 @@ export const LessonsPage: React.FC = () => {
 
         {/* Completed This Month */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('completed')}
         >
           <div className="flex items-center justify-between">
@@ -871,7 +871,7 @@ export const LessonsPage: React.FC = () => {
 
         {/* Active Bookings */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('scheduled')}
         >
           <div className="flex items-center justify-between">
@@ -887,7 +887,7 @@ export const LessonsPage: React.FC = () => {
       </div>
 
       {/* Search - Show in both views */}
-      <div className="flex items-center rounded-xl border border-[var(--border)] bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+      <div className="flex items-center rounded-xl border border-edge bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
         <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
@@ -916,7 +916,7 @@ export const LessonsPage: React.FC = () => {
       <DateRangeFilter value={dateRange} onChange={setDateRange} />
 
       {/* Status Filter - Show in all views */}
-      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
+      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
         <span className="text-sm font-medium text-tx-secondary">Status:</span>
         <div className="flex flex-wrap gap-2">
           <FilterButton
@@ -1044,7 +1044,7 @@ export const LessonsPage: React.FC = () => {
                       upcoming ? 'border-status-warning-border bg-status-warning-bg/30' :
                       lesson.status === 'completed' ? 'border-status-success-border' :
                       lesson.status === 'cancelled' ? 'border-status-danger-border' :
-                      'border-[var(--border)] hover:brightness-110 hover:border-primary'
+                      'border-edge hover:brightness-110 hover:border-primary'
                     }`}
                   >
                     {/* Header - Date & Status */}
@@ -1119,7 +1119,7 @@ export const LessonsPage: React.FC = () => {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
+                    <div className="flex items-center gap-2 pt-3 border-t border-edge">
                       {lesson.status === 'scheduled' && (
                         <>
                           <button
@@ -1185,9 +1185,9 @@ export const LessonsPage: React.FC = () => {
       {/* Table View */}
       <div>
         {viewMode === 'table' && (
-          <div className="rounded-xl bg-surface shadow-sm border border-[var(--border)] overflow-hidden">
+          <div className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-[var(--border)]">
+              <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2/80">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
@@ -1216,7 +1216,7 @@ export const LessonsPage: React.FC = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)] bg-surface">
+          <tbody className="divide-y divide-edge bg-surface">
             {isLoading ? (
               <tr>
                 <td colSpan={8} className="py-12">
@@ -1351,7 +1351,7 @@ export const LessonsPage: React.FC = () => {
 
       {/* Pagination - Only show in table view */}
       {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm border border-[var(--border)]">
+        <div className="flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-sm border border-edge">
           <div className="text-sm text-tx-secondary">
             {filteredLessons?.length} of {data.pagination.total} lessons
             {statusFilter !== 'all' && <span className="text-tx-muted ml-1">(filtered)</span>}
@@ -1365,7 +1365,7 @@ export const LessonsPage: React.FC = () => {
                 type="button"
                 onClick={() => setCurrentPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
+                className="rounded-lg border border-edge-strong px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
               >
                 Previous
               </button>
@@ -1373,7 +1373,7 @@ export const LessonsPage: React.FC = () => {
                 type="button"
                 onClick={() => setCurrentPage(currentPage + 1)}
                 disabled={currentPage === data.pagination.totalPages}
-                className="rounded-lg border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
+                className="rounded-lg border border-edge-strong px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 disabled:opacity-50 transition-colors"
               >
                 Next
               </button>

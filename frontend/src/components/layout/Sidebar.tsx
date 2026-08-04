@@ -170,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
 
   return (
     <div className={clsx(
-      'flex h-full w-64 flex-col bg-surface border-r border-[var(--border)] text-tx-primary transition-colors',
+      'flex h-full w-64 flex-col bg-surface border-r border-edge text-tx-primary transition-colors',
       'fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out',
       'lg:relative lg:translate-x-0',
       isOpen ? 'translate-x-0' : '-translate-x-full'
@@ -186,7 +186,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       </button>
 
       {/* Account Switcher */}
-      <div className="border-b border-[var(--border)] p-3 pt-12 lg:pt-3">
+      <div className="border-b border-edge p-3 pt-12 lg:pt-3">
         <AccountSwitcher
           currentTenant={{
             id: tenant?.id || '1',
@@ -239,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-[var(--border)] p-4">
+      <div className="border-t border-edge p-4">
         <div className="flex items-center justify-between">
           <p className="text-xs text-tx-muted">
             {tenantType === 'independent' ? 'Independent Instructor' : 'Driving School'}

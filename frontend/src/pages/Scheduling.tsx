@@ -55,7 +55,7 @@ export const SchedulingPage: React.FC = () => {
         <select
           value={selectedInstructorId}
           onChange={(e) => setSelectedInstructorId(e.target.value)}
-          className="w-full md:w-96 px-4 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+          className="w-full md:w-96 px-4 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
         >
           <option value="">-- Select an Instructor --</option>
           {instructors?.map((instructor) => (
@@ -71,7 +71,7 @@ export const SchedulingPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="bg-surface rounded-lg shadow">
-        <div className="border-b border-[var(--border)]">
+        <div className="border-b border-edge">
           <nav className="flex -mb-px overflow-x-auto">
             {tabs.map((tab) => (
               <button
@@ -80,7 +80,7 @@ export const SchedulingPage: React.FC = () => {
                 className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-primary text-primary'
-                    : 'border-transparent text-tx-muted hover:text-tx-secondary hover:border-[var(--border-strong)]'
+                    : 'border-transparent text-tx-muted hover:text-tx-secondary hover:border-edge-strong'
                 }`}
               >
                 <span className="mr-2">{tab.icon}</span>

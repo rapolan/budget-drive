@@ -99,7 +99,7 @@ export const LoginPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="block w-full pl-10 pr-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
+                  className="block w-full pl-10 pr-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
                   disabled={isSubmitting}
                 />
               </div>
@@ -121,7 +121,7 @@ export const LoginPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   autoComplete="current-password"
-                  className="block w-full pl-10 pr-12 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
+                  className="block w-full pl-10 pr-12 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
                   disabled={isSubmitting}
                 />
                 <button

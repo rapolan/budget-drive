@@ -208,7 +208,7 @@ export const InstructorsPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-surface p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-edge bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('table')}
@@ -241,7 +241,7 @@ export const InstructorsPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Active Instructors */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
@@ -257,7 +257,7 @@ export const InstructorsPage: React.FC = () => {
 
         {/* Lessons This Month */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
@@ -276,7 +276,7 @@ export const InstructorsPage: React.FC = () => {
 
         {/* Top Performer */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('active')}
         >
           <div className="flex items-center justify-between">
@@ -297,7 +297,7 @@ export const InstructorsPage: React.FC = () => {
 
         {/* Average Rate */}
         <div 
-          className="bg-surface rounded-xl shadow-sm border border-[var(--border)] p-4 hover:shadow-md transition-shadow cursor-pointer group"
+          className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
           onClick={() => handleStatCardClick('all')}
         >
           <div className="flex items-center justify-between">
@@ -313,7 +313,7 @@ export const InstructorsPage: React.FC = () => {
       </div>
 
       {/* Search */}
-      <div className="flex items-center rounded-xl border border-[var(--border)] bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+      <div className="flex items-center rounded-xl border border-edge bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
         <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
         <input
           type="text"
@@ -336,7 +336,7 @@ export const InstructorsPage: React.FC = () => {
       </div>
 
       {/* Status Filter */}
-      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
+      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
         <span className="text-sm font-medium text-tx-secondary">Status:</span>
         <div className="flex flex-wrap gap-2">
           <FilterButton
@@ -410,7 +410,7 @@ export const InstructorsPage: React.FC = () => {
                   instructor.status === 'active' ? 'border-status-success-border hover:brightness-90' :
                   instructor.status === 'on_leave' ? 'border-status-warning-border' :
                   instructor.status === 'terminated' ? 'border-status-danger-border' :
-                  'border-[var(--border)] hover:brightness-110 hover:border-primary'
+                  'border-edge hover:brightness-110 hover:border-primary'
                 }`}
               >
                 {/* Header - Avatar & Name */}
@@ -459,7 +459,7 @@ export const InstructorsPage: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
+                <div className="flex items-center gap-2 pt-3 border-t border-edge">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -491,9 +491,9 @@ export const InstructorsPage: React.FC = () => {
 
       {/* Table */}
       {viewMode === 'table' && (
-      <div ref={tableRef} className="rounded-xl bg-surface shadow-sm border border-[var(--border)] overflow-hidden">
+      <div ref={tableRef} className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[var(--border)]">
+          <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
@@ -516,7 +516,7 @@ export const InstructorsPage: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)] bg-surface">
+            <tbody className="divide-y divide-edge bg-surface">
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="py-12">

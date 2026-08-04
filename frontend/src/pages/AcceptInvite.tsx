@@ -94,7 +94,7 @@ export const AcceptInvitePage: React.FC = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Choose a password"
                     autoComplete="new-password"
-                    className="block w-full pl-10 pr-12 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
+                    className="block w-full pl-10 pr-12 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
                     disabled={isSubmitting}
                   />
                   <button
@@ -123,7 +123,7 @@ export const AcceptInvitePage: React.FC = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Re-enter your password"
                     autoComplete="new-password"
-                    className="block w-full pl-10 pr-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
+                    className="block w-full pl-10 pr-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
                     disabled={isSubmitting}
                   />
                 </div>

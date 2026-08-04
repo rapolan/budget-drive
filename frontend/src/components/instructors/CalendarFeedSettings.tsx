@@ -102,7 +102,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                   readOnly
                   value={feedUrl}
                   title="Calendar feed URL"
-                  className="flex-1 px-3 py-2 text-sm bg-surface border border-[var(--border-strong)] rounded-lg font-mono text-tx-secondary truncate"
+                  className="flex-1 px-3 py-2 text-sm bg-surface border border-edge-strong rounded-lg font-mono text-tx-secondary truncate"
                 />
                 <button
                   type="button"
@@ -151,7 +151,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
 
               {/* Instructions */}
               {showInstructions && (
-                <div className="bg-surface rounded-lg p-3 border border-[var(--border)] space-y-3">
+                <div className="bg-surface rounded-lg p-3 border border-edge space-y-3">
                   <div>
                     <h4 className="font-medium text-tx-primary flex items-center gap-2">
                       <span className="text-lg">📱</span> Google Calendar
@@ -176,7 +176,7 @@ export const CalendarFeedSettings: React.FC<CalendarFeedSettingsProps> = ({
                       Add Calendar → Subscribe from web → Paste the URL above
                     </p>
                   </div>
-                  <div className="pt-2 border-t border-[var(--border)]">
+                  <div className="pt-2 border-t border-edge">
                     <p className="text-xs text-tx-muted">
                       💡 <strong>Tip:</strong> Calendar apps refresh subscribed calendars periodically (usually every 15-60 minutes).
                       New lessons will appear automatically after the next refresh.

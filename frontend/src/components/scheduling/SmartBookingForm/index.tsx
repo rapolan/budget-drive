@@ -316,7 +316,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   return (
     <div className="bg-surface rounded-lg shadow-xl max-w-4xl mx-auto">
       {/* Header */}
-      <div className="border-b border-[var(--border)] p-6">
+      <div className="border-b border-edge p-6">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-status-info-bg rounded-lg">

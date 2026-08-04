@@ -44,7 +44,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
       case 'cancelled':
         return 'bg-status-danger-bg border-status-danger-border';
       default:
-        return 'bg-surface2 border-[var(--border)]';
+        return 'bg-surface2 border-edge';
     }
   };
 
@@ -140,7 +140,7 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
 
                 {/* Notes if any */}
                 {lesson.notes && (
-                  <div className="mt-3 p-2 bg-surface rounded border border-[var(--border)]">
+                  <div className="mt-3 p-2 bg-surface rounded border border-edge">
                     <p className="text-xs text-tx-secondary italic">{lesson.notes}</p>
                   </div>
                 )}

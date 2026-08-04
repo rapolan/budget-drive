@@ -117,7 +117,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 readOnly
                 value={feedUrl}
                 title="Calendar feed URL"
-                className="flex-1 px-4 py-2 bg-surface2 border border-[var(--border-strong)] rounded-lg font-mono text-sm text-tx-secondary truncate"
+                className="flex-1 px-4 py-2 bg-surface2 border border-edge-strong rounded-lg font-mono text-sm text-tx-secondary truncate"
               />
               <button
                 type="button"
@@ -148,7 +148,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
           <button
             type="button"
             onClick={() => setShowInstructions(!showInstructions)}
-            className="w-full flex items-center justify-between p-3 bg-surface2 rounded-lg border border-[var(--border)] hover:bg-surface2 transition-colors mb-4"
+            className="w-full flex items-center justify-between p-3 bg-surface2 rounded-lg border border-edge hover:bg-surface2 transition-colors mb-4"
           >
             <span className="flex items-center gap-2 text-sm font-medium text-tx-secondary">
               <ExternalLink className="h-4 w-4" />
@@ -163,7 +163,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
 
           {/* Instructions */}
           {showInstructions && (
-            <div className="bg-surface2 rounded-lg p-4 border border-[var(--border)] space-y-4 mb-4">
+            <div className="bg-surface2 rounded-lg p-4 border border-edge space-y-4 mb-4">
               <div>
                 <h4 className="font-medium text-tx-primary flex items-center gap-2 mb-2">
                   <span className="text-xl">📱</span> Google Calendar
@@ -200,7 +200,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
                 </ol>
               </div>
               
-              <div className="pt-3 border-t border-[var(--border)]">
+              <div className="pt-3 border-t border-edge">
                 <p className="text-xs text-tx-muted flex items-start gap-2">
                   <span className="text-lg">💡</span>
                   <span>
@@ -213,7 +213,7 @@ export const CalendarSync: React.FC<CalendarSyncProps> = ({ instructorId }) => {
           )}
 
           {/* Regenerate URL */}
-          <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between pt-4 border-t border-edge">
             <div className="text-sm text-tx-muted">
               Need a new URL? Regenerating will invalidate the old one.
             </div>

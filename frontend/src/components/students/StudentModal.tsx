@@ -370,7 +370,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
                       required
                       autoComplete="given-name"
-                      className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="First"
                     />
                     <input
@@ -379,7 +379,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.middleName || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, middleName: e.target.value }))}
                       autoComplete="additional-name"
-                      className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="Middle"
                     />
                     <input
@@ -389,7 +389,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                       required
                       autoComplete="family-name"
-                      className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="Last"
                     />
                   </div>
@@ -408,7 +408,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       required
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="email@example.com"
                     />
                   </div>
@@ -422,7 +422,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.phone || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="(555) 123-4567"
                     />
                   </div>
@@ -439,7 +439,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
                       title="Date of Birth"
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     />
                   </div>
                   <div>
@@ -453,7 +453,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         onChange={(e) => setFormData(prev => ({ ...prev, hoursRequired: parseFloat(e.target.value) || 0 }))}
                         min="0"
                         step="0.5"
-                        className="w-20 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        className="w-20 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       />
                       <span className="text-sm text-tx-muted">hrs</span>
                       {studentAge !== null && (
@@ -467,7 +467,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 2: Address (for pickup) */}
-              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+              <div className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-tx-muted" />
                   Home Address
@@ -481,7 +481,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.addressLine1}
                     onChange={(e) => setFormData(prev => ({ ...prev, addressLine1: e.target.value }))}
                     autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Street address"
                   />
                   <input
@@ -490,7 +490,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.addressLine2}
                     onChange={(e) => setFormData(prev => ({ ...prev, addressLine2: e.target.value }))}
                     autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Apt, Suite, Unit (optional)"
                   />
                   <div className="grid grid-cols-6 gap-2">
@@ -500,7 +500,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.city}
                       onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
                       autoComplete="new-password"
-                      className="col-span-3 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="col-span-3 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="City"
                     />
                     <input
@@ -509,7 +509,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.state}
                       onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
                       autoComplete="new-password"
-                      className="col-span-1 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm text-center"
+                      className="col-span-1 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm text-center"
                       placeholder="CA"
                       maxLength={2}
                     />
@@ -519,7 +519,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.zipCode}
                       onChange={(e) => setFormData(prev => ({ ...prev, zipCode: e.target.value }))}
                       autoComplete="new-password"
-                      className="col-span-2 px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="col-span-2 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="ZIP"
                       maxLength={10}
                     />
@@ -529,7 +529,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 3: Parent/Guardian */}
-              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+              <div className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4 text-tx-muted" />
                   Parent/Guardian
@@ -547,7 +547,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.emergencyContactName}
                       onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactName: e.target.value }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="Parent/Guardian name"
                     />
                   </div>
@@ -559,7 +559,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       value={formData.emergencyContactPhone}
                       onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                       placeholder="(555) 123-4567"
                     />
                   </div>
@@ -576,7 +576,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         value={formData.emergencyContact2Name}
                         onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Name: e.target.value }))}
                         autoComplete="new-password"
-                        className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                         placeholder="Name"
                       />
                     </div>
@@ -588,7 +588,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         value={formData.emergencyContact2Phone}
                         onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Phone: formatPhoneNumber(e.target.value) }))}
                         autoComplete="new-password"
-                        className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                         placeholder="(555) 123-4567"
                       />
                     </div>
@@ -605,7 +605,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 4: Permit & Notes */}
-              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+              <div className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <FileText className="h-4 w-4 text-tx-muted" />
                   Learner's Permit
@@ -619,7 +619,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.learnerPermitNumber}
                     onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitNumber: e.target.value }))}
                     autoComplete="new-password"
-                    className="px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                    className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Permit #"
                   />
                   <div>
@@ -630,7 +630,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitIssueDate: e.target.value }))}
                       title="Issue Date"
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     />
                     <span className="text-xs text-tx-muted">Issue date</span>
                   </div>
@@ -642,7 +642,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitExpiration: e.target.value }))}
                       title="Expiration Date"
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     />
                     <span className="text-xs text-tx-muted">Expiration</span>
                   </div>
@@ -656,7 +656,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                     rows={2}
                     autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
+                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
                     placeholder="Learning preferences, special requirements..."
                   />
                 </div>
@@ -672,11 +672,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
               {/* Actions */}
               {!createdStudent ? (
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--border)]">
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-edge">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2.5 text-sm font-medium text-tx-secondary border border-[var(--border)] rounded-lg hover:bg-surface2 transition-all"
+                    className="px-4 py-2.5 text-sm font-medium text-tx-secondary border border-edge rounded-lg hover:bg-surface2 transition-all"
                   >
                     Cancel
                   </button>
@@ -693,7 +693,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                 </div>
               ) : (
-                <div className="pt-4 border-t border-[var(--border)]">
+                <div className="pt-4 border-t border-edge">
                   <div className="bg-status-success-bg border border-status-success-border rounded-xl p-4 mb-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-status-success-bg rounded-full">
@@ -711,7 +711,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-4 py-2.5 text-sm font-medium text-tx-secondary border border-[var(--border)] rounded-lg hover:bg-surface2 transition-all"
+                      className="px-4 py-2.5 text-sm font-medium text-tx-secondary border border-edge rounded-lg hover:bg-surface2 transition-all"
                     >
                       Close
                     </button>

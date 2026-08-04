@@ -36,7 +36,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-[var(--border)]">
+      <div className="border-b border-edge">
         <nav className="-mb-px flex space-x-4 sm:space-x-8 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -49,7 +49,7 @@ export const SettingsPage: React.FC = () => {
                   flex items-center border-b-2 py-4 px-1 text-sm font-medium transition-colors
                   ${isActive
                     ? 'border-primary text-primary'
-                    : 'border-transparent text-tx-muted hover:border-[var(--border-strong)] hover:text-tx-secondary'
+                    : 'border-transparent text-tx-muted hover:border-edge-strong hover:text-tx-secondary'
                   }
                 `}
               >
@@ -157,7 +157,7 @@ const GeneralSettings: React.FC = () => {
       )}
 
       {/* School Identity */}
-      <div className="border border-[var(--border)] rounded-lg p-6 space-y-4">
+      <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">School Identity</h3>
         <div>
           <label className="block text-sm font-medium text-tx-secondary mb-1">School Name</label>
@@ -166,7 +166,7 @@ const GeneralSettings: React.FC = () => {
             value={form.businessName}
             onChange={set('businessName')}
             placeholder="Budget Driving School"
-            className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
         <div>
@@ -176,13 +176,13 @@ const GeneralSettings: React.FC = () => {
             value={form.businessTagline}
             onChange={set('businessTagline')}
             placeholder="Learn to Drive with Confidence"
-            className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Contact Info */}
-      <div className="border border-[var(--border)] rounded-lg p-6 space-y-4">
+      <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Contact Information</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -192,7 +192,7 @@ const GeneralSettings: React.FC = () => {
               value={form.supportPhone}
               onChange={set('supportPhone')}
               placeholder="(619) 555-0100"
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
           <div>
@@ -202,7 +202,7 @@ const GeneralSettings: React.FC = () => {
               value={form.supportEmail}
               onChange={set('supportEmail')}
               placeholder="info@myschool.com"
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
         </div>
@@ -213,13 +213,13 @@ const GeneralSettings: React.FC = () => {
             value={form.websiteUrl}
             onChange={set('websiteUrl')}
             placeholder="https://myschool.com"
-            className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Physical Address */}
-      <div className="border border-[var(--border)] rounded-lg p-6 space-y-4">
+      <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Physical Address</h3>
         <div>
           <label className="block text-sm font-medium text-tx-secondary mb-1">Street Address</label>
@@ -228,7 +228,7 @@ const GeneralSettings: React.FC = () => {
             value={form.addressLine1}
             onChange={set('addressLine1')}
             placeholder="123 Main Street"
-            className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
         <div>
@@ -238,7 +238,7 @@ const GeneralSettings: React.FC = () => {
             value={form.addressLine2}
             onChange={set('addressLine2')}
             placeholder="Suite 100"
-            className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -249,7 +249,7 @@ const GeneralSettings: React.FC = () => {
               value={form.city}
               onChange={set('city')}
               placeholder="San Diego"
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
           <div>
@@ -257,7 +257,7 @@ const GeneralSettings: React.FC = () => {
             <select
               value={form.state}
               onChange={set('state')}
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
             >
               <option value="">—</option>
               {['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'].map(s => (
@@ -273,14 +273,14 @@ const GeneralSettings: React.FC = () => {
               onChange={set('zipCode')}
               placeholder="92101"
               maxLength={10}
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
         </div>
       </div>
 
       {/* Default Training Hours */}
-      <div className="border border-[var(--border)] rounded-lg p-6 space-y-4">
+      <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Training Defaults</h3>
         <div>
           <label className="block text-sm font-medium text-tx-secondary mb-1">Default Hours Required per Student</label>
@@ -291,7 +291,7 @@ const GeneralSettings: React.FC = () => {
               value={form.defaultHoursRequired}
               onChange={e => setForm(f => ({ ...f, defaultHoursRequired: parseFloat(e.target.value) || 6 }))}
               min="1" max="100" step="0.5"
-              className="w-28 px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <span className="text-sm text-tx-secondary">hours</span>
             <div className="flex gap-2">
@@ -303,7 +303,7 @@ const GeneralSettings: React.FC = () => {
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.defaultHoursRequired === h
                       ? 'bg-primary text-white border-primary'
-                      : 'bg-surface text-tx-secondary border-[var(--border-strong)] hover:border-blue-400'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
                   }`}
                 >
                   {h}h{h === 6 ? ' ⭐' : ''}
@@ -453,7 +453,7 @@ const SchedulingSettings: React.FC = () => {
       {/* Settings Form */}
       <div className="space-y-6">
         {/* Default Lesson Duration */}
-        <div className="border border-[var(--border)] rounded-lg p-6">
+        <div className="border border-edge rounded-lg p-6">
           <label htmlFor="lesson-duration" className="block text-base font-medium text-tx-primary mb-2">
             Default Lesson Duration
           </label>
@@ -470,7 +470,7 @@ const SchedulingSettings: React.FC = () => {
               max="240"
               step="30"
               autoComplete="nope"
-              className="w-32 px-4 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-32 px-4 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <span className="text-tx-secondary">minutes</span>
             <span className="text-sm text-tx-muted">
@@ -510,7 +510,7 @@ const SchedulingSettings: React.FC = () => {
         </div>
 
         {/* Buffer Time */}
-        <div className="border border-[var(--border)] rounded-lg p-6">
+        <div className="border border-edge rounded-lg p-6">
           <label htmlFor="buffer-time" className="block text-base font-medium text-tx-primary mb-2">
             Buffer Time Between Lessons
           </label>
@@ -527,7 +527,7 @@ const SchedulingSettings: React.FC = () => {
               max="60"
               step="15"
               autoComplete="nope"
-              className="w-32 px-4 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-32 px-4 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <span className="text-tx-secondary">minutes</span>
           </div>
@@ -564,7 +564,7 @@ const SchedulingSettings: React.FC = () => {
         </div>
 
         {/* Max Students Per Day */}
-        <div className="border border-[var(--border)] rounded-lg p-6">
+        <div className="border border-edge rounded-lg p-6">
           <label htmlFor="max-students" className="block text-base font-medium text-tx-primary mb-2">
             Default Max Students Per Instructor Per Day
           </label>
@@ -580,7 +580,7 @@ const SchedulingSettings: React.FC = () => {
               min="1"
               max="10"
               autoComplete="nope"
-              className="w-32 px-4 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-32 px-4 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <span className="text-tx-secondary">students</span>
           </div>
@@ -748,7 +748,7 @@ const FeaturesSettings: React.FC = () => {
       )}
 
       {/* Power Mode Toggle */}
-      <div className="border border-[var(--border)] rounded-lg p-6">
+      <div className="border border-edge rounded-lg p-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center">
@@ -812,7 +812,7 @@ const FeaturesSettings: React.FC = () => {
         </div>
 
         {/* Show current status */}
-        <div className="mt-4 pt-4 border-t border-[var(--border)]">
+        <div className="mt-4 pt-4 border-t border-edge">
           <p className="text-xs text-tx-muted">
             Status: {powerModeEnabled ? (
               <span className="text-status-success-text font-medium">Power mode active - BSV features visible</span>
@@ -847,7 +847,7 @@ const FeaturesSettings: React.FC = () => {
         </div>
       </div>
 
-      <div className="border border-[var(--border)] rounded-lg p-6 opacity-50">
+      <div className="border border-edge rounded-lg p-6 opacity-50">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-medium text-tx-primary">Digital Certificates</h3>
@@ -859,7 +859,7 @@ const FeaturesSettings: React.FC = () => {
         </div>
       </div>
 
-      <div className="border border-[var(--border)] rounded-lg p-6 opacity-50">
+      <div className="border border-edge rounded-lg p-6 opacity-50">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-medium text-tx-primary">Follow-Up Tracker</h3>
@@ -948,7 +948,7 @@ const BrandingSettings: React.FC = () => {
       )}
 
       {/* Logo */}
-      <div className="border border-[var(--border)] rounded-lg p-6 space-y-4">
+      <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Logo</h3>
         <div>
           <label className="block text-sm font-medium text-tx-secondary mb-1">Logo URL</label>
@@ -958,11 +958,11 @@ const BrandingSettings: React.FC = () => {
             value={form.logoUrl}
             onChange={set('logoUrl')}
             placeholder="https://yoursite.com/logo.png"
-            className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
         {form.logoUrl && (
-          <div className="mt-3 p-4 bg-surface2 rounded-lg border border-[var(--border)] flex items-center gap-4">
+          <div className="mt-3 p-4 bg-surface2 rounded-lg border border-edge flex items-center gap-4">
             <span className="text-xs text-tx-muted">Preview:</span>
             <img
               src={form.logoUrl}
@@ -975,7 +975,7 @@ const BrandingSettings: React.FC = () => {
       </div>
 
       {/* Brand Color */}
-      <div className="border border-[var(--border)] rounded-lg p-6 space-y-4">
+      <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Brand Color</h3>
 
         {/* Presets */}
@@ -990,7 +990,7 @@ const BrandingSettings: React.FC = () => {
                 className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-xs font-medium transition-colors ${
                   form.primaryColor === p.primary
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-[var(--border)] bg-surface text-tx-secondary hover:border-[var(--border-strong)]'
+                    : 'border-edge bg-surface text-tx-secondary hover:border-edge-strong'
                 }`}
               >
                 <span className="w-3 h-3 rounded-full" style={{ background: p.primary }} />
@@ -1010,7 +1010,7 @@ const BrandingSettings: React.FC = () => {
               title="Pick a brand color"
               value={form.primaryColor}
               onChange={set('primaryColor')}
-              className="w-10 h-10 rounded-lg border border-[var(--border-strong)] cursor-pointer p-0.5"
+              className="w-10 h-10 rounded-lg border border-edge-strong cursor-pointer p-0.5"
             />
             <input
               type="text"
@@ -1022,14 +1022,14 @@ const BrandingSettings: React.FC = () => {
                 if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setForm(f => ({ ...f, primaryColor: v }));
               }}
               maxLength={7}
-              className="w-32 px-3 py-2 border border-[var(--border-strong)] rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-32 px-3 py-2 border border-edge-strong rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
           <div className="h-2 rounded-full mt-1" style={{ background: form.primaryColor }} />
         </div>
 
         {/* Live preview */}
-        <div className="mt-2 rounded-lg overflow-hidden border border-[var(--border)]">
+        <div className="mt-2 rounded-lg overflow-hidden border border-edge">
           <div className="px-4 py-3 text-sm font-medium text-white flex items-center gap-3" style={{ background: form.primaryColor }}>
             <span className="w-2 h-2 rounded-full bg-white/60" />
             Brand color preview — nav, buttons, badges

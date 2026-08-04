@@ -30,7 +30,7 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
   const achievedMilestones = milestones.filter(m => m.achieved).length;
 
   return (
-    <div className="bg-surface rounded-lg shadow-sm border border-[var(--border)] p-6 space-y-6">
+    <div className="bg-surface rounded-lg shadow-sm border border-edge p-6 space-y-6">
       {/* Progress Overview */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -95,7 +95,7 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
                 className={`flex items-center gap-3 p-2 rounded transition-colors ${
                   milestone.achieved
                     ? 'bg-status-success-bg border-l-4 border-status-success-text'
-                    : 'bg-surface2 border-l-4 border-[var(--border-strong)]'
+                    : 'bg-surface2 border-l-4 border-edge-strong'
                 }`}
               >
                 <Icon

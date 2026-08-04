@@ -36,8 +36,8 @@ export const TeamSettings: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="bg-surface border border-[var(--border)] rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-[var(--border)]">
+        <div className="bg-surface border border-edge rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">User</th>
@@ -46,7 +46,7 @@ export const TeamSettings: React.FC = () => {
                 <th className="px-6 py-3 text-right text-xs font-medium text-tx-muted uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-surface divide-y divide-[var(--border)]">
+            <tbody className="bg-surface divide-y divide-edge">
               {team.map((user: any) => (
                 <tr key={user.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -137,7 +137,7 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full border border-[var(--border-strong)] rounded-lg p-2 focus:ring-primary focus:border-primary"
+              className="w-full border border-edge-strong rounded-lg p-2 focus:ring-primary focus:border-primary"
               required
               placeholder="Enter email address"
               title="Email Address"
@@ -155,7 +155,7 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
               id="invite-role"
               value={role}
               onChange={e => setRole(e.target.value)}
-              className="w-full border border-[var(--border-strong)] rounded-lg p-2 focus:ring-primary focus:border-primary"
+              className="w-full border border-edge-strong rounded-lg p-2 focus:ring-primary focus:border-primary"
               title="Select a role"
             >
               <option value="admin">Admin</option>

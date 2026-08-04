@@ -188,7 +188,7 @@ export const PaymentsPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           {/* View Toggle */}
-          <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-surface p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-edge bg-surface p-1">
             <button
               type="button"
               onClick={() => setViewMode('table')}
@@ -266,7 +266,7 @@ export const PaymentsPage: React.FC = () => {
       <div className="rounded-lg bg-surface p-4 shadow">
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Search */}
-          <div className="flex items-center rounded-md border border-[var(--border-strong)] bg-surface px-4 py-2">
+          <div className="flex items-center rounded-md border border-edge-strong bg-surface px-4 py-2">
             <Search className="h-5 w-5 text-tx-muted" />
             <input
               type="text"
@@ -284,7 +284,7 @@ export const PaymentsPage: React.FC = () => {
             onChange={(e) => setFilterStatus(e.target.value as any)}
             title="Filter by payment status"
             aria-label="Filter by payment status"
-            className="rounded-md border border-[var(--border-strong)] px-4 py-2 focus:border-primary focus:outline-none"
+            className="rounded-md border border-edge-strong px-4 py-2 focus:border-primary focus:outline-none"
           >
             <option value="all">All Statuses</option>
             <option value="paid">Paid in Full</option>
@@ -322,7 +322,7 @@ export const PaymentsPage: React.FC = () => {
                   className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all ${
                     payment.status === 'paid' ? 'border-status-success-border' :
                     payment.status === 'unpaid' ? 'border-status-danger-border' :
-                    'border-[var(--border)] hover:brightness-110 hover:border-primary'
+                    'border-edge hover:brightness-110 hover:border-primary'
                   }`}
                 >
                   {/* Header - Student Name & Status */}
@@ -394,7 +394,7 @@ export const PaymentsPage: React.FC = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center gap-2 pt-3 border-t border-edge">
                     <button
                       type="button"
                       onClick={() => {
@@ -429,7 +429,7 @@ export const PaymentsPage: React.FC = () => {
       {viewMode === 'table' && (
       <div className="rounded-lg bg-surface shadow">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[var(--border)]">
+          <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
@@ -455,7 +455,7 @@ export const PaymentsPage: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border)] bg-surface">
+            <tbody className="divide-y divide-edge bg-surface">
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-2">

@@ -212,7 +212,7 @@ export const DashboardPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsStudentModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-surface border border-[var(--border)] rounded-lg text-tx-secondary hover:bg-surface2 transition-colors text-sm font-medium"
+              className="flex items-center gap-2 px-4 py-2 bg-surface border border-edge rounded-lg text-tx-secondary hover:bg-surface2 transition-colors text-sm font-medium"
             >
               <Plus className="h-4 w-4" />
               Student
@@ -229,7 +229,7 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsPaymentModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-surface border border-[var(--border)] rounded-lg text-tx-secondary hover:bg-surface2 transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-4 py-2 bg-surface border border-edge rounded-lg text-tx-secondary hover:bg-surface2 transition-colors text-sm font-medium"
               >
                 <DollarSign className="h-4 w-4" />
                 Payment
@@ -245,8 +245,8 @@ export const DashboardPage: React.FC = () => {
 
           {/* ── Left — Today's Schedule ──────────────────────────────── */}
           <div className="lg:col-span-7 order-2 lg:order-1">
-            <div className="bg-surface rounded-xl border border-[var(--border)] overflow-hidden flex flex-col h-full">
-              <div className="px-5 py-4 border-b border-[var(--border)] bg-surface2 flex items-center justify-between">
+            <div className="bg-surface rounded-xl border border-edge overflow-hidden flex flex-col h-full">
+              <div className="px-5 py-4 border-b border-edge bg-surface2 flex items-center justify-between">
                 <h2 className="font-semibold text-tx-primary">Today's Schedule</h2>
                 <button
                   type="button"
@@ -354,8 +354,8 @@ export const DashboardPage: React.FC = () => {
                               isNow
                                 ? 'border-primary/40 bg-primary/10'
                                 : isPast
-                                ? 'border-[var(--border)] opacity-40'
-                                : 'border-[var(--border)] hover:border-[var(--border-strong)] hover:bg-surface2'
+                                ? 'border-edge opacity-40'
+                                : 'border-edge hover:border-edge-strong hover:bg-surface2'
                             }`}
                           >
                             <div className="flex items-center justify-between">
@@ -392,11 +392,11 @@ export const DashboardPage: React.FC = () => {
           <div className="lg:col-span-5 order-1 lg:order-2 flex flex-col gap-4">
 
             {/* Stats — compact rows */}
-            <div className="bg-surface rounded-xl border border-[var(--border)] overflow-hidden">
+            <div className="bg-surface rounded-xl border border-edge overflow-hidden">
               <button
                 type="button"
                 onClick={() => navigate('/students')}
-                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-[var(--border)] group"
+                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-edge group"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-1.5 bg-primary/10 rounded-md">
@@ -413,7 +413,7 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/lessons', { state: { scrollToTable: true } })}
-                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-[var(--border)] group"
+                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-edge group"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-1.5 bg-status-success-bg/10 rounded-md">
@@ -431,7 +431,7 @@ export const DashboardPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/payments')}
-                  className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-[var(--border)] group"
+                  className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-edge group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-purple-500/10 rounded-md">
@@ -469,8 +469,8 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Next 7 days */}
-            <div className="bg-surface rounded-xl border border-[var(--border)] overflow-hidden">
-              <div className="px-5 py-4 border-b border-[var(--border)] bg-surface2 flex items-center justify-between">
+            <div className="bg-surface rounded-xl border border-edge overflow-hidden">
+              <div className="px-5 py-4 border-b border-edge bg-surface2 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-tx-primary">Next 7 Days</h2>
                 <button
                   type="button"
@@ -491,7 +491,7 @@ export const DashboardPage: React.FC = () => {
                         day.isToday
                           ? 'border-primary/40 bg-primary/10'
                           : day.count > 0
-                          ? 'border-[var(--border)] hover:border-primary/30 hover:bg-primary/5'
+                          ? 'border-edge hover:border-primary/30 hover:bg-primary/5'
                           : 'border-transparent hover:bg-surface2'
                       }`}
                     >
@@ -518,11 +518,11 @@ export const DashboardPage: React.FC = () => {
 
             {/* Alerts — only rendered when there's something to show */}
             {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0) && (
-              <div className="bg-surface rounded-xl border border-[var(--border)] overflow-hidden">
-                <div className="px-5 py-4 border-b border-[var(--border)] bg-surface2">
+              <div className="bg-surface rounded-xl border border-edge overflow-hidden">
+                <div className="px-5 py-4 border-b border-edge bg-surface2">
                   <h2 className="text-sm font-semibold text-tx-primary">Alerts</h2>
                 </div>
-                <div className="divide-y divide-[var(--border)]">
+                <div className="divide-y divide-edge">
 
                   {studentsNeedingAttention.length > 0 && (
                     <button

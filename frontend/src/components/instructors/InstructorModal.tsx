@@ -121,7 +121,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-surface shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-surface border-b border-[var(--border)] px-6 py-4 z-10">
+        <div className="sticky top-0 bg-surface border-b border-edge px-6 py-4 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg shadow-purple-500/20">
@@ -172,7 +172,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   required
                   autoComplete="nope"
                   placeholder="John Smith"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -191,7 +191,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     required
                     autoComplete="nope"
                     placeholder="instructor@email.com"
-                    className="w-full rounded-lg border border-[var(--border-strong)] pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                    className="w-full rounded-lg border border-edge-strong pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
                 </div>
               </div>
@@ -211,7 +211,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     required
                     autoComplete="nope"
                     placeholder="(555) 123-4567"
-                    className="w-full rounded-lg border border-[var(--border-strong)] pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                    className="w-full rounded-lg border border-edge-strong pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
                 </div>
               </div>
@@ -227,7 +227,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.dateOfBirth}
                   onChange={handleChange}
                   autoComplete="nope"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -252,7 +252,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="DL123456789"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -267,7 +267,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.licenseExpiration}
                   onChange={handleChange}
                   autoComplete="nope"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -289,7 +289,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   name="employmentType"
                   value={formData.employmentType}
                   onChange={handleChange}
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 >
                   <option value="w2_employee">W2 Employee</option>
                   <option value="1099_contractor">1099 Contractor</option>
@@ -308,7 +308,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   value={formData.hireDate}
                   onChange={handleChange}
                   autoComplete="nope"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -328,7 +328,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     step="0.01"
                     autoComplete="nope"
                     placeholder="35.00"
-                    className="w-full rounded-lg border border-[var(--border-strong)] pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                    className="w-full rounded-lg border border-edge-strong pl-10 pr-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                   />
                 </div>
               </div>
@@ -354,7 +354,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="123 Main St"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -370,7 +370,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="Apt 4B"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -386,7 +386,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="San Diego"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -402,7 +402,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="CA"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
@@ -418,7 +418,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="92101"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -445,7 +445,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   autoComplete="nope"
                   placeholder="92101"
                   maxLength={10}
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
                 <p className="mt-1 text-xs text-tx-muted">
                   Starting location for calculating proximity to students
@@ -464,7 +464,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   onChange={handleChange}
                   autoComplete="nope"
                   placeholder="92101,92102,921"
-                  className="mt-1 w-full rounded-lg border border-[var(--border-strong)] px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
                 <p className="mt-1 text-xs text-tx-muted">
                   Comma-separated ZIP codes or prefixes (e.g., "92101,92102" or "920,921")
@@ -475,7 +475,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
           {/* Calendar Feed Settings - only show when editing */}
           {isEditing && instructor && (
-            <div className="border-t border-[var(--border)] pt-6">
+            <div className="border-t border-edge pt-6">
               <div className="flex items-center gap-2 mb-4">
                 <Calendar className="h-4 w-4 text-purple-600" />
                 <h3 className="text-sm font-semibold text-tx-primary">Calendar Integration</h3>
@@ -486,7 +486,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
           {/* App Access Integration - only show when editing */}
           {isEditing && instructor && (
-            <div className="border-t border-[var(--border)] pt-6">
+            <div className="border-t border-edge pt-6">
               <div className="flex items-center gap-2 mb-4">
                 <UserCheck className="h-4 w-4 text-purple-600" />
                 <h3 className="text-sm font-semibold text-tx-primary">App Access</h3>
@@ -511,11 +511,11 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           )}
 
           {/* Submit Buttons */}
-          <div className="flex justify-end gap-3 pt-6 border-t border-[var(--border)]">
+          <div className="flex justify-end gap-3 pt-6 border-t border-edge">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[var(--border-strong)] bg-surface px-4 py-2.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
+              className="rounded-lg border border-edge-strong bg-surface px-4 py-2.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
             >
               Cancel
             </button>

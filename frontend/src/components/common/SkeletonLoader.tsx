@@ -84,7 +84,7 @@ export const StatCardSkeleton: React.FC = () => {
  */
 export const ListItemSkeleton: React.FC = () => {
   return (
-    <div className="flex items-center space-x-4 p-4 bg-surface rounded-lg border border-[var(--border)]">
+    <div className="flex items-center space-x-4 p-4 bg-surface rounded-lg border border-edge">
       <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
       <div className="flex-1">
         <Skeleton className="h-4 w-3/4 mb-2" />

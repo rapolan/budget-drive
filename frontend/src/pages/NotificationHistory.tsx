@@ -152,7 +152,7 @@ export default function NotificationHistory() {
 
         {/* Filter Tabs */}
         <div className="bg-surface rounded-lg shadow mb-6">
-          <div className="border-b border-[var(--border)]">
+          <div className="border-b border-edge">
             <nav className="flex space-x-8 px-6" aria-label="Tabs">
               {['all', 'sent', 'failed'].map((tab) => (
                 <button
@@ -161,7 +161,7 @@ export default function NotificationHistory() {
                   className={`py-4 px-1 border-b-2 font-medium text-sm ${
                     filterStatus === tab
                       ? 'border-primary text-primary'
-                      : 'border-transparent text-tx-muted hover:text-tx-secondary hover:border-[var(--border-strong)]'
+                      : 'border-transparent text-tx-muted hover:text-tx-secondary hover:border-edge-strong'
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -191,7 +191,7 @@ export default function NotificationHistory() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-[var(--border)]">
+              <table className="min-w-full divide-y divide-edge">
                 <thead className="bg-surface2">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
@@ -214,7 +214,7 @@ export default function NotificationHistory() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-surface divide-y divide-[var(--border)]">
+                <tbody className="bg-surface divide-y divide-edge">
                   {filteredData.map((notification) => (
                     <tr key={notification.id} className="hover:bg-surface2">
                       <td className="px-6 py-4 whitespace-nowrap">

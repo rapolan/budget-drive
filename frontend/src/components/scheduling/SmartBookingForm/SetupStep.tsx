@@ -148,10 +148,10 @@ export const SetupStep: React.FC<SetupStepProps> = ({
               onFocus={() => setShowStudentDropdown(true)}
               placeholder="Search by name or email..."
               autoComplete="nope"
-              className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             {showStudentDropdown && filteredStudents.length > 0 && (
-              <div className="absolute z-20 w-full mt-2 bg-surface border border-[var(--border-strong)] rounded-lg shadow-xl max-h-64 overflow-y-auto">
+              <div className="absolute z-20 w-full mt-2 bg-surface border border-edge-strong rounded-lg shadow-xl max-h-64 overflow-y-auto">
                 {filteredStudents.map((student) => (
                   <button
                     key={student.id}
@@ -164,7 +164,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                       setPickupAddress(addr);
                       setPickupZip(extractZipCode(addr) || student.zipCode || null);
                     }}
-                    className="w-full px-4 py-3 text-left hover:bg-status-info-bg transition-colors border-b border-[var(--border)] last:border-0 flex items-center space-x-3"
+                    className="w-full px-4 py-3 text-left hover:bg-status-info-bg transition-colors border-b border-edge last:border-0 flex items-center space-x-3"
                   >
                     <div className="h-10 w-10 rounded-full bg-surface3 text-tx-secondary flex items-center justify-center font-semibold text-sm">
                       {getInitials(student.fullName)}
@@ -213,7 +213,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           onChange={(e) => setPickupAddress(e.target.value)}
           placeholder="Enter pickup address (include zip code for best results)..."
           rows={2}
-          className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+          className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
         />
         {pickupZip ? (
           <p className="text-xs text-status-success-text flex items-center gap-1">
@@ -238,7 +238,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             title="Select lesson type"
             value={lessonType}
             onChange={(e) => setLessonType(e.target.value as LessonType)}
-            className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-purple-500"
+            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-purple-500"
           >
             <option value="behind_wheel">Behind the Wheel</option>
             <option value="classroom">Classroom</option>
@@ -256,7 +256,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             title="Select lesson duration"
             value={duration}
             onChange={(e) => setDuration(parseInt(e.target.value))}
-            className="w-full px-4 py-3 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-orange-500"
+            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-orange-500"
           >
             <option value={60}>1 hour</option>
             <option value={90}>1.5 hours</option>
@@ -287,7 +287,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
               className={`px-4 py-2 rounded-lg border-2 transition-all flex items-center gap-2 ${
                 timePreference === value
                   ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                  : 'border-[var(--border)] hover:border-[var(--border-strong)] text-tx-secondary'
+                  : 'border-edge hover:border-edge-strong text-tx-secondary'
               }`}
             >
               {Icon && <Icon className="h-4 w-4" />}
@@ -298,12 +298,12 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       </div>
 
       {/* Continue Button */}
-      <div className="border-t border-[var(--border)] pt-6 flex space-x-3">
+      <div className="border-t border-edge pt-6 flex space-x-3">
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
+            className="flex-1 px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
           >
             Cancel
           </button>

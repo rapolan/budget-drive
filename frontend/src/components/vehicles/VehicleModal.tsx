@@ -117,7 +117,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 required
                 autoComplete="nope"
                 placeholder="e.g., Toyota"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -134,7 +134,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 required
                 autoComplete="nope"
                 placeholder="e.g., Corolla"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -152,7 +152,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 autoComplete="nope"
                 min="1900"
                 max={new Date().getFullYear() + 1}
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -168,7 +168,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 onChange={handleChange}
                 autoComplete="nope"
                 placeholder="e.g., Silver"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -185,7 +185,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 required
                 autoComplete="nope"
                 placeholder="e.g., ABC 1234"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -202,7 +202,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 required
                 autoComplete="nope"
                 placeholder="Vehicle Identification Number"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -215,7 +215,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 name="ownershipType"
                 value={formData.ownershipType}
                 onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="school_owned">School Owned</option>
                 <option value="instructor_owned">Instructor Owned</option>
@@ -236,7 +236,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 min="0"
                 autoComplete="nope"
                 placeholder="e.g., 50000"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -252,7 +252,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 onChange={handleChange}
                 required
                 autoComplete="nope"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -268,7 +268,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 onChange={handleChange}
                 required
                 autoComplete="nope"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -284,7 +284,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 onChange={handleChange}
                 autoComplete="nope"
                 placeholder="e.g., State Farm"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -300,7 +300,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 onChange={handleChange}
                 autoComplete="nope"
                 placeholder="Policy #"
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
@@ -314,17 +314,17 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 value={formData.notes}
                 onChange={handleChange}
                 rows={3}
-                className="mt-1 w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-end space-x-3 pt-4 border-t border-[var(--border)] mt-6">
+          <div className="flex justify-end space-x-3 pt-4 border-t border-edge mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-[var(--border-strong)] bg-surface px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
+              className="rounded-md border border-edge-strong bg-surface px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
             >
               Cancel
             </button>

@@ -188,7 +188,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-surface shadow-xl">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-surface border-b border-[var(--border)] px-6 py-4">
+        <div className="sticky top-0 z-10 bg-surface border-b border-edge px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-tx-primary flex items-center gap-2">
@@ -220,9 +220,9 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
             Array.from(instructorSchedules.entries())
               .sort((a, b) => a[1].instructor.fullName.localeCompare(b[1].instructor.fullName))
               .map(([instructorId, schedule]) => (
-              <div key={instructorId} className="border border-[var(--border)] rounded-lg overflow-hidden">
+              <div key={instructorId} className="border border-edge rounded-lg overflow-hidden">
                 {/* Instructor Header */}
-                <div className="bg-surface2 px-4 py-3 border-b border-[var(--border)]">
+                <div className="bg-surface2 px-4 py-3 border-b border-edge">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-tx-secondary" />
@@ -236,7 +236,7 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
                 </div>
 
                 {/* Schedule Items */}
-                <div className="divide-y divide-[var(--border)]">
+                <div className="divide-y divide-edge">
                   {/* Booked Lessons */}
                   {schedule.lessons
                     .sort((a, b) => a.startTime.localeCompare(b.startTime))

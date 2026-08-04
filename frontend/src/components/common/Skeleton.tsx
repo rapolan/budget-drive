@@ -121,7 +121,7 @@ export const DashboardSkeleton: React.FC = () => (
       <Skeleton width="150px" height={20} className="mb-4" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="rounded-lg border border-[var(--border)] p-4">
+          <div key={i} className="rounded-lg border border-edge p-4">
             <div className="flex items-start gap-3">
               <Skeleton variant="rectangular" width={40} height={40} />
               <div className="flex-1">
@@ -159,7 +159,7 @@ export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
 }) => (
   <div className="rounded-lg bg-surface shadow">
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-[var(--border)]">
+      <table className="min-w-full divide-y divide-edge">
         <thead className="bg-surface2">
           <tr>
             {[...Array(columns)].map((_, i) => (
@@ -169,7 +169,7 @@ export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[var(--border)] bg-surface">
+        <tbody className="divide-y divide-edge bg-surface">
           {[...Array(rows)].map((_, i) => (
             <tr key={i} className="animate-pulse">
               {[...Array(columns)].map((_, j) => (

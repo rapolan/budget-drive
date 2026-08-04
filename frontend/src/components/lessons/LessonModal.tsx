@@ -354,7 +354,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Student"
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="">Select Student</option>
                 {studentsData?.data
@@ -382,7 +382,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                     lessonNumber: e.target.value ? parseInt(e.target.value) : null
                   }))}
                   title="Lesson Number"
-                  className="flex-1 px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  className="flex-1 px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 >
                   <option value="">--</option>
                   {Array.from({ length: Math.max(estimatedTotalLessons, 10) }, (_, i) => i + 1).map(num => (
@@ -415,7 +415,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Instructor"
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="">Select Instructor</option>
                 {instructorsData?.data
@@ -441,7 +441,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 onChange={handleChange}
                 required
                 title="Select Lesson Type"
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               >
                 <option value="behind_wheel">Behind the Wheel</option>
                 <option value="classroom">Classroom</option>
@@ -465,7 +465,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               required
               autoComplete="off"
               title="Select Date"
-              className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
             />
           </div>
 
@@ -486,7 +486,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 required
                 autoComplete="off"
                 title="Select Start Time"
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
             </div>
 
@@ -505,7 +505,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 required
                 autoComplete="off"
                 title="Select End Time"
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
               />
             </div>
 
@@ -519,7 +519,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 type="text"
                 value={`${formData.duration} min`}
                 readOnly
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] bg-surface2 text-tx-secondary cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-lg border border-edge bg-surface2 text-tx-secondary cursor-not-allowed"
                 title="Auto-calculated from start and end times"
               />
             </div>
@@ -542,7 +542,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 step="0.01"
                 required
                 autoComplete="off"
-                className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 placeholder="50.00"
               />
             </div>
@@ -561,7 +561,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               onChange={handleChange}
               placeholder="e.g. 123 Maple Ave, Los Angeles, CA 90006"
               autoComplete="off"
-              className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
             />
             {formData.studentId && (
               <p className="text-xs text-tx-muted mt-1">
@@ -582,7 +582,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               onChange={handleChange}
               rows={3}
               placeholder="Additional notes about this lesson..."
-              className="w-full px-4 py-3 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
             />
           </div>
 
@@ -677,7 +677,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+          <div className="flex items-center justify-between pt-4 border-t border-edge">
             <button
               type="button"
               onClick={onClose}

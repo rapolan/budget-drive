@@ -13,7 +13,7 @@ export const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="flex h-14 sm:h-16 items-center justify-between border-b border-[var(--border)] bg-surface px-4 sm:px-6 sticky top-0 z-20 transition-colors">
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b border-edge bg-surface px-4 sm:px-6 sticky top-0 z-20 transition-colors">
       {/* Left — hamburger (mobile only) */}
       <button
         type="button"

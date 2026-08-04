@@ -77,7 +77,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
         {/* Modal */}
         <div className="relative w-full max-w-4xl rounded-lg bg-surface shadow-xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
+          <div className="flex items-center justify-between border-b border-edge px-6 py-4">
             <div>
               <div className="flex items-center gap-2">
                 <FileText className="h-6 w-6 text-primary" />
@@ -141,14 +141,14 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
             {!isLoading && !error && (
               <>
                 {payments.length === 0 ? (
-                  <div className="rounded-lg border-2 border-dashed border-[var(--border-strong)] py-12 text-center">
+                  <div className="rounded-lg border-2 border-dashed border-edge-strong py-12 text-center">
                     <DollarSign className="mx-auto h-12 w-12 text-tx-muted" />
                     <p className="mt-2 text-sm text-tx-secondary">No payments recorded yet</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+                  <div className="overflow-hidden rounded-lg border border-edge">
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-[var(--border)]">
+                      <table className="min-w-full divide-y divide-edge">
                         <thead className="bg-surface2">
                           <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
@@ -171,7 +171,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                             </th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[var(--border)] bg-surface">
+                        <tbody className="divide-y divide-edge bg-surface">
                           {payments.map((payment) => (
                             <tr key={payment.id} className="hover:bg-surface2">
                               <td className="whitespace-nowrap px-4 py-3">
@@ -222,10 +222,10 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end border-t border-[var(--border)] px-6 py-4">
+          <div className="flex justify-end border-t border-edge px-6 py-4">
             <button
               onClick={onClose}
-              className="rounded-md border border-[var(--border-strong)] px-4 py-2 text-tx-secondary hover:bg-surface2"
+              className="rounded-md border border-edge-strong px-4 py-2 text-tx-secondary hover:bg-surface2"
             >
               Close
             </button>

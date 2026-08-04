@@ -66,7 +66,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
   };
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-[var(--border)]">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
       <div className="flex items-center gap-2">
         <Calendar className="h-4 w-4 text-tx-muted" />
         <span className="text-sm font-medium text-tx-secondary">Date:</span>
@@ -82,7 +82,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
             className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all hover:scale-105 active:scale-95 ${
               value.preset === preset.value
                 ? 'bg-primary text-white border-primary'
-                : 'bg-surface text-tx-secondary border-[var(--border-strong)] hover:bg-surface2'
+                : 'bg-surface text-tx-secondary border-edge-strong hover:bg-surface2'
             }`}
           >
             {preset.label}
@@ -97,7 +97,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
             type="date"
             value={value.start}
             onChange={(e) => handleCustomDateChange('start', e.target.value)}
-            className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+            className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
             title="Start date"
           />
           <span className="text-tx-muted">to</span>
@@ -105,7 +105,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
             type="date"
             value={value.end}
             onChange={(e) => handleCustomDateChange('end', e.target.value)}
-            className="rounded-lg border border-[var(--border-strong)] px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+            className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
             title="End date"
           />
           {(value.start || value.end) && (

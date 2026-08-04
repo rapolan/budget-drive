@@ -173,7 +173,7 @@ export const RecurringPatterns: React.FC = () => {
 
       {/* Create Pattern Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-surface border border-[var(--border)] rounded-lg p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-surface border border-edge rounded-lg p-6 space-y-4">
           <h3 className="text-lg font-semibold text-tx-primary mb-4">Create Recurring Pattern</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -188,7 +188,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, patternName: e.target.value })}
                 placeholder="e.g., Mike's Weekly Lessons"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -204,7 +204,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
                 placeholder="Student UUID"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -220,7 +220,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, instructorId: e.target.value })}
                 placeholder="Instructor UUID"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -236,7 +236,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
                 placeholder="Vehicle UUID"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -251,7 +251,7 @@ export const RecurringPatterns: React.FC = () => {
                 onChange={(e) =>
                   setFormData({ ...formData, recurrenceType: e.target.value as any })
                 }
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 {RECURRENCE_TYPES.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -273,7 +273,7 @@ export const RecurringPatterns: React.FC = () => {
                 min="30"
                 step="30"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -290,7 +290,7 @@ export const RecurringPatterns: React.FC = () => {
                 min="0"
                 step="0.01"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -305,7 +305,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.timeOfDay || ''}
                 onChange={(e) => setFormData({ ...formData, timeOfDay: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -320,7 +320,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.startDate || ''}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -335,7 +335,7 @@ export const RecurringPatterns: React.FC = () => {
                 value={formData.endDate || ''}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
@@ -353,7 +353,7 @@ export const RecurringPatterns: React.FC = () => {
                 min="1"
                 placeholder="Unlimited if empty"
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
           </div>
@@ -391,7 +391,7 @@ export const RecurringPatterns: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
               placeholder="Additional notes about this pattern..."
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
 
@@ -423,8 +423,8 @@ export const RecurringPatterns: React.FC = () => {
       )}
 
       {/* Patterns List */}
-      <div className="bg-surface border border-[var(--border)] rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-surface2 border-b border-[var(--border)]">
+      <div className="bg-surface border border-edge rounded-lg overflow-hidden">
+        <div className="px-6 py-4 bg-surface2 border-b border-edge">
           <h3 className="text-lg font-semibold text-tx-primary">Active Patterns</h3>
         </div>
 
@@ -437,7 +437,7 @@ export const RecurringPatterns: React.FC = () => {
             No recurring patterns created yet. Click "New Pattern" to get started.
           </div>
         ) : (
-          <div className="divide-y divide-[var(--border)]">
+          <div className="divide-y divide-edge">
             {patterns.map((pattern) => (
               <div key={pattern.id} className="p-6 hover:bg-surface2 transition-colors">
                 <div className="flex items-start justify-between">

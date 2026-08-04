@@ -82,7 +82,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
   // If no lessons today, show a compact message
   if (lessons.length === 0) {
     return (
-      <div className="bg-surface2 border border-[var(--border)] rounded-lg px-4 py-3 mb-4">
+      <div className="bg-surface2 border border-edge rounded-lg px-4 py-3 mb-4">
         <div className="flex items-center gap-2 text-tx-muted">
           <Calendar className="h-4 w-4" />
           <span className="text-sm">No lessons scheduled for today</span>
@@ -95,7 +95,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
   const remainingLessons = scheduledLessons.length;
 
   return (
-    <div className="bg-surface border border-[var(--border)] rounded-lg shadow-sm mb-4 overflow-hidden">
+    <div className="bg-surface border border-edge rounded-lg shadow-sm mb-4 overflow-hidden">
       {/* Header - Always visible */}
       <button
         type="button"

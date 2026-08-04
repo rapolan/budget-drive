@@ -194,7 +194,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as any)}
-              className="px-3 py-1 border border-[var(--border-strong)] rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="px-3 py-1 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
@@ -225,7 +225,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.startDate}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -239,7 +239,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
               />
             </div>
@@ -255,7 +255,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.startTime}
                 onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
 
@@ -268,7 +268,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 value={formData.endTime}
                 onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
                 autoComplete="nope"
-                className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
           </div>
@@ -282,7 +282,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
               autoComplete="nope"
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="e.g., Vacation, Sick leave, Personal"
               required
             />
@@ -296,7 +296,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-[var(--border-strong)] rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Additional details..."
             />
           </div>
@@ -319,7 +319,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
               : `No ${filterStatus} requests found.`}
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-[var(--border)]">
+          <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
@@ -342,7 +342,7 @@ export const TimeOffManager: React.FC<TimeOffManagerProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-surface divide-y divide-[var(--border)]">
+            <tbody className="bg-surface divide-y divide-edge">
               {timeOffs.map((timeOff) => (
                 <tr key={timeOff.id} className="hover:bg-surface2">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-tx-primary">

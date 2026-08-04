@@ -46,7 +46,7 @@ export const InstructorEarningsPage: React.FC = () => {
             <select
               value={selectedInstructorId}
               onChange={(e) => setSelectedInstructorId(e.target.value)}
-              className="w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none"
             >
               <option value="">-- Select Instructor --</option>
               {instructors.map((instructor) => (
@@ -67,7 +67,7 @@ export const InstructorEarningsPage: React.FC = () => {
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               autoComplete="nope"
-              className="w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
 
@@ -81,7 +81,7 @@ export const InstructorEarningsPage: React.FC = () => {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               autoComplete="nope"
-              className="w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none"
+              className="w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none"
             />
           </div>
         </div>

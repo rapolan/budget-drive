@@ -85,9 +85,9 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 
       {/* Dropdown Menu - Opens downward with white background for readability */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-xl shadow-2xl border border-[var(--border)] overflow-hidden z-50">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-xl shadow-2xl border border-edge overflow-hidden z-50">
           {/* Current Account Indicator */}
-          <div className="flex items-center gap-3 px-4 py-3 bg-surface2 border-b border-[var(--border)]">
+          <div className="flex items-center gap-3 px-4 py-3 bg-surface2 border-b border-edge">
             <div
               className="w-10 h-10 rounded-lg flex items-center justify-center shadow-sm"
               style={{ backgroundColor: currentTenant.primaryColor || '#3B82F6' }}
@@ -103,7 +103,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 
           {/* Account List */}
           {memberships.length > 1 && (
-            <div className="max-h-48 overflow-y-auto border-b border-[var(--border)]">
+            <div className="max-h-48 overflow-y-auto border-b border-edge">
               <div className="px-4 py-2 text-xs font-semibold text-tx-muted uppercase tracking-wider bg-surface2">
                 Switch Account
               </div>

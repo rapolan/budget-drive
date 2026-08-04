@@ -208,7 +208,7 @@ const Treasury: React.FC = () => {
       {/* Recent Transactions */}
       <div className="overflow-hidden rounded-lg bg-surface shadow">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-[var(--border)]">
+          <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider">
@@ -243,7 +243,7 @@ const Treasury: React.FC = () => {
                 )}
               </tr>
             </thead>
-            <tbody className="bg-surface divide-y divide-[var(--border)]">
+            <tbody className="bg-surface divide-y divide-edge">
               {transactionsArray && transactionsArray.length > 0 ? (
                 transactionsArray.map((tx: TreasuryTransaction) => (
                   <tr key={tx.id} className="hover:bg-surface2">

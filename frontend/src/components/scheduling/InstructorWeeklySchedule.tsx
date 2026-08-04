@@ -518,11 +518,11 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
       </div>
 
       {/* Header Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface rounded-xl p-4 border border-[var(--border)] shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface rounded-xl p-4 border border-edge shadow-sm">
         {/* Mode Toggle + Instructor Selector */}
         <div className="flex items-center gap-3">
           {/* Single/Compare Toggle */}
-          <div className="flex rounded-lg border border-[var(--border)] p-0.5 bg-surface2">
+          <div className="flex rounded-lg border border-edge p-0.5 bg-surface2">
             <button
               onClick={() => setCompareMode(false)}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
@@ -620,14 +620,14 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
         <div className="flex items-center gap-2">
           <button
             onClick={goToToday}
-            className="flex items-center gap-1 rounded-lg border border-[var(--border-strong)] px-3 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
+            className="flex items-center gap-1 rounded-lg border border-edge-strong px-3 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
           >
             <Calendar className="h-4 w-4" />
             Today
           </button>
           <button
             onClick={goToPreviousWeek}
-            className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors"
+            className="rounded-lg border border-edge-strong p-2 text-tx-secondary hover:bg-surface2 transition-colors"
             aria-label="Previous week"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -638,7 +638,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
           <button
             onClick={goToNextWeek}
             disabled={isNextWeekDisabled}
-            className="rounded-lg border border-[var(--border-strong)] p-2 text-tx-secondary hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg border border-edge-strong p-2 text-tx-secondary hover:bg-surface2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Next week"
           >
             <ChevronRight className="h-5 w-5" />
@@ -685,7 +685,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Compare Mode View */}
       {compareMode && selectedInstructors.length > 0 && !loadingLessons && (
-        <div className="bg-surface rounded-lg shadow-lg overflow-hidden border border-[var(--border)] p-4">
+        <div className="bg-surface rounded-lg shadow-lg overflow-hidden border border-edge p-4">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-tx-secondary">Comparing {selectedInstructors.length} Instructor{selectedInstructors.length > 1 ? 's' : ''}</h3>
             <span className="text-xs text-tx-muted">{formatWeekRange()}</span>
@@ -781,7 +781,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
             })}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-[var(--border)] text-center">
+          <div className="mt-4 pt-4 border-t border-edge text-center">
             <p className="text-xs text-tx-muted">
               Click on an instructor in Single mode to see detailed schedule
             </p>
@@ -791,12 +791,12 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Schedule Grid (Single Mode) */}
       {!compareMode && !loadingLessons && !loadingAvailability && instructor && weeklySchedule.length > 0 && (
-        <div className="bg-surface rounded-lg shadow-lg overflow-hidden border border-[var(--border)]">
+        <div className="bg-surface rounded-lg shadow-lg overflow-hidden border border-edge">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-[var(--border)] table-fixed md:table-auto">
+            <table className="min-w-full divide-y divide-edge table-fixed md:table-auto">
               <thead className="bg-surface2">
                 <tr>
-                  <th className="sticky left-0 bg-surface2 px-4 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider border-r border-[var(--border)] z-10">
+                  <th className="sticky left-0 bg-surface2 px-4 py-3 text-left text-xs font-medium text-tx-muted uppercase tracking-wider border-r border-edge z-10">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4" />
                       Time
@@ -876,10 +876,10 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                   })}
                 </tr>
               </thead>
-              <tbody className="bg-surface divide-y divide-[var(--border)]">
+              <tbody className="bg-surface divide-y divide-edge">
                 {weeklySchedule[0]?.slots.map((_, slotIndex) => (
                   <tr key={slotIndex} className="hover:bg-surface2/50 transition-colors">
-                    <td className="sticky left-0 bg-surface px-4 py-3 text-sm text-tx-primary border-r border-[var(--border)] whitespace-nowrap z-10">
+                    <td className="sticky left-0 bg-surface px-4 py-3 text-sm text-tx-primary border-r border-edge whitespace-nowrap z-10">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-surface3"></div>
                         <div>
@@ -911,7 +911,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                               disabled={pastDay}
                               className={`w-full rounded-lg px-3 py-4 text-center text-sm font-medium transition-all duration-200 group ${
                                 pastDay
-                                  ? 'bg-surface2 border border-[var(--border)] text-tx-muted cursor-not-allowed'
+                                  ? 'bg-surface2 border border-edge text-tx-muted cursor-not-allowed'
                                   : 'bg-status-success-bg border-2 border-dashed border-status-success-border text-status-success-text hover:border-solid hover:shadow-md hover:scale-[1.02]'
                               }`}
                             >
@@ -950,8 +950,8 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                           ) : (
                             <div className={`w-full rounded-lg border px-3 py-4 text-center text-sm ${
                               pastDay
-                                ? 'bg-surface2 border-[var(--border)] text-tx-muted'
-                                : 'bg-surface2 border-[var(--border)] text-tx-muted'
+                                ? 'bg-surface2 border-edge text-tx-muted'
+                                : 'bg-surface2 border-edge text-tx-muted'
                             }`}>
                               <span className="text-tx-muted">{pastDay ? '—' : '○'}</span>
                             </div>
@@ -978,7 +978,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
       {/* Legend (Single Mode only) */}
       {!compareMode && (
-      <div className="flex items-center justify-center gap-8 text-sm text-tx-secondary px-4 py-3 bg-surface2 rounded-xl border border-[var(--border)]">
+      <div className="flex items-center justify-center gap-8 text-sm text-tx-secondary px-4 py-3 bg-surface2 rounded-xl border border-edge">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-lg bg-status-success-bg border-2 border-dashed border-status-success-border flex items-center justify-center text-[10px]">✨</div>
           <span className="font-medium">Available</span>
@@ -988,7 +988,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
           <span className="font-medium">Booked</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-lg bg-surface2 border border-[var(--border)] flex items-center justify-center text-tx-muted text-[10px]">○</div>
+          <div className="w-5 h-5 rounded-lg bg-surface2 border border-edge flex items-center justify-center text-tx-muted text-[10px]">○</div>
           <span className="font-medium">Unavailable</span>
         </div>
         <div className="flex items-center gap-2">

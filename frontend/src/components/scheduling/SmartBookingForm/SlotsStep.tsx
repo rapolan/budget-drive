@@ -68,7 +68,7 @@ export const SlotsStep: React.FC<SlotsStepProps> = ({
       )}
 
       {slotsWithProximity.length === 0 ? (
-        <div className="text-center py-12 text-tx-muted bg-surface2 rounded-lg border-2 border-dashed border-[var(--border-strong)]">
+        <div className="text-center py-12 text-tx-muted bg-surface2 rounded-lg border-2 border-dashed border-edge-strong">
           <Calendar className="h-12 w-12 mx-auto mb-3 text-tx-muted" />
           <p className="font-medium">No available slots found</p>
           <p className="text-sm mt-1">Try changing the duration or time preference</p>
@@ -84,11 +84,11 @@ export const SlotsStep: React.FC<SlotsStepProps> = ({
       )}
 
       {/* Back button */}
-      <div className="border-t border-[var(--border)] pt-6">
+      <div className="border-t border-edge pt-6">
         <button
           type="button"
           onClick={onChangeFilters}
-          className="w-full px-6 py-3 border-2 border-[var(--border-strong)] text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
+          className="w-full px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
         >
           ← Back to Setup
         </button>

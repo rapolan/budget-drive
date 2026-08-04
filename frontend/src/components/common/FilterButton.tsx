@@ -16,7 +16,7 @@ interface FilterButtonProps {
 const variantClasses = {
   default: {
     active: 'bg-tx-primary text-surface focus-visible:ring-edge-strong',
-    inactive: 'bg-surface text-tx-secondary border-[var(--border-strong)] hover:bg-surface2 focus-visible:ring-edge-strong',
+    inactive: 'bg-surface text-tx-secondary border-edge-strong hover:bg-surface2 focus-visible:ring-edge-strong',
   },
   secondary: {
     active: 'bg-purple-600 text-white focus-visible:ring-purple-500',

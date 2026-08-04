@@ -80,7 +80,7 @@ export const NotificationSettingsPage: React.FC = () => {
 
         <div className="space-y-4">
           {/* Booking Confirmation */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-primary">Booking Confirmation</h3>
               <p className="text-sm text-tx-muted">
@@ -102,7 +102,7 @@ export const NotificationSettingsPage: React.FC = () => {
           </div>
 
           {/* 24-Hour Reminder */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-primary">24-Hour Reminder</h3>
               <p className="text-sm text-tx-muted">
@@ -124,7 +124,7 @@ export const NotificationSettingsPage: React.FC = () => {
           </div>
 
           {/* 1-Hour Reminder */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-primary">1-Hour Reminder</h3>
               <p className="text-sm text-tx-muted">
@@ -146,7 +146,7 @@ export const NotificationSettingsPage: React.FC = () => {
           </div>
 
           {/* Cancellation Notice */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-primary">Cancellation Notice</h3>
               <p className="text-sm text-tx-muted">
@@ -209,7 +209,7 @@ export const NotificationSettingsPage: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-muted">24-Hour SMS Reminder</h3>
               <p className="text-sm text-tx-muted">
@@ -254,7 +254,7 @@ export const NotificationSettingsPage: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-primary">Send to Students</h3>
               <p className="text-sm text-tx-muted">
@@ -275,7 +275,7 @@ export const NotificationSettingsPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+          <div className="flex items-center justify-between border-b border-edge pb-4">
             <div>
               <h3 className="font-medium text-tx-primary">Send to Instructors</h3>
               <p className="text-sm text-tx-muted">
@@ -323,7 +323,7 @@ export const NotificationSettingsPage: React.FC = () => {
       <div className="flex items-center justify-between rounded-lg bg-surface p-6 shadow">
         <button
           onClick={handleTestEmail}
-          className="flex items-center rounded-md border border-[var(--border-strong)] px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2"
+          className="flex items-center rounded-md border border-edge-strong px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2"
         >
           <TestTube className="mr-2 h-4 w-4" />
           Send Test Email

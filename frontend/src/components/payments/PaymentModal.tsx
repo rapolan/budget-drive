@@ -138,7 +138,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         {/* Modal */}
         <div className="relative w-full max-w-2xl rounded-lg bg-surface shadow-xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
+          <div className="flex items-center justify-between border-b border-edge px-6 py-4">
             <div className="flex items-center gap-2">
               <DollarSign className="h-6 w-6 text-primary" />
               <h2 className="text-xl font-semibold text-tx-primary">Record Payment</h2>
@@ -185,7 +185,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     name="studentId"
                     value={formData.studentId}
                     onChange={handleChange}
-                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-edge-strong py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="">-- Choose a student --</option>
                     {students.map((s) => (
@@ -228,7 +228,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     step="0.01"
                     min="0"
                     autoComplete="nope"
-                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-edge-strong py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     placeholder="0.00"
                   />
                 </div>
@@ -250,7 +250,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     name="paymentMethod"
                     value={formData.paymentMethod}
                     onChange={handleChange}
-                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-edge-strong py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="cash">Cash</option>
                     <option value="credit_card">Credit Card</option>
@@ -275,7 +275,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   name="paymentType"
                   value={formData.paymentType}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="lesson_payment">Lesson Payment</option>
                   <option value="package_payment">Package Payment</option>
@@ -300,7 +300,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     value={formData.date}
                     onChange={handleChange}
                     autoComplete="nope"
-                    className="block w-full rounded-md border border-[var(--border-strong)] py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block w-full rounded-md border border-edge-strong py-2 pl-10 pr-3 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 {errors.date && <p className="mt-1 text-sm text-status-danger-text">{errors.date}</p>}
@@ -313,7 +313,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="confirmed">Confirmed</option>
                   <option value="pending">Pending</option>
@@ -329,7 +329,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   value={formData.notes}
                   onChange={handleChange}
                   rows={3}
-                  className="mt-1 block w-full rounded-md border border-[var(--border-strong)] px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   placeholder="Additional payment notes..."
                 />
               </div>
@@ -351,11 +351,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="mt-6 pt-4 border-t border-[var(--border)] flex justify-end gap-3">
+            <div className="mt-6 pt-4 border-t border-edge flex justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-[var(--border-strong)] bg-surface px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
+                className="rounded-md border border-edge-strong bg-surface px-4 py-2 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-colors"
               >
                 Cancel
               </button>
