@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, UserCheck, Mail, Phone, Briefcase, DollarSign, MapPin, FileText, Calendar } from 'lucide-react';
+import { X, UserCheck, Mail, Phone, Briefcase, DollarSign, MapPin, FileText, Calendar, AlertCircle } from 'lucide-react';
 import { instructorsApi } from '@/api';
 import { usersApi } from '@/api/users';
 import type { Instructor, CreateInstructorInput } from '@/types';
@@ -67,6 +67,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
       queryClient.invalidateQueries({ queryKey: ['instructors'] });
       onClose();
     },
+    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
+      console.error('Create instructor error:', error);
+    },
   });
 
   const updateMutation = useMutation({
@@ -75,7 +78,16 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
       queryClient.invalidateQueries({ queryKey: ['instructors'] });
       onClose();
     },
+    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
+      console.error('Update instructor error:', error);
+    },
   });
+
+  // Get error message from mutation
+  const errorMessage = createMutation.error?.response?.data?.error ||
+                       updateMutation.error?.response?.data?.error ||
+                       (createMutation.isError ? 'Failed to create instructor' : '') ||
+                       (updateMutation.isError ? 'Failed to update instructor' : '');
 
   const inviteMutation = useMutation({
     mutationFn: usersApi.invite,
@@ -100,10 +112,14 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isEditing) {
-      await updateMutation.mutateAsync(formData);
-    } else {
-      await createMutation.mutateAsync(formData);
+    try {
+      if (isEditing) {
+        await updateMutation.mutateAsync(formData);
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
+    } catch {
+      // Surfaced via errorMessage (createMutation/updateMutation.onError) below.
     }
   };
 
@@ -507,6 +523,14 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   {inviteMutation.isPending ? 'Sending Invite...' : 'Grant Access'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="bg-status-danger-bg rounded-lg px-4 py-3 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-status-danger-text">{errorMessage}</p>
             </div>
           )}
 
