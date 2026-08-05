@@ -122,6 +122,7 @@ export const createStudent = async (
     emergencyContact2Name?: string; // Secondary contact name
     emergencyContact2Phone?: string; // Secondary contact phone
     hoursRequired?: number; // Default: 6 (California requirement)
+    licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car'
     assignedInstructorId?: string;
     learnerPermitNumber?: string;
     learnerPermitIssueDate?: Date;
@@ -168,6 +169,7 @@ export const createStudent = async (
 
     // Set defaults for optional fields
     const hoursRequired = data.hoursRequired ?? 6; // Default to 6 hours (California requirement for under 18)
+    const licenseType = data.licenseType ?? 'car';
 
     const result = await query(
       `INSERT INTO students (
@@ -175,11 +177,11 @@ export const createStudent = async (
         address_line1, address_line2, city, state, zip_code,
         emergency_contact, emergency_contact_name, emergency_contact_phone,
         emergency_contact_2_name, emergency_contact_2_phone,
-        enrollment_date, hours_required,
+        enrollment_date, hours_required, license_type,
         assigned_instructor_id,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
         notes, status, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $21, $22, $23, $24, $25, 'active', $26, $26)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $21, $22, $23, $24, $25, $26, 'active', $27, $27)
       RETURNING *`,
       [
         tenantId,
@@ -202,6 +204,7 @@ export const createStudent = async (
         data.emergencyContact2Name || null,
         data.emergencyContact2Phone || null,
         hoursRequired,
+        licenseType,
         data.assignedInstructorId || null,
         data.learnerPermitNumber || null,
         data.learnerPermitIssueDate || null,
