@@ -30,7 +30,7 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-edge">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
+            <div className="p-2 bg-primary/10 rounded-lg">
               <Keyboard className="h-5 w-5 text-primary" />
             </div>
             <h2 className="text-lg font-bold text-tx-primary">Keyboard Shortcuts</h2>

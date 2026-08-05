@@ -498,7 +498,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -506,7 +506,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -585,7 +585,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Table view"
             >
               <LayoutList className="h-4 w-4" />
@@ -593,7 +593,7 @@ export const StudentsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-blue-100 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
               title="Card view"
             >
               <LayoutGrid className="h-4 w-4" />
