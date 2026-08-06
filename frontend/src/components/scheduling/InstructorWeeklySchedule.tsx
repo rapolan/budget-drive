@@ -217,7 +217,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   // Get instructor colors for compare mode
   const getInstructorColor = (index: number) => {
     const colors = [
-      { bg: 'bg-primary', border: 'border-blue-200', light: 'bg-blue-50', text: 'text-primary' },
+      { bg: 'bg-primary', border: 'border-primary/30', light: 'bg-primary/10', text: 'text-primary' },
       { bg: 'bg-purple-500', border: 'border-purple-200', light: 'bg-purple-50', text: 'text-purple-700' },
       { bg: 'bg-emerald-500', border: 'border-emerald-200', light: 'bg-emerald-50', text: 'text-emerald-700' },
     ];
