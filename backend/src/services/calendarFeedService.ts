@@ -218,7 +218,10 @@ export const generateICSFeed = async (
       descParts.push(`Parent/Guardian: ${lesson.parent_phone}`);
     }
 
-    // Lesson progress
+    // Lesson progress - this is an *estimate* for the iCal description's
+    // numbering copy, not the student's real progress. See
+    // studentProgressService.computeStudentProgress for the single source
+    // of truth on actual progress.
     if (lesson.lesson_number) {
       const hoursRequired = parseFloat(lesson.hours_required || '6');
       // Under-18 minimum is 3 lessons; use hours_required / 2hr lessons as estimate

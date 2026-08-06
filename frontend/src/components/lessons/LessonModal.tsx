@@ -86,7 +86,10 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   ) || [];
   const suggestedLessonNumber = studentLessons.length + 1;
   const totalHoursRequired = selectedStudent?.hoursRequired || 6;
-  // Estimate total lessons based on 2-hour lessons (can be adjusted)
+  // Estimate total lessons based on 2-hour lessons (can be adjusted) - this
+  // is a lesson-count *estimate* for the numbering UI below, not the
+  // student's real progress. See studentProgressService.computeStudentProgress
+  // for the single source of truth on actual progress.
   const estimatedTotalLessons = Math.ceil(totalHoursRequired / 2);
 
   // Fetch instructor's lessons for the selected date to check availability

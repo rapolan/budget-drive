@@ -77,12 +77,13 @@ export function computeStudentStatus(student: Student, lessons: Lesson[]): Statu
     }
   }
 
-  // 2. COMPLETED: Finished all required hours
-  if (student.totalHoursCompleted >= (student.hoursRequired || 0) && (student.hoursRequired || 0) > 0) {
+  // 2. COMPLETED: Explicit admin-verified program completion (see item 6) -
+  // this is the sole source of truth, not an hours-threshold auto-derivation.
+  if (student.completed) {
     return {
       status: 'completed',
       displayStatus: 'Completed',
-      reason: 'Finished all required hours',
+      reason: student.completionReason || 'Program marked complete',
     };
   }
 

@@ -252,6 +252,26 @@ export interface InstructorCertification {
 // STUDENT TYPES
 // =====================================================
 
+// Single source of truth for student progress - see
+// backend/src/services/studentProgressService.ts's computeStudentProgress.
+// Every read path attaches this; no display surface may recompute it.
+export type ProgressTrack = 'hours' | 'lessons' | 'completed';
+
+export interface StudentProgress {
+  track: ProgressTrack;
+  hoursCompleted?: number;
+  hoursRequired?: number;
+  hoursScheduled?: number;
+  lessonsCompleted?: number;
+  lessonsBooked?: number;
+  lessonsPercent?: number;
+  completedAt?: string | null;
+  completionReason?: string | null;
+  displayLabel: string;
+  percentComplete: number;
+  needsDateOfBirth: boolean;
+}
+
 export interface Student {
   id: string;
   tenantId: string;
@@ -287,6 +307,7 @@ export interface Student {
   // Progress
   totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
   hoursRequired: number;
+  progress?: StudentProgress; // Attached by studentService's read paths - the single source of truth for display
   assignedInstructorId: string | null;
   trackOverride: 'hours' | 'lessons' | null;
 

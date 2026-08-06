@@ -104,6 +104,26 @@ export interface TenantSettings {
   updatedAt: Date;
 }
 
+// Single source of truth for student progress - computed backend-side by
+// studentProgressService.computeStudentProgress. The frontend never
+// recomputes this; it only renders displayLabel/percentComplete/track.
+export type ProgressTrack = 'hours' | 'lessons' | 'completed';
+
+export interface StudentProgress {
+  track: ProgressTrack;
+  hoursCompleted?: number;
+  hoursRequired?: number;
+  hoursScheduled?: number;
+  lessonsCompleted?: number;
+  lessonsBooked?: number;
+  lessonsPercent?: number;
+  completedAt?: string | null;
+  completionReason?: string | null;
+  displayLabel: string;
+  percentComplete: number;
+  needsDateOfBirth: boolean;
+}
+
 export interface Student {
   id: string;
   tenantId: string;
@@ -133,6 +153,7 @@ export interface Student {
   completionDate?: Date;
   totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
   hoursRequired?: number; // Default: 6 (hidden in form)
+  progress?: StudentProgress; // Attached by the backend - the single source of truth for display
   assignedInstructorId?: string;
   trackOverride?: 'hours' | 'lessons' | null;
   completed?: boolean;

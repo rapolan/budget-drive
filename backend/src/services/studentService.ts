@@ -5,11 +5,12 @@
  */
 
 import { query } from '../config/database';
-import { Student } from '../types';
+import { Student, Lesson } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
+import { computeStudentProgress } from './studentProgressService';
 
 const logger = createLogger('StudentService');
 
@@ -19,6 +20,32 @@ const logger = createLogger('StudentService');
 const emptyToNull = (value: any): any => {
   return value === '' ? null : value;
 };
+
+/**
+ * Attach computed progress to a batch of students in a single extra query
+ * (not N+1) - the single source of truth for progress, per computeStudentProgress.
+ */
+async function attachProgress(students: Student[], tenantId: string): Promise<Student[]> {
+  if (students.length === 0) return students;
+
+  const studentIds = students.map(s => s.id);
+  const lessonsResult = await query(
+    `SELECT student_id, status, duration FROM lessons WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
+    [tenantId, studentIds]
+  );
+
+  const lessonsByStudent = new Map<string, { status: Lesson['status']; duration: number }[]>();
+  for (const row of lessonsResult.rows) {
+    const list = lessonsByStudent.get(row.student_id) ?? [];
+    list.push({ status: row.status as Lesson['status'], duration: parseFloat(row.duration) });
+    lessonsByStudent.set(row.student_id, list);
+  }
+
+  return students.map(student => ({
+    ...student,
+    progress: computeStudentProgress(student, lessonsByStudent.get(student.id) ?? []),
+  }));
+}
 
 /**
  * Get all students for a tenant (with pagination)
@@ -60,8 +87,10 @@ export const getAllStudents = async (
       duration: `${duration}ms`,
     });
 
+    const students = await attachProgress(result.rows.map(keysToCamel) as Student[], tenantId);
+
     return {
-      students: result.rows.map(keysToCamel) as Student[],
+      students,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -93,7 +122,8 @@ export const getStudentById = async (
     return null;
   }
 
-  return keysToCamel(result.rows[0]) as Student;
+  const [student] = await attachProgress([keysToCamel(result.rows[0]) as Student], tenantId);
+  return student;
 };
 
 /**
@@ -519,7 +549,7 @@ export const getStudentsByStatus = async (
     [tenantId, status]
   );
 
-  return result.rows.map(keysToCamel) as Student[];
+  return attachProgress(result.rows.map(keysToCamel) as Student[], tenantId);
 };
 
 /**
@@ -537,5 +567,5 @@ export const getStudentsByInstructor = async (
     [tenantId, instructorId]
   );
 
-  return result.rows.map(keysToCamel) as Student[];
+  return attachProgress(result.rows.map(keysToCamel) as Student[], tenantId);
 };

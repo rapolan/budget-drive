@@ -64,7 +64,10 @@ function generateICSContent(data: LessonInviteData): string {
     `Phone: ${data.studentPhone}`,
   ];
   
-  // Add lesson number info if available
+  // Add lesson number info if available - this is an *estimate* for the
+  // invite email's numbering copy, not the student's real progress. See
+  // studentProgressService.computeStudentProgress for the single source of
+  // truth on actual progress.
   if (data.lessonNumber && data.hoursRequired) {
     const estimatedTotalLessons = Math.ceil(data.hoursRequired / 2);
     descriptionParts.push(`Lesson: ${data.lessonNumber} of ${estimatedTotalLessons}`);

@@ -173,7 +173,6 @@ export const StudentsPage: React.FC = () => {
     let newLastMonth = 0;
     let newLastYearSameMonth = 0;
     let completedThisMonth = 0;
-    let totalHoursCompleted = 0;
     let avgProgress = 0;
 
     data?.data?.forEach((student) => {
@@ -202,10 +201,7 @@ export const StudentsPage: React.FC = () => {
         }
       }
 
-      totalHoursCompleted += student.totalHoursCompleted || 0;
-      if ((student.hoursRequired ?? 0) > 0) {
-        avgProgress += (student.totalHoursCompleted / (student.hoursRequired ?? 1)) * 100;
-      }
+      avgProgress += student.progress?.percentComplete ?? 0;
     });
 
     const totalStudents = data?.data?.length || 0;
@@ -222,7 +218,6 @@ export const StudentsPage: React.FC = () => {
       diffVsLastMonth,
       diffVsLastYear,
       completedThisMonth,
-      totalHoursCompleted: Math.round(totalHoursCompleted * 10) / 10,
       avgProgress,
     };
   }, [data?.data]);
@@ -298,9 +293,7 @@ export const StudentsPage: React.FC = () => {
           return aLastLesson.getTime() - bLastLesson.getTime(); // Oldest first
         }
         case 'progress': {
-          const aProgress = (a.hoursRequired ?? 0) > 0 ? a.totalHoursCompleted / (a.hoursRequired ?? 1) : 0;
-          const bProgress = (b.hoursRequired ?? 0) > 0 ? b.totalHoursCompleted / (b.hoursRequired ?? 1) : 0;
-          return bProgress - aProgress; // Closest to completion first
+          return (b.progress?.percentComplete ?? 0) - (a.progress?.percentComplete ?? 0); // Closest to completion first
         }
         default:
           return 0;
@@ -638,10 +631,8 @@ export const StudentsPage: React.FC = () => {
           ) : (
             filteredStudents?.map((student) => {
               const statusInfo = getStudentStatus(student);
-              const progressPercent = (student.hoursRequired ?? 0) > 0
-                ? Math.min(100, (student.totalHoursCompleted / (student.hoursRequired ?? 1)) * 100)
-                : 0;
-              
+              const progressPercent = student.progress?.percentComplete ?? 0;
+
               return (
                 <div
                   key={student.id}
@@ -677,7 +668,7 @@ export const StudentsPage: React.FC = () => {
                     <div className="flex items-center justify-between text-sm mb-1">
                       <span className="text-tx-secondary">Progress</span>
                       <span className="font-medium text-tx-primary">
-                        {student.totalHoursCompleted}/{student.hoursRequired || 6} hrs
+                        {student.progress?.displayLabel ?? '—'}
                       </span>
                     </div>
                     <div className="h-2 bg-surface3 rounded-full overflow-hidden">
@@ -800,10 +791,8 @@ export const StudentsPage: React.FC = () => {
               ) : (
                 filteredStudents?.map((student) => {
                   const statusInfo = getStudentStatus(student);
-                  const progressPercent = (student.hoursRequired ?? 0) > 0
-                    ? Math.min(100, (student.totalHoursCompleted / (student.hoursRequired ?? 1)) * 100)
-                    : 0;
-                  
+                  const progressPercent = student.progress?.percentComplete ?? 0;
+
                   return (
                     <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
@@ -841,9 +830,11 @@ export const StudentsPage: React.FC = () => {
                         <div className="w-32">
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className="font-medium text-tx-primary">
-                              {student.totalHoursCompleted}/{student.hoursRequired || 6} hrs
+                              {student.progress?.displayLabel ?? '—'}
                             </span>
-                            <span className="text-tx-muted">{Math.round(progressPercent)}%</span>
+                            {student.progress?.track === 'hours' && (
+                              <span className="text-tx-muted">{Math.round(progressPercent)}%</span>
+                            )}
                           </div>
                           <div className="h-2 bg-surface3 rounded-full overflow-hidden">
                             <div

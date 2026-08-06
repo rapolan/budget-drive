@@ -27,7 +27,7 @@ const formPayload = {
   middleName: '',
   email: 'test.repro@example.com',
   phone: '555-0100',
-  dateOfBirth: '',
+  dateOfBirth: '2010-01-01',
   address: '',
   addressLine1: '',
   addressLine2: '',

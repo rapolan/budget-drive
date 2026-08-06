@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, TrendingUp, CheckCircle, Clock } from 'lucide-react';
+import { Award, TrendingUp, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import type { Student, Lesson } from '@/types';
 
 interface StudentProgressCardProps {
@@ -8,35 +8,57 @@ interface StudentProgressCardProps {
 }
 
 export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ student, lessons }) => {
-  // Calculate progress metrics
+  const progress = student.progress;
+
+  // Lesson-count stats (Completed/Scheduled/Total) are an unconditional
+  // all-lesson-types count, not track-gated progress math - kept local.
   const studentLessons = lessons.filter(l => l.studentId === student.id);
   const completedLessons = studentLessons.filter(l => l.status === 'completed').length;
   const totalLessons = studentLessons.length;
   const scheduledLessons = studentLessons.filter(l => l.status === 'scheduled').length;
 
-  const hoursRequired = student.hoursRequired || 40; // Default to 40 hours
-  const hoursCompleted = student.totalHoursCompleted || 0;
-  const progressPercentage = Math.min(100, (hoursCompleted / hoursRequired) * 100);
+  if (!progress) {
+    return (
+      <div className="bg-surface rounded-lg shadow-sm border border-edge p-6">
+        <p className="text-sm text-tx-muted">Progress unavailable.</p>
+      </div>
+    );
+  }
 
-  // Calculate milestone achievements
-  const milestones = [
-    { label: 'First Lesson', achieved: completedLessons >= 1, icon: CheckCircle },
-    { label: '25% Complete', achieved: progressPercentage >= 25, icon: TrendingUp },
-    { label: 'Halfway', achieved: progressPercentage >= 50, icon: Award },
-    { label: '75% Complete', achieved: progressPercentage >= 75, icon: TrendingUp },
-    { label: 'Completed', achieved: progressPercentage >= 100, icon: Award },
-  ];
+  const progressPercentage = progress.percentComplete;
+
+  // Milestones only have a meaningful narrative on the hours track - the
+  // lessons track's denominator is admin-movable, and completed students
+  // show as fully achieved.
+  const milestones = progress.track === 'hours'
+    ? [
+        { label: 'First Lesson', achieved: completedLessons >= 1, icon: CheckCircle },
+        { label: '25% Complete', achieved: progressPercentage >= 25, icon: TrendingUp },
+        { label: 'Halfway', achieved: progressPercentage >= 50, icon: Award },
+        { label: '75% Complete', achieved: progressPercentage >= 75, icon: TrendingUp },
+        { label: 'Completed', achieved: progressPercentage >= 100, icon: Award },
+      ]
+    : [];
 
   const achievedMilestones = milestones.filter(m => m.achieved).length;
 
   return (
     <div className="bg-surface rounded-lg shadow-sm border border-edge p-6 space-y-6">
+      {progress.needsDateOfBirth && (
+        <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3 flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-status-warning-text flex-shrink-0" />
+          <span className="text-sm text-status-warning-text">
+            Add a date of birth to determine this student's progress track.
+          </span>
+        </div>
+      )}
+
       {/* Progress Overview */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-tx-secondary">Training Progress</h3>
           <span className="text-sm font-semibold text-primary">
-            {hoursCompleted} / {hoursRequired} hrs
+            {progress.displayLabel}
           </span>
         </div>
 
@@ -48,17 +70,17 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
                 ? 'bg-status-success-text'
                 : progressPercentage >= 75
                 ? 'bg-primary'
-                : progressPercentage >= 50
-                ? 'bg-status-warning-text'
                 : 'bg-status-warning-text'
             }`}
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
 
-        <div className="mt-1 text-xs text-tx-muted text-right">
-          {progressPercentage.toFixed(1)}% Complete
-        </div>
+        {!(progress.track === 'lessons' && progress.lessonsBooked === 0) && (
+          <div className="mt-1 text-xs text-tx-muted text-right">
+            {progressPercentage.toFixed(1)}% Complete
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}
@@ -78,48 +100,50 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
       </div>
 
       {/* Milestones */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-medium text-tx-secondary">Milestones</h4>
-          <span className="text-xs text-tx-muted">
-            {achievedMilestones} / {milestones.length}
-          </span>
-        </div>
+      {milestones.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-tx-secondary">Milestones</h4>
+            <span className="text-xs text-tx-muted">
+              {achievedMilestones} / {milestones.length}
+            </span>
+          </div>
 
-        <div className="space-y-2">
-          {milestones.map((milestone, index) => {
-            const Icon = milestone.icon;
-            return (
-              <div
-                key={index}
-                className={`flex items-center gap-3 p-2 rounded transition-colors ${
-                  milestone.achieved
-                    ? 'bg-status-success-bg border-l-4 border-status-success-text'
-                    : 'bg-surface2 border-l-4 border-edge-strong'
-                }`}
-              >
-                <Icon
-                  className={`h-4 w-4 ${
-                    milestone.achieved ? 'text-status-success-text' : 'text-tx-muted'
-                  }`}
-                />
-                <span
-                  className={`text-sm ${
+          <div className="space-y-2">
+            {milestones.map((milestone, index) => {
+              const Icon = milestone.icon;
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center gap-3 p-2 rounded transition-colors ${
                     milestone.achieved
-                      ? 'text-status-success-text font-medium'
-                      : 'text-tx-muted'
+                      ? 'bg-status-success-bg border-l-4 border-status-success-text'
+                      : 'bg-surface2 border-l-4 border-edge-strong'
                   }`}
                 >
-                  {milestone.label}
-                </span>
-                {milestone.achieved && (
-                  <CheckCircle className="h-4 w-4 text-status-success-text ml-auto" />
-                )}
-              </div>
-            );
-          })}
+                  <Icon
+                    className={`h-4 w-4 ${
+                      milestone.achieved ? 'text-status-success-text' : 'text-tx-muted'
+                    }`}
+                  />
+                  <span
+                    className={`text-sm ${
+                      milestone.achieved
+                        ? 'text-status-success-text font-medium'
+                        : 'text-tx-muted'
+                    }`}
+                  >
+                    {milestone.label}
+                  </span>
+                  {milestone.achieved && (
+                    <CheckCircle className="h-4 w-4 text-status-success-text ml-auto" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Next Lesson Indicator */}
       {scheduledLessons > 0 && (
