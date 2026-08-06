@@ -559,7 +559,7 @@ export const LessonsPage: React.FC = () => {
     return (
       <tr
         key={lesson.id}
-        className={`hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-status-warning-text bg-status-warning-bg/50' : ''}`}
+        className={`hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-status-warning-text bg-status-warning-bg' : ''}`}
         onClick={() => handleEdit(lesson)}
       >
         <td className="whitespace-nowrap px-6 py-4">
@@ -1041,7 +1041,7 @@ export const LessonsPage: React.FC = () => {
                     key={lesson.id}
                     onClick={() => handleEdit(lesson)}
                     className={`bg-surface rounded-xl shadow-sm border-2 p-5 hover:shadow-md transition-all cursor-pointer ${
-                      upcoming ? 'border-status-warning-border bg-status-warning-bg/30' :
+                      upcoming ? 'border-status-warning-border bg-status-warning-bg' :
                       lesson.status === 'completed' ? 'border-status-success-border' :
                       lesson.status === 'cancelled' ? 'border-status-danger-border' :
                       'border-edge hover:brightness-110 hover:border-primary'

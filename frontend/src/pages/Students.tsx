@@ -429,7 +429,7 @@ export const StudentsPage: React.FC = () => {
         </div>
 
         {/* Needs Attention */}
-        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
+        <div className="bg-surface rounded-xl shadow-sm border border-status-warning-border p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('needs_attention')}>
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
@@ -805,7 +805,7 @@ export const StudentsPage: React.FC = () => {
                     : 0;
                   
                   return (
-                    <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg/50' : ''}`} onClick={() => handleEdit(student)}>
+                    <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

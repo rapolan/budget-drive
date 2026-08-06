@@ -898,7 +898,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                           key={day.date.toISOString()}
                           className={`px-2 py-2 transition-colors ${
                             todayColumn
-                              ? 'bg-status-info-bg/50'
+                              ? 'bg-status-info-bg'
                               : pastDay
                               ? 'bg-surface2/50'
                               : ''

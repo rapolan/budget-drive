@@ -331,7 +331,7 @@ export const DashboardPage: React.FC = () => {
 
                   {/* All done state */}
                   {completedLessons.length === todaysLessons.length && (
-                    <div className="mx-5 mb-3 bg-status-success-bg/10 border border-status-success-border/20 rounded-lg p-4 text-center">
+                    <div className="mx-5 mb-3 bg-status-success-bg border border-status-success-border rounded-lg p-4 text-center">
                       <p className="text-2xl mb-1">🎉</p>
                       <p className="font-semibold text-status-success-text">All done for today!</p>
                       <p className="text-xs text-tx-muted mt-0.5">{completedLessons.length} lesson{completedLessons.length > 1 ? 's' : ''} completed</p>
@@ -416,7 +416,7 @@ export const DashboardPage: React.FC = () => {
                 className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors border-b border-edge group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-status-success-bg/10 rounded-md">
+                  <div className="p-1.5 bg-status-success-bg rounded-md">
                     <CalendarIcon className="h-4 w-4 text-status-success-text" />
                   </div>
                   <span className="text-sm text-tx-secondary">Lessons This Week</span>
@@ -455,7 +455,7 @@ export const DashboardPage: React.FC = () => {
                   className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface2 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-status-warning-bg/10 rounded-md">
+                    <div className="p-1.5 bg-status-warning-bg rounded-md">
                       <User className="h-4 w-4 text-status-warning-text" />
                     </div>
                     <span className="text-sm text-tx-secondary">Active Instructors</span>
@@ -530,7 +530,7 @@ export const DashboardPage: React.FC = () => {
                       onClick={() => navigate('/students', { state: { filter: 'needs_attention' } })}
                       className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
                     >
-                      <div className="p-1.5 bg-status-warning-bg/10 rounded-md flex-shrink-0">
+                      <div className="p-1.5 bg-status-warning-bg border border-status-warning-border rounded-md flex-shrink-0">
                         <Phone className="h-4 w-4 text-status-warning-text" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -541,7 +541,7 @@ export const DashboardPage: React.FC = () => {
                             : `${studentsNeedingAttention.length} students`}
                         </p>
                       </div>
-                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-warning-bg/10 text-status-warning-text">
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-warning-bg border border-status-warning-border text-status-warning-text">
                         {studentsNeedingAttention.length}
                       </span>
                     </button>
@@ -553,7 +553,7 @@ export const DashboardPage: React.FC = () => {
                       onClick={() => navigate('/students')}
                       className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
                     >
-                      <div className="p-1.5 bg-status-danger-bg/10 rounded-md flex-shrink-0">
+                      <div className="p-1.5 bg-status-danger-bg border border-status-danger-border rounded-md flex-shrink-0">
                         <AlertTriangle className="h-4 w-4 text-status-danger-text" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -564,7 +564,7 @@ export const DashboardPage: React.FC = () => {
                             : `${expiringPermits.length} within 30 days`}
                         </p>
                       </div>
-                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-danger-bg/10 text-status-danger-text">
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-danger-bg border border-status-danger-border text-status-danger-text">
                         {expiringPermits.length}
                       </span>
                     </button>
