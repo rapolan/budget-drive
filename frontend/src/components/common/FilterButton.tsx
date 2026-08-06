@@ -23,18 +23,19 @@ const variantClasses = {
     inactive: 'bg-surface text-purple-600 border-purple-300/50 hover:bg-purple-500/10 focus-visible:ring-purple-500',
   },
   success: {
-    // Active bg uses a fixed Tailwind scale color (not --status-success-text-rgb)
-    // because that variable is a light/pastel tone meant for text-on-dark-surface
+    // Active bg uses status-success-solid (not status-success-text) because
+    // the -text token is a light/pastel tone meant for text-on-dark-surface
     // in dark mode - as a background with white label text it was illegible.
-    active: 'bg-green-600 text-white focus-visible:ring-green-500',
+    // -solid is a fixed, theme-stable saturated color for exactly this case.
+    active: 'bg-status-success-solid text-white focus-visible:ring-green-500',
     inactive: 'bg-surface text-status-success-text border-status-success-border/50 hover:bg-status-success-text/10 focus-visible:ring-green-500',
   },
   warning: {
-    active: 'bg-yellow-600 text-white focus-visible:ring-yellow-500',
+    active: 'bg-status-warning-solid text-white focus-visible:ring-yellow-500',
     inactive: 'bg-surface text-status-warning-text border-status-warning-border/50 hover:bg-status-warning-text/10 focus-visible:ring-yellow-500',
   },
   danger: {
-    active: 'bg-red-600 text-white focus-visible:ring-red-500',
+    active: 'bg-status-danger-solid text-white focus-visible:ring-red-500',
     inactive: 'bg-surface text-status-danger-text border-status-danger-border/50 hover:bg-status-danger-text/10 focus-visible:ring-red-500',
   },
   info: {

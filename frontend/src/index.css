@@ -72,6 +72,21 @@
   --status-danger-border-rgb:  254 202 202;
 }
 
+/* Status "solid" tier - a fixed, saturated background color per intent for
+   solid chips/buttons (e.g. FilterButton's active state) with white label
+   text on top. Same value in both themes on purpose: unlike -bg/-text/
+   -border (which intentionally invert to pale-on-dark for soft alert tiles),
+   a solid button needs to stay a consistent, recognizable color regardless
+   of theme. Values match the Tailwind {color}-600 scale so this is a
+   drop-in, visually-identical replacement for the hardcoded classes it
+   replaces. */
+:root {
+  --status-info-solid-rgb:    37 99 235;   /* blue-600 */
+  --status-success-solid-rgb: 22 163 74;   /* green-600 */
+  --status-warning-solid-rgb: 202 138 4;   /* yellow-600 */
+  --status-danger-solid-rgb:  220 38 38;   /* red-600 */
+}
+
 /* ─── Semantic surface/text tokens — dark mode ──────────────────────────────── */
 :root.dark {
   color-scheme: dark;
