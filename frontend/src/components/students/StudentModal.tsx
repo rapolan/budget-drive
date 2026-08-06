@@ -10,6 +10,7 @@ import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
+import { calculateAge } from '@/utils/age';
 
 type TabType = 'details' | 'progress' | 'history';
 
@@ -29,19 +30,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Get default hours from tenant settings (California default is 6)
   const defaultHoursRequired = settings?.defaultHoursRequired ?? 6;
   const adultHoursDefault = 2; // Adults (18+) typically want fewer lessons
-
-  // Calculate age from date of birth
-  const calculateAge = (dob: string): number | null => {
-    if (!dob) return null;
-    const birthDate = new Date(dob);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
 
   // Fetch lessons and instructors for progress/history tabs
   const { data: lessonsData } = useQuery({
@@ -171,14 +159,23 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  const [validationError, setValidationError] = useState<string>('');
+
   // Get error message from mutation
-  const errorMessage = createMutation.error?.response?.data?.error || 
+  const errorMessage = validationError ||
+                       createMutation.error?.response?.data?.error ||
                        updateMutation.error?.response?.data?.error ||
                        (createMutation.isError ? 'Failed to create student' : '') ||
                        (updateMutation.isError ? 'Failed to update student' : '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError('');
+
+    if (!isEditing && !formData.dateOfBirth) {
+      setValidationError('Date of birth is required');
+      return;
+    }
 
     // Generate fullName from structured fields
     const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
@@ -417,12 +414,15 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 {/* DOB & Hours */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Date of Birth</label>
+                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">
+                      Date of Birth {!isEditing && <span className="text-status-danger-text">*</span>}
+                    </label>
                     <input
                       type="date"
                       name="student_dob_input"
                       value={formData.dateOfBirth}
                       onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                      required={!isEditing}
                       title="Date of Birth"
                       autoComplete="new-password"
                       className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
@@ -668,7 +668,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || !formData.email}
+                    disabled={createMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || !formData.email || (!isEditing && !formData.dateOfBirth)}
                     className="px-6 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed transition-colors"
                   >
                     {createMutation.isPending || updateMutation.isPending

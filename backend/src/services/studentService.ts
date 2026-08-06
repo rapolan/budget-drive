@@ -142,9 +142,16 @@ export const createStudent = async (
     // Validate: At least one contact method required (student phone OR Parent/Guardian)
     const hasStudentPhone = data.phone && data.phone.trim().length > 0;
     const hasParentContact = data.emergencyContactPhone && data.emergencyContactPhone.trim().length > 0;
-    
+
     if (!hasStudentPhone && !hasParentContact) {
       throw new AppError('At least one contact phone is required (Student Phone or Parent/Guardian)', 400);
+    }
+
+    // Validate: date of birth is required for new students (existing NULL
+    // rows from before this requirement remain valid - see computeStudentProgress's
+    // needsDateOfBirth fallback - but no new student may be created without one)
+    if (!data.dateOfBirth) {
+      throw new AppError('Date of birth is required', 400);
     }
 
     // Check if email already exists for this tenant

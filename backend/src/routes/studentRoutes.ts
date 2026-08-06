@@ -41,6 +41,7 @@ router.post(
     'fullName',
     'email',
     'phone',
+    'dateOfBirth',
   ]),
   studentController.createStudent
 );
