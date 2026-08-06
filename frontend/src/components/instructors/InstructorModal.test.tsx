@@ -105,4 +105,18 @@ describe('InstructorModal form fields', () => {
 
     expect(phoneInput.value).toBe('(555) 123-4567');
   });
+
+  it('hourly rate shows blank (not "0") when unset, and typing over it never produces a leading zero', () => {
+    renderModal();
+
+    const rateInput = screen.getByPlaceholderText('35.00') as HTMLInputElement;
+    expect(rateInput.value).toBe('');
+
+    fireEvent.change(rateInput, { target: { value: '5' } });
+    expect(rateInput.value).toBe('5');
+    expect(rateInput.value).not.toBe('05');
+
+    fireEvent.change(rateInput, { target: { value: '' } });
+    expect(rateInput.value).toBe('');
+  });
 });

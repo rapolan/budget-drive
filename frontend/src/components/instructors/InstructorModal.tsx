@@ -384,8 +384,11 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   <input
                     type="number"
                     name="hourlyRate"
-                    value={formData.hourlyRate}
-                    onChange={handleChange}
+                    value={formData.hourlyRate || ''}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      hourlyRate: e.target.value === '' ? 0 : parseFloat(e.target.value) || 0,
+                    }))}
                     min="0"
                     step="0.01"
                     autoComplete="nope"
