@@ -619,7 +619,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     value={formData.learnerPermitNumber}
                     onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitNumber: e.target.value }))}
                     autoComplete="new-password"
-                    className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                     placeholder="Permit #"
                   />
                   <div>
