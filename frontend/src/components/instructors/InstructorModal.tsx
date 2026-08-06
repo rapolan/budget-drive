@@ -5,6 +5,7 @@ import { instructorsApi } from '@/api';
 import { usersApi } from '@/api/users';
 import type { Instructor, CreateInstructorInput } from '@/types';
 import { CalendarFeedSettings } from './CalendarFeedSettings';
+import { formatPhoneNumber } from '@/utils/phoneFormat';
 
 interface InstructorModalProps {
   instructor: Instructor | null;
@@ -17,6 +18,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
   const [formData, setFormData] = useState<CreateInstructorInput>({
     fullName: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
     email: '',
     phone: '',
     dateOfBirth: '',
@@ -37,8 +41,19 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
 
   useEffect(() => {
     if (instructor) {
+      // instructors only stores a single full_name column - split it
+      // naively (first word / last word / everything between) so the
+      // edit form can pre-fill the first/middle/last inputs.
+      const nameParts = instructor.fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+      const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
       setFormData({
         fullName: instructor.fullName,
+        firstName,
+        middleName,
+        lastName,
         email: instructor.email,
         phone: instructor.phone,
         dateOfBirth: instructor.dateOfBirth ? new Date(instructor.dateOfBirth).toISOString().split('T')[0] : '',
@@ -112,11 +127,21 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    const submitData = {
+      ...formData,
+      fullName: generatedFullName,
+    };
+
     try {
       if (isEditing) {
-        await updateMutation.mutateAsync(formData);
+        await updateMutation.mutateAsync(submitData);
       } else {
-        await createMutation.mutateAsync(formData);
+        await createMutation.mutateAsync(submitData);
       }
     } catch {
       // Surfaced via errorMessage (createMutation/updateMutation.onError) below.
@@ -175,21 +200,42 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
               <h3 className="text-sm font-semibold text-tx-primary">Personal Information</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Full Name */}
+              {/* Name */}
               <div className="col-span-1 sm:col-span-2">
                 <label className="block text-sm font-medium text-tx-secondary">
-                  Full Name *
+                  Name *
                 </label>
-                <input
-                  type="text"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  required
-                  autoComplete="nope"
-                  placeholder="John Smith"
-                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
-                />
+                <div className="mt-1 grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    name="instructor_firstname_input"
+                    value={formData.firstName || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                    required
+                    autoComplete="given-name"
+                    placeholder="First"
+                    className="w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  />
+                  <input
+                    type="text"
+                    name="instructor_middlename_input"
+                    value={formData.middleName || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, middleName: e.target.value }))}
+                    autoComplete="additional-name"
+                    placeholder="Middle"
+                    className="w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  />
+                  <input
+                    type="text"
+                    name="instructor_lastname_input"
+                    value={formData.lastName || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                    required
+                    autoComplete="family-name"
+                    placeholder="Last"
+                    className="w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  />
+                </div>
               </div>
 
               {/* Email */}
@@ -223,7 +269,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                     type="tel"
                     name="phone"
                     value={formData.phone}
-                    onChange={handleChange}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
                     required
                     autoComplete="nope"
                     placeholder="(555) 123-4567"

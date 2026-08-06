@@ -9,6 +9,7 @@ import type { Student, CreateStudentInput } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
 import { useTenant } from '@/contexts/TenantContext';
+import { formatPhoneNumber } from '@/utils/phoneFormat';
 
 type TabType = 'details' | 'progress' | 'history';
 
@@ -218,21 +219,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   // Check if at least one contact phone is provided (student OR parent/guardian)
   const hasAtLeastOnePhone = isValidPhone(formData.phone || '') || isValidPhone(formData.emergencyContactPhone || '');
-
-  // Phone number formatter - converts to (XXX) XXX-XXXX format
-  const formatPhoneNumber = (value: string): string => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '');
-    
-    // Limit to 10 digits
-    const limited = digits.slice(0, 10);
-    
-    // Format based on length
-    if (limited.length === 0) return '';
-    if (limited.length <= 3) return `(${limited}`;
-    if (limited.length <= 6) return `(${limited.slice(0, 3)}) ${limited.slice(3)}`;
-    return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">

@@ -355,6 +355,11 @@ export interface CreateStudentInput {
 
 export interface CreateInstructorInput {
   fullName: string;
+  // Frontend-only convenience fields - instructors has no first/last/middle
+  // name columns, these are joined into fullName before the API call.
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   dateOfBirth?: string;
