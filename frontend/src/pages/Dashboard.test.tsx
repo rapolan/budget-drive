@@ -3,7 +3,7 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from './Dashboard';
-import { studentsApi, instructorsApi, lessonsApi, paymentsApi } from '@/api';
+import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } from '@/api';
 import type { Student } from '@/types';
 
 vi.mock('@/api', async () => {
@@ -14,6 +14,7 @@ vi.mock('@/api', async () => {
     instructorsApi: { ...actual.instructorsApi, getAll: vi.fn() },
     lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
     paymentsApi: { ...actual.paymentsApi, getAll: vi.fn() },
+    dashboardApi: { ...actual.dashboardApi, getNoShowAlerts: vi.fn(), dismissAlert: vi.fn() },
   };
 });
 
@@ -57,6 +58,7 @@ describe('Dashboard alerts', () => {
     (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
     (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
     (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
   });
 
   it('renders the Alerts card when only the turning-18 alert has data (regression guard for the gate OR)', async () => {
@@ -120,5 +122,45 @@ describe('Dashboard alerts', () => {
       expect(studentsApi.getAll).toHaveBeenCalled();
     });
     expect(screen.queryByText('Turning 18')).not.toBeInTheDocument();
+  });
+
+  it('renders the Alerts card when only the no-show alert has data (regression guard for the gate OR)', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ studentId: 'student-1', studentName: 'Jane Doe', noShowDate: '2026-08-01', notificationId: 'notif-1' }],
+    });
+
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('Alerts')).toBeInTheDocument();
+    });
+    expect(screen.getByText('No-Show Follow-Up')).toBeInTheDocument();
+  });
+
+  it('the no-show alert disappears after dismissal (simulating the auto-clear-on-booking refetch)', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        data: [{ studentId: 'student-1', studentName: 'Jane Doe', noShowDate: '2026-08-01', notificationId: 'notif-1' }],
+      })
+      .mockResolvedValueOnce({ data: [] }); // post-dismiss refetch
+    (dashboardApi.dismissAlert as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText('No-Show Follow-Up')).toBeInTheDocument();
+    });
+
+    const dismissButton = screen.getByLabelText('Dismiss no-show alert');
+    dismissButton.click();
+
+    await waitFor(() => {
+      expect(dashboardApi.dismissAlert).toHaveBeenCalledWith('notif-1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('No-Show Follow-Up')).not.toBeInTheDocument();
+    });
   });
 });

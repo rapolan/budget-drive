@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -13,9 +13,11 @@ import {
   CreditCard,
   Phone,
   ChevronRight,
-  Cake
+  Cake,
+  UserX,
+  X
 } from 'lucide-react';
-import { studentsApi, instructorsApi, lessonsApi, paymentsApi } from '@/api';
+import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } from '@/api';
 import { StudentModal } from '@/components/students/StudentModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
@@ -54,10 +56,24 @@ export const DashboardPage: React.FC = () => {
     enabled: !isInstructor,
   });
 
+  const { data: noShowAlertsData } = useQuery({
+    queryKey: ['dashboard', 'no-show-alerts'],
+    queryFn: () => dashboardApi.getNoShowAlerts(),
+  });
+
+  const queryClient = useQueryClient();
+  const dismissAlertMutation = useMutation({
+    mutationFn: (notificationId: string) => dashboardApi.dismissAlert(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'no-show-alerts'] });
+    },
+  });
+
   const students = studentsData?.data || [];
   const instructors = instructorsData?.data || [];
   const lessons = lessonsData?.data || [];
   const payments = paymentsData?.data || [];
+  const noShowAlerts = noShowAlertsData?.data || [];
 
   const isLoading = studentsLoading || instructorsLoading || lessonsLoading;
 
@@ -524,7 +540,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Alerts — only rendered when there's something to show */}
-            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0) && (
+            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0 || noShowAlerts.length > 0) && (
               <div className="bg-surface rounded-xl border border-edge overflow-hidden">
                 <div className="px-5 py-4 border-b border-edge bg-surface2">
                   <h2 className="text-sm font-semibold text-tx-primary">Alerts</h2>
@@ -598,6 +614,43 @@ export const DashboardPage: React.FC = () => {
                         {studentsTurning18.length}
                       </span>
                     </button>
+                  )}
+
+                  {noShowAlerts.length > 0 && (
+                    <div className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors group">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/students', { state: { filter: 'no_show_followup' } })}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                      >
+                        <div className="p-1.5 bg-status-danger-bg border border-status-danger-border rounded-md flex-shrink-0">
+                          <UserX className="h-4 w-4 text-status-danger-text" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-tx-primary">No-Show Follow-Up</p>
+                          <p className="text-xs text-tx-muted truncate">
+                            {noShowAlerts.length === 1
+                              ? `${noShowAlerts[0].studentName} - missed a lesson`
+                              : `${noShowAlerts.length} students missed a lesson`}
+                          </p>
+                        </div>
+                      </button>
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-danger-bg border border-status-danger-border text-status-danger-text">
+                        {noShowAlerts.length}
+                      </span>
+                      {noShowAlerts.length === 1 && (
+                        <button
+                          type="button"
+                          onClick={() => dismissAlertMutation.mutate(noShowAlerts[0].notificationId)}
+                          disabled={dismissAlertMutation.isPending}
+                          className="flex-shrink-0 p-1 text-tx-muted hover:text-tx-secondary rounded transition-colors disabled:opacity-50"
+                          aria-label="Dismiss no-show alert"
+                          title="Dismiss"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   {pendingPayments.length > 0 && (

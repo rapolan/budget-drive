@@ -9,3 +9,4 @@ export { schedulingApi } from './scheduling';
 export { usersApi } from './users';
 export * as treasuryApi from './treasury';
 export { calendarFeedApi } from './calendarFeed';
+export { dashboardApi } from './dashboard';

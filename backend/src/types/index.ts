@@ -989,6 +989,26 @@ export interface SchedulingSettings {
   updatedAt: Date;
 }
 
+// In-app user notification/alert record (distinct from NotificationQueue
+// below, which is the outbound email/SMS delivery pipeline).
+export interface Notification {
+  id: string;
+  tenantId: string;
+  userId: string;
+  type: 'lesson_reminder' | 'lesson_cancelled' | 'lesson_rescheduled' | 'payment_received' |
+        'payment_overdue' | 'certificate_issued' | 'instructor_assigned' | 'time_off_approved' |
+        'follow_up_due' | 'system' | 'general';
+  title: string;
+  message: string;
+  actionUrl: string | null;
+  actionLabel: string | null;
+  isRead: boolean;
+  readAt: Date | null;
+  relatedEntityType: string | null;
+  relatedEntityId: string | null;
+  createdAt: Date;
+}
+
 export interface NotificationQueue {
   id: string;
   tenantId: string;

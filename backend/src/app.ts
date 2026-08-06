@@ -30,6 +30,7 @@ import recurringPatternRoutes from './routes/recurringPatternRoutes';
 import treasuryRoutes from './routes/treasuryRoutes';
 
 import notificationRoutes from './routes/notifications';
+import dashboardRoutes from './routes/dashboardRoutes';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
 import calendarFeedService from './services/calendarFeedService';
 
@@ -150,6 +151,7 @@ app.use(`${API_PREFIX}/patterns`, recurringPatternRoutes);
 app.use(`${API_PREFIX}/treasury`, treasuryRoutes);
 
 app.use(`${API_PREFIX}/notifications`, notificationRoutes);
+app.use(API_PREFIX, dashboardRoutes);
 
 // Authenticated calendar feed management (feed/status, feed/setup, regenerate)
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);

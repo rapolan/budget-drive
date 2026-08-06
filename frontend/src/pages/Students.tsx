@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
-import { studentsApi, lessonsApi } from '@/api';
+import { studentsApi, lessonsApi, dashboardApi } from '@/api';
 import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
@@ -12,7 +12,7 @@ import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/componen
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
-type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18';
+type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup';
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
 
@@ -54,7 +54,11 @@ export const StudentsPage: React.FC = () => {
 
   // Check for filter from navigation state
   useEffect(() => {
-    if (location.state?.filter === 'needs_attention' || location.state?.filter === 'turning_18') {
+    if (
+      location.state?.filter === 'needs_attention' ||
+      location.state?.filter === 'turning_18' ||
+      location.state?.filter === 'no_show_followup'
+    ) {
       setStatusFilter(location.state.filter);
       // Scroll to table after filter is applied
       setTimeout(scrollToTable, 100);
@@ -65,6 +69,19 @@ export const StudentsPage: React.FC = () => {
     queryKey: ['students', currentPage],
     queryFn: () => studentsApi.getAll(currentPage, 50),
   });
+
+  // No-show alert list depends on backend notification-dismissal state, not
+  // purely derivable from already-fetched student/lesson data - only fetch
+  // it when the filter is actually in use.
+  const { data: noShowAlertsData } = useQuery({
+    queryKey: ['dashboard', 'no-show-alerts'],
+    queryFn: () => dashboardApi.getNoShowAlerts(),
+    enabled: statusFilter === 'no_show_followup',
+  });
+  const noShowStudentIds = useMemo(
+    () => new Set((noShowAlertsData?.data || []).map(a => a.studentId)),
+    [noShowAlertsData]
+  );
 
   // Fetch all lessons to determine which students need followup
   const { data: lessonsData } = useQuery({
@@ -264,6 +281,8 @@ export const StudentsPage: React.FC = () => {
         if (createdAt < monthStart) return false;
       } else if (statusFilter === 'turning_18') {
         if (!needsTurning18Alert(student)) return false;
+      } else if (statusFilter === 'no_show_followup') {
+        if (!noShowStudentIds.has(student.id)) return false;
       } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
         return false;
       }
@@ -307,7 +326,7 @@ export const StudentsPage: React.FC = () => {
     });
 
     return sorted;
-  }, [data?.data, lessonsData?.data, statusFilter, searchTerm, sortBy]);
+  }, [data?.data, lessonsData?.data, statusFilter, searchTerm, sortBy, noShowStudentIds]);
 
   // Keep old variable name for backward compatibility in the JSX
   const filteredStudents = filteredAndSortedStudents;

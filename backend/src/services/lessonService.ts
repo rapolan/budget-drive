@@ -15,6 +15,7 @@ import lessonInviteService from './lessonInviteService';
 import { validateLessonBooking } from './schedulingService';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
+import * as notificationService from './notificationService';
 
 const logger = createLogger('LessonService');
 
@@ -565,6 +566,18 @@ export const createLesson = async (
       // Don't fail the lesson creation if email fails
     }
 
+    // Clear any active no-show follow-up notification for this student -
+    // a new booking is the alert's clearing signal (non-blocking).
+    try {
+      await notificationService.dismissNoShowNotificationsForStudent(tenantId, data.studentId);
+    } catch (notifError) {
+      logger.warn('No-show notification dismissal failed (non-blocking)', {
+        tenantId,
+        studentId: data.studentId,
+        error: notifError instanceof Error ? notifError.message : 'Unknown error',
+      });
+    }
+
     const totalDuration = Date.now() - startTime;
     logger.info('Lesson creation completed', {
       tenantId,
@@ -920,7 +933,8 @@ export const completeLesson = async (
 
 export const noShowLesson = async (
   id: string,
-  tenantId: string
+  tenantId: string,
+  userId?: string
 ): Promise<Lesson> => {
   logger.info('Marking lesson as no-show', { tenantId, lessonId: id });
 
@@ -940,7 +954,25 @@ export const noShowLesson = async (
 
     logger.info('Lesson marked as no-show successfully', { tenantId, lessonId: id });
 
-    return keysToCamel(result.rows[0]) as Lesson;
+    const lesson = keysToCamel(result.rows[0]) as Lesson;
+
+    // Create a no-show follow-up notification (non-blocking - a lesson
+    // status change must never fail because of this housekeeping side-effect)
+    if (userId) {
+      try {
+        const studentResult = await query('SELECT full_name FROM students WHERE id = $1', [lesson.studentId]);
+        const studentName = studentResult.rows[0]?.full_name || 'Student';
+        await notificationService.createNoShowNotification(tenantId, userId, lesson.studentId, studentName);
+      } catch (notifError) {
+        logger.warn('No-show notification creation failed (non-blocking)', {
+          tenantId,
+          lessonId: id,
+          error: notifError instanceof Error ? notifError.message : 'Unknown error',
+        });
+      }
+    }
+
+    return lesson;
   } catch (error) {
     logger.error('Failed to mark lesson as no-show', error as Error, {
       tenantId,

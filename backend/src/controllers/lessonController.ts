@@ -265,9 +265,10 @@ export const completeLesson = asyncHandler(async (req: Request, res: Response) =
 
 export const noShowLesson = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const lesson = await lessonService.noShowLesson(id, tenantId);
+  const lesson = await lessonService.noShowLesson(id, tenantId, userId);
 
   res.json({
     success: true,
