@@ -28,7 +28,7 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 - Typecheck frontend: `cd frontend && npx tsc --noEmit`
 - Tests: `cd backend && npm test` (Vitest). Tenant-isolation tests must always pass.
 - Lint: `npm run lint` in the relevant package
-- Migrations: `cd backend && npm run migrate` (numbered SQL files in `backend/database/migrations`). A single `001_baseline.sql` currently holds the full schema, so this command alone is sufficient — no separate "run all migrations" step needed.
+- Migrations: `cd backend && npm run migrate` (numbered SQL files in `backend/database/migrations`, applied in order, already-applied objects skipped safely).
 
 ## Conventions
 

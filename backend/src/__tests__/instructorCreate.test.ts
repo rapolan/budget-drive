@@ -17,8 +17,9 @@ function signToken(userId: string, role = 'staff') {
 }
 
 // Regression test for a 500 on instructor creation: the INSERT referenced
-// created_by/updated_by columns that don't exist on the instructors table
-// (unlike students, instructors has no user-attribution columns).
+// created_by/updated_by columns that didn't exist on the instructors table.
+// Migration 002 added them (matching lessons/students), and createInstructor
+// now populates both from the authenticated caller's userId.
 const formPayload = {
   fullName: 'Playwright Test Instructor',
   email: 'pw.test.instructor@example.com',
@@ -70,9 +71,10 @@ describe('POST /api/v1/instructors', () => {
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO instructors')
     );
     expect(insertCall).toBeDefined();
-    const [sql] = insertCall!;
-    // created_by/updated_by don't exist on the instructors table - must
-    // never be referenced in the INSERT column list again.
-    expect(sql).not.toMatch(/created_by|updated_by/);
+    const [sql, params] = insertCall!;
+    expect(sql).toMatch(/created_by/);
+    expect(sql).toMatch(/updated_by/);
+    // Both audit columns are set to the authenticated caller's id.
+    expect(params).toContain('staff-1');
   });
 });

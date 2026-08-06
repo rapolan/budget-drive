@@ -7,7 +7,7 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "migrate": "node database/run-migration.js",
+    "migrate": "node database/run-all-migrations.js",
     "seed": "node database/run-seed.js",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
