@@ -131,9 +131,14 @@ export interface Student {
   status: 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'permit_expired';
   enrollmentDate: Date;
   completionDate?: Date;
-  totalHoursCompleted: number;
+  totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
   hoursRequired?: number; // Default: 6 (hidden in form)
   assignedInstructorId?: string;
+  trackOverride?: 'hours' | 'lessons' | null;
+  completed?: boolean;
+  completedAt?: Date | null;
+  completedBy?: string | null;
+  completionReason?: string | null;
   paymentStatus?: 'paid' | 'partial' | 'unpaid' | 'overdue';
   totalPaid?: number;
   outstandingBalance?: number;

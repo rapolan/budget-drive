@@ -361,6 +361,10 @@ export const updateStudent = async (
     fields.push(`last_contacted_at = $${paramCount++}`);
     values.push(emptyToNull(data.lastContactedAt));
   }
+  if (data.trackOverride !== undefined) {
+    fields.push(`track_override = $${paramCount++}`);
+    values.push(data.trackOverride);
+  }
   if (userId) {
     fields.push(`updated_by = $${paramCount++}`);
     values.push(userId);
@@ -414,6 +418,76 @@ export const deleteStudent = async (
     logger.info('Successfully deleted student', { tenantId, studentId: id });
   } catch (error) {
     logger.error('Failed to delete student', error as Error, { tenantId, studentId: id });
+    throw error;
+  }
+};
+
+/**
+ * Mark a student's program complete. Sole source of truth for completion -
+ * overrides any track (hours/lessons) math in computeStudentProgress.
+ */
+export const markStudentCompleted = async (
+  id: string,
+  tenantId: string,
+  data: { completionReason?: string },
+  userId?: string
+): Promise<Student> => {
+  logger.info('Marking student program complete', { tenantId, studentId: id });
+
+  try {
+    const result = await query(
+      `UPDATE students
+       SET completed = true,
+           completed_at = NOW(),
+           completed_by = $1,
+           completion_reason = $2,
+           status = 'completed'
+       WHERE id = $3 AND tenant_id = $4
+       RETURNING *`,
+      [userId || null, data.completionReason || null, id, tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Student not found', 404);
+    }
+
+    logger.info('Successfully marked student complete', { tenantId, studentId: id });
+    return keysToCamel(result.rows[0]) as Student;
+  } catch (error) {
+    logger.error('Failed to mark student complete', error as Error, { tenantId, studentId: id });
+    throw error;
+  }
+};
+
+/**
+ * Reverse an accidental program completion.
+ */
+export const unmarkStudentCompleted = async (
+  id: string,
+  tenantId: string
+): Promise<Student> => {
+  logger.info('Reopening student program', { tenantId, studentId: id });
+
+  try {
+    const result = await query(
+      `UPDATE students
+       SET completed = false,
+           completed_at = NULL,
+           completed_by = NULL,
+           status = 'active'
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Student not found', 404);
+    }
+
+    logger.info('Successfully reopened student program', { tenantId, studentId: id });
+    return keysToCamel(result.rows[0]) as Student;
+  } catch (error) {
+    logger.error('Failed to reopen student program', error as Error, { tenantId, studentId: id });
     throw error;
   }
 };

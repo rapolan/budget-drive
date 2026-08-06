@@ -66,4 +66,18 @@ router.delete(
   studentController.deleteStudent
 );
 
+// Mark a student's program complete
+router.post(
+  '/students/:id/complete',
+  validateUUID('id'),
+  studentController.completeStudentProgram
+);
+
+// Reverse an accidental program completion
+router.post(
+  '/students/:id/reopen',
+  validateUUID('id'),
+  studentController.reopenStudentProgram
+);
+
 export default router;

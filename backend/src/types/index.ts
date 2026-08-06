@@ -263,7 +263,7 @@ export interface Student {
   middleName: string | null;
   email: string;
   phone: string | null; // Student phone (optional - Parent/Guardian can be primary contact)
-  dateOfBirth: Date;
+  dateOfBirth: Date | null;
   address: string; // Legacy combined address field
   addressLine1: string | null;
   addressLine2: string | null;
@@ -285,9 +285,16 @@ export interface Student {
   learnerPermitExpiration: Date | null;
 
   // Progress
-  totalHoursCompleted: number;
+  totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
   hoursRequired: number;
   assignedInstructorId: string | null;
+  trackOverride: 'hours' | 'lessons' | null;
+
+  // Completion
+  completed: boolean;
+  completedAt: Date | null;
+  completedBy: string | null;
+  completionReason: string | null;
 
   // Financial
   paymentStatus: 'paid' | 'partial' | 'unpaid' | 'overdue';

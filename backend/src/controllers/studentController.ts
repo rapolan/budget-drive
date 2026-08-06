@@ -137,6 +137,43 @@ export const deleteStudent = asyncHandler(async (req: Request, res: Response) =>
 });
 
 /**
+ * @route   POST /api/v1/students/:id/complete
+ * @desc    Mark a student's program complete
+ * @access  Private
+ */
+export const completeStudentProgram = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+
+  const student = await studentService.markStudentCompleted(id, tenantId, req.body, userId);
+
+  res.json({
+    success: true,
+    data: student,
+    message: 'Student program marked complete',
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/reopen
+ * @desc    Reverse an accidental program completion
+ * @access  Private
+ */
+export const reopenStudentProgram = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const student = await studentService.unmarkStudentCompleted(id, tenantId);
+
+  res.json({
+    success: true,
+    data: student,
+    message: 'Student program reopened',
+  });
+});
+
+/**
  * @route   GET /api/v1/students/status/:status
  * @desc    Get students by status
  * @access  Private
