@@ -6,6 +6,7 @@
 import { query } from '../config/database';
 import { Tenant, TenantSettings, TenantFullInfo } from '../types';
 import { AppError } from '../middleware/errorHandler';
+import { keysToCamel } from '../utils/caseConversion';
 
 /**
  * Get tenant by ID
@@ -185,7 +186,7 @@ export const getTenantSettings = async (tenantId: string): Promise<TenantSetting
     return null;
   }
 
-  return result.rows[0] as TenantSettings;
+  return keysToCamel(result.rows[0]) as TenantSettings;
 };
 
 /**
@@ -318,5 +319,5 @@ export const updateTenantSettings = async (
     throw new AppError('Tenant settings not found', 404);
   }
 
-  return result.rows[0] as TenantSettings;
+  return keysToCamel(result.rows[0]) as TenantSettings;
 };

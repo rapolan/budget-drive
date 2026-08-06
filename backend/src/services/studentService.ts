@@ -9,6 +9,7 @@ import { Student } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
+import { getTenantSettings } from './tenantService';
 
 const logger = createLogger('StudentService');
 
@@ -168,7 +169,11 @@ export const createStudent = async (
         : '') || '';
 
     // Set defaults for optional fields
-    const hoursRequired = data.hoursRequired ?? 6; // Default to 6 hours (California requirement for under 18)
+    let hoursRequired = data.hoursRequired;
+    if (hoursRequired === undefined) {
+      const tenantSettings = await getTenantSettings(tenantId);
+      hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
+    }
     const licenseType = data.licenseType ?? 'car';
 
     const result = await query(
