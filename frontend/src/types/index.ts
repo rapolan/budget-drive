@@ -165,7 +165,7 @@ export interface Instructor {
   licenseNumber?: string;
   licenseExpiration?: Date;
   certifications?: string[];
-  employmentType: 'w2_employee' | '1099_contractor' | 'volunteer';
+  employmentType: 'w2_employee' | 'independent_contractor';
   hireDate: Date;
   terminationDate?: Date;
   status: 'active' | 'on_leave' | 'terminated';
@@ -374,7 +374,7 @@ export interface CreateInstructorInput {
   licenseNumber?: string;
   licenseExpiration?: string;
   certifications?: string[];
-  employmentType?: 'w2_employee' | '1099_contractor' | 'volunteer';
+  employmentType?: 'w2_employee' | 'independent_contractor';
   hireDate?: string;
   hourlyRate?: number;
   googleCalendarId?: string;

@@ -140,6 +140,10 @@ export const updateInstructor = async (
       fields.push(`hourly_rate = $${paramCount++}`);
       values.push(data.hourlyRate);
     }
+    if (data.employmentType !== undefined) {
+      fields.push(`employment_type = $${paramCount++}`);
+      values.push(data.employmentType);
+    }
     if (data.address !== undefined) {
       fields.push(`address = $${paramCount++}`);
       values.push(data.address);

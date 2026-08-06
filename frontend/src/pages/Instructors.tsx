@@ -173,10 +173,8 @@ export const InstructorsPage: React.FC = () => {
     switch (type) {
       case 'w2_employee':
         return 'W2 Employee';
-      case '1099_contractor':
-        return '1099 Contractor';
-      case 'volunteer':
-        return 'Volunteer';
+      case 'independent_contractor':
+        return 'Independent Contractor';
       default:
         return type;
     }
@@ -186,10 +184,8 @@ export const InstructorsPage: React.FC = () => {
     switch (type) {
       case 'w2_employee':
         return 'bg-status-info-bg text-primary';
-      case '1099_contractor':
+      case 'independent_contractor':
         return 'bg-purple-50 text-purple-700';
-      case 'volunteer':
-        return 'bg-status-success-bg text-status-success-text';
       default:
         return 'bg-surface2 text-tx-secondary';
     }

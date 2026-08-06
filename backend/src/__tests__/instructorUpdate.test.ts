@@ -55,4 +55,36 @@ describe('PUT /api/v1/instructors/:id', () => {
     expect(sql).toMatch(/updated_by/);
     expect(params).toContain('staff-1');
   });
+
+  // Regression test: updateInstructor previously had no handling for
+  // employmentType at all, so editing this field via the API silently did
+  // nothing - the UPDATE never referenced employment_type.
+  it('persists a change to employmentType', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        employment_type: 'independent_contractor',
+      }])
+    );
+
+    const res = await request(app)
+      .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ employmentType: 'independent_contractor' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+    );
+    expect(updateCall).toBeDefined();
+    const [sql, params] = updateCall!;
+    expect(sql).toMatch(/employment_type/);
+    expect(params).toContain('independent_contractor');
+  });
 });

@@ -354,8 +354,7 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 >
                   <option value="w2_employee">W2 Employee</option>
-                  <option value="1099_contractor">1099 Contractor</option>
-                  <option value="volunteer">Volunteer</option>
+                  <option value="independent_contractor">Independent Contractor</option>
                 </select>
               </div>
 
