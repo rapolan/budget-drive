@@ -11,6 +11,7 @@ import { LessonHistoryTimeline } from './LessonHistoryTimeline';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
 import { calculateAge } from '@/utils/age';
+import { needsTurning18Alert } from '@/utils/turning18';
 
 type TabType = 'details' | 'progress' | 'history';
 
@@ -159,7 +160,27 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // Turning-18 admin actions: keep on hours track / switch to lessons track /
+  // mark complete. Track override and completion both refetch the student
+  // list so the alert clears immediately once resolved.
+  const trackOverrideMutation = useMutation({
+    mutationFn: (trackOverride: 'hours' | 'lessons') => studentsApi.update(student!.id, { trackOverride }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+    },
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: (completionReason: string) => studentsApi.complete(student!.id, completionReason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      onClose();
+    },
+  });
+
   const [validationError, setValidationError] = useState<string>('');
+  const [completionReason, setCompletionReason] = useState('');
+  const [showCompletionPrompt, setShowCompletionPrompt] = useState(false);
 
   // Get error message from mutation
   const errorMessage = validationError ||
@@ -724,6 +745,73 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
           {activeTab === 'progress' && isEditing && student && (
             <div className="space-y-6">
               <StudentProgressCard student={student} lessons={studentLessons} />
+
+              {/* Turning-18 admin actions - only shown when the student is
+                  under-booked to finish on the hours track past 18 */}
+              {needsTurning18Alert(student) && (
+                <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-medium text-status-warning-text">
+                    {student.fullName} turned 18 - confirm whether they'll finish their remaining hours.
+                  </p>
+                  {!showCompletionPrompt ? (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => trackOverrideMutation.mutate('hours')}
+                        disabled={trackOverrideMutation.isPending}
+                        className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50"
+                      >
+                        Keep on hours track
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => trackOverrideMutation.mutate('lessons')}
+                        disabled={trackOverrideMutation.isPending}
+                        className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50"
+                      >
+                        Switch to lessons track
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowCompletionPrompt(true)}
+                        className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors"
+                      >
+                        Mark program complete
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-status-warning-text">
+                        Reason (e.g. "student opted not to continue after turning 18")
+                      </label>
+                      <input
+                        type="text"
+                        value={completionReason}
+                        onChange={(e) => setCompletionReason(e.target.value)}
+                        className="w-full px-3 py-2 border border-status-warning-border rounded-lg text-sm bg-surface"
+                        placeholder="Completion reason"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCompletionPrompt(false)}
+                          className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => completeMutation.mutate(completionReason)}
+                          disabled={!completionReason.trim() || completeMutation.isPending}
+                          className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                        >
+                          {completeMutation.isPending ? 'Saving...' : 'Confirm Complete'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Quick Contact Actions - Minimal style */}
               <div className="flex flex-wrap gap-2">

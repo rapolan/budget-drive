@@ -1,18 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Plus, 
-  Calendar as CalendarIcon, 
-  DollarSign, 
-  Clock, 
-  User, 
-  Users, 
-  TrendingUp, 
+import {
+  Plus,
+  Calendar as CalendarIcon,
+  DollarSign,
+  Clock,
+  User,
+  Users,
+  TrendingUp,
   AlertTriangle,
   CreditCard,
   Phone,
-  ChevronRight
+  ChevronRight,
+  Cake
 } from 'lucide-react';
 import { studentsApi, instructorsApi, lessonsApi, paymentsApi } from '@/api';
 import { StudentModal } from '@/components/students/StudentModal';
@@ -20,6 +21,7 @@ import { PaymentModal } from '@/components/payments/PaymentModal';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
 import { format12Hour } from '@/utils/timeFormat';
 import { computeStudentStatus } from '@/utils/studentStatus';
+import { needsTurning18Alert } from '@/utils/turning18';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const DashboardPage: React.FC = () => {
@@ -107,6 +109,11 @@ export const DashboardPage: React.FC = () => {
   const pendingPayments = useMemo(() => {
     return payments.filter(p => p.status === 'pending');
   }, [payments]);
+
+  // Students who turned 18 mid-program and are under-booked (Constraint B)
+  const studentsTurning18 = useMemo(() => {
+    return students.filter(needsTurning18Alert);
+  }, [students]);
 
   // This week's lessons count
   const weekLessonsCount = useMemo(() => {
@@ -517,7 +524,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Alerts — only rendered when there's something to show */}
-            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0) && (
+            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0) && (
               <div className="bg-surface rounded-xl border border-edge overflow-hidden">
                 <div className="px-5 py-4 border-b border-edge bg-surface2">
                   <h2 className="text-sm font-semibold text-tx-primary">Alerts</h2>
@@ -566,6 +573,29 @@ export const DashboardPage: React.FC = () => {
                       </div>
                       <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-danger-bg border border-status-danger-border text-status-danger-text">
                         {expiringPermits.length}
+                      </span>
+                    </button>
+                  )}
+
+                  {studentsTurning18.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/students', { state: { filter: 'turning_18' } })}
+                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
+                    >
+                      <div className="p-1.5 bg-status-warning-bg border border-status-warning-border rounded-md flex-shrink-0">
+                        <Cake className="h-4 w-4 text-status-warning-text" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-tx-primary">Turning 18</p>
+                        <p className="text-xs text-tx-muted truncate">
+                          {studentsTurning18.length === 1
+                            ? `${studentsTurning18[0].fullName} - confirm remaining hours`
+                            : `${studentsTurning18.length} students - confirm remaining hours`}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-warning-bg border border-status-warning-border text-status-warning-text">
+                        {studentsTurning18.length}
                       </span>
                     </button>
                   )}

@@ -7,11 +7,12 @@ import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
+import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
-type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
+type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18';
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
 
@@ -53,8 +54,8 @@ export const StudentsPage: React.FC = () => {
 
   // Check for filter from navigation state
   useEffect(() => {
-    if (location.state?.filter === 'needs_attention') {
-      setStatusFilter('needs_attention');
+    if (location.state?.filter === 'needs_attention' || location.state?.filter === 'turning_18') {
+      setStatusFilter(location.state.filter);
       // Scroll to table after filter is applied
       setTimeout(scrollToTable, 100);
     }
@@ -136,6 +137,7 @@ export const StudentsPage: React.FC = () => {
       needs_attention: 0,
       completed: 0,
       inactive: 0,
+      turning_18: 0,
     };
 
     counts.all = data?.data?.length || 0;
@@ -155,6 +157,8 @@ export const StudentsPage: React.FC = () => {
       else if (statusInfo.status === 'needs_attention') counts.needs_attention++;
       else if (statusInfo.status === 'completed') counts.completed++;
       else if (statusInfo.status === 'inactive') counts.inactive++;
+
+      if (needsTurning18Alert(student)) counts.turning_18++;
     });
 
     return counts;
@@ -258,6 +262,8 @@ export const StudentsPage: React.FC = () => {
       if (statusFilter === 'new_this_month') {
         const createdAt = new Date(student.createdAt);
         if (createdAt < monthStart) return false;
+      } else if (statusFilter === 'turning_18') {
+        if (!needsTurning18Alert(student)) return false;
       } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
         return false;
       }
@@ -542,6 +548,15 @@ export const StudentsPage: React.FC = () => {
             count={statusCounts.needs_attention}
             variant="warning"
           />
+          {statusCounts.turning_18 > 0 && (
+            <FilterButton
+              label="Turning 18"
+              isActive={statusFilter === 'turning_18'}
+              onClick={() => setStatusFilter('turning_18')}
+              count={statusCounts.turning_18}
+              variant="warning"
+            />
+          )}
           <FilterButton
             label="Completed"
             isActive={statusFilter === 'completed'}
