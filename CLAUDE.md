@@ -38,6 +38,8 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 - No new dependencies without asking first. The dependency list was recently pruned — keep it lean.
 - Frontend data fetching goes through `frontend/src/api/*` modules and TanStack Query. No fetch/axios calls inside components.
 - New buttons use `common/Button`. Do not hand-roll button classes.
+- Guardian matching and duplicate detection live in the backend service layer only, never in React, so a future public signup form can reuse them. Matching (`findGuardianCandidates`/`findExactGuardianMatch`) never links — it surfaces candidates only; linking is always an explicit, separate call naming both a `studentId` and a `guardianId`.
+- `students.email` is nullable — required server-side for adults (18+ by `date_of_birth`), optional for minors. Don't assume it's always present.
 
 ## Do not touch
 

@@ -179,6 +179,32 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Also check — completion:** Use the "Mark program complete" action (requires a non-empty reason) on any student. The student's status becomes `completed` and they still appear in bookable lists. This is a manual admin decision — there is no automatic hours-threshold completion.
 
+### 2.3b Guardians (API only - no frontend UI yet)
+
+**Do:** With a valid admin token, exercise the guardian endpoints directly:
+
+```bash
+TOKEN="<token from login>"
+# Create a guardian
+curl -s -X POST http://localhost:4000/api/v1/guardians \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"firstName":"Test","lastName":"Parent","phone":"555-0100"}'
+# -> 201, returns the new guardian's id
+
+# Link it to a seeded minor student (replace <studentId>/<guardianId>)
+curl -s -X POST http://localhost:4000/api/v1/students/<studentId>/guardians \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"guardianId":"<guardianId>","relationship":"mother","isPrimary":true}'
+# -> 201
+
+# Search across both students and guardians
+curl -s "http://localhost:4000/api/v1/search/people?q=Parent" -H "Authorization: Bearer $TOKEN"
+```
+
+**Pass looks like:** Guardian create/link/search all succeed as shown. `GET /api/v1/students/<studentId>` for a minor with no linked guardian shows `"needsGuardian": true`; after linking, it flips to `false`. `POST /api/v1/students/<studentId>/complete` on a still-guardian-less minor returns `400` with a message naming the missing guardian requirement.
+
+**Note:** this feature has no frontend surface yet (no guardian list page, no link-guardian UI in the student form) — this is expected for this round, not a bug to chase.
+
 ### 2.4 Book a lesson (happy path)
 
 **Do:** Go to `/scheduling` (or open the booking form from a student/instructor). Pick a student with no conflicting lesson (e.g. Marcus Lee, who is `completed` status but still bookable), pick an instructor with open availability, pick a future date/time that doesn't overlap an existing lesson for that instructor, submit.
