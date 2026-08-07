@@ -290,10 +290,11 @@ export interface Student {
   city: string | null;
   state: string | null;
   zipCode: string | null;
-  emergencyContact: string; // Legacy field - deprecated in favor of split fields
-  emergencyContactName: string | null; // Parent/Guardian name
+  emergencyContactFirstName: string | null; // Parent/Guardian first name
+  emergencyContactLastName: string | null; // Parent/Guardian last name
   emergencyContactPhone: string | null; // Parent/Guardian phone
-  emergencyContact2Name: string | null; // Secondary contact name
+  emergencyContact2FirstName: string | null; // Secondary contact first name
+  emergencyContact2LastName: string | null; // Secondary contact last name
   emergencyContact2Phone: string | null; // Secondary contact phone
 
   // Program
@@ -838,10 +839,11 @@ export interface CreateStudentDTO {
   zipCode?: string;
   
   // Parent/Guardian contact
-  emergencyContact?: string; // Legacy field - kept for backward compatibility
-  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactFirstName?: string; // Parent/Guardian first name
+  emergencyContactLastName?: string; // Parent/Guardian last name
   emergencyContactPhone?: string; // Parent/Guardian phone
-  emergencyContact2Name?: string; // Secondary contact name (optional)
+  emergencyContact2FirstName?: string; // Secondary contact first name (optional)
+  emergencyContact2LastName?: string; // Secondary contact last name (optional)
   emergencyContact2Phone?: string; // Secondary contact phone (optional)
   
   // Program details (defaults applied if not provided)
@@ -876,10 +878,11 @@ export interface UpdateStudentDTO {
   zipCode?: string;
   
   // Parent/Guardian contact
-  emergencyContact?: string; // Legacy field - kept for backward compatibility
-  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactFirstName?: string; // Parent/Guardian first name
+  emergencyContactLastName?: string; // Parent/Guardian last name
   emergencyContactPhone?: string; // Parent/Guardian phone
-  emergencyContact2Name?: string; // Secondary contact name (optional)
+  emergencyContact2FirstName?: string; // Secondary contact first name (optional)
+  emergencyContact2LastName?: string; // Secondary contact last name (optional)
   emergencyContact2Phone?: string; // Secondary contact phone (optional)
   
   // Program details

@@ -156,7 +156,7 @@ export const generateICSFeed = async (
       l.lesson_number,
       s.full_name as student_name,
       s.phone as student_phone,
-      s.emergency_contact as parent_phone,
+      s.emergency_contact_phone as parent_phone,
       s.hours_required
      FROM lessons l
      JOIN students s ON l.student_id = s.id

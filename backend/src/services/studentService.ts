@@ -167,10 +167,11 @@ export const createStudent = async (
     city?: string;
     state?: string;
     zipCode?: string;
-    emergencyContact?: string; // Legacy field
-    emergencyContactName?: string; // Parent/Guardian name
+    emergencyContactFirstName?: string; // Parent/Guardian first name
+    emergencyContactLastName?: string; // Parent/Guardian last name
     emergencyContactPhone?: string; // Parent/Guardian phone
-    emergencyContact2Name?: string; // Secondary contact name
+    emergencyContact2FirstName?: string; // Secondary contact first name
+    emergencyContact2LastName?: string; // Secondary contact last name
     emergencyContact2Phone?: string; // Secondary contact phone
     hoursRequired?: number; // Default: 6 (California requirement)
     licenseType?: 'car' | 'motorcycle' | 'commercial'; // Default: 'car'
@@ -231,13 +232,6 @@ export const createStudent = async (
       }
     }
 
-    // Handle emergency contact - prefer split fields, fall back to legacy field
-    // Use empty string instead of null because DB has NOT NULL constraint
-    const emergencyContact = data.emergencyContact ||
-      (data.emergencyContactName && data.emergencyContactPhone
-        ? `${data.emergencyContactName} - ${data.emergencyContactPhone}`
-        : '') || '';
-
     // Set defaults for optional fields
     let hoursRequired = data.hoursRequired;
     if (hoursRequired === undefined) {
@@ -250,13 +244,13 @@ export const createStudent = async (
       `INSERT INTO students (
         tenant_id, full_name, first_name, last_name, middle_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
-        emergency_contact, emergency_contact_name, emergency_contact_phone,
-        emergency_contact_2_name, emergency_contact_2_phone,
+        emergency_contact_first_name, emergency_contact_last_name, emergency_contact_phone,
+        emergency_contact_2_first_name, emergency_contact_2_last_name, emergency_contact_2_phone,
         enrollment_date, hours_required, license_type,
         assigned_instructor_id,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
         notes, status, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), $20, $21, $22, $23, $24, $25, $26, 'active', $27, $27)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), $21, $22, $23, $24, $25, $26, $27, 'active', $28, $28)
       RETURNING *`,
       [
         tenantId,
@@ -273,10 +267,11 @@ export const createStudent = async (
         data.city || null,
         data.state || null,
         data.zipCode || null,
-        emergencyContact,
-        data.emergencyContactName || null,
+        data.emergencyContactFirstName || null,
+        data.emergencyContactLastName || null,
         data.emergencyContactPhone || null,
-        data.emergencyContact2Name || null,
+        data.emergencyContact2FirstName || null,
+        data.emergencyContact2LastName || null,
         data.emergencyContact2Phone || null,
         hoursRequired,
         licenseType,
@@ -368,21 +363,25 @@ export const updateStudent = async (
     fields.push(`zip_code = $${paramCount++}`);
     values.push(data.zipCode);
   }
-  if (data.emergencyContact !== undefined) {
-    fields.push(`emergency_contact = $${paramCount++}`);
-    values.push(data.emergencyContact);
+  if (data.emergencyContactFirstName !== undefined) {
+    fields.push(`emergency_contact_first_name = $${paramCount++}`);
+    values.push(data.emergencyContactFirstName);
   }
-  if (data.emergencyContactName !== undefined) {
-    fields.push(`emergency_contact_name = $${paramCount++}`);
-    values.push(data.emergencyContactName);
+  if (data.emergencyContactLastName !== undefined) {
+    fields.push(`emergency_contact_last_name = $${paramCount++}`);
+    values.push(data.emergencyContactLastName);
   }
   if (data.emergencyContactPhone !== undefined) {
     fields.push(`emergency_contact_phone = $${paramCount++}`);
     values.push(data.emergencyContactPhone);
   }
-  if (data.emergencyContact2Name !== undefined) {
-    fields.push(`emergency_contact_2_name = $${paramCount++}`);
-    values.push(data.emergencyContact2Name);
+  if (data.emergencyContact2FirstName !== undefined) {
+    fields.push(`emergency_contact_2_first_name = $${paramCount++}`);
+    values.push(data.emergencyContact2FirstName);
+  }
+  if (data.emergencyContact2LastName !== undefined) {
+    fields.push(`emergency_contact_2_last_name = $${paramCount++}`);
+    values.push(data.emergencyContact2LastName);
   }
   if (data.emergencyContact2Phone !== undefined) {
     fields.push(`emergency_contact_2_phone = $${paramCount++}`);
