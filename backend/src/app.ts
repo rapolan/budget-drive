@@ -21,6 +21,7 @@ import authRoutes from './routes/authRoutes';
 import tenantRoutes from './routes/tenantRoutes';
 import studentRoutes from './routes/studentRoutes';
 import guardianRoutes from './routes/guardianRoutes';
+import searchRoutes from './routes/searchRoutes';
 import instructorRoutes from './routes/instructorRoutes';
 import userRoutes from './routes/userRoutes';
 import vehicleRoutes from './routes/vehicleRoutes';
@@ -143,6 +144,7 @@ app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (authLimiter applied p
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
 app.use(API_PREFIX, guardianRoutes);
+app.use(API_PREFIX, searchRoutes);
 app.use(API_PREFIX, instructorRoutes);
 app.use(API_PREFIX, vehicleRoutes);
 app.use(API_PREFIX, lessonRoutes);
