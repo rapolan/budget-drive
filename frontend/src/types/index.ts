@@ -140,10 +140,11 @@ export interface Student {
   city?: string;
   state?: string;
   zipCode?: string;
-  emergencyContact?: string; // Legacy field - deprecated in favor of split fields
-  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactFirstName?: string; // Parent/Guardian first name
+  emergencyContactLastName?: string; // Parent/Guardian last name
   emergencyContactPhone?: string; // Parent/Guardian phone
-  emergencyContact2Name?: string; // Secondary contact name
+  emergencyContact2FirstName?: string; // Secondary contact first name
+  emergencyContact2LastName?: string; // Secondary contact last name
   emergencyContact2Phone?: string; // Secondary contact phone
   learnerPermitNumber?: string;
   learnerPermitIssueDate?: Date;
@@ -358,10 +359,11 @@ export interface CreateStudentInput {
   zipCode?: string;
   
   // Parent/Guardian contact
-  emergencyContact?: string; // Legacy field - kept for backward compatibility
-  emergencyContactName?: string; // Parent/Guardian name
+  emergencyContactFirstName?: string; // Parent/Guardian first name
+  emergencyContactLastName?: string; // Parent/Guardian last name
   emergencyContactPhone?: string; // Parent/Guardian phone
-  emergencyContact2Name?: string; // Secondary contact name (optional)
+  emergencyContact2FirstName?: string; // Secondary contact first name (optional)
+  emergencyContact2LastName?: string; // Secondary contact last name (optional)
   emergencyContact2Phone?: string; // Secondary contact phone (optional)
   
   // Program details (defaults applied by backend if not provided)

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
 import { studentsApi } from '@/api';
@@ -59,12 +59,12 @@ describe('StudentModal create form - date of birth required', () => {
   it('blocks submission and shows a validation message when date of birth is missing', () => {
     renderModal();
 
-    fireEvent.change(screen.getByPlaceholderText('First'), { target: { value: 'Jane' } });
-    fireEvent.change(screen.getByPlaceholderText('Last'), { target: { value: 'Doe' } });
-    fireEvent.change(screen.getByPlaceholderText('email@example.com'), {
-      target: { name: 'email', value: 'jane.doe@example.com' },
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], {
+      target: { value: 'jane.doe@example.com' },
     });
-    fireEvent.change(screen.getAllByPlaceholderText('(555) 123-4567')[0], {
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], {
       target: { value: '5550100' },
     });
 
@@ -73,5 +73,54 @@ describe('StudentModal create form - date of birth required', () => {
 
     expect(screen.getByText(/date of birth is required/i)).toBeInTheDocument();
     expect(studentsApi.create).not.toHaveBeenCalled();
+  });
+});
+
+// Regression coverage: the backend guardian-feature session renamed
+// emergencyContactName -> emergencyContactFirstName/emergencyContactLastName
+// (and emergencyContact2Name -> its first/last split) and dropped the
+// legacy emergencyContact field entirely. StudentModal previously still
+// submitted the old field names, which the backend silently ignored -
+// parent contact names typed into the form were discarded on save with
+// no error. This locks the submitted payload to the new field contract.
+describe('StudentModal create form - emergency contact field contract', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+  });
+
+  it('renders separate first/last name inputs for the parent/guardian contact', () => {
+    renderModal();
+    expect(document.getElementsByName('guardian_firstname_input')).toHaveLength(1);
+    expect(document.getElementsByName('guardian_lastname_input')).toHaveLength(1);
+    // The old single combined-name input no longer exists.
+    expect(document.getElementsByName('guardian_name_input')).toHaveLength(0);
+  });
+
+  it('submits emergencyContactFirstName/emergencyContactLastName and omits the legacy fields', async () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], {
+      target: { value: 'jane.doe@example.com' },
+    });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2010-01-01' } });
+
+    fireEvent.change(document.getElementsByName('guardian_firstname_input')[0], { target: { value: 'Parent' } });
+    fireEvent.change(document.getElementsByName('guardian_lastname_input')[0], { target: { value: 'Contact' } });
+    fireEvent.change(document.getElementsByName('guardian_phone_input')[0], { target: { value: '5551234567' } });
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalledTimes(1));
+    const payload = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+
+    expect(payload.emergencyContactFirstName).toBe('Parent');
+    expect(payload.emergencyContactLastName).toBe('Contact');
+    expect(payload).not.toHaveProperty('emergencyContact');
+    expect(payload).not.toHaveProperty('emergencyContactName');
+    expect(payload).not.toHaveProperty('emergencyContact2Name');
   });
 });

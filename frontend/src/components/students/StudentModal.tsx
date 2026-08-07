@@ -62,10 +62,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     city: '',
     state: '',
     zipCode: '',
-    emergencyContact: '',
-    emergencyContactName: '',
+    emergencyContactFirstName: '',
+    emergencyContactLastName: '',
     emergencyContactPhone: '',
-    emergencyContact2Name: '',
+    emergencyContact2FirstName: '',
+    emergencyContact2LastName: '',
     emergencyContact2Phone: '',
     hoursRequired: defaultHoursRequired,
     learnerPermitNumber: '',
@@ -114,10 +115,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
         city: student.city || '',
         state: student.state || '',
         zipCode: student.zipCode || '',
-        emergencyContact: student.emergencyContact || '',
-        emergencyContactName: student.emergencyContactName || '',
+        emergencyContactFirstName: student.emergencyContactFirstName || '',
+        emergencyContactLastName: student.emergencyContactLastName || '',
         emergencyContactPhone: student.emergencyContactPhone || '',
-        emergencyContact2Name: student.emergencyContact2Name || '',
+        emergencyContact2FirstName: student.emergencyContact2FirstName || '',
+        emergencyContact2LastName: student.emergencyContact2LastName || '',
         emergencyContact2Phone: student.emergencyContact2Phone || '',
         hoursRequired: student.hoursRequired || defaultHoursRequired,
         assignedInstructorId: student.assignedInstructorId,
@@ -226,7 +228,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       { filled: !!formData.email, weight: 20 },
       { filled: !!formData.dateOfBirth, weight: 10 },
       { filled: !!formData.addressLine1 && !!formData.city && !!formData.zipCode, weight: 10 },
-      { filled: !!formData.emergencyContactName && !!formData.emergencyContactPhone, weight: 15 },
+      { filled: !!formData.emergencyContactLastName && !!formData.emergencyContactPhone, weight: 15 },
       { filled: !!formData.learnerPermitNumber, weight: 5 },
     ];
     return fields.reduce((acc, field) => acc + (field.filled ? field.weight : 0), 0);
@@ -545,50 +547,70 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   )}
                 </h3>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Name</label>
+                <div>
+                  <label className="block text-sm font-medium text-tx-secondary mb-1.5">Name</label>
+                  <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
-                      name="guardian_name_input"
-                      value={formData.emergencyContactName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactName: e.target.value }))}
+                      name="guardian_firstname_input"
+                      value={formData.emergencyContactFirstName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactFirstName: e.target.value }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                      placeholder="Parent/Guardian name"
+                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      placeholder="First"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Phone</label>
                     <input
-                      type="tel"
-                      name="guardian_phone_input"
-                      value={formData.emergencyContactPhone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
+                      type="text"
+                      name="guardian_lastname_input"
+                      value={formData.emergencyContactLastName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactLastName: e.target.value }))}
                       autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                      placeholder="(555) 123-4567"
+                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      placeholder="Last"
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-tx-secondary mb-1.5">Phone</label>
+                  <input
+                    type="tel"
+                    name="guardian_phone_input"
+                    value={formData.emergencyContactPhone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
+                    autoComplete="new-password"
+                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
 
                 {/* Secondary contact - optional */}
-                {(formData.emergencyContact2Name || formData.emergencyContact2Phone) ? (
-                  <div className="grid grid-cols-2 gap-3">
+                {(formData.emergencyContact2FirstName || formData.emergencyContact2LastName || formData.emergencyContact2Phone) ? (
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact</label>
-                      <input
-                        type="text"
-                        name="guardian2_name_input"
-                        value={formData.emergencyContact2Name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Name: e.target.value }))}
-                        autoComplete="new-password"
-                        className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                        placeholder="Name"
-                      />
+                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact Name</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          name="guardian2_firstname_input"
+                          value={formData.emergencyContact2FirstName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2FirstName: e.target.value }))}
+                          autoComplete="new-password"
+                          className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                          placeholder="First"
+                        />
+                        <input
+                          type="text"
+                          name="guardian2_lastname_input"
+                          value={formData.emergencyContact2LastName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2LastName: e.target.value }))}
+                          autoComplete="new-password"
+                          className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                          placeholder="Last"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">&nbsp;</label>
+                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact Phone</label>
                       <input
                         type="tel"
                         name="guardian2_phone_input"
@@ -603,7 +625,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, emergencyContact2Name: ' ' }))}
+                    onClick={() => setFormData(prev => ({ ...prev, emergencyContact2FirstName: ' ' }))}
                     className="text-sm text-primary hover:text-primary"
                   >
                     + Add secondary contact
