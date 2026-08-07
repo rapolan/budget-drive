@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as studentService from '../services/studentService';
+import * as studentGuardianService from '../services/studentGuardianService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -209,5 +210,82 @@ export const getStudentsByInstructor = asyncHandler(async (req: Request, res: Re
     success: true,
     data: students,
     count: students.length,
+  });
+});
+
+/**
+ * @route   GET /api/v1/students/:id/guardians
+ * @desc    Get guardians linked to a student
+ * @access  Private
+ */
+export const getGuardiansForStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const guardians = await studentGuardianService.getGuardiansForStudent(id, tenantId);
+
+  res.json({
+    success: true,
+    data: guardians,
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/guardians
+ * @desc    Link a guardian to a student (explicit choice only - Constraint B)
+ * @access  Private
+ */
+export const linkGuardian = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+  const { guardianId, relationship, isPrimary } = req.body;
+
+  const link = await studentGuardianService.linkGuardianToStudent(
+    id,
+    guardianId,
+    tenantId,
+    { relationship, isPrimary },
+    userId
+  );
+
+  res.status(201).json({
+    success: true,
+    data: link,
+    message: 'Guardian linked to student',
+  });
+});
+
+/**
+ * @route   DELETE /api/v1/students/:id/guardians/:guardianId
+ * @desc    Unlink a guardian from a student
+ * @access  Private
+ */
+export const unlinkGuardian = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id, guardianId } = req.params;
+
+  await studentGuardianService.unlinkGuardianFromStudent(id, guardianId, tenantId);
+
+  res.json({
+    success: true,
+    message: 'Guardian unlinked from student',
+  });
+});
+
+/**
+ * @route   PUT /api/v1/students/:id/guardians/:guardianId/primary
+ * @desc    Set a guardian as the primary guardian for a student
+ * @access  Private
+ */
+export const setPrimaryGuardian = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id, guardianId } = req.params;
+
+  await studentGuardianService.setPrimaryGuardian(id, guardianId, tenantId);
+
+  res.json({
+    success: true,
+    message: 'Primary guardian updated',
   });
 });

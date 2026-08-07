@@ -81,4 +81,35 @@ router.post(
   studentController.reopenStudentProgram
 );
 
+// Get guardians linked to a student
+router.get(
+  '/students/:id/guardians',
+  validateUUID('id'),
+  studentController.getGuardiansForStudent
+);
+
+// Link a guardian to a student (explicit choice only - Constraint B)
+router.post(
+  '/students/:id/guardians',
+  validateUUID('id'),
+  validateRequired(['guardianId']),
+  studentController.linkGuardian
+);
+
+// Unlink a guardian from a student
+router.delete(
+  '/students/:id/guardians/:guardianId',
+  validateUUID('id'),
+  validateUUID('guardianId'),
+  studentController.unlinkGuardian
+);
+
+// Set a guardian as the primary guardian for a student
+router.put(
+  '/students/:id/guardians/:guardianId/primary',
+  validateUUID('id'),
+  validateUUID('guardianId'),
+  studentController.setPrimaryGuardian
+);
+
 export default router;

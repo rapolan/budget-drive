@@ -49,4 +49,11 @@ router.delete(
   guardianController.deleteGuardian
 );
 
+// Get students linked to a guardian
+router.get(
+  '/guardians/:id/students',
+  validateUUID('id'),
+  guardianController.getStudentsForGuardian
+);
+
 export default router;

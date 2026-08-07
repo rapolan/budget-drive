@@ -11,6 +11,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as guardianService from '../services/guardianService';
+import * as studentGuardianService from '../services/studentGuardianService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -113,5 +114,22 @@ export const deleteGuardian = asyncHandler(async (req: Request, res: Response) =
   res.json({
     success: true,
     message: 'Guardian deleted successfully',
+  });
+});
+
+/**
+ * @route   GET /api/v1/guardians/:id/students
+ * @desc    Get students linked to a guardian
+ * @access  Private
+ */
+export const getStudentsForGuardian = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const students = await studentGuardianService.getStudentsForGuardian(id, tenantId);
+
+  res.json({
+    success: true,
+    data: students,
   });
 });
