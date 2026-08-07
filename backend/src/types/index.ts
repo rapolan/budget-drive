@@ -341,6 +341,23 @@ export interface Student {
 }
 
 // =====================================================
+// GUARDIAN TYPES
+// =====================================================
+
+export interface Guardian {
+  id: string;
+  tenantId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// =====================================================
 // LEAD & FOLLOW-UP TYPES
 // =====================================================
 
