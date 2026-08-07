@@ -11,6 +11,7 @@ import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
+import { countGuardiansForStudentsBatch } from './studentGuardianService';
 
 const logger = createLogger('StudentService');
 
@@ -24,6 +25,9 @@ const emptyToNull = (value: any): any => {
 /**
  * Attach computed progress to a batch of students in a single extra query
  * (not N+1) - the single source of truth for progress, per computeStudentProgress.
+ * Also attaches needsGuardian (true only for minors with zero linked
+ * guardians) via a second batched query, skipped entirely if no student in
+ * the batch is a minor - adults never pay for the guardian-count query.
  */
 async function attachProgress(students: Student[], tenantId: string): Promise<Student[]> {
   if (students.length === 0) return students;
@@ -41,10 +45,26 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
     lessonsByStudent.set(row.student_id, list);
   }
 
-  return students.map(student => ({
-    ...student,
-    progress: computeStudentProgress(student, lessonsByStudent.get(student.id) ?? []),
-  }));
+  const minorIds = students
+    .filter(s => {
+      const age = calculateAge(s.dateOfBirth);
+      return age === null || age < 18;
+    })
+    .map(s => s.id);
+
+  const guardianCounts = await countGuardiansForStudentsBatch(minorIds, tenantId);
+
+  return students.map(student => {
+    const age = calculateAge(student.dateOfBirth);
+    const isMinor = age === null || age < 18;
+    const needsGuardian = isMinor && (guardianCounts.get(student.id) ?? 0) === 0;
+
+    return {
+      ...student,
+      progress: computeStudentProgress(student, lessonsByStudent.get(student.id) ?? []),
+      needsGuardian,
+    };
+  });
 }
 
 /**
@@ -507,6 +527,17 @@ export const markStudentCompleted = async (
   logger.info('Marking student program complete', { tenantId, studentId: id });
 
   try {
+    const existing = await getStudentById(id, tenantId);
+    if (!existing) {
+      throw new AppError('Student not found', 404);
+    }
+    if (existing.needsGuardian) {
+      throw new AppError(
+        'Cannot mark program complete: this minor student has no linked guardian',
+        400
+      );
+    }
+
     const result = await query(
       `UPDATE students
        SET completed = true,

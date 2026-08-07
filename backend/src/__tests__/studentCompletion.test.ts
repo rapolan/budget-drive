@@ -26,17 +26,34 @@ describe('POST /api/v1/students/:id/complete', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{
-        id: STUDENT_ID,
-        tenant_id: TENANT_ID,
-        completed: true,
-        completed_at: new Date().toISOString(),
-        completed_by: 'staff-1',
-        completion_reason: 'Opted not to continue after turning 18',
-        status: 'completed',
-      }])
-    );
+    const adultDob = new Date();
+    adultDob.setFullYear(adultDob.getFullYear() - 25);
+
+    // markStudentCompleted's pre-check: getStudentById (student row +
+    // attachProgress's batched lessons query; adult DOB so the guardian-count
+    // batch query is skipped entirely), then the completion UPDATE itself.
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: STUDENT_ID,
+          tenant_id: TENANT_ID,
+          date_of_birth: adultDob.toISOString(),
+          hours_required: 6,
+          completed: false,
+        }])
+      )
+      .mockResolvedValueOnce(queryResult([])) // batched lessons
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: STUDENT_ID,
+          tenant_id: TENANT_ID,
+          completed: true,
+          completed_at: new Date().toISOString(),
+          completed_by: 'staff-1',
+          completion_reason: 'Opted not to continue after turning 18',
+          status: 'completed',
+        }])
+      );
 
     const res = await request(app)
       .post(`/api/v1/students/${STUDENT_ID}/complete`)

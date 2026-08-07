@@ -44,6 +44,7 @@ describe('GET /api/v1/students - progress attachment', () => {
         { student_id: STUDENT_ID, status: 'completed', duration: 270 },
       ])
     ); // batched lessons
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -78,6 +79,7 @@ describe('GET /api/v1/students - progress attachment', () => {
       }])
     ); // student row
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched lessons (none)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
 
     const res = await request(app)
       .get(`/api/v1/students/${STUDENT_ID}`)

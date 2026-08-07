@@ -308,6 +308,7 @@ export interface Student {
   totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
   hoursRequired: number;
   progress?: StudentProgress; // Attached by studentService's read paths - the single source of truth for display
+  needsGuardian?: boolean; // Attached by studentService's read paths - true only for minors with zero linked guardians
   assignedInstructorId: string | null;
   trackOverride: 'hours' | 'lessons' | null;
 

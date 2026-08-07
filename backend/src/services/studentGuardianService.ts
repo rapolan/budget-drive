@@ -192,3 +192,30 @@ export const countGuardiansForStudent = async (
   );
   return parseInt(result.rows[0].count, 10);
 };
+
+/**
+ * Batched guardian-count lookup for a set of students in one query (not
+ * N+1) - used by studentService's read paths to attach needsGuardian
+ * without a per-student round trip. Returns a Map of studentId -> count;
+ * students with zero links simply aren't present as keys.
+ */
+export const countGuardiansForStudentsBatch = async (
+  studentIds: string[],
+  tenantId: string
+): Promise<Map<string, number>> => {
+  const counts = new Map<string, number>();
+  if (studentIds.length === 0) return counts;
+
+  const result = await query(
+    `SELECT student_id, COUNT(*) AS count
+     FROM student_guardians
+     WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
+     GROUP BY student_id`,
+    [tenantId, studentIds]
+  );
+
+  for (const row of result.rows) {
+    counts.set(row.student_id, parseInt(row.count, 10));
+  }
+  return counts;
+};
