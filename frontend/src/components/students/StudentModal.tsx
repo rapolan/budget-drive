@@ -200,6 +200,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       return;
     }
 
+    // Email is required for adults (18+); optional for minors, whose
+    // guardian's email is the contact. Mirrors the backend's age-gated
+    // check in studentService.createStudent/updateStudent.
+    if (isAdult && !formData.email?.trim()) {
+      setValidationError('Email is required for adult students (18+)');
+      return;
+    }
+
     // Generate fullName from structured fields
     const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
       .filter(Boolean)
@@ -405,17 +413,22 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-tx-secondary mb-1.5">
-                      Email <span className="text-status-danger-text">*</span>
+                      Email{' '}
+                      {isAdult ? (
+                        <span className="text-status-danger-text">*</span>
+                      ) : (
+                        <span className="text-xs font-normal text-tx-muted">(optional for minors)</span>
+                      )}
                     </label>
                     <input
                       type="email"
                       name="student_email_input"
-                      value={formData.email}
+                      value={formData.email || ''}
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                      required
+                      required={isAdult}
                       autoComplete="new-password"
                       className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                      placeholder="email@example.com"
+                      placeholder={isAdult ? 'email@example.com' : "email@example.com (or use guardian's email below)"}
                     />
                   </div>
                   <div>
@@ -546,6 +559,30 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     <span className="text-xs font-normal text-status-danger-text normal-case">* Phone required if student has none</span>
                   )}
                 </h3>
+
+                {/* Guardian record requirement - the fields below are a
+                    free-text emergency contact, separate from a linked
+                    guardian record. Minors need at least one guardian
+                    record linked (via the guardians API) before their
+                    program can be marked complete - the backend enforces
+                    this at completion time, not at save time, since a new
+                    student has no id to link a guardian to yet. */}
+                {isEditing && student?.needsGuardian && (
+                  <div className="bg-status-warning-bg border border-status-warning-border rounded-lg px-4 py-3 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-status-warning-text mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-status-warning-text">
+                      This student needs a linked guardian record before their program can be marked complete.
+                    </p>
+                  </div>
+                )}
+                {!isEditing && !isAdult && studentAge !== null && (
+                  <div className="bg-status-info-bg border border-status-info-border rounded-lg px-4 py-3 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-tx-secondary">
+                      This student is a minor and will need a linked guardian record before their program can be marked complete. The fields below are saved as contact info; add a linked guardian after creating this student.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-tx-secondary mb-1.5">Name</label>
@@ -711,7 +748,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || !formData.email || (!isEditing && !formData.dateOfBirth)}
+                    disabled={createMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
                     className="px-6 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed transition-colors"
                   >
                     {createMutation.isPending || updateMutation.isPending

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
 import { studentsApi } from '@/api';
+import type { Student } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -31,15 +32,31 @@ vi.mock('@/contexts/TenantContext', () => ({
 
 afterEach(cleanup);
 
-function renderModal() {
+function renderModal(student: Student | null = null) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <StudentModal student={null} onClose={() => {}} />
+      <StudentModal student={student} onClose={() => {}} />
     </QueryClientProvider>
   );
+}
+
+function editableStudent(overrides: Partial<Student> = {}): Student {
+  return {
+    id: 'student-1',
+    tenantId: 'tenant-1',
+    fullName: 'Existing Student',
+    email: 'existing@example.com',
+    phone: '5550100',
+    status: 'active',
+    enrollmentDate: new Date('2026-01-01'),
+    totalHoursCompleted: 0,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    ...overrides,
+  } as Student;
 }
 
 // Regression coverage: date of birth was previously optional on the
@@ -122,5 +139,117 @@ describe('StudentModal create form - emergency contact field contract', () => {
     expect(payload).not.toHaveProperty('emergencyContact');
     expect(payload).not.toHaveProperty('emergencyContactName');
     expect(payload).not.toHaveProperty('emergencyContact2Name');
+  });
+});
+
+// Regression coverage: the backend made students.email nullable - required
+// only for adults (18+ by dateOfBirth), optional for minors. StudentModal
+// previously hard-required email for every student (HTML `required` +
+// disabled-button predicate), which blocked saving minors with no email
+// even though the backend now allows it.
+describe('StudentModal create form - email conditional on age', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+  });
+
+  function fillBasicFields(dob: string) {
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: dob } });
+  }
+
+  it('marks the email input as optional (not required) for a minor', () => {
+    renderModal();
+    fillBasicFields('2015-01-01'); // well under 18
+
+    const emailInput = document.getElementsByName('student_email_input')[0] as HTMLInputElement;
+    expect(emailInput).not.toBeRequired();
+    expect(screen.getByText(/optional for minors/i)).toBeInTheDocument();
+  });
+
+  it('marks the email input as required for an adult', () => {
+    renderModal();
+    fillBasicFields('1990-01-01'); // well over 18
+
+    const emailInput = document.getElementsByName('student_email_input')[0] as HTMLInputElement;
+    expect(emailInput).toBeRequired();
+  });
+
+  it('a minor saves successfully with no email', async () => {
+    renderModal();
+    fillBasicFields('2015-01-01');
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalledTimes(1));
+    const payload = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.email).toBe('');
+    expect(screen.queryByText(/email is required/i)).not.toBeInTheDocument();
+  });
+
+  it('blocks submission with a clear message when an adult has no email', () => {
+    renderModal();
+    fillBasicFields('1990-01-01');
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    expect(screen.getByText(/email is required for adult students/i)).toBeInTheDocument();
+    expect(studentsApi.create).not.toHaveBeenCalled();
+  });
+
+  it('an adult saves successfully once an email is provided', async () => {
+    renderModal();
+    fillBasicFields('1990-01-01');
+    fireEvent.change(document.getElementsByName('student_email_input')[0], {
+      target: { value: 'adult@example.com' },
+    });
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalledTimes(1));
+    const payload = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.email).toBe('adult@example.com');
+  });
+});
+
+// Regression coverage: the backend rejects marking a minor's program
+// complete while needsGuardian is true, but the frontend previously gave
+// no indication of this requirement anywhere in the form - an admin would
+// only discover it after a rejected save. This surfaces the requirement
+// proactively in the Parent/Guardian section.
+describe('StudentModal - needsGuardian surfaced in the guardian section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows a warning when editing an existing student with needsGuardian=true', () => {
+    renderModal(editableStudent({ needsGuardian: true }));
+    expect(screen.getByText(/needs a linked guardian record/i)).toBeInTheDocument();
+  });
+
+  it('shows no warning when editing an existing student with needsGuardian=false', () => {
+    renderModal(editableStudent({ needsGuardian: false }));
+    expect(screen.queryByText(/needs a linked guardian record/i)).not.toBeInTheDocument();
+  });
+
+  it('shows an informational note for a new minor student before it is saved', () => {
+    renderModal(); // create mode, student is null
+
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+
+    expect(screen.getByText(/will need a linked guardian record/i)).toBeInTheDocument();
+  });
+
+  it('shows no guardian note for a new adult student', () => {
+    renderModal();
+
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
+
+    expect(screen.queryByText(/linked guardian record/i)).not.toBeInTheDocument();
   });
 });

@@ -128,7 +128,7 @@ export const PaymentsPage: React.FC = () => {
   const filteredStudents = students.filter((student) => {
     const matchesSearch =
       student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase());
+      (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
 
     if (!matchesSearch) return false;
 
@@ -381,10 +381,12 @@ export const PaymentsPage: React.FC = () => {
 
                   {/* Contact Info */}
                   <div className="space-y-1 mb-4 text-sm">
-                    <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
-                      <Mail className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{student.email}</span>
-                    </a>
+                    {student.email && (
+                      <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
+                        <Mail className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{student.email}</span>
+                      </a>
+                    )}
                     {student.phone && (
                       <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
                         <Phone className="h-4 w-4 flex-shrink-0" />
@@ -484,7 +486,7 @@ export const PaymentsPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <div className="text-sm text-tx-muted">{student.email}</div>
+                        <div className="text-sm text-tx-muted">{student.email || student.phone || '—'}</div>
                         <div className="text-sm text-tx-muted">{student.phone}</div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">

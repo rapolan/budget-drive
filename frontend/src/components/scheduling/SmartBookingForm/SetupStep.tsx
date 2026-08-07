@@ -84,14 +84,14 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   const getStudentDisplay = (student: Student) => {
     const duplicates = students.filter(s => s.fullName === student.fullName);
     if (duplicates.length > 1) {
-      return `${student.fullName} (${student.email})`;
+      return `${student.fullName} (${student.email || student.phone || 'no contact'})`;
     }
     return student.fullName;
   };
 
   const filteredStudents = students.filter((s: Student) =>
     s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    s.email.toLowerCase().includes(studentSearch.toLowerCase())
+    (s.email?.toLowerCase().includes(studentSearch.toLowerCase()) ?? false)
   );
 
   return (
@@ -171,7 +171,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                     </div>
                     <div>
                       <div className="font-medium text-tx-primary">{student.fullName}</div>
-                      <div className="text-sm text-tx-muted">{student.email}</div>
+                      <div className="text-sm text-tx-muted">{student.email || student.phone}</div>
                     </div>
                   </button>
                 ))}

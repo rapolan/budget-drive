@@ -131,7 +131,7 @@ export interface Student {
   firstName?: string | null;
   lastName?: string | null;
   middleName?: string | null;
-  email: string;
+  email?: string; // Required for adults (18+ by dateOfBirth); optional for minors, whose guardian's email is the contact
   phone?: string | null; // Student phone (optional - Parent/Guardian can be primary contact)
   dateOfBirth?: Date;
   address?: string; // Legacy combined address field
@@ -155,6 +155,7 @@ export interface Student {
   totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
   hoursRequired?: number; // Default: 6 (hidden in form)
   progress?: StudentProgress; // Attached by the backend - the single source of truth for display
+  needsGuardian?: boolean; // Attached by the backend - true only for minors with zero linked guardians
   assignedInstructorId?: string;
   trackOverride?: 'hours' | 'lessons' | null;
   completed?: boolean;
@@ -344,8 +345,8 @@ export interface CreateStudentInput {
   firstName?: string;
   lastName?: string;
   middleName?: string;
-  email: string;
-  
+  email?: string; // Required for adults (18+ by dateOfBirth); optional for minors
+
   // Contact - at least one required (student phone OR Parent/Guardian phone)
   phone?: string; // Student phone (optional - Parent/Guardian can be primary contact)
   

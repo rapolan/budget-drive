@@ -85,7 +85,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
               </div>
               {student && (
                 <p className="mt-1 text-sm text-tx-secondary">
-                  {student.fullName} ({student.email})
+                  {student.fullName} ({student.email || student.phone || 'no contact on file'})
                 </p>
               )}
             </div>

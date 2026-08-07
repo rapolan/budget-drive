@@ -162,7 +162,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     <p className="mt-1 text-lg font-semibold text-tx-primary">
                       {student.fullName}
                     </p>
-                    <p className="text-sm text-tx-secondary">{student.email}</p>
+                    <p className="text-sm text-tx-secondary">{student.email || student.phone}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-tx-secondary">Current Balance</p>

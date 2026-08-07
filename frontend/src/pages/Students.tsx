@@ -12,7 +12,7 @@ import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/componen
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 
-type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup';
+type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup' | 'needs_guardian';
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
 
@@ -57,7 +57,8 @@ export const StudentsPage: React.FC = () => {
     if (
       location.state?.filter === 'needs_attention' ||
       location.state?.filter === 'turning_18' ||
-      location.state?.filter === 'no_show_followup'
+      location.state?.filter === 'no_show_followup' ||
+      location.state?.filter === 'needs_guardian'
     ) {
       setStatusFilter(location.state.filter);
       // Scroll to table after filter is applied
@@ -155,6 +156,7 @@ export const StudentsPage: React.FC = () => {
       completed: 0,
       inactive: 0,
       turning_18: 0,
+      needs_guardian: 0,
     };
 
     counts.all = data?.data?.length || 0;
@@ -176,6 +178,7 @@ export const StudentsPage: React.FC = () => {
       else if (statusInfo.status === 'inactive') counts.inactive++;
 
       if (needsTurning18Alert(student)) counts.turning_18++;
+      if (student.needsGuardian) counts.needs_guardian++;
     });
 
     return counts;
@@ -283,6 +286,8 @@ export const StudentsPage: React.FC = () => {
         if (!needsTurning18Alert(student)) return false;
       } else if (statusFilter === 'no_show_followup') {
         if (!noShowStudentIds.has(student.id)) return false;
+      } else if (statusFilter === 'needs_guardian') {
+        if (!student.needsGuardian) return false;
       } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
         return false;
       }
@@ -290,7 +295,7 @@ export const StudentsPage: React.FC = () => {
       // Search filter
       return (
         student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
         (student.phone?.includes(searchTerm) ?? false)
       );
     }) || [];
@@ -576,6 +581,15 @@ export const StudentsPage: React.FC = () => {
               variant="warning"
             />
           )}
+          {statusCounts.needs_guardian > 0 && (
+            <FilterButton
+              label="Needs Guardian"
+              isActive={statusFilter === 'needs_guardian'}
+              onClick={() => setStatusFilter('needs_guardian')}
+              count={statusCounts.needs_guardian}
+              variant="warning"
+            />
+          )}
           <FilterButton
             label="Completed"
             isActive={statusFilter === 'completed'}
@@ -685,6 +699,14 @@ export const StudentsPage: React.FC = () => {
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(statusInfo.status)}`}>
                           {statusInfo.displayStatus}
                         </span>
+                        {student.needsGuardian && (
+                          <span
+                            className="ml-1.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-status-warning-bg text-status-warning-text"
+                            title="This minor has no linked guardian record"
+                          >
+                            Needs Guardian
+                          </span>
+                        )}
                         {/* Status reason - visible on cards */}
                         {statusInfo.reason && (
                           <p className="text-xs text-tx-muted mt-1 truncate">
@@ -717,10 +739,12 @@ export const StudentsPage: React.FC = () => {
 
                   {/* Contact Info */}
                   <div className="space-y-2 mb-4 text-sm">
-                    <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
-                      <Mail className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate">{student.email}</span>
-                    </a>
+                    {student.email && (
+                      <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
+                        <Mail className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate">{student.email}</span>
+                      </a>
+                    )}
                     <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
                       <Phone className="h-4 w-4 flex-shrink-0" />
                       {student.phone}
@@ -836,14 +860,24 @@ export const StudentsPage: React.FC = () => {
                             {getInitials(student)}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-medium text-tx-primary truncate">{getDisplayName(student)}</div>
-                            <div className="text-sm text-tx-muted md:hidden truncate">{student.email}</div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="font-medium text-tx-primary truncate">{getDisplayName(student)}</div>
+                              {student.needsGuardian && (
+                                <span
+                                  className="inline-flex flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold bg-status-warning-bg text-status-warning-text"
+                                  title="This minor has no linked guardian record"
+                                >
+                                  Needs Guardian
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-tx-muted md:hidden truncate">{student.email || student.phone || '—'}</div>
                           </div>
                         </div>
                       </td>
                       {/* Contact - Hidden on mobile */}
                       <td className="px-6 py-4 hidden md:table-cell">
-                        <div className="text-sm text-tx-primary">{student.email}</div>
+                        <div className="text-sm text-tx-primary">{student.email || <span className="text-tx-muted italic">No email (minor)</span>}</div>
                         <div className="text-sm text-tx-muted">{student.phone}</div>
                       </td>
                       {/* Status - hover for reason */}
