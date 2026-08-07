@@ -133,3 +133,46 @@ export const getStudentsForGuardian = asyncHandler(async (req: Request, res: Res
     data: students,
   });
 });
+
+/**
+ * @route   GET /api/v1/guardians/candidates
+ * @desc    Find candidate guardians by partial name/email/phone match
+ *          (Constraint B: surfaces candidates only, never links)
+ * @access  Private
+ */
+export const findCandidates = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { firstName, lastName, email, phone } = req.query;
+
+  const candidates = await guardianService.findGuardianCandidates(tenantId, {
+    firstName: firstName as string | undefined,
+    lastName: lastName as string | undefined,
+    email: email as string | undefined,
+    phone: phone as string | undefined,
+  });
+
+  res.json({
+    success: true,
+    data: candidates,
+  });
+});
+
+/**
+ * @route   GET /api/v1/guardians/exact-match
+ * @desc    Exact-match check on email or phone (Constraint B: never links)
+ * @access  Private
+ */
+export const findExactMatch = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { email, phone } = req.query;
+
+  const matches = await guardianService.findExactGuardianMatch(tenantId, {
+    email: email as string | undefined,
+    phone: phone as string | undefined,
+  });
+
+  res.json({
+    success: true,
+    data: matches,
+  });
+});

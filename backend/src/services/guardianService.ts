@@ -5,7 +5,7 @@
  */
 
 import { query } from '../config/database';
-import { Guardian } from '../types';
+import { Guardian, GuardianCandidate } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -221,4 +221,73 @@ export const deleteGuardian = async (
   }
 
   logger.info('Successfully deleted guardian', { tenantId, guardianId: id });
+};
+
+// --- Matching (read-only, Constraint B: never links) ---
+//
+// These functions only ever SELECT. Neither one writes a row or calls
+// studentGuardianService.linkGuardianToStudent - they surface candidates
+// for a human (or, eventually, a public signup form acting on a parent's
+// own explicit choice) to decide from. Nothing here infers a relationship
+// from a name/email/phone match.
+
+/**
+ * Find candidate guardians for a tenant by partial name/email/phone match,
+ * each annotated with the students they're already linked to so a human
+ * can tell two same-surname guardians apart before choosing one to link.
+ */
+export const findGuardianCandidates = async (
+  tenantId: string,
+  filter: { firstName?: string; lastName?: string; email?: string; phone?: string }
+): Promise<GuardianCandidate[]> => {
+  const result = await query(
+    `SELECT g.*,
+       COALESCE(
+         array_agg(s.full_name) FILTER (WHERE s.id IS NOT NULL),
+         ARRAY[]::text[]
+       ) AS linked_student_names
+     FROM guardians g
+     LEFT JOIN student_guardians sg ON sg.guardian_id = g.id AND sg.tenant_id = g.tenant_id
+     LEFT JOIN students s ON s.id = sg.student_id
+     WHERE g.tenant_id = $1
+       AND ($2::text IS NULL OR g.first_name ILIKE '%' || $2 || '%')
+       AND ($3::text IS NULL OR g.last_name ILIKE '%' || $3 || '%')
+       AND ($4::text IS NULL OR g.email ILIKE '%' || $4 || '%')
+       AND ($5::text IS NULL OR g.phone ILIKE '%' || $5 || '%')
+     GROUP BY g.id
+     ORDER BY g.last_name, g.first_name
+     LIMIT 25`,
+    [
+      tenantId,
+      filter.firstName || null,
+      filter.lastName || null,
+      filter.email || null,
+      filter.phone || null,
+    ]
+  );
+
+  return result.rows.map(keysToCamel) as GuardianCandidate[];
+};
+
+/**
+ * Exact-match check on email or phone, used at save time to surface
+ * "did you mean this existing guardian?" - still only a candidate lookup,
+ * never a link.
+ */
+export const findExactGuardianMatch = async (
+  tenantId: string,
+  filter: { email?: string; phone?: string }
+): Promise<Guardian[]> => {
+  if (!filter.email && !filter.phone) {
+    return [];
+  }
+
+  const result = await query(
+    `SELECT * FROM guardians
+     WHERE tenant_id = $1
+       AND ((email IS NOT NULL AND email = $2) OR (phone IS NOT NULL AND phone = $3))`,
+    [tenantId, filter.email || null, filter.phone || null]
+  );
+
+  return result.rows.map(keysToCamel) as Guardian[];
 };

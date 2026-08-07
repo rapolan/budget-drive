@@ -21,6 +21,20 @@ router.get(
   guardianController.getAllGuardians
 );
 
+// Find candidate guardians by partial name/email/phone match - registered
+// before /guardians/:id so "candidates" and "exact-match" aren't swallowed
+// by the :id param route.
+router.get(
+  '/guardians/candidates',
+  guardianController.findCandidates
+);
+
+// Exact-match check on email or phone
+router.get(
+  '/guardians/exact-match',
+  guardianController.findExactMatch
+);
+
 // Create new guardian
 router.post(
   '/guardians',

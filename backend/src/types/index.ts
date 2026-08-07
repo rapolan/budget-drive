@@ -358,6 +358,13 @@ export interface Guardian {
   updatedAt: Date;
 }
 
+// A guardian search result with disambiguating context - who they're
+// already linked to - so a human can tell two same-name guardians apart
+// before deciding to link one (Constraint B: matching never links).
+export interface GuardianCandidate extends Guardian {
+  linkedStudentNames: string[];
+}
+
 // =====================================================
 // LEAD & FOLLOW-UP TYPES
 // =====================================================
