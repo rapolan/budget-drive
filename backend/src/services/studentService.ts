@@ -10,7 +10,7 @@ import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
-import { computeStudentProgress } from './studentProgressService';
+import { computeStudentProgress, calculateAge } from './studentProgressService';
 
 const logger = createLogger('StudentService');
 
@@ -138,7 +138,7 @@ export const createStudent = async (
     firstName?: string;
     lastName?: string;
     middleName?: string;
-    email: string;
+    email?: string; // Required for adults (18+); optional for minors
     phone?: string; // Student phone (optional - can use Parent/Guardian instead)
     dateOfBirth?: Date;
     address?: string; // Legacy combined address
@@ -184,18 +184,31 @@ export const createStudent = async (
       throw new AppError('Date of birth is required', 400);
     }
 
-    // Check if email already exists for this tenant
-    const existing = await query(
-      'SELECT id FROM students WHERE email = $1 AND tenant_id = $2',
-      [data.email, tenantId]
-    );
+    // Validate: email is required for adults (18+); optional for minors,
+    // who often have no email of their own and share a parent's contact.
+    // Can't be a DB CHECK - age changes daily.
+    const age = calculateAge(data.dateOfBirth ?? null);
+    const isAdult = age !== null && age >= 18;
+    if (isAdult && (!data.email || data.email.trim().length === 0)) {
+      throw new AppError('Email is required for adult students (18+)', 400);
+    }
 
-    if (existing.rows.length > 0) {
-      logger.warn('Duplicate student email detected', {
-        tenantId,
-        email: data.email,
-      });
-      throw new AppError('Student with this email already exists', 400);
+    // Check if email already exists for this tenant (only when an email
+    // was actually provided - multiple students may share a null email,
+    // enforced by the partial unique index on (tenant_id, email))
+    if (data.email) {
+      const existing = await query(
+        'SELECT id FROM students WHERE email = $1 AND tenant_id = $2',
+        [data.email, tenantId]
+      );
+
+      if (existing.rows.length > 0) {
+        logger.warn('Duplicate student email detected', {
+          tenantId,
+          email: data.email,
+        });
+        throw new AppError('Student with this email already exists', 400);
+      }
     }
 
     // Handle emergency contact - prefer split fields, fall back to legacy field
@@ -231,7 +244,7 @@ export const createStudent = async (
         data.firstName || null,
         data.lastName || null,
         data.middleName || null,
-        data.email,
+        data.email || null, // Allow null email for minors
         data.phone || null, // Allow null phone
         data.dateOfBirth || null,
         data.address || null,
@@ -414,6 +427,23 @@ export const updateStudent = async (
 
   if (fields.length === 0) {
     throw new AppError('No fields to update', 400);
+  }
+
+  // If email or dateOfBirth is changing, verify the resulting row still
+  // satisfies "email required for adults" - requires reading the current
+  // row when only one of the two is present in this patch.
+  if (data.email !== undefined || data.dateOfBirth !== undefined) {
+    const current = await getStudentById(id, tenantId);
+    if (!current) {
+      throw new AppError('Student not found', 404);
+    }
+    const resultingEmail = data.email !== undefined ? data.email : current.email;
+    const resultingDob = data.dateOfBirth !== undefined ? data.dateOfBirth : current.dateOfBirth;
+    const resultingAge = calculateAge(resultingDob ?? null);
+    const resultingIsAdult = resultingAge !== null && resultingAge >= 18;
+    if (resultingIsAdult && (!resultingEmail || resultingEmail.trim().length === 0)) {
+      throw new AppError('Email is required for adult students (18+)', 400);
+    }
   }
 
   values.push(id, tenantId);

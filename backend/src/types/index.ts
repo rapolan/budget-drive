@@ -281,7 +281,7 @@ export interface Student {
   firstName: string | null;
   lastName: string | null;
   middleName: string | null;
-  email: string;
+  email: string | null; // Required for adults (18+); optional for minors
   phone: string | null; // Student phone (optional - Parent/Guardian can be primary contact)
   dateOfBirth: Date | null;
   address: string; // Legacy combined address field

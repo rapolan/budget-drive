@@ -30,7 +30,7 @@ type ProgressLessonInput = Pick<Lesson, 'status' | 'duration'>;
  * written once per side since there's no shared module across the
  * language boundary.
  */
-function calculateAge(dob: Date | string | null): number | null {
+export function calculateAge(dob: Date | string | null): number | null {
   if (!dob) return null;
   const birthDate = new Date(dob);
   const today = new Date();

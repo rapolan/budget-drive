@@ -7,7 +7,7 @@ import { Router } from 'express';
 import * as studentController from '../controllers/studentController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import { validateUUID, validateRequired } from '../middleware/validate';
+import { validateUUID, validateRequired, validateRequiredOneOf } from '../middleware/validate';
 
 const router = Router();
 
@@ -35,14 +35,15 @@ router.get(
 );
 
 // Create new student
+// email is deliberately omitted here - its requirement is conditional on
+// age (adults only), which a presence-only route validator can't express;
+// that check lives in studentService.createStudent. phone accepts either
+// the student's own phone or a parent/guardian's, matching service logic
+// that has always allowed either.
 router.post(
   '/students',
-  validateRequired([
-    'fullName',
-    'email',
-    'phone',
-    'dateOfBirth',
-  ]),
+  validateRequired(['fullName', 'dateOfBirth']),
+  validateRequiredOneOf([['phone'], ['emergencyContactPhone']]),
   studentController.createStudent
 );
 
