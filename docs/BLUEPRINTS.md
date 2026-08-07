@@ -5,6 +5,32 @@
 
 ---
 
+## 0. Built Features
+
+Everything in this section is shipped and running today, distinct from the patent-pending research/roadmap sections below.
+
+### Jurisdiction-Aware Student Progress
+Progress is derived live at read time, never stored as a running total (`students.total_hours_completed` is a dead column). A student's age is computed from `date_of_birth`: minors progress on an **hours track** against a tenant-configurable `default_hours_required`; adults (18+) have no mandated hours and progress on a **lessons track** (booked vs. completed lesson count). `computeStudentProgress` in `backend/src/services/studentProgressService.ts` is the single source of truth — every UI surface (student list, cards, detail view) consumes its output rather than recomputing. An admin can pin a student to either track via `track_override`, independent of age.
+
+### Turning-18 Alerts
+The dashboard surfaces students who are 18+ but still mid-program on the hours track with unbooked required hours remaining, so an admin can consciously decide whether to keep them on the hours track, switch them to the lessons track, or mark the program complete — a decision the system never makes automatically.
+
+### No-Show Follow-Up Alerts
+Marking a lesson `no_show` creates a dismissable notification (using the platform's existing, previously-unused `notifications` table) surfaced on the dashboard. The alert clears automatically once that student's next lesson is booked, or can be dismissed manually.
+
+### Program Completion with Verification
+Completion is an explicit admin action (`POST /students/:id/complete`, reversible via `POST /students/:id/reopen`) with an optional reason, not an automatic hours-threshold inference — an admin verifies and records why a student's program ended.
+
+### Guardians as First-Class Records
+Students can be linked to one or more guardian records (parents/legal guardians), replacing flat emergency-contact strings with structured, searchable, many-to-many data. See `docs/ARCHITECTURE.md` for the schema. Key principles:
+- **Guardian matching and linking logic lives entirely in the backend service layer** — never in a UI component — so the same logic can be reused by a future public signup form without risking duplicate guardian records.
+- **Matching never merges automatically.** Searching by name/email/phone surfaces candidate guardians with disambiguating context (which students they're already linked to); a human always makes the explicit decision to link.
+- Minors require at least one linked guardian before their program can be marked complete (not before creation — a new minor student can exist guardian-less while the guardian is being set up, surfaced via a `needsGuardian` flag).
+- Exactly one guardian per student can be marked primary.
+- A combined `GET /search/people` endpoint searches students and guardians together by name, email, or phone, so front-desk staff don't have to choose a page before searching.
+
+---
+
 ## 1. The 6-Dimensional (6D) Scheduling Engine
 
 BDP implements a novel scheduling algorithm designed for high-availability fleets.

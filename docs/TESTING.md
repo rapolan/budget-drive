@@ -169,6 +169,16 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** All 8 seeded students appear (Sarah, Michael, Jessica, Tyler, Aisha, Noah, Olivia, Marcus), with progress stages visibly different — Noah at 0 hours, Olivia near 30/30, Marcus at `completed` status. Search and status filter both narrow the list correctly. Opening a student shows their lesson history including a mix of completed/cancelled entries for students who have them (e.g. Michael Chen has a cancelled lesson).
 
+### 2.3a Progress, completion, and alerts
+
+**Do:** Open a minor student's detail record (any seeded student under 18) and check their Progress tab. Then open the Dashboard.
+
+**Pass looks like:** The minor's progress shows an hours-style label (e.g. `"4.5 / 6 hrs"`); an adult student's Progress tab instead shows a lessons-style label (e.g. `"2 of 3 lessons (67%)"`, or `"No lessons booked"` if they have none — not `"0%"`). If a seeded student is 18+ but still under-booked on the hours track, the Dashboard's Alerts card shows a "Turning 18" row; clicking it filters the Students list. From that student's Progress tab, the three admin actions (keep on hours track / switch to lessons track / mark program complete) are visible and each calls through to `PUT /students/:id` or `POST /students/:id/complete`.
+
+**Also check — no-show follow-up:** Mark a scheduled lesson as `no_show` (via its lesson actions). The Dashboard's Alerts card should show a "No-Show Follow-Up" row for that student, with a dismiss button. Dismissing it removes the row. Separately, booking that student a new lesson should also clear the alert automatically (refresh the Dashboard to confirm) without needing to dismiss it manually.
+
+**Also check — completion:** Use the "Mark program complete" action (requires a non-empty reason) on any student. The student's status becomes `completed` and they still appear in bookable lists. This is a manual admin decision — there is no automatic hours-threshold completion.
+
 ### 2.4 Book a lesson (happy path)
 
 **Do:** Go to `/scheduling` (or open the booking form from a student/instructor). Pick a student with no conflicting lesson (e.g. Marcus Lee, who is `completed` status but still bookable), pick an instructor with open availability, pick a future date/time that doesn't overlap an existing lesson for that instructor, submit.
