@@ -27,7 +27,7 @@
   "dependencies": {
     "@bsv/sdk": "^1.9.9",
     "axios": "^1.7.2",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "body-parser": "^1.20.2",
     "bsv": "^2.0.10",
     "cors": "^2.8.5",
