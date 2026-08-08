@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import fs from 'fs';
-import path from 'path';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Constraint A: computeStudentProgress (backend/src/services/studentProgressService.ts)
 // must remain the ONLY place progress math happens. No frontend file may
@@ -13,6 +14,15 @@ import path from 'path';
 // assert a forbidden pattern is absent), adapted to a static-source-text
 // check instead of a query-mock spy, since computeStudentProgress is a pure
 // function with no call mechanism to intercept.
+//
+// Uses import.meta.url + node:path instead of __dirname so this typechecks
+// under the frontend's ESM tsconfig. Deliberately does NOT resolve a
+// relative URL against import.meta.url (`new URL('.', import.meta.url)`) -
+// Vitest's jsdom test environment shadows the global URL constructor, and
+// resolving a relative URL through it silently rebases against jsdom's
+// http://localhost page origin instead of the file:// module URL, which
+// then fails fileURLToPath's scheme check. Converting the file URL to a
+// path first, then using node:path's dirname, sidesteps that entirely.
 
 const TARGET_FILES = [
   'src/components/students/StudentProgressBar.tsx',
@@ -21,8 +31,10 @@ const TARGET_FILES = [
   'src/utils/turning18.ts',
 ];
 
+const testDir = dirname(fileURLToPath(import.meta.url));
+
 function readSource(relativePath: string): string {
-  return fs.readFileSync(path.resolve(__dirname, '../..', relativePath), 'utf8');
+  return readFileSync(resolve(testDir, '../..', relativePath), 'utf8');
 }
 
 describe('progress calculation ownership (Constraint A)', () => {
