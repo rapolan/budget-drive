@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
 import { studentsApi, lessonsApi, dashboardApi } from '@/api';
-import type { Student, Guardian } from '@/types';
+import type { Student, Guardian, LinkedStudent } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
+import type { GuardianPrefill } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
@@ -37,6 +38,7 @@ export const StudentsPage: React.FC = () => {
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [isGuardianModalOpen, setIsGuardianModalOpen] = useState(false);
   const [selectedGuardian, setSelectedGuardian] = useState<Guardian | null>(null);
+  const [guardianPrefill, setGuardianPrefill] = useState<GuardianPrefill | undefined>(undefined);
   const queryClient = useQueryClient();
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +125,7 @@ export const StudentsPage: React.FC = () => {
   };
 
   const handleAddNew = () => {
+    setGuardianPrefill(undefined);
     setSelectedStudent(null);
     setIsModalOpen(true);
   };
@@ -135,6 +138,30 @@ export const StudentsPage: React.FC = () => {
   const handleAddGuardian = () => {
     setSelectedGuardian(null);
     setIsGuardianModalOpen(true);
+  };
+
+  // Guardian-first enrollment (the phone-call flow): carries over last
+  // name, home address, emergency contacts, and pickup address from the
+  // guardian's primary (or most-recent) linked student - guardians have no
+  // address fields of their own. Explicitly does NOT carry over dateOfBirth,
+  // permit details, or anything else student-specific.
+  const handleEnrollAnother = (guardian: Guardian, primaryStudent: LinkedStudent | null) => {
+    setGuardianPrefill({
+      guardianId: guardian.id,
+      lastName: guardian.lastName || primaryStudent?.lastName || undefined,
+      addressLine1: primaryStudent?.addressLine1,
+      addressLine2: primaryStudent?.addressLine2,
+      city: primaryStudent?.city,
+      state: primaryStudent?.state,
+      zipCode: primaryStudent?.zipCode,
+      emergencyContactFirstName: primaryStudent?.emergencyContactFirstName,
+      emergencyContactLastName: primaryStudent?.emergencyContactLastName,
+      emergencyContactPhone: primaryStudent?.emergencyContactPhone,
+    });
+    setIsGuardianModalOpen(false);
+    setSelectedGuardian(null);
+    setSelectedStudent(null);
+    setIsModalOpen(true);
   };
 
   const handleBookLesson = (student: Student) => {
@@ -1070,8 +1097,10 @@ export const StudentsPage: React.FC = () => {
           onClose={() => {
             setIsModalOpen(false);
             setSelectedStudent(null);
+            setGuardianPrefill(undefined);
           }}
           onBookLesson={handleBookLesson}
+          prefillFromGuardian={selectedStudent ? undefined : guardianPrefill}
         />
       )}
 
@@ -1099,6 +1128,7 @@ export const StudentsPage: React.FC = () => {
             setIsGuardianModalOpen(false);
             setSelectedGuardian(null);
           }}
+          onEnrollAnother={handleEnrollAnother}
         />
       )}
     </div>

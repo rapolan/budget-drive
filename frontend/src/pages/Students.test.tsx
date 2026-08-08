@@ -13,9 +13,26 @@ vi.mock('@/api', async () => {
     studentsApi: { ...actual.studentsApi, getAll: vi.fn() },
     lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
     dashboardApi: { ...actual.dashboardApi, getNoShowAlerts: vi.fn() },
-    guardiansApi: { ...actual.guardiansApi, getAll: vi.fn() },
+    guardiansApi: {
+      ...actual.guardiansApi,
+      getAll: vi.fn(),
+      getStudentsForGuardian: vi.fn().mockResolvedValue({ data: [] }),
+      findCandidates: vi.fn().mockResolvedValue({ data: [] }),
+    },
   };
 });
+
+vi.mock('@/contexts/TenantContext', () => ({
+  useTenant: () => ({
+    tenant: null,
+    tenantType: 'school',
+    settings: { defaultHoursRequired: 6 },
+    loading: false,
+    error: null,
+    refreshSettings: vi.fn(),
+    updateTheme: vi.fn(),
+  }),
+}));
 
 afterEach(cleanup);
 
@@ -197,5 +214,80 @@ describe('Students page - Guardians tab', () => {
     await userEvent.click(screen.getByText('Jane Doe'));
 
     expect(await screen.findByRole('button', { name: /save changes/i })).toBeInTheDocument();
+  });
+});
+
+// Guardian-first enrollment (the phone-call flow): "Enroll another student"
+// opens the student form pre-seeded with the guardian already linked and a
+// specific set of carried-over fields - never date of birth, permit
+// details, or anything else student-specific.
+describe('Students page - guardian-first enrollment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 50, total: 0, totalPages: 1 },
+    });
+    (guardiansApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'guardian-1',
+          tenantId: 'tenant-1',
+          firstName: 'Jane',
+          lastName: 'Doe',
+          email: 'jane@example.com',
+          phone: null,
+          createdAt: new Date('2026-01-01'),
+          updatedAt: new Date('2026-01-01'),
+        } as Guardian,
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+    (guardiansApi.getStudentsForGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'student-1',
+          fullName: 'Alice Doe',
+          lastName: 'Doe',
+          addressLine1: '123 Main St',
+          city: 'Springfield',
+          state: 'CA',
+          zipCode: '90001',
+          emergencyContactFirstName: 'Jane',
+          emergencyContactLastName: 'Doe',
+          emergencyContactPhone: '5550100',
+          isPrimary: true,
+          relationship: 'mother',
+        },
+      ],
+    });
+  });
+
+  it('opens the student form pre-filled from the guardian\'s primary student, without date of birth', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    renderStudentsPage();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Guardians' }));
+    await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('Jane Doe'));
+
+    const enrollButton = await screen.findByRole('button', { name: /enroll another student/i });
+    await userEvent.click(enrollButton);
+
+    // The student form opened in create mode with the guardian pre-selected.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /create student/i })).toBeInTheDocument();
+    });
+
+    const lastNameInput = document.getElementsByName('student_lastname_input')[0] as HTMLInputElement;
+    expect(lastNameInput.value).toBe('Doe');
+
+    const streetInput = document.getElementsByName('student_street_input')[0] as HTMLInputElement;
+    expect(streetInput.value).toBe('123 Main St');
+
+    const dobInput = document.getElementsByName('student_dob_input')[0] as HTMLInputElement;
+    expect(dobInput.value).toBe('');
   });
 });
