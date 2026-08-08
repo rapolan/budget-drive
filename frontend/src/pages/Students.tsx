@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
 import { studentsApi, lessonsApi, dashboardApi } from '@/api';
-import type { Student } from '@/types';
+import type { Student, Guardian } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
+import { GuardiansList } from '@/components/guardians/GuardiansList';
+import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
@@ -15,12 +17,14 @@ import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup' | 'needs_guardian';
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
+type ActiveView = 'students' | 'guardians';
 
 export const StudentsPage: React.FC = () => {
   const location = useLocation();
 
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
+  const [activeView, setActiveView] = useState<ActiveView>('students');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -31,6 +35,8 @@ export const StudentsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [comparisonMode, setComparisonMode] = useState<'month' | 'year'>('month');
   const [sortBy, setSortBy] = useState<SortOption>('name');
+  const [isGuardianModalOpen, setIsGuardianModalOpen] = useState(false);
+  const [selectedGuardian, setSelectedGuardian] = useState<Guardian | null>(null);
   const queryClient = useQueryClient();
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +125,16 @@ export const StudentsPage: React.FC = () => {
   const handleAddNew = () => {
     setSelectedStudent(null);
     setIsModalOpen(true);
+  };
+
+  const handleGuardianSelect = (guardian: Guardian) => {
+    setSelectedGuardian(guardian);
+    setIsGuardianModalOpen(true);
+  };
+
+  const handleAddGuardian = () => {
+    setSelectedGuardian(null);
+    setIsGuardianModalOpen(true);
   };
 
   const handleBookLesson = (student: Student) => {
@@ -361,19 +377,43 @@ export const StudentsPage: React.FC = () => {
           <BackButton />
           <h1 className="text-xl sm:text-2xl font-bold text-tx-primary mt-2">Students</h1>
           <p className="mt-1 text-sm text-tx-muted">
-            Manage your driving school students
+            Manage your driving school students and their guardians
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleAddNew}
-          className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
-        >
-          <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
-          Add Student
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-lg border border-edge bg-surface2 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveView('students')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeView === 'students' ? 'bg-surface text-tx-primary shadow-sm' : 'text-tx-secondary hover:text-tx-primary'
+              }`}
+            >
+              Students
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveView('guardians')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeView === 'guardians' ? 'bg-surface text-tx-primary shadow-sm' : 'text-tx-secondary hover:text-tx-primary'
+              }`}
+            >
+              Guardians
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={activeView === 'students' ? handleAddNew : handleAddGuardian}
+            className="flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-white hover:brightness-90 hover:bg-primary hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
+          >
+            <Plus className="mr-2 h-5 w-5 flex-shrink-0" />
+            {activeView === 'students' ? 'Add Student' : 'Add Guardian'}
+          </button>
+        </div>
       </div>
 
+      {activeView === 'students' && (
+      <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* New Students This Month */}
@@ -1015,6 +1055,13 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
       )}
+      </>
+      )}
+
+      {/* Guardians view */}
+      {activeView === 'guardians' && (
+        <GuardiansList onSelect={handleGuardianSelect} />
+      )}
 
       {/* Student Modal */}
       {isModalOpen && (
@@ -1042,6 +1089,17 @@ export const StudentsPage: React.FC = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Guardian Modal */}
+      {isGuardianModalOpen && (
+        <GuardianModal
+          guardian={selectedGuardian}
+          onClose={() => {
+            setIsGuardianModalOpen(false);
+            setSelectedGuardian(null);
+          }}
+        />
       )}
     </div>
   );
