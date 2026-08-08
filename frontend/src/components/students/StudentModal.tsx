@@ -2,26 +2,63 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
-  CheckCircle, AlertCircle, FileText, Users, Plus
+  CheckCircle, AlertCircle, FileText, Users, Plus, Search
 } from 'lucide-react';
-import { studentsApi, lessonsApi, instructorsApi } from '@/api';
-import type { Student, CreateStudentInput } from '@/types';
+import { studentsApi, lessonsApi, instructorsApi, guardiansApi } from '@/api';
+import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
+import { DuplicateGuardianConfirm } from '@/components/guardians/DuplicateGuardianConfirm';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
 import { calculateAge } from '@/utils/age';
 import { needsTurning18Alert } from '@/utils/turning18';
+import { useDebounce } from '@/hooks/useDebounce';
 
 type TabType = 'details' | 'progress' | 'history';
+
+type GuardianSelectionMode = 'none' | 'search' | 'selected-existing' | 'create-new';
+
+const RELATIONSHIP_OPTIONS: { value: GuardianRelationship; label: string }[] = [
+  { value: 'mother', label: 'Mother' },
+  { value: 'father', label: 'Father' },
+  { value: 'grandparent', label: 'Grandparent' },
+  { value: 'legal_guardian', label: 'Legal Guardian' },
+  { value: 'other', label: 'Other' },
+];
+
+// Query-routing heuristic for the guardian search box - NOT matching logic
+// (Constraint B). findGuardianCandidates ANDs firstName/lastName/email/
+// phone together, so a single free-text box can only target one param at
+// a time; this just decides which one, the backend does all matching.
+function routeGuardianQuery(term: string): { firstName?: string; lastName?: string; email?: string; phone?: string } {
+  const trimmed = term.trim();
+  if (trimmed.includes('@')) return { email: trimmed };
+  if (/^[\d\s()+-]+$/.test(trimmed)) return { phone: trimmed };
+  return { lastName: trimmed };
+}
+
+export interface GuardianPrefill {
+  guardianId: string;
+  lastName?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  emergencyContactFirstName?: string;
+  emergencyContactLastName?: string;
+  emergencyContactPhone?: string;
+}
 
 interface StudentModalProps {
   student: Student | null;
   onClose: () => void;
   onBookLesson?: (student: Student) => void;
+  prefillFromGuardian?: GuardianPrefill;
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
@@ -51,20 +88,20 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const [formData, setFormData] = useState<CreateStudentInput>({
     fullName: '',
     firstName: '',
-    lastName: '',
+    lastName: prefillFromGuardian?.lastName || '',
     middleName: '',
     email: '',
     phone: '',
     dateOfBirth: '',
     address: '',
-    addressLine1: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    emergencyContactFirstName: '',
-    emergencyContactLastName: '',
-    emergencyContactPhone: '',
+    addressLine1: prefillFromGuardian?.addressLine1 || '',
+    addressLine2: prefillFromGuardian?.addressLine2 || '',
+    city: prefillFromGuardian?.city || '',
+    state: prefillFromGuardian?.state || '',
+    zipCode: prefillFromGuardian?.zipCode || '',
+    emergencyContactFirstName: prefillFromGuardian?.emergencyContactFirstName || '',
+    emergencyContactLastName: prefillFromGuardian?.emergencyContactLastName || '',
+    emergencyContactPhone: prefillFromGuardian?.emergencyContactPhone || '',
     emergencyContact2FirstName: '',
     emergencyContact2LastName: '',
     emergencyContact2Phone: '',
@@ -78,6 +115,61 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Calculate student age from formData
   const studentAge = calculateAge(formData.dateOfBirth || '');
   const isAdult = studentAge !== null && studentAge >= 18;
+
+  // --- Guardian selection (create mode only) ---
+  // Constraint C: selecting a candidate or "create new" only sets local
+  // state here - the actual link/create only happens in handleSubmit.
+  const [guardianMode, setGuardianMode] = useState<GuardianSelectionMode>(
+    prefillFromGuardian ? 'selected-existing' : 'none'
+  );
+  const [guardianQuery, setGuardianQuery] = useState('');
+  const debouncedGuardianQuery = useDebounce(guardianQuery, 400);
+  const [selectedGuardianId, setSelectedGuardianId] = useState<string | null>(
+    prefillFromGuardian?.guardianId ?? null
+  );
+  const [selectedGuardian, setSelectedGuardian] = useState<GuardianCandidate | null>(null);
+  const [newGuardianFields, setNewGuardianFields] = useState({
+    firstName: '',
+    lastName: prefillFromGuardian?.lastName || '',
+    email: '',
+    phone: '',
+    relationship: '' as GuardianRelationship | '',
+  });
+  const [guardianRelationship, setGuardianRelationship] = useState<GuardianRelationship | ''>('');
+  const [sameAsGuardian, setSameAsGuardian] = useState(false);
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [duplicateMatches, setDuplicateMatches] = useState<Guardian[]>([]);
+
+  const { data: candidatesData } = useQuery({
+    queryKey: ['guardians', 'candidates', debouncedGuardianQuery],
+    queryFn: () => guardiansApi.findCandidates(routeGuardianQuery(debouncedGuardianQuery)),
+    enabled: !isEditing && guardianMode === 'search' && debouncedGuardianQuery.trim().length >= 2,
+  });
+  const candidates: GuardianCandidate[] = candidatesData?.data ?? [];
+
+  const handleSelectCandidate = (candidate: GuardianCandidate) => {
+    setSelectedGuardianId(candidate.id);
+    setSelectedGuardian(candidate);
+    setGuardianMode('selected-existing');
+  };
+
+  const handleCreateNewGuardian = () => {
+    setNewGuardianFields(prev => ({
+      ...prev,
+      // Prefill lastName once from the student's own last name, on first
+      // entry into create-new mode only - not re-synced afterward so it
+      // doesn't clobber an in-progress edit.
+      lastName: prev.lastName || formData.lastName || '',
+    }));
+    setGuardianMode('create-new');
+  };
+
+  const handleResetGuardianSelection = () => {
+    setGuardianMode('search');
+    setGuardianQuery('');
+    setSelectedGuardianId(null);
+    setSelectedGuardian(null);
+  };
 
   // Update hoursRequired when settings load
   useEffect(() => {
@@ -151,6 +243,25 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // Constraint A: the only entry point for creating a student together
+  // with a guardian - one atomic backend call, never create + a separate
+  // link request.
+  const createWithGuardianMutation = useMutation({
+    mutationFn: studentsApi.createWithGuardian,
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['guardians'] });
+      if (response.data) {
+        setCreatedStudent(response.data.student);
+      } else {
+        onClose();
+      }
+    },
+    onError: (error: Error & { response?: { data?: { error?: string } } }) => {
+      console.error('Create student with guardian error:', error);
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: (data: CreateStudentInput) => studentsApi.update(student!.id, data),
     onSuccess: () => {
@@ -187,9 +298,49 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Get error message from mutation
   const errorMessage = validationError ||
                        createMutation.error?.response?.data?.error ||
+                       createWithGuardianMutation.error?.response?.data?.error ||
                        updateMutation.error?.response?.data?.error ||
                        (createMutation.isError ? 'Failed to create student' : '') ||
+                       (createWithGuardianMutation.isError ? 'Failed to create student' : '') ||
                        (updateMutation.isError ? 'Failed to update student' : '');
+
+  const submitWithGuardian = async (submitData: CreateStudentInput, skipDuplicateCheck = false) => {
+    if (guardianMode === 'create-new' && !skipDuplicateCheck) {
+      const hasContact = newGuardianFields.email.trim() || newGuardianFields.phone.trim();
+      if (hasContact) {
+        const matchResult = await guardiansApi.findExactMatch({
+          email: newGuardianFields.email || undefined,
+          phone: newGuardianFields.phone || undefined,
+        });
+        if (matchResult.data && matchResult.data.length > 0) {
+          setDuplicateMatches(matchResult.data);
+          setShowDuplicateConfirm(true);
+          return; // halt - wait for an explicit choice in the confirm panel
+        }
+      }
+    }
+
+    await createWithGuardianMutation.mutateAsync({
+      student: submitData,
+      guardian:
+        guardianMode === 'selected-existing'
+          ? {
+              mode: 'existing',
+              guardianId: selectedGuardianId!,
+              relationship: guardianRelationship || undefined,
+              isPrimary: true,
+            }
+          : {
+              mode: 'new',
+              firstName: newGuardianFields.firstName || undefined,
+              lastName: newGuardianFields.lastName || undefined,
+              email: newGuardianFields.email || undefined,
+              phone: newGuardianFields.phone || undefined,
+              relationship: newGuardianFields.relationship || undefined,
+              isPrimary: true,
+            },
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,13 +370,56 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       fullName: generatedFullName,
     };
 
-    console.log('Form submitted!', submitData);
-
-    if (isEditing) {
+    if (!isEditing && (guardianMode === 'selected-existing' || guardianMode === 'create-new')) {
+      await submitWithGuardian(submitData);
+    } else if (isEditing) {
       await updateMutation.mutateAsync(submitData);
     } else {
       await createMutation.mutateAsync(submitData);
     }
+  };
+
+  // Duplicate-confirm panel actions (Constraint C: both require an
+  // explicit click; nothing here links automatically).
+  const handleLinkExistingFromDuplicate = async (guardianId: string) => {
+    setSelectedGuardianId(guardianId);
+    setGuardianMode('selected-existing');
+    setShowDuplicateConfirm(false);
+
+    const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    await createWithGuardianMutation.mutateAsync({
+      student: { ...formData, fullName: generatedFullName },
+      guardian: { mode: 'existing', guardianId, relationship: guardianRelationship || undefined, isPrimary: true },
+    });
+  };
+
+  const handleCreateSeparateFromDuplicate = async () => {
+    setShowDuplicateConfirm(false);
+    const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    await submitWithGuardian({ ...formData, fullName: generatedFullName }, true);
+  };
+
+  const handleSameAsGuardianToggle = (checked: boolean) => {
+    setSameAsGuardian(checked);
+    if (!checked) return;
+
+    const source =
+      guardianMode === 'selected-existing' && selectedGuardian
+        ? { firstName: selectedGuardian.firstName ?? '', lastName: selectedGuardian.lastName ?? '', phone: selectedGuardian.phone ?? '' }
+        : newGuardianFields;
+
+    setFormData(prev => ({
+      ...prev,
+      emergencyContactFirstName: source.firstName || prev.emergencyContactFirstName,
+      emergencyContactLastName: source.lastName || prev.emergencyContactLastName,
+      emergencyContactPhone: source.phone || prev.emergencyContactPhone,
+    }));
   };
 
   // Calculate form completion percentage
@@ -364,7 +558,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
         {/* Tab Content */}
         <div className="p-6">
           {/* Details Tab */}
-          {activeTab === 'details' && (
+          {activeTab === 'details' && showDuplicateConfirm && (
+            <DuplicateGuardianConfirm
+              matches={duplicateMatches}
+              onLinkExisting={handleLinkExistingFromDuplicate}
+              onCreateSeparate={handleCreateSeparateFromDuplicate}
+              onCancel={() => setShowDuplicateConfirm(false)}
+            />
+          )}
+
+          {activeTab === 'details' && !showDuplicateConfirm && (
             <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-lpignore="true" data-form-type="other">
 
               {/* Section 1: Basic Info */}
@@ -550,23 +753,20 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 <input type="hidden" name="address" value={formData.address} />
               </div>
 
-              {/* Section 3: Parent/Guardian */}
+              {/* Section 3: Guardian (structured, linked record) */}
               <div className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4 text-tx-muted" />
-                  Parent/Guardian
-                  {!hasAtLeastOnePhone && (
-                    <span className="text-xs font-normal text-status-danger-text normal-case">* Phone required if student has none</span>
+                  Guardian
+                  {!isAdult && studentAge !== null && (
+                    <span className="text-xs font-normal text-tx-muted normal-case">
+                      (recommended for minors - required before program completion)
+                    </span>
                   )}
                 </h3>
 
-                {/* Guardian record requirement - the fields below are a
-                    free-text emergency contact, separate from a linked
-                    guardian record. Minors need at least one guardian
-                    record linked (via the guardians API) before their
-                    program can be marked complete - the backend enforces
-                    this at completion time, not at save time, since a new
-                    student has no id to link a guardian to yet. */}
+                {/* Existing-record warning - kept verbatim for correcting
+                    records created before this feature existed. */}
                 {isEditing && student?.needsGuardian && (
                   <div className="bg-status-warning-bg border border-status-warning-border rounded-lg px-4 py-3 flex items-start gap-2">
                     <AlertCircle className="h-4 w-4 text-status-warning-text mt-0.5 flex-shrink-0" />
@@ -575,13 +775,192 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     </p>
                   </div>
                 )}
-                {!isEditing && !isAdult && studentAge !== null && (
-                  <div className="bg-status-info-bg border border-status-info-border rounded-lg px-4 py-3 flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-tx-secondary">
-                      This student is a minor and will need a linked guardian record before their program can be marked complete. The fields below are saved as contact info; add a linked guardian after creating this student.
-                    </p>
+
+                {/* Guardian picker - create mode only. Editing an existing
+                    student's guardians happens via the Guardians tab. */}
+                {!isEditing && (
+                  <div className="space-y-3">
+                    {guardianMode === 'none' && (
+                      <button
+                        type="button"
+                        onClick={() => setGuardianMode('search')}
+                        className="flex items-center gap-2 text-sm text-primary hover:text-primary font-medium"
+                      >
+                        <Search className="h-4 w-4" />
+                        Link a guardian
+                      </button>
+                    )}
+
+                    {guardianMode === 'search' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center rounded-lg border border-edge-strong bg-surface px-3 py-2">
+                          <Search className="h-4 w-4 text-tx-muted flex-shrink-0" />
+                          <input
+                            type="text"
+                            name="guardian_search_input"
+                            value={guardianQuery}
+                            onChange={(e) => setGuardianQuery(e.target.value)}
+                            autoComplete="off"
+                            className="ml-2 flex-1 border-none bg-transparent outline-none text-sm text-tx-primary placeholder-gray-400"
+                            placeholder="Search by name, email, or phone..."
+                          />
+                        </div>
+
+                        {candidates.length > 0 && (
+                          <div className="space-y-1.5">
+                            {candidates.map((candidate) => (
+                              <button
+                                type="button"
+                                key={candidate.id}
+                                onClick={() => handleSelectCandidate(candidate)}
+                                className="w-full text-left px-3 py-2 bg-surface2 rounded-lg hover:bg-surface3 transition-colors"
+                              >
+                                <div className="text-sm font-medium text-tx-primary">
+                                  {candidate.firstName} {candidate.lastName}
+                                  {' · '}
+                                  <span className="text-tx-muted font-normal">
+                                    {candidate.email || candidate.phone}
+                                  </span>
+                                </div>
+                                {candidate.linkedStudentNames.length > 0 && (
+                                  <div className="text-xs text-tx-muted mt-0.5">
+                                    Parent of: {candidate.linkedStudentNames.join(', ')}
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleCreateNewGuardian}
+                          className="w-full text-left px-3 py-2 border border-dashed border-edge-strong rounded-lg text-sm text-primary hover:bg-surface2 transition-colors flex items-center gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Create new guardian instead
+                        </button>
+                      </div>
+                    )}
+
+                    {guardianMode === 'selected-existing' && selectedGuardian && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2 bg-status-info-bg rounded-lg">
+                        <div className="text-sm text-tx-primary">
+                          <span className="font-medium">
+                            {selectedGuardian.firstName} {selectedGuardian.lastName}
+                          </span>{' '}
+                          <span className="text-tx-muted">
+                            {selectedGuardian.email || selectedGuardian.phone}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetGuardianSelection}
+                          className="text-xs text-primary hover:text-primary flex-shrink-0"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
+
+                    {(guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
+                      <div>
+                        <label className="block text-sm font-medium text-tx-secondary mb-1.5">Relationship</label>
+                        <select
+                          value={guardianMode === 'create-new' ? newGuardianFields.relationship : guardianRelationship}
+                          onChange={(e) => {
+                            const value = e.target.value as GuardianRelationship | '';
+                            if (guardianMode === 'create-new') {
+                              setNewGuardianFields(prev => ({ ...prev, relationship: value }));
+                            } else {
+                              setGuardianRelationship(value);
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm bg-surface"
+                        >
+                          <option value="">Select relationship...</option>
+                          {RELATIONSHIP_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {guardianMode === 'create-new' && (
+                      <div className="space-y-3 p-3 bg-surface2 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-tx-secondary uppercase tracking-wide">New Guardian</span>
+                          <button
+                            type="button"
+                            onClick={handleResetGuardianSelection}
+                            className="text-xs text-primary hover:text-primary"
+                          >
+                            Search instead
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={newGuardianFields.firstName}
+                            onChange={(e) => setNewGuardianFields(prev => ({ ...prev, firstName: e.target.value }))}
+                            autoComplete="new-password"
+                            className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                            placeholder="First"
+                          />
+                          <input
+                            type="text"
+                            value={newGuardianFields.lastName}
+                            onChange={(e) => setNewGuardianFields(prev => ({ ...prev, lastName: e.target.value }))}
+                            autoComplete="new-password"
+                            className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                            placeholder="Last"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="email"
+                            value={newGuardianFields.email}
+                            onChange={(e) => setNewGuardianFields(prev => ({ ...prev, email: e.target.value }))}
+                            autoComplete="new-password"
+                            className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                            placeholder="email@example.com"
+                          />
+                          <input
+                            type="tel"
+                            value={newGuardianFields.phone}
+                            onChange={(e) => setNewGuardianFields(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
+                            autoComplete="new-password"
+                            className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                            placeholder="(555) 123-4567"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
+                )}
+              </div>
+
+              {/* Section 3b: Emergency Contact - structurally separate
+                  free-text fields, distinct from a linked guardian record. */}
+              <div className="space-y-4 pt-4 border-t border-edge">
+                <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
+                  <Users className="h-4 w-4 text-tx-muted" />
+                  Emergency Contact
+                  {!hasAtLeastOnePhone && (
+                    <span className="text-xs font-normal text-status-danger-text normal-case">* Phone required if student has none</span>
+                  )}
+                </h3>
+
+                {!isEditing && (guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
+                  <label className="flex items-center gap-2 text-sm text-tx-secondary">
+                    <input
+                      type="checkbox"
+                      checked={sameAsGuardian}
+                      onChange={(e) => handleSameAsGuardianToggle(e.target.checked)}
+                      className="rounded border-edge-strong text-primary focus:ring-primary"
+                    />
+                    Same as guardian above
+                  </label>
                 )}
 
                 <div>
@@ -748,10 +1127,10 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
+                    disabled={createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
                     className="px-6 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed transition-colors"
                   >
-                    {createMutation.isPending || updateMutation.isPending
+                    {createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending
                       ? 'Saving...'
                       : isEditing
                       ? 'Save Changes'

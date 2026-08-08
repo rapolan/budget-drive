@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
-import { studentsApi } from '@/api';
-import type { Student } from '@/types';
+import { studentsApi, guardiansApi } from '@/api';
+import type { Student, GuardianCandidate } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -12,11 +12,33 @@ vi.mock('@/api', async () => {
     studentsApi: {
       ...actual.studentsApi,
       create: vi.fn(),
+      createWithGuardian: vi.fn(),
+    },
+    guardiansApi: {
+      ...actual.guardiansApi,
+      findCandidates: vi.fn().mockResolvedValue({ data: [] }),
+      findExactMatch: vi.fn().mockResolvedValue({ data: [] }),
+      getStudentsForGuardian: vi.fn().mockResolvedValue({ data: [] }),
     },
     lessonsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
   };
 });
+
+function guardianCandidate(overrides: Partial<GuardianCandidate> = {}): GuardianCandidate {
+  return {
+    id: 'guardian-1',
+    tenantId: 'tenant-1',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    email: 'jane@example.com',
+    phone: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    linkedStudentNames: [],
+    ...overrides,
+  } as GuardianCandidate;
+}
 
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({
@@ -237,19 +259,277 @@ describe('StudentModal - needsGuardian surfaced in the guardian section', () => 
     expect(screen.queryByText(/needs a linked guardian record/i)).not.toBeInTheDocument();
   });
 
-  it('shows an informational note for a new minor student before it is saved', () => {
+  it('shows the "recommended for minors" hint and the guardian picker entry point for a new minor student', () => {
     renderModal(); // create mode, student is null
 
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
 
-    expect(screen.getByText(/will need a linked guardian record/i)).toBeInTheDocument();
+    expect(screen.getByText(/recommended for minors/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /link a guardian/i })).toBeInTheDocument();
   });
 
-  it('shows no guardian note for a new adult student', () => {
+  it('does not show the "recommended for minors" hint for a new adult student, but the picker is still available', () => {
     renderModal();
 
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
 
-    expect(screen.queryByText(/linked guardian record/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/recommended for minors/i)).not.toBeInTheDocument();
+    // Adults may also link a guardian - it's optional either way, not gated by age.
+    expect(screen.getByRole('button', { name: /link a guardian/i })).toBeInTheDocument();
+  });
+});
+
+// Constraint B: the frontend calls the backend matching endpoint and
+// renders exactly what it returns - no client-side ranking/dedup. Only the
+// query-param routing (which single field a free-text box maps to) is
+// decided client-side.
+describe('StudentModal - guardian type-ahead (Constraint B)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('shows candidates with disambiguating context and a permanent "create new" option', async () => {
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        guardianCandidate({ id: 'g1', firstName: 'Jane', lastName: 'Smith', linkedStudentNames: ['Alice Smith', 'Bob Smith'] }),
+      ],
+    });
+
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Smith' } });
+
+    await waitFor(() => {
+      expect(guardiansApi.findCandidates).toHaveBeenCalledWith({ lastName: 'Smith' });
+    });
+
+    expect(await screen.findByText(/Jane Smith/)).toBeInTheDocument();
+    expect(screen.getByText(/Parent of: Alice Smith, Bob Smith/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create new guardian instead/i })).toBeInTheDocument();
+  });
+
+  it('routes an email-shaped query to the email param, not lastName', async () => {
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), {
+      target: { value: 'jane@example.com' },
+    });
+
+    await waitFor(() => {
+      expect(guardiansApi.findCandidates).toHaveBeenCalledWith({ email: 'jane@example.com' });
+    });
+  });
+
+  it('selecting a candidate shows it as selected and never calls a link/create endpoint before submit', async () => {
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [guardianCandidate({ id: 'g1', firstName: 'Jane', lastName: 'Doe' })],
+    });
+
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+
+    const candidateButton = await screen.findByText(/Jane Doe/);
+    fireEvent.click(candidateButton);
+
+    expect(screen.getByText('Change')).toBeInTheDocument();
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+  });
+
+  it('"Create new guardian instead" reveals editable fields and is always present regardless of results', async () => {
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [guardianCandidate({ id: 'g1' })],
+    });
+
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+    await screen.findByText(/Jane Doe/);
+
+    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
+
+    expect(screen.getByText('New Guardian')).toBeInTheDocument();
+  });
+});
+
+// Constraint A: creating a student with a guardian must go through the
+// single atomic endpoint, never create() followed by a separate link call.
+describe('StudentModal - atomic create with guardian (Constraint A)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [guardianCandidate({ id: 'g1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' })],
+    });
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { student: { id: 'student-1', fullName: 'Minor Student' }, guardian: { id: 'g1' }, link: { id: 'link-1' } },
+    });
+  });
+
+  function fillBasicFields() {
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Minor' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+  }
+
+  it('calls studentsApi.createWithGuardian (not create) when an existing guardian is selected, and never calls create()', async () => {
+    renderModal();
+    fillBasicFields();
+
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+    const candidateButton = await screen.findByText(/Jane Doe/);
+    fireEvent.click(candidateButton);
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    expect(studentsApi.create).not.toHaveBeenCalled();
+
+    const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.guardian).toEqual({ mode: 'existing', guardianId: 'g1', relationship: undefined, isPrimary: true });
+  });
+
+  it('calls studentsApi.createWithGuardian with mode=new when creating a new guardian, and never calls create()', async () => {
+    renderModal();
+    fillBasicFields();
+
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'New' } });
+    fireEvent.change(lastNameInput, { target: { value: 'Guardian' } });
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    expect(studentsApi.create).not.toHaveBeenCalled();
+
+    const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.guardian.mode).toBe('new');
+    expect(payload.guardian.firstName).toBe('New');
+    expect(payload.guardian.lastName).toBe('Guardian');
+  });
+
+  it('plain create() is still used when no guardian is being linked (adults, or minors deferring guardian setup)', async () => {
+    renderModal();
+    fillBasicFields();
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalledTimes(1));
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+  });
+});
+
+// Constraint C: never merge silently. A new guardian whose email/phone
+// exactly matches an existing record must surface a confirm panel with an
+// explicit choice, never an automatic link, and never on name alone.
+describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.getStudentsForGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 's1', fullName: 'Alice Smith' }],
+    });
+    (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { student: { id: 'student-1', fullName: 'New Student' }, guardian: { id: 'g-existing' }, link: { id: 'link-1' } },
+    });
+  });
+
+  function fillBasicFieldsAndNewGuardian(email: string) {
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'New' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
+    fireEvent.change(emailInput, { target: { value: email } });
+  }
+
+  it('shows the confirm panel when a new guardian email exactly matches an existing one, and does not submit yet', async () => {
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'g-existing', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null }],
+    });
+
+    renderModal();
+    fillBasicFieldsAndNewGuardian('jane@example.com');
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
+    expect(await screen.findByText(/parent of Alice Smith/i)).toBeInTheDocument();
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+  });
+
+  it('"Link to this guardian" links the existing match instead of creating a separate record', async () => {
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'g-existing', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null }],
+    });
+
+    renderModal();
+    fillBasicFieldsAndNewGuardian('jane@example.com');
+
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+    await screen.findByText(/already exists/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /link to this guardian/i }));
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.guardian).toMatchObject({ mode: 'existing', guardianId: 'g-existing' });
+  });
+
+  it('"Create separate record" proceeds with the original new-guardian payload, bypassing the match', async () => {
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'g-existing', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null }],
+    });
+
+    renderModal();
+    fillBasicFieldsAndNewGuardian('jane@example.com');
+
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+    await screen.findByText(/already exists/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /create separate record/i }));
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.guardian).toMatchObject({ mode: 'new', email: 'jane@example.com' });
+  });
+
+  it('never checks for duplicates on name alone - only when email or phone is present', async () => {
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderModal();
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'New' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    fireEvent.change(lastNameInput, { target: { value: 'Doe' } }); // matches an existing guardian's surname, but no email/phone entered
+
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    expect(guardiansApi.findExactMatch).not.toHaveBeenCalled();
   });
 });
