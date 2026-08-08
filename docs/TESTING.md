@@ -179,31 +179,43 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Also check — completion:** Use the "Mark program complete" action (requires a non-empty reason) on any student. The student's status becomes `completed` and they still appear in bookable lists. This is a manual admin decision — there is no automatic hours-threshold completion.
 
-### 2.3b Guardians (API only - no frontend UI yet)
+### 2.3b Guardians tab
 
-**Do:** With a valid admin token, exercise the guardian endpoints directly:
+**Do:** Go to `/students`. Click the **Guardians** segment in the header toggle (next to **Students**, in the same header row — there is no separate top-level nav item for this).
 
-```bash
-TOKEN="<token from login>"
-# Create a guardian
-curl -s -X POST http://localhost:4000/api/v1/guardians \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"firstName":"Test","lastName":"Parent","phone":"555-0100"}'
-# -> 201, returns the new guardian's id
+**Pass looks like:** The page body swaps to a guardians list (name, email/phone, paginated) with its own search box behavior — typing filters the currently-loaded page client-side. The "Add Student" button relabels to "Add Guardian" and opens a blank `GuardianModal`. Clicking any guardian row opens that guardian's detail modal.
 
-# Link it to a seeded minor student (replace <studentId>/<guardianId>)
-curl -s -X POST http://localhost:4000/api/v1/students/<studentId>/guardians \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"guardianId":"<guardianId>","relationship":"mother","isPrimary":true}'
-# -> 201
+**Also check — guardian detail:** Open an existing guardian (one linked to a seeded student, e.g. via the setup below). The modal shows editable first/last/email/phone fields and a **Linked Students** section listing every student currently linked to them (relationship badge, a star icon on the primary), *not* labeled "past and present" — this app has no unlink history, so the section only ever shows current links.
 
-# Search across both students and guardians
-curl -s "http://localhost:4000/api/v1/search/people?q=Parent" -H "Authorization: Bearer $TOKEN"
-```
+### 2.3c Guardian-first enrollment (the phone-call flow)
 
-**Pass looks like:** Guardian create/link/search all succeed as shown. `GET /api/v1/students/<studentId>` for a minor with no linked guardian shows `"needsGuardian": true`; after linking, it flips to `false`. `POST /api/v1/students/<studentId>/complete` on a still-guardian-less minor returns `400` with a message naming the missing guardian requirement.
+**Do:** From an existing guardian's detail modal (2.3b), click **Enroll another student**.
 
-**Note:** this feature has no frontend surface yet (no guardian list page, no link-guardian UI in the student form) — this is expected for this round, not a bug to chase.
+**Pass looks like:** The student form opens in create mode with that guardian already selected in the Guardian section (shown as a name + "Change" link, not the search box). The **last name**, **home address**, and **emergency contact** fields are pre-filled from the guardian's primary (or most-recently-added) linked student. **Date of birth, training hours, and permit fields are blank** — confirm these are never carried over. Fill in the remaining required fields and submit; the student is created and linked to the guardian in one request (`POST /api/v1/students/with-guardian` — check the Network tab, there should be no separate follow-up `POST /students/:id/guardians` call).
+
+### 2.3d Student-first guardian type-ahead (the walk-in flow)
+
+**Do:** Click **Add Student** (Students tab). In the new "Guardian" section, click **Link a guardian**, then type a name, email, or phone that matches an existing guardian (e.g. one created in 2.3b).
+
+**Pass looks like:** Candidates appear below the search box as you type, each showing email/phone and, if applicable, "Parent of: <names>" for disambiguation. A **"Create new guardian instead"** option is always present at the bottom of the list, even when candidates are shown. Clicking a candidate selects it (shown as name + "Change") and reveals a **Relationship** dropdown (mother/father/grandparent/legal guardian/other). Clicking "Create new guardian instead" instead reveals blank first/last/email/phone fields, with last name pre-filled from the student's own last name (editable). Neither action does anything by itself — no network request fires until the form is actually submitted.
+
+**Also check — emergency contact "same as guardian":** With a guardian selected or being created, check the new "Same as guardian above" checkbox in the Emergency Contact section below. Confirm it copies name and phone into the emergency-contact fields, and that unchecking it does *not* clear those fields afterward.
+
+### 2.3e Duplicate guardian confirm
+
+**Do:** Start creating a new student. In the Guardian section, choose "Create new guardian instead" and enter an email or phone that already belongs to an existing guardian (not one you selected from the type-ahead). Submit the form.
+
+**Pass looks like:** Instead of saving, the form body swaps to a confirmation panel naming the matched guardian and their linked students (e.g. "Jane Doe, parent of Alice Smith"), with two buttons: **Link to this guardian** and **Create separate record**, plus Cancel. Confirm: this panel never appears for a name-only match (only email/phone), and nothing is saved until you click one of the two buttons. "Link to this guardian" links the existing record; "Create separate record" proceeds with a brand-new guardian sharing that contact info (this app allows that on purpose — e.g. divorced parents).
+
+### 2.3f Siblings and unified search
+
+**Do:** Using 2.3c or 2.3d, enroll two students under the same guardian. Open either student's detail view.
+
+**Pass looks like:** A "Siblings: <name>" line appears (details view) listing the other student(s) sharing that guardian. Then, from either the Students or Guardians tab, type part of a name/email/phone shared by a student and a guardian into the shared search box.
+
+**Pass looks like (search):** Results overlay the current tab's list regardless of which tab is active, each row labeled "Student" or "Guardian". The status filter chips are hidden while search results are showing. Clearing the box reverts to the normal list for whichever tab is active.
+
+**Note:** existing `needsGuardian` warning banner (in the student form) and the "Needs Guardian" badge/filter chip (Students list) are unchanged by this feature — they exist specifically to flag records created *before* this guardian UI existed, so admins can go back and correct them.
 
 ### 2.4 Book a lesson (happy path)
 

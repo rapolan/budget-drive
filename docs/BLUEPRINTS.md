@@ -28,6 +28,8 @@ Students can be linked to one or more guardian records (parents/legal guardians)
 - Minors require at least one linked guardian before their program can be marked complete (not before creation — a new minor student can exist guardian-less while the guardian is being set up, surfaced via a `needsGuardian` flag).
 - Exactly one guardian per student can be marked primary.
 - A combined `GET /search/people` endpoint searches students and guardians together by name, email, or phone, so front-desk staff don't have to choose a page before searching.
+- **Atomic creation:** `POST /students/with-guardian` creates a student and creates-or-links a guardian in a single database transaction — a failure at any step leaves nothing persisted, so a student can never end up saved with a guardian half-linked. This is additive alongside the original `POST /students`, which is unchanged and still used whenever a guardian isn't being linked at creation time (adults; minors whose guardian setup is deferred to a walk-in-style follow-up).
+- **Full frontend UI**: a Students | Guardians segmented tab (sharing the Students page's shell, not a new nav item), guardian detail with linked-students and an "Enroll another student" action, a student-form guardian type-ahead (walk-in flow) and guardian-first prefilled enrollment (phone-call flow), a duplicate-guardian confirmation step, sibling display, and the unified cross-entity search wired into the shared search bar.
 
 ---
 
