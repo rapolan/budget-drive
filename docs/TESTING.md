@@ -80,6 +80,7 @@ This runs every file in `backend/database/seeds/` in order (`000_admin_user.sql`
   - 3 Vehicles
   - 40 Lessons
   - 20 Payments
+  - 0 Active Recurring Patterns
 
 ✅ All data integrity checks passed!
 ```
@@ -169,11 +170,13 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** All 8 seeded students appear (Sarah, Michael, Jessica, Tyler, Aisha, Noah, Olivia, Marcus), with progress stages visibly different — Noah at 0 hours, Olivia near 30/30, Marcus at `completed` status. Search and status filter both narrow the list correctly. Opening a student shows their lesson history including a mix of completed/cancelled entries for students who have them (e.g. Michael Chen has a cancelled lesson).
 
+**Note on ages:** Noah Kim's and Olivia Garcia's dates of birth are seeded *relative to the current date* (`CURRENT_DATE - INTERVAL 'N years'`), not fixed calendar dates, specifically so they stay minors (and therefore stay on the hours track) no matter how much real time has passed since the repo was cloned. Every other seeded student has a fixed date of birth and will drift into adulthood over the years — that's expected, not a bug to chase.
+
 ### 2.3a Progress, completion, and alerts
 
-**Do:** Open a minor student's detail record (any seeded student under 18) and check their Progress tab. Then open the Dashboard.
+**Do:** Open Noah Kim's or Olivia Garcia's detail record (the two seeded minors) and check their Progress tab. Then open the Dashboard.
 
-**Pass looks like:** The minor's progress shows an hours-style label (e.g. `"4.5 / 6 hrs"`); an adult student's Progress tab instead shows a lessons-style label (e.g. `"2 of 3 lessons (67%)"`, or `"No lessons booked"` if they have none — not `"0%"`). If a seeded student is 18+ but still under-booked on the hours track, the Dashboard's Alerts card shows a "Turning 18" row; clicking it filters the Students list. From that student's Progress tab, the three admin actions (keep on hours track / switch to lessons track / mark program complete) are visible and each calls through to `PUT /students/:id` or `POST /students/:id/complete`.
+**Pass looks like:** Their progress shows an hours-style label (e.g. `"2 / 30.00 hrs"`); an adult student's Progress tab instead shows a lessons-style label (e.g. `"2 of 3 lessons (67%)"`, or `"No lessons booked"` if they have none — not `"0%"`). The Dashboard's Alerts card shows a "Turning 18" row for **Aisha Williams** — she's seeded as an adult but pinned to the hours track via `track_override` (so this alert has a stable example regardless of how her literal age drifts over time) and is permanently under-booked (28 completed + 8 scheduled hours < 30 required). Clicking the alert filters the Students list. From that student's Progress tab, the three admin actions (keep on hours track / switch to lessons track / mark program complete) are visible and each calls through to `PUT /students/:id` or `POST /students/:id/complete`.
 
 **Also check — no-show follow-up:** Mark a scheduled lesson as `no_show` (via its lesson actions). The Dashboard's Alerts card should show a "No-Show Follow-Up" row for that student, with a dismiss button. Dismissing it removes the row. Separately, booking that student a new lesson should also clear the alert automatically (refresh the Dashboard to confirm) without needing to dismiss it manually.
 
@@ -185,13 +188,15 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** The page body swaps to a guardians list (name, email/phone, paginated) with its own search box behavior — typing filters the currently-loaded page client-side. The "Add Student" button relabels to "Add Guardian" and opens a blank `GuardianModal`. Clicking any guardian row opens that guardian's detail modal.
 
-**Also check — guardian detail:** Open an existing guardian (one linked to a seeded student, e.g. via the setup below). The modal shows editable first/last/email/phone fields and a **Linked Students** section listing every student currently linked to them (relationship badge, a star icon on the primary), *not* labeled "past and present" — this app has no unlink history, so the section only ever shows current links.
+**Also check — guardian detail:** Open **Grace Kim**, the one seeded guardian — she's linked to Noah Kim as primary mother. The modal shows editable first/last/email/phone fields and a **Linked Students** section listing every student currently linked to them (relationship badge, a star icon on the primary), *not* labeled "past and present" — this app has no unlink history, so the section only ever shows current links. Olivia Garcia (also a minor) is seeded with zero guardians on purpose — she's the example for the `needsGuardian` check in 2.3f.
 
 ### 2.3c Guardian-first enrollment (the phone-call flow)
 
 **Do:** From an existing guardian's detail modal (2.3b), click **Enroll another student**.
 
 **Pass looks like:** The student form opens in create mode with that guardian already selected in the Guardian section (shown as a name + "Change" link, not the search box). The **last name**, **home address**, and **emergency contact** fields are pre-filled from the guardian's primary (or most-recently-added) linked student. **Date of birth, training hours, and permit fields are blank** — confirm these are never carried over. Fill in the remaining required fields and submit; the student is created and linked to the guardian in one request (`POST /api/v1/students/with-guardian` — check the Network tab, there should be no separate follow-up `POST /students/:id/guardians` call).
+
+**Note if using the seeded Grace Kim / Noah Kim pair:** Noah's seeded address only fills the legacy free-text `address` field, not the structured `address_line1`/city/state/zip columns the student form actually prefills from — so the home-address fields will come up blank. That's expected given the seed data, not a bug; pick a student with a structured address if you want to see the prefill populate.
 
 ### 2.3d Student-first guardian type-ahead (the walk-in flow)
 

@@ -96,7 +96,7 @@ BEGIN
 
     INSERT INTO students (
         id, tenant_id, full_name, email, phone, date_of_birth,
-        address, emergency_contact, license_type, enrollment_date,
+        address, emergency_contact_first_name, emergency_contact_phone, license_type, enrollment_date,
         status, total_hours_completed, hours_required,
         assigned_instructor_id, payment_status, total_paid, outstanding_balance
     ) VALUES
@@ -104,7 +104,7 @@ BEGIN
         gen_random_uuid(), v_tenant_id,
         'Jessica Park', 'jessica.park@email.com', '(555) 333-1111',
         '2007-08-20', '333 Hill Rd, Los Angeles, CA 90006',
-        'Dad: (555) 333-2222', 'car', CURRENT_DATE - INTERVAL '30 days',
+        'Dad', '(555) 333-2222', 'car', CURRENT_DATE - INTERVAL '30 days',
         'active', 4.0, 30.0,
         v_instructor_john_id, 'partial', 200.00, 700.00
     ),
@@ -112,7 +112,7 @@ BEGIN
         gen_random_uuid(), v_tenant_id,
         'Tyler Brooks', 'tyler.brooks@email.com', '(555) 444-1111',
         '2006-03-14', '444 Oak Dr, Los Angeles, CA 90007',
-        'Mom: (555) 444-2222', 'car', CURRENT_DATE - INTERVAL '60 days',
+        'Mom', '(555) 444-2222', 'car', CURRENT_DATE - INTERVAL '60 days',
         'active', 20.0, 30.0,
         v_instructor_maria_id, 'paid', 900.00, 0.00
     ),
@@ -120,11 +120,18 @@ BEGIN
         gen_random_uuid(), v_tenant_id,
         'Aisha Williams', 'aisha.williams@email.com', '(555) 555-1111',
         '2005-11-05', '555 Maple Ave, Los Angeles, CA 90008',
-        'Mom: (555) 555-2222', 'car', CURRENT_DATE - INTERVAL '90 days',
+        'Mom', '(555) 555-2222', 'car', CURRENT_DATE - INTERVAL '90 days',
         'active', 28.0, 30.0,
         v_instructor_john_id, 'partial', 800.00, 100.00
     )
     ON CONFLICT DO NOTHING;
+
+    -- Aisha Williams is an adult (fixed DOB, ages normally), but is pinned to
+    -- the hours track so the turning-18 alert has a stable, always-under-booked
+    -- example to fire on (28 completed + 8 scheduled < 30 required) regardless
+    -- of how much real time has passed since seeding.
+    UPDATE students SET track_override = 'hours'
+    WHERE tenant_id = v_tenant_id AND email = 'aisha.williams@email.com';
 
     -- =====================================================
     -- LESSONS - Today and next 7 days
@@ -145,17 +152,17 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_sarah_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE, '09:00', '11:00', 2.0, 'scheduled', 'behind_wheel', 70.00,
+            CURRENT_DATE, '09:00', '11:00', 120, 'scheduled', 'behind_wheel', 70.00,
             'Focus on freeway driving and lane changes'
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_jessica_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE, '13:00', '15:00', 2.0, 'scheduled', 'behind_wheel', 70.00,
+            CURRENT_DATE, '13:00', '15:00', 120, 'scheduled', 'behind_wheel', 70.00,
             'Parking practice and residential streets'
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE, '10:00', '12:00', 2.0, 'scheduled', 'behind_wheel', 70.00,
+            CURRENT_DATE, '10:00', '12:00', 120, 'scheduled', 'behind_wheel', 70.00,
             'Pre-test route practice'
         );
 
@@ -164,11 +171,11 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_tyler_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE + INTERVAL '1 day', '09:00', '11:00', 2.0, 'scheduled', 'behind_wheel', 70.00
+            CURRENT_DATE + INTERVAL '1 day', '09:00', '11:00', 120, 'scheduled', 'behind_wheel', 70.00
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_aisha_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE + INTERVAL '1 day', '14:00', '16:00', 2.0, 'scheduled', 'road_test_prep', 85.00
+            CURRENT_DATE + INTERVAL '1 day', '14:00', '16:00', 120, 'scheduled', 'road_test_prep', 85.00
         );
 
         -- ---- DAY +2 ----
@@ -176,11 +183,11 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_sarah_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE + INTERVAL '2 days', '10:00', '12:00', 2.0, 'scheduled', 'behind_wheel', 70.00
+            CURRENT_DATE + INTERVAL '2 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel', 70.00
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE + INTERVAL '2 days', '13:00', '15:00', 2.0, 'scheduled', 'behind_wheel', 70.00
+            CURRENT_DATE + INTERVAL '2 days', '13:00', '15:00', 120, 'scheduled', 'behind_wheel', 70.00
         );
 
         -- ---- DAY +3 ----
@@ -188,7 +195,7 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_jessica_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE + INTERVAL '3 days', '09:00', '11:00', 2.0, 'scheduled', 'behind_wheel', 70.00
+            CURRENT_DATE + INTERVAL '3 days', '09:00', '11:00', 120, 'scheduled', 'behind_wheel', 70.00
         );
 
         -- ---- DAY +4 ----
@@ -196,11 +203,11 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_aisha_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE + INTERVAL '4 days', '11:00', '13:00', 2.0, 'scheduled', 'road_test_prep', 85.00
+            CURRENT_DATE + INTERVAL '4 days', '11:00', '13:00', 120, 'scheduled', 'road_test_prep', 85.00
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_tyler_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE + INTERVAL '4 days', '14:00', '16:00', 2.0, 'scheduled', 'behind_wheel', 70.00
+            CURRENT_DATE + INTERVAL '4 days', '14:00', '16:00', 120, 'scheduled', 'behind_wheel', 70.00
         );
 
         -- ---- DAY +5 ----
@@ -208,7 +215,7 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE + INTERVAL '5 days', '09:00', '11:00', 2.0, 'scheduled', 'behind_wheel', 70.00
+            CURRENT_DATE + INTERVAL '5 days', '09:00', '11:00', 120, 'scheduled', 'behind_wheel', 70.00
         );
 
         -- ---- PAST COMPLETED (last 2 weeks) ----
@@ -216,27 +223,27 @@ BEGIN
         VALUES
         (
             gen_random_uuid(), v_tenant_id, v_student_sarah_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE - INTERVAL '3 days', '09:00', '11:00', 2.0, 'completed', 'behind_wheel', 70.00, 'good', 5, true
+            CURRENT_DATE - INTERVAL '3 days', '09:00', '11:00', 120, 'completed', 'behind_wheel', 70.00, 'good', 5, true
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE - INTERVAL '3 days', '13:00', '15:00', 2.0, 'completed', 'behind_wheel', 70.00, 'excellent', 5, true
+            CURRENT_DATE - INTERVAL '3 days', '13:00', '15:00', 120, 'completed', 'behind_wheel', 70.00, 'excellent', 5, true
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_aisha_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE - INTERVAL '5 days', '10:00', '12:00', 2.0, 'completed', 'road_test_prep', 85.00, 'excellent', 5, true
+            CURRENT_DATE - INTERVAL '5 days', '10:00', '12:00', 120, 'completed', 'road_test_prep', 85.00, 'excellent', 5, true
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_tyler_id, v_instructor_maria_id, v_vehicle_corolla_id,
-            CURRENT_DATE - INTERVAL '7 days', '14:00', '16:00', 2.0, 'completed', 'behind_wheel', 70.00, 'good', 4, true
+            CURRENT_DATE - INTERVAL '7 days', '14:00', '16:00', 120, 'completed', 'behind_wheel', 70.00, 'good', 4, true
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_jessica_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE - INTERVAL '10 days', '09:00', '11:00', 2.0, 'completed', 'behind_wheel', 70.00, 'needs_improvement', 4, true
+            CURRENT_DATE - INTERVAL '10 days', '09:00', '11:00', 120, 'completed', 'behind_wheel', 70.00, 'needs_improvement', 4, true
         ),
         (
             gen_random_uuid(), v_tenant_id, v_student_sarah_id, v_instructor_john_id, v_vehicle_civic_id,
-            CURRENT_DATE - INTERVAL '12 days', '13:00', '15:00', 2.0, 'completed', 'behind_wheel', 70.00, 'good', 5, true
+            CURRENT_DATE - INTERVAL '12 days', '13:00', '15:00', 120, 'completed', 'behind_wheel', 70.00, 'good', 5, true
         );
 
     END;
