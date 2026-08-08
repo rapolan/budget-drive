@@ -5,6 +5,7 @@ import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, L
 import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi } from '@/api';
 import type { Student, Guardian, LinkedStudent } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
+import { StudentProgressBar } from '@/components/students/StudentProgressBar';
 import type { GuardianPrefill } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
@@ -796,7 +797,6 @@ export const StudentsPage: React.FC = () => {
           ) : (
             filteredStudents?.map((student) => {
               const statusInfo = getStudentStatus(student);
-              const progressPercent = student.progress?.percentComplete ?? 0;
 
               return (
                 <div
@@ -838,20 +838,7 @@ export const StudentsPage: React.FC = () => {
 
                   {/* Progress */}
                   <div className="mb-4">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-tx-secondary">Progress</span>
-                      <span className="font-medium text-tx-primary">
-                        {student.progress?.displayLabel ?? '—'}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-surface3 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          progressPercent >= 100 ? 'bg-status-success-text' : progressPercent >= 50 ? 'bg-primary' : 'bg-status-warning-text'
-                        }`}
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
+                    <StudentProgressBar progress={student.progress} />
                   </div>
 
                   {/* Contact Info */}
@@ -966,7 +953,6 @@ export const StudentsPage: React.FC = () => {
               ) : (
                 filteredStudents?.map((student) => {
                   const statusInfo = getStudentStatus(student);
-                  const progressPercent = student.progress?.percentComplete ?? 0;
 
                   return (
                     <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
@@ -1013,22 +999,7 @@ export const StudentsPage: React.FC = () => {
                       {/* Progress with visual bar */}
                       <td className="px-6 py-4">
                         <div className="w-32">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="font-medium text-tx-primary">
-                              {student.progress?.displayLabel ?? '—'}
-                            </span>
-                            {student.progress?.track === 'hours' && (
-                              <span className="text-tx-muted">{Math.round(progressPercent)}%</span>
-                            )}
-                          </div>
-                          <div className="h-2 bg-surface3 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                progressPercent >= 100 ? 'bg-status-success-text' : progressPercent >= 50 ? 'bg-primary' : 'bg-status-warning-text'
-                              }`}
-                              style={{ width: `${progressPercent}%` }}
-                            />
-                          </div>
+                          <StudentProgressBar progress={student.progress} />
                         </div>
                       </td>
                       {/* History - Hidden on mobile */}
