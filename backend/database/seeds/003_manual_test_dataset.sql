@@ -149,7 +149,7 @@ BEGIN
     -- 4. THREE MORE STUDENTS (8 total) at varied progress stages
     -- =====================================================
     INSERT INTO students (
-        id, tenant_id, full_name, email, phone, date_of_birth,
+        id, tenant_id, full_name, first_name, last_name, email, phone, date_of_birth,
         address, emergency_contact_first_name, emergency_contact_phone, license_type, enrollment_date,
         status, total_hours_completed, hours_required,
         assigned_instructor_id, payment_status, total_paid, outstanding_balance
@@ -159,7 +159,7 @@ BEGIN
         -- so this student stays on the minor/hours track and needsGuardian-true
         -- indefinitely, instead of drifting into an adult as real time passes.
         gen_random_uuid(), v_tenant_id,
-        'Noah Kim', 'noah.kim@email.com', '(555) 666-1111',
+        'Noah Kim', 'Noah', 'Kim', 'noah.kim@email.com', '(555) 666-1111',
         (CURRENT_DATE - INTERVAL '16 years')::date, '666 Pine St, Los Angeles, CA 90010',
         'Mom', '(555) 666-2222', 'car', CURRENT_DATE - INTERVAL '3 days',
         'active', 0.0, 30.0,
@@ -170,7 +170,7 @@ BEGIN
         -- student stays a minor on the hours track indefinitely - see Noah Kim's
         -- comment above for why fixed birth years don't work here.
         gen_random_uuid(), v_tenant_id,
-        'Olivia Garcia', 'olivia.garcia@email.com', '(555) 777-1111',
+        'Olivia Garcia', 'Olivia', 'Garcia', 'olivia.garcia@email.com', '(555) 777-1111',
         (CURRENT_DATE - INTERVAL '17 years')::date, '777 Cedar Ln, Los Angeles, CA 90011',
         'Dad', '(555) 777-2222', 'car', CURRENT_DATE - INTERVAL '100 days',
         'active', 29.5, 30.0,
@@ -179,7 +179,7 @@ BEGIN
     (
         -- Completed the program
         gen_random_uuid(), v_tenant_id,
-        'Marcus Lee', 'marcus.lee@email.com', '(555) 888-1111',
+        'Marcus Lee', 'Marcus', 'Lee', 'marcus.lee@email.com', '(555) 888-1111',
         '2005-09-17', '888 Spruce Ave, Los Angeles, CA 90012',
         'Mom', '(555) 888-2222', 'car', CURRENT_DATE - INTERVAL '150 days',
         'completed', 30.0, 30.0,

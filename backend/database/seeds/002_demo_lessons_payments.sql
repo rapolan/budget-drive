@@ -95,14 +95,14 @@ BEGIN
     -- =====================================================
 
     INSERT INTO students (
-        id, tenant_id, full_name, email, phone, date_of_birth,
+        id, tenant_id, full_name, first_name, last_name, email, phone, date_of_birth,
         address, emergency_contact_first_name, emergency_contact_phone, license_type, enrollment_date,
         status, total_hours_completed, hours_required,
         assigned_instructor_id, payment_status, total_paid, outstanding_balance
     ) VALUES
     (
         gen_random_uuid(), v_tenant_id,
-        'Jessica Park', 'jessica.park@email.com', '(555) 333-1111',
+        'Jessica Park', 'Jessica', 'Park', 'jessica.park@email.com', '(555) 333-1111',
         '2007-08-20', '333 Hill Rd, Los Angeles, CA 90006',
         'Dad', '(555) 333-2222', 'car', CURRENT_DATE - INTERVAL '30 days',
         'active', 4.0, 30.0,
@@ -110,7 +110,7 @@ BEGIN
     ),
     (
         gen_random_uuid(), v_tenant_id,
-        'Tyler Brooks', 'tyler.brooks@email.com', '(555) 444-1111',
+        'Tyler Brooks', 'Tyler', 'Brooks', 'tyler.brooks@email.com', '(555) 444-1111',
         '2006-03-14', '444 Oak Dr, Los Angeles, CA 90007',
         'Mom', '(555) 444-2222', 'car', CURRENT_DATE - INTERVAL '60 days',
         'active', 20.0, 30.0,
@@ -118,7 +118,7 @@ BEGIN
     ),
     (
         gen_random_uuid(), v_tenant_id,
-        'Aisha Williams', 'aisha.williams@email.com', '(555) 555-1111',
+        'Aisha Williams', 'Aisha', 'Williams', 'aisha.williams@email.com', '(555) 555-1111',
         '2005-11-05', '555 Maple Ave, Los Angeles, CA 90008',
         'Mom', '(555) 555-2222', 'car', CURRENT_DATE - INTERVAL '90 days',
         'active', 28.0, 30.0,

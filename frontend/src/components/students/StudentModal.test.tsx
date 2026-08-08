@@ -535,6 +535,40 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
   });
 });
 
+// Regression coverage: opening the edit modal for an existing student must
+// populate the form from that student's data. (Root cause of a reported
+// "blank fields" bug turned out to be seed data missing firstName/lastName,
+// not this populate path - but the path itself had no direct test, so it's
+// covered here going forward.)
+describe('StudentModal edit form - populates from the existing student', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('renders the existing student\'s name, email, and date of birth in the form inputs', () => {
+    renderModal(
+      editableStudent({
+        firstName: 'Marcus',
+        lastName: 'Lee',
+        email: 'marcus.lee@email.com',
+        dateOfBirth: new Date('2005-09-17'),
+      })
+    );
+
+    const firstNameInput = document.getElementsByName('student_firstname_input')[0] as HTMLInputElement;
+    const lastNameInput = document.getElementsByName('student_lastname_input')[0] as HTMLInputElement;
+    const emailInput = document.getElementsByName('student_email_input')[0] as HTMLInputElement;
+    const dobInput = screen.getByTitle('Date of Birth') as HTMLInputElement;
+
+    expect(firstNameInput.value).toBe('Marcus');
+    expect(lastNameInput.value).toBe('Lee');
+    expect(emailInput.value).toBe('marcus.lee@email.com');
+    expect(dobInput.value).toBe('2005-09-17');
+  });
+});
+
 // Siblings display: derived from shared guardians, shown on the student
 // detail view for existing students only.
 describe('StudentModal - siblings display', () => {
