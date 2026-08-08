@@ -175,6 +175,64 @@ export interface Student {
   updatedAt: Date;
 }
 
+// =====================================================
+// GUARDIAN TYPES
+// =====================================================
+
+export interface Guardian {
+  id: string;
+  tenantId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// A guardian search result with disambiguating context - who they're
+// already linked to - so a human can tell two same-name guardians apart
+// before deciding to link one (Constraint B: matching never links).
+export interface GuardianCandidate extends Guardian {
+  linkedStudentNames: string[];
+}
+
+export type GuardianRelationship = 'mother' | 'father' | 'grandparent' | 'legal_guardian' | 'other';
+
+export interface StudentGuardianLink {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  guardianId: string;
+  relationship: GuardianRelationship | null;
+  isPrimary: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Guardian/Student fields flattened with the join row's relationship/
+// isPrimary, matching GET /students/:id/guardians and
+// GET /guardians/:id/students' exact return shape.
+export type LinkedGuardian = Guardian & { relationship: GuardianRelationship | null; isPrimary: boolean };
+export type LinkedStudent = Student & { relationship: GuardianRelationship | null; isPrimary: boolean };
+
+export interface CreateGuardianInput {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface PersonSearchResult {
+  type: 'student' | 'guardian';
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+}
+
 export interface Instructor {
   id: string;
   tenantId: string;
@@ -380,6 +438,13 @@ export interface CreateStudentInput {
   lastContactedAt?: Date;
 
   notes?: string;
+}
+
+export interface CreateStudentWithGuardianInput {
+  student: CreateStudentInput;
+  guardian:
+    | { mode: 'existing'; guardianId: string; relationship?: GuardianRelationship; isPrimary?: boolean }
+    | { mode: 'new'; firstName?: string; lastName?: string; email?: string; phone?: string; relationship?: GuardianRelationship; isPrimary?: boolean };
 }
 
 export interface CreateInstructorInput {

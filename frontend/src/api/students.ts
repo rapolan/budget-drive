@@ -1,7 +1,10 @@
 import { apiClient } from './client';
 import type {
   Student,
+  Guardian,
+  StudentGuardianLink,
   CreateStudentInput,
+  CreateStudentWithGuardianInput,
   ApiResponse,
   PaginatedResponse,
 } from '@/types';
@@ -21,6 +24,17 @@ export const studentsApi = {
 
   create: async (data: CreateStudentInput) => {
     const response = await apiClient.post<ApiResponse<Student>>('/students', data);
+    return response.data;
+  },
+
+  // Atomically creates a student and creates-or-links a guardian in one
+  // transaction (backend: POST /students/with-guardian). Use this instead
+  // of `create` whenever a guardian is being linked at creation time -
+  // never call `create` followed by a separate guardian-link request.
+  createWithGuardian: async (data: CreateStudentWithGuardianInput) => {
+    const response = await apiClient.post<
+      ApiResponse<{ student: Student; guardian: Guardian; link: StudentGuardianLink }>
+    >('/students/with-guardian', data);
     return response.data;
   },
 

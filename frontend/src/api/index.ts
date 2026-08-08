@@ -10,3 +10,5 @@ export { usersApi } from './users';
 export * as treasuryApi from './treasury';
 export { calendarFeedApi } from './calendarFeed';
 export { dashboardApi } from './dashboard';
+export { guardiansApi } from './guardians';
+export { searchApi } from './search';
