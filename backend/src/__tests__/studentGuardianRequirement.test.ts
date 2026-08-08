@@ -25,7 +25,8 @@ describe('needsGuardian attachment', () => {
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: minorDob.toISOString(), hours_required: 6, completed: false }])
       ) // student row
       .mockResolvedValueOnce(queryResult([])) // batched lessons
-      .mockResolvedValueOnce(queryResult([])); // batched guardian counts - none linked
+      .mockResolvedValueOnce(queryResult([])) // batched guardian counts - none linked
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     const student = await studentService.getStudentById(STUDENT_ID, TENANT_ID);
     expect(student?.needsGuardian).toBe(true);
@@ -39,7 +40,8 @@ describe('needsGuardian attachment', () => {
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: minorDob.toISOString(), hours_required: 6, completed: false }])
       )
       .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }]));
+      .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }]))
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     const student = await studentService.getStudentById(STUDENT_ID, TENANT_ID);
     expect(student?.needsGuardian).toBe(false);
@@ -52,11 +54,12 @@ describe('needsGuardian attachment', () => {
       .mockResolvedValueOnce(
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: adultDob.toISOString(), hours_required: 6, completed: false }])
       )
-      .mockResolvedValueOnce(queryResult([])); // batched lessons - no third call for guardian counts
+      .mockResolvedValueOnce(queryResult([])) // batched lessons - no third call for guardian counts
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     const student = await studentService.getStudentById(STUDENT_ID, TENANT_ID);
     expect(student?.needsGuardian).toBe(false);
-    expect(mockQuery).toHaveBeenCalledTimes(2);
+    expect(mockQuery).toHaveBeenCalledTimes(3);
   });
 
   it('getAllStudents batches the guardian-count query once across multiple minors, not N+1', async () => {
@@ -72,10 +75,11 @@ describe('needsGuardian attachment', () => {
         ])
       ) // student rows
       .mockResolvedValueOnce(queryResult([])) // batched lessons
-      .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])); // batched guardian counts - one call for both
+      .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])) // batched guardian counts - one call for both
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     const { students } = await studentService.getAllStudents(TENANT_ID, 1, 50);
-    expect(mockQuery).toHaveBeenCalledTimes(4);
+    expect(mockQuery).toHaveBeenCalledTimes(5);
     expect(students.find(s => s.id === STUDENT_ID)?.needsGuardian).toBe(false);
     expect(students.find(s => s.id === STUDENT_ID_2)?.needsGuardian).toBe(true);
   });
@@ -88,7 +92,8 @@ describe('needsGuardian attachment', () => {
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: minorDob.toISOString(), hours_required: 6, completed: false }])
       )
       .mockResolvedValueOnce(queryResult([])) // lessons
-      .mockResolvedValueOnce(queryResult([])); // no guardians linked
+      .mockResolvedValueOnce(queryResult([])) // no guardians linked
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     await expect(
       studentService.markStudentCompleted(STUDENT_ID, TENANT_ID, {}, 'staff-1')
@@ -104,6 +109,7 @@ describe('needsGuardian attachment', () => {
       )
       .mockResolvedValueOnce(queryResult([])) // lessons
       .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])) // guardian linked
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])) // tenant settings
       .mockResolvedValueOnce(
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, completed: true, status: 'completed' }])
       ); // the UPDATE
@@ -121,6 +127,7 @@ describe('needsGuardian attachment', () => {
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: adultDob.toISOString(), hours_required: 6, completed: false }])
       )
       .mockResolvedValueOnce(queryResult([])) // lessons - no guardian-count call for an adult
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])) // tenant settings
       .mockResolvedValueOnce(
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, completed: true, status: 'completed' }])
       ); // the UPDATE

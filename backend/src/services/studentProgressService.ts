@@ -44,7 +44,8 @@ export function calculateAge(dob: Date | string | null): number | null {
 
 export function computeStudentProgress(
   student: ProgressStudentInput,
-  lessons: ProgressLessonInput[]
+  lessons: ProgressLessonInput[],
+  standardLessonLengthMinutes: number = 120
 ): StudentProgress {
   const needsDateOfBirth = !student.dateOfBirth;
 
@@ -79,13 +80,23 @@ export function computeStudentProgress(
       lessons.filter(l => l.status === 'scheduled').reduce((sum, l) => sum + l.duration, 0) / 60
     );
     const hoursRequired = student.hoursRequired;
-    const percentComplete = hoursRequired > 0 ? Math.min(100, (hoursCompleted / hoursRequired) * 100) : 0;
+
+    // Lesson-equivalent view: how many standard-length lessons it takes to
+    // reach hoursRequired, so the Students list can speak "lessons" for
+    // every student while the hours figures (still computed above, unchanged)
+    // remain the legally meaningful numbers surfaced on the student record.
+    const lessonsCompleted = lessons.filter(l => l.status === 'completed').length;
+    const lessonsRequired = Math.ceil((hoursRequired * 60) / standardLessonLengthMinutes);
+    const percentComplete =
+      lessonsRequired > 0 ? Math.min(100, Math.round((lessonsCompleted / lessonsRequired) * 100)) : 0;
 
     return {
       track: 'hours',
       hoursCompleted,
       hoursRequired,
       hoursScheduled,
+      lessonsCompleted,
+      lessonsRequired,
       displayLabel: `${hoursCompleted} / ${hoursRequired} hrs`,
       percentComplete,
       needsDateOfBirth,
@@ -101,6 +112,7 @@ export function computeStudentProgress(
       track: 'lessons',
       lessonsCompleted: 0,
       lessonsBooked: 0,
+      lessonsRequired: 0,
       displayLabel: 'No lessons booked',
       percentComplete: 0,
       needsDateOfBirth,
@@ -113,6 +125,7 @@ export function computeStudentProgress(
     track: 'lessons',
     lessonsCompleted,
     lessonsBooked,
+    lessonsRequired: lessonsBooked,
     lessonsPercent,
     displayLabel: `${lessonsCompleted} of ${lessonsBooked} lessons (${lessonsPercent}%)`,
     percentComplete: lessonsPercent,

@@ -136,4 +136,60 @@ describe('computeStudentProgress', () => {
     const progress = computeStudentProgress(minor({ dateOfBirth: almostEighteen }), []);
     expect(progress.track).toBe('hours');
   });
+
+  // Lesson-equivalent view: both hours and lesson-count representations
+  // must come from this one function (Constraint A) - no other file may
+  // derive lessonsRequired or recompute percentComplete.
+  describe('lesson-equivalent progress', () => {
+    it('a minor with 6 required hours and a 120-minute standard length requires 3 lessons', () => {
+      const progress = computeStudentProgress(minor({ hoursRequired: 6 }), [], 120);
+      expect(progress.track).toBe('hours');
+      expect(progress.lessonsRequired).toBe(3);
+    });
+
+    it('the same 6 required hours needs 4 lessons at a 90-minute standard length (rounds up)', () => {
+      const progress = computeStudentProgress(minor({ hoursRequired: 6 }), [], 90);
+      expect(progress.lessonsRequired).toBe(4); // ceil(360/90) = 4
+    });
+
+    it('a minor defaults to a 120-minute standard length when none is passed', () => {
+      const progress = computeStudentProgress(minor({ hoursRequired: 6 }), []);
+      expect(progress.lessonsRequired).toBe(3);
+    });
+
+    it("a minor's lessonsCompleted counts completed lessons, independent of duration", () => {
+      const progress = computeStudentProgress(minor({ hoursRequired: 6 }), [
+        { status: 'completed', duration: 90 },
+        { status: 'completed', duration: 90 },
+        { status: 'scheduled', duration: 90 },
+      ], 120);
+      expect(progress.lessonsCompleted).toBe(2);
+    });
+
+    it("a minor's percentComplete is lesson-count-based, not hours-based", () => {
+      // 1 of 3 required lessons completed -> 33%, even though the completed
+      // lesson's duration (90 min = 1.5 hrs) is a different fraction of the
+      // 6-hour requirement (25%) - proves percentComplete tracks lessons.
+      const progress = computeStudentProgress(minor({ hoursRequired: 6 }), [
+        { status: 'completed', duration: 90 },
+      ], 120);
+      expect(progress.lessonsRequired).toBe(3);
+      expect(progress.percentComplete).toBe(33);
+    });
+
+    it("an adult's lessonsRequired equals their booked-lesson count, unaffected by standardLessonLengthMinutes", () => {
+      const progress = computeStudentProgress(adult(), [
+        { status: 'completed', duration: 60 },
+        { status: 'scheduled', duration: 60 },
+      ], 90);
+      expect(progress.track).toBe('lessons');
+      expect(progress.lessonsRequired).toBe(2);
+      expect(progress.lessonsRequired).toBe(progress.lessonsBooked);
+    });
+
+    it('an adult with zero booked lessons has lessonsRequired 0', () => {
+      const progress = computeStudentProgress(adult(), []);
+      expect(progress.lessonsRequired).toBe(0);
+    });
+  });
 });

@@ -117,6 +117,7 @@ export interface StudentProgress {
   hoursScheduled?: number;
   lessonsCompleted?: number;
   lessonsBooked?: number;
+  lessonsRequired?: number;
   lessonsPercent?: number;
   completedAt?: string | null;
   completionReason?: string | null;

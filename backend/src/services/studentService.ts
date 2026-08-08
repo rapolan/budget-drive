@@ -54,6 +54,9 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
 
   const guardianCounts = await countGuardiansForStudentsBatch(minorIds, tenantId);
 
+  const tenantSettings = await getTenantSettings(tenantId);
+  const standardLessonLengthMinutes = tenantSettings?.standardLessonLengthMinutes ?? 120;
+
   return students.map(student => {
     const age = calculateAge(student.dateOfBirth);
     const isMinor = age === null || age < 18;
@@ -61,7 +64,7 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
 
     return {
       ...student,
-      progress: computeStudentProgress(student, lessonsByStudent.get(student.id) ?? []),
+      progress: computeStudentProgress(student, lessonsByStudent.get(student.id) ?? [], standardLessonLengthMinutes),
       needsGuardian,
     };
   });

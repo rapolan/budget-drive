@@ -137,12 +137,13 @@ describe('student email optional for minors, required for adults', () => {
     const studentService = await import('../services/studentService');
 
     // getStudentById's fetch-before-write pre-check: 1. the student row
-    // 2. attachProgress's batched lessons lookup
+    // 2. attachProgress's batched lessons lookup 3. tenant settings lookup
     mockQuery
       .mockResolvedValueOnce(
         queryResult([{ id: 'student-3', tenant_id: TENANT_ID, date_of_birth: ADULT_DOB, email: 'adult@example.com' }])
       )
-      .mockResolvedValueOnce(queryResult([]));
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }]));
 
     await expect(
       studentService.updateStudent('student-3', TENANT_ID, { email: '' })

@@ -31,7 +31,8 @@ describe('POST /api/v1/students/:id/complete', () => {
 
     // markStudentCompleted's pre-check: getStudentById (student row +
     // attachProgress's batched lessons query; adult DOB so the guardian-count
-    // batch query is skipped entirely), then the completion UPDATE itself.
+    // batch query is skipped entirely, then a tenant-settings lookup for the
+    // standard lesson length), then the completion UPDATE itself.
     mockQuery
       .mockResolvedValueOnce(
         queryResult([{
@@ -43,6 +44,7 @@ describe('POST /api/v1/students/:id/complete', () => {
         }])
       )
       .mockResolvedValueOnce(queryResult([])) // batched lessons
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])) // tenant settings
       .mockResolvedValueOnce(
         queryResult([{
           id: STUDENT_ID,
