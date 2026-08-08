@@ -289,6 +289,10 @@ export const updateTenantSettings = async (
     fields.push(`default_hours_required = $${paramCount++}`);
     values.push(data.defaultHoursRequired);
   }
+  if (data.standardLessonLengthMinutes !== undefined) {
+    fields.push(`standard_lesson_length_minutes = $${paramCount++}`);
+    values.push(data.standardLessonLengthMinutes);
+  }
 
   // Localization
   if (data.timezone !== undefined) {

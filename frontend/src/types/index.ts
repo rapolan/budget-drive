@@ -87,6 +87,7 @@ export interface TenantSettings {
 
   // Defaults
   defaultHoursRequired: number;
+  standardLessonLengthMinutes: number;
 
   // Feature flags
   enableBlockchain?: boolean;

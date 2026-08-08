@@ -95,6 +95,7 @@ const GeneralSettings: React.FC = () => {
     state:               settings?.state               || '',
     zipCode:             (settings as any)?.zip_code        || settings?.zipCode        || '',
     defaultHoursRequired: settings?.defaultHoursRequired ?? 6,
+    standardLessonLengthMinutes: settings?.standardLessonLengthMinutes ?? 120,
   });
 
   React.useEffect(() => {
@@ -111,6 +112,7 @@ const GeneralSettings: React.FC = () => {
       state:               settings.state || '',
       zipCode:             (settings as any).zip_code         || settings.zipCode         || '',
       defaultHoursRequired: settings.defaultHoursRequired ?? 6,
+      standardLessonLengthMinutes: settings.standardLessonLengthMinutes ?? 120,
     });
   }, [settings]);
 
@@ -307,6 +309,36 @@ const GeneralSettings: React.FC = () => {
                   }`}
                 >
                   {h}h{h === 6 ? ' ⭐' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-tx-secondary mb-1">Standard Lesson Length</label>
+          <p className="text-xs text-tx-muted mb-3">Used to show a minor's required hours as an equivalent lesson count in the Students list.</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              value={form.standardLessonLengthMinutes}
+              onChange={e => setForm(f => ({ ...f, standardLessonLengthMinutes: parseInt(e.target.value, 10) || 120 }))}
+              min="30" max="240" step="15"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <span className="text-sm text-tx-secondary">minutes</span>
+            <div className="flex gap-2">
+              {[60, 90, 120, 180].map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, standardLessonLengthMinutes: m }))}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    form.standardLessonLengthMinutes === m
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                  }`}
+                >
+                  {m}m{m === 120 ? ' ⭐' : ''}
                 </button>
               ))}
             </div>

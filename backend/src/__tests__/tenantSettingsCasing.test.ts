@@ -38,4 +38,32 @@ describe('tenantService camelCase conversion', () => {
 
     expect(settings.defaultHoursRequired).toBe('10.00');
   });
+
+  it('getTenantSettings returns standardLessonLengthMinutes in camelCase', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', standard_lesson_length_minutes: 90 }])
+    );
+
+    const settings = await tenantService.getTenantSettings('tenant-1');
+
+    expect(settings?.standardLessonLengthMinutes).toBe(90);
+    expect((settings as unknown as { standard_lesson_length_minutes?: number }).standard_lesson_length_minutes).toBeUndefined();
+  });
+
+  it('updateTenantSettings writes standard_lesson_length_minutes when standardLessonLengthMinutes is provided', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', standard_lesson_length_minutes: 90 }])
+    );
+
+    const settings = await tenantService.updateTenantSettings('tenant-1', { standardLessonLengthMinutes: 90 });
+
+    expect(settings.standardLessonLengthMinutes).toBe(90);
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/standard_lesson_length_minutes\s*=\s*\$/);
+    expect(params).toContain(90);
+  });
 });
