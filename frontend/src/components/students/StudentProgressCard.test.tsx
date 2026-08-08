@@ -85,6 +85,49 @@ describe('StudentProgressCard', () => {
     expect(screen.queryByText('Milestones')).not.toBeInTheDocument();
   });
 
+  it('shows the lesson count as the primary label and the hours figure in a separate caption for a minor', () => {
+    render(
+      <StudentProgressCard
+        student={makeStudent({
+          track: 'hours',
+          hoursCompleted: 4.5,
+          hoursRequired: 6,
+          hoursScheduled: 0,
+          lessonsCompleted: 3,
+          lessonsRequired: 3,
+          displayLabel: '4.5 / 6 hrs',
+          percentComplete: 100,
+          needsDateOfBirth: false,
+        })}
+        lessons={[]}
+      />
+    );
+
+    expect(screen.getByText('3 / 3 lessons')).toBeInTheDocument();
+    expect(screen.getByText('Required Hours')).toBeInTheDocument();
+    expect(screen.getByText('4.5 / 6 hrs')).toBeInTheDocument();
+    expect(screen.getByText(/California requires 6 behind-the-wheel hours/i)).toBeInTheDocument();
+  });
+
+  it('does not show the hours caption for an adult (lessons track)', () => {
+    render(
+      <StudentProgressCard
+        student={makeStudent({
+          track: 'lessons',
+          lessonsCompleted: 2,
+          lessonsBooked: 3,
+          lessonsPercent: 67,
+          displayLabel: '2 of 3 lessons (67%)',
+          percentComplete: 67,
+          needsDateOfBirth: false,
+        })}
+        lessons={[]}
+      />
+    );
+
+    expect(screen.queryByText('Required Hours')).not.toBeInTheDocument();
+  });
+
   it('shows an "add date of birth" prompt when needsDateOfBirth is true', () => {
     render(
       <StudentProgressCard

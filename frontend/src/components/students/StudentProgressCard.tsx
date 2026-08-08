@@ -58,7 +58,9 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-tx-secondary">Training Progress</h3>
           <span className="text-sm font-semibold text-primary">
-            {progress.displayLabel}
+            {progress.track === 'hours'
+              ? `${progress.lessonsCompleted ?? 0} / ${progress.lessonsRequired ?? 0} lessons`
+              : progress.displayLabel}
           </span>
         </div>
 
@@ -82,6 +84,21 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
           </div>
         )}
       </div>
+
+      {/* Hours requirement (minors only) - the legally meaningful figure for
+          California behind-the-wheel training, kept visible on the record
+          even though the list above speaks in lessons. */}
+      {progress.track === 'hours' && (
+        <div className="bg-status-info-bg border border-status-info-border rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-status-info-text">Required Hours</span>
+            <span className="text-sm font-semibold text-status-info-text">{progress.displayLabel}</span>
+          </div>
+          <p className="mt-1 text-xs text-tx-muted">
+            California requires {progress.hoursRequired} behind-the-wheel hours for minors - this is the legally required figure.
+          </p>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-4">
