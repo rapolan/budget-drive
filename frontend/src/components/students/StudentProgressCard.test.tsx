@@ -128,6 +128,71 @@ describe('StudentProgressCard', () => {
     expect(screen.queryByText('Required Hours')).not.toBeInTheDocument();
   });
 
+  it('flags lesson-count-met-but-hours-not-met: three 90-minute lessons against a 6-hour/120-minute-standard minor', () => {
+    // lessonsRequired = ceil(6*60/120) = 3, lessonsCompleted = 3 (count met),
+    // but hoursCompleted = 4.5 < hoursRequired = 6 (hours not met).
+    render(
+      <StudentProgressCard
+        student={makeStudent({
+          track: 'hours',
+          hoursCompleted: 4.5,
+          hoursRequired: 6,
+          hoursScheduled: 0,
+          lessonsCompleted: 3,
+          lessonsRequired: 3,
+          displayLabel: '4.5 / 6 hrs',
+          percentComplete: 100,
+          needsDateOfBirth: false,
+        })}
+        lessons={[]}
+      />
+    );
+
+    expect(screen.getByText(/Lesson count met, but only 4.5 of 6 required hours logged/i)).toBeInTheDocument();
+  });
+
+  it('does not flag the mismatch when both lesson count and hours are met', () => {
+    render(
+      <StudentProgressCard
+        student={makeStudent({
+          track: 'hours',
+          hoursCompleted: 6,
+          hoursRequired: 6,
+          hoursScheduled: 0,
+          lessonsCompleted: 3,
+          lessonsRequired: 3,
+          displayLabel: '6 / 6 hrs',
+          percentComplete: 100,
+          needsDateOfBirth: false,
+        })}
+        lessons={[]}
+      />
+    );
+
+    expect(screen.queryByText(/Lesson count met, but only/i)).not.toBeInTheDocument();
+  });
+
+  it('does not flag the mismatch when the lesson count itself is not yet met', () => {
+    render(
+      <StudentProgressCard
+        student={makeStudent({
+          track: 'hours',
+          hoursCompleted: 2,
+          hoursRequired: 6,
+          hoursScheduled: 0,
+          lessonsCompleted: 1,
+          lessonsRequired: 3,
+          displayLabel: '2 / 6 hrs',
+          percentComplete: 33,
+          needsDateOfBirth: false,
+        })}
+        lessons={[]}
+      />
+    );
+
+    expect(screen.queryByText(/Lesson count met, but only/i)).not.toBeInTheDocument();
+  });
+
   it('shows an "add date of birth" prompt when needsDateOfBirth is true', () => {
     render(
       <StudentProgressCard

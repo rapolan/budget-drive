@@ -100,6 +100,23 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
         </div>
       )}
 
+      {/* Short-lesson mismatch: lesson durations vary, so a minor can hit
+          their required lesson COUNT while still short of their required
+          HOURS (e.g. three 90-minute lessons is 4.5 of 6 hours). Flag it
+          clearly so nobody marks the program complete on the lesson count
+          alone. */}
+      {progress.track === 'hours' &&
+        (progress.lessonsCompleted ?? 0) >= (progress.lessonsRequired ?? 0) &&
+        (progress.hoursCompleted ?? 0) < (progress.hoursRequired ?? 0) && (
+          <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-status-warning-text flex-shrink-0 mt-0.5" />
+            <span className="text-sm text-status-warning-text">
+              Lesson count met, but only {progress.hoursCompleted} of {progress.hoursRequired} required hours logged -
+              do not mark this program complete yet.
+            </span>
+          </div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-4">
         <div className="text-center p-3 bg-status-success-bg rounded-lg">
