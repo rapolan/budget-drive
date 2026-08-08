@@ -102,6 +102,26 @@ export const createStudent = asyncHandler(async (req: Request, res: Response) =>
 });
 
 /**
+ * @route   POST /api/v1/students/with-guardian
+ * @desc    Atomically create a student and create-or-link a guardian in a
+ *          single transaction - a failure at any step leaves nothing
+ *          persisted (no orphaned student, no orphaned guardian)
+ * @access  Private
+ */
+export const createStudentWithGuardian = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+
+  const result = await studentService.createStudentWithGuardian(tenantId, req.body, userId);
+
+  res.status(201).json({
+    success: true,
+    data: result,
+    message: 'Student and guardian created successfully',
+  });
+});
+
+/**
  * @route   PUT /api/v1/students/:id
  * @desc    Update student
  * @access  Private

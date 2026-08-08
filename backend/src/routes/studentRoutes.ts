@@ -47,6 +47,16 @@ router.post(
   studentController.createStudent
 );
 
+// Atomically create a student and create-or-link a guardian in one
+// transaction. Separate from the plain POST /students above - that route's
+// contract stays untouched for adults and for minors deferring guardian
+// setup.
+router.post(
+  '/students/with-guardian',
+  validateRequired(['student', 'guardian']),
+  studentController.createStudentWithGuardian
+);
+
 // Get student by ID
 router.get(
   '/students/:id',
