@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
   CheckCircle, AlertCircle, FileText, Users, Plus, Search
@@ -84,6 +84,32 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   const studentLessons = lessonsData?.data?.filter(l => l.studentId === student?.id) || [];
   const instructors = instructorsData?.data || [];
+
+  // Siblings, derived from shared guardians. 1 + G queries per open (G =
+  // this student's guardian count, typically 1-2) - fine at this app's
+  // scale; each query is independently cached, so opening two siblings'
+  // modals doesn't re-fetch the same guardian's student list twice.
+  const { data: myGuardiansData } = useQuery({
+    queryKey: ['students', student?.id, 'guardians'],
+    queryFn: () => guardiansApi.getForStudent(student!.id),
+    enabled: isEditing,
+  });
+  const guardianIdsForSiblings = (myGuardiansData?.data ?? []).map(g => g.id);
+  const siblingQueries = useQueries({
+    queries: guardianIdsForSiblings.map(gId => ({
+      queryKey: ['guardians', gId, 'students'],
+      queryFn: () => guardiansApi.getStudentsForGuardian(gId),
+      enabled: isEditing,
+    })),
+  });
+  const siblings = useMemo(() => {
+    const seen = new Map<string, Student>();
+    siblingQueries.forEach(q => (q.data?.data ?? []).forEach((s: Student) => {
+      if (s.id !== student?.id) seen.set(s.id, s);
+    }));
+    return Array.from(seen.values());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(siblingQueries.map(q => q.data)), student?.id]);
 
   const [formData, setFormData] = useState<CreateStudentInput>({
     fullName: '',
@@ -937,6 +963,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     )}
                   </div>
+                )}
+
+                {isEditing && siblings.length > 0 && (
+                  <p className="text-sm text-tx-secondary">
+                    <span className="font-medium text-tx-primary">Siblings:</span>{' '}
+                    {siblings.map(s => s.fullName).join(', ')}
+                  </p>
                 )}
               </div>
 

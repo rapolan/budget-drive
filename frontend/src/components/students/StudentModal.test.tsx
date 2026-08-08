@@ -19,6 +19,7 @@ vi.mock('@/api', async () => {
       findCandidates: vi.fn().mockResolvedValue({ data: [] }),
       findExactMatch: vi.fn().mockResolvedValue({ data: [] }),
       getStudentsForGuardian: vi.fn().mockResolvedValue({ data: [] }),
+      getForStudent: vi.fn().mockResolvedValue({ data: [] }),
     },
     lessonsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
@@ -531,5 +532,55 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
 
     await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
     expect(guardiansApi.findExactMatch).not.toHaveBeenCalled();
+  });
+});
+
+// Siblings display: derived from shared guardians, shown on the student
+// detail view for existing students only.
+describe('StudentModal - siblings display', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('shows a "Siblings" line listing other students linked to the same guardian(s)', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'guardian-1', firstName: 'Jane', lastName: 'Doe' }],
+    });
+    (guardiansApi.getStudentsForGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        { id: 'student-1', fullName: 'Existing Student' }, // self - must be excluded
+        { id: 'student-2', fullName: 'Sibling One' },
+        { id: 'student-3', fullName: 'Sibling Two' },
+      ],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/siblings:/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText('Sibling One, Sibling Two')).toBeInTheDocument();
+  });
+
+  it('shows nothing when the student has no siblings', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'guardian-1', firstName: 'Jane', lastName: 'Doe' }],
+    });
+    (guardiansApi.getStudentsForGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'student-1', fullName: 'Existing Student' }], // only self
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => {
+      expect(guardiansApi.getStudentsForGuardian).toHaveBeenCalled();
+    });
+    expect(screen.queryByText(/siblings:/i)).not.toBeInTheDocument();
+  });
+
+  it('does not fetch siblings for a new (not-yet-created) student', () => {
+    renderModal(); // create mode
+    expect(guardiansApi.getForStudent).not.toHaveBeenCalled();
   });
 });
