@@ -2,18 +2,20 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
-import { studentsApi, lessonsApi, dashboardApi } from '@/api';
+import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi } from '@/api';
 import type { Student, Guardian, LinkedStudent } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import type { GuardianPrefill } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
+import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { useDebounce } from '@/hooks/useDebounce';
 
 type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup' | 'needs_guardian';
 type ViewMode = 'table' | 'cards';
@@ -79,6 +81,17 @@ export const StudentsPage: React.FC = () => {
     queryFn: () => studentsApi.getAll(currentPage, 50),
   });
 
+  // Unified cross-type search: typing 2+ characters overlays mixed
+  // student+guardian results regardless of the active tab (Constraint B -
+  // renders exactly what the backend returns, no client re-ranking).
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
+  const isSearching = debouncedSearchTerm.trim().length >= 2;
+  const { data: unifiedResults, isLoading: isUnifiedSearchLoading } = useQuery({
+    queryKey: ['search', 'people', debouncedSearchTerm],
+    queryFn: () => searchApi.people(debouncedSearchTerm),
+    enabled: isSearching,
+  });
+
   // No-show alert list depends on backend notification-dismissal state, not
   // purely derivable from already-fetched student/lesson data - only fetch
   // it when the filter is actually in use.
@@ -138,6 +151,30 @@ export const StudentsPage: React.FC = () => {
   const handleAddGuardian = () => {
     setSelectedGuardian(null);
     setIsGuardianModalOpen(true);
+  };
+
+  // Unified search result clicks - the matched record may not be on the
+  // currently-loaded page, so fetch it directly by id rather than relying
+  // on it already being present in already-fetched lists.
+  const handleSelectSearchedStudent = async (id: string) => {
+    const cached = data?.data?.find(s => s.id === id);
+    if (cached) {
+      setSelectedStudent(cached);
+      setIsModalOpen(true);
+      return;
+    }
+    const response = await studentsApi.getById(id);
+    if (response.data) {
+      setSelectedStudent(response.data);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleSelectSearchedGuardian = async (id: string) => {
+    const response = await guardiansApi.getById(id);
+    if (response.data) {
+      handleGuardianSelect(response.data);
+    }
   };
 
   // Guardian-first enrollment (the phone-call flow): carries over last
@@ -439,6 +476,41 @@ export const StudentsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Search - shared between tabs. Typing 2+ characters overlays
+          unified cross-type results (students AND guardians) regardless of
+          the active tab; clearing it reverts to the current tab's normal
+          view. */}
+      <div className="flex items-center rounded-xl border border-edge bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+        <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
+        <input
+          type="text"
+          placeholder="Search students and guardians by name, email, or phone..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          autoComplete="nope"
+          className="ml-3 flex-1 border-none bg-transparent outline-none text-tx-primary placeholder-gray-400"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="p-1 text-tx-muted hover:text-tx-secondary rounded-full hover:bg-surface2 transition-colors"
+            title="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {isSearching ? (
+        <UnifiedSearchResults
+          results={unifiedResults?.data ?? []}
+          isLoading={isUnifiedSearchLoading}
+          onSelectStudent={handleSelectSearchedStudent}
+          onSelectGuardian={handleSelectSearchedGuardian}
+        />
+      ) : (
+      <>
+
       {activeView === 'students' && (
       <>
       {/* Stats Cards */}
@@ -555,28 +627,6 @@ export const StudentsPage: React.FC = () => {
             <p className="text-sm text-tx-muted">Completed</p>
           </div>
         </div>
-      </div>
-
-      {/* Search */}
-      <div className="flex items-center rounded-xl border border-edge bg-surface px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
-        <Search className="h-5 w-5 text-tx-muted flex-shrink-0" />
-        <input
-          type="text"
-          placeholder="Search students by name, email, or phone..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          autoComplete="nope"
-          className="ml-3 flex-1 border-none bg-transparent outline-none text-tx-primary placeholder-gray-400"
-        />
-        {searchTerm && (
-          <button
-            onClick={() => setSearchTerm('')}
-            className="p-1 text-tx-muted hover:text-tx-secondary rounded-full hover:bg-surface2 transition-colors"
-            title="Clear search"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
       </div>
 
       {/* Status Filter & Sort */}
@@ -1088,6 +1138,8 @@ export const StudentsPage: React.FC = () => {
       {/* Guardians view */}
       {activeView === 'guardians' && (
         <GuardiansList onSelect={handleGuardianSelect} />
+      )}
+      </>
       )}
 
       {/* Student Modal */}

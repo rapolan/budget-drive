@@ -3,22 +3,24 @@ import { render, screen, cleanup, waitFor, within } from '@testing-library/react
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { StudentsPage } from './Students';
-import { studentsApi, lessonsApi, dashboardApi, guardiansApi } from '@/api';
+import { studentsApi, lessonsApi, dashboardApi, guardiansApi, searchApi } from '@/api';
 import type { Student, Guardian } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
   return {
     ...actual,
-    studentsApi: { ...actual.studentsApi, getAll: vi.fn() },
+    studentsApi: { ...actual.studentsApi, getAll: vi.fn(), getById: vi.fn() },
     lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
     dashboardApi: { ...actual.dashboardApi, getNoShowAlerts: vi.fn() },
     guardiansApi: {
       ...actual.guardiansApi,
       getAll: vi.fn(),
+      getById: vi.fn(),
       getStudentsForGuardian: vi.fn().mockResolvedValue({ data: [] }),
       findCandidates: vi.fn().mockResolvedValue({ data: [] }),
     },
+    searchApi: { ...actual.searchApi, people: vi.fn() },
   };
 });
 
@@ -289,5 +291,100 @@ describe('Students page - guardian-first enrollment', () => {
 
     const dobInput = document.getElementsByName('student_dob_input')[0] as HTMLInputElement;
     expect(dobInput.value).toBe('');
+  });
+});
+
+// Unified search: typing in the shared search bar overlays mixed
+// student+guardian results regardless of which tab is active, and reverts
+// to the tab's normal view when cleared.
+describe('Students page - unified search', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Jessica Park' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+    (guardiansApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyGuardian({ id: 'guardian-1', firstName: 'Jane', lastName: 'Smith' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('shows mixed typed results while on the Students tab, including a guardian match', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (searchApi.people as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        { type: 'student', id: 'student-1', name: 'Jessica Park', email: 'jessica@example.com', phone: null },
+        { type: 'guardian', id: 'guardian-1', name: 'Jane Smith', email: null, phone: '5550100' },
+      ],
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Jessica Park')).toBeInTheDocument());
+
+    const searchInput = screen.getByPlaceholderText(/search students and guardians/i);
+    await userEvent.type(searchInput, 'Smith');
+
+    await waitFor(() => expect(searchApi.people).toHaveBeenCalledWith('Smith'));
+
+    expect(await screen.findByText('Jane Smith')).toBeInTheDocument();
+    expect(screen.getByText('Student')).toBeInTheDocument();
+    expect(screen.getByText('Guardian')).toBeInTheDocument();
+  });
+
+  it('hides the status filter chips while searching', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (searchApi.people as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Jessica Park')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /^All/ })).toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText(/search students and guardians/i);
+    await userEvent.type(searchInput, 'xyz');
+
+    await waitFor(() => expect(searchApi.people).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument();
+  });
+
+  it('reverts to the normal tab view when the search box is cleared', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (searchApi.people as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Jessica Park')).toBeInTheDocument());
+
+    const searchInput = screen.getByPlaceholderText(/search students and guardians/i);
+    await userEvent.type(searchInput, 'xyz');
+    await waitFor(() => expect(searchApi.people).toHaveBeenCalled());
+
+    await userEvent.clear(searchInput);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^All/ })).toBeInTheDocument();
+    });
+  });
+
+  it('clicking a guardian result from the Students tab opens the guardian detail modal', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (searchApi.people as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ type: 'guardian', id: 'guardian-1', name: 'Jane Smith', email: null, phone: '5550100' }],
+    });
+    (guardiansApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: emptyGuardian({ id: 'guardian-1', firstName: 'Jane', lastName: 'Smith' }),
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Jessica Park')).toBeInTheDocument());
+
+    const searchInput = screen.getByPlaceholderText(/search students and guardians/i);
+    await userEvent.type(searchInput, 'Smith');
+    const resultRow = await screen.findByText('Jane Smith');
+    await userEvent.click(resultRow);
+
+    await waitFor(() => expect(guardiansApi.getById).toHaveBeenCalledWith('guardian-1'));
+    expect(await screen.findByRole('button', { name: /save changes/i })).toBeInTheDocument();
   });
 });
