@@ -12,6 +12,7 @@ import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { countGuardiansForStudentsBatch, StudentGuardianLink } from './studentGuardianService';
+import { findExactGuardianMatch } from './guardianService';
 
 const logger = createLogger('StudentService');
 
@@ -304,40 +305,46 @@ export const createStudent = async (
   }
 };
 
+export type CreateStudentWithGuardianEntry =
+  | { mode: 'existing'; guardianId: string; relationship?: string; isPrimary?: boolean }
+  | { mode: 'new'; firstName?: string; lastName?: string; email?: string; phone?: string; relationship?: string; isPrimary?: boolean };
+
 export interface CreateStudentWithGuardianInput {
   student: Parameters<typeof createStudent>[1];
-  guardian:
-    | { mode: 'existing'; guardianId: string; relationship?: string; isPrimary?: boolean }
-    | { mode: 'new'; firstName?: string; lastName?: string; email?: string; phone?: string; relationship?: string; isPrimary?: boolean };
+  guardians: CreateStudentWithGuardianEntry[]; // 1..N
 }
 
 /**
- * Atomically create a student and create-or-link a guardian in a single
- * transaction. A failure at ANY step (student insert, guardian insert/
- * lookup, or the student_guardians link) rolls back everything - there is
- * no partial state where a student exists with no guardian, which is
- * exactly the broken state needsGuardian exists to detect.
+ * Atomically create a student and create-or-link ONE OR MORE guardians in a
+ * single transaction. A failure at ANY step (student insert, any guardian's
+ * insert/lookup, or any student_guardians link) rolls back everything - there
+ * is no partial state where a student exists with fewer guardians than were
+ * requested, which is exactly the broken state needsGuardian exists to
+ * detect. This is a genuine loop over one BEGIN/COMMIT, not N calls to a
+ * single-guardian helper (each of which would open its own transaction).
  *
- * All validation runs BEFORE BEGIN so a 400 never opens a transaction.
- * Mirrors createStudent's validation rules exactly (contact-method
- * required, DOB required, adult-email required) plus createGuardian's
- * rule (email-or-phone required) when guardian.mode === 'new'.
+ * All validation - including the duplicate-guardian-reference check and the
+ * exact-match lookup per new guardian - runs BEFORE BEGIN so a 400/409 never
+ * opens a transaction. Mirrors createStudent's validation rules exactly
+ * (contact-method required, DOB required, adult-email required) plus
+ * createGuardian's rule (email-or-phone required) for each guardians[i]
+ * with mode === 'new'.
  *
- * This is the ONLY entry point for creating a student together with a
- * guardian - POST /students (createStudent above) is untouched and still
- * used for adults, and for minors whose guardian-linking is deferred.
+ * This is the ONLY entry point for creating a student together with one or
+ * more guardians - POST /students (createStudent above) is untouched and
+ * still used for adults, and for minors whose guardian-linking is deferred.
  */
 export const createStudentWithGuardian = async (
   tenantId: string,
   input: CreateStudentWithGuardianInput,
   userId?: string
-): Promise<{ student: Student; guardian: Guardian; link: StudentGuardianLink }> => {
-  const { student: data, guardian } = input;
+): Promise<{ student: Student; guardians: Array<{ guardian: Guardian; link: StudentGuardianLink }> }> => {
+  const { student: data, guardians } = input;
 
-  logger.info('Creating new student with guardian', {
+  logger.info('Creating new student with guardians', {
     tenantId,
     fullName: data.fullName,
-    guardianMode: guardian.mode,
+    guardianCount: guardians?.length,
   });
 
   // --- Student validation (identical to createStudent) ---
@@ -357,16 +364,71 @@ export const createStudentWithGuardian = async (
     throw new AppError('Email is required for adult students (18+)', 400);
   }
 
-  // --- Guardian validation (identical to createGuardian, mode: 'new' only) ---
-  if (guardian.mode === 'new') {
-    const hasEmail = guardian.email && guardian.email.trim().length > 0;
-    const hasPhone = guardian.phone && guardian.phone.trim().length > 0;
-    if (!hasEmail && !hasPhone) {
-      throw new AppError('At least one of email or phone is required for the guardian', 400);
-    }
-  } else if (!guardian.guardianId) {
-    throw new AppError('guardianId is required', 400);
+  // --- Guardian validation (identical to createGuardian, per entry) ---
+  if (!guardians || guardians.length === 0) {
+    throw new AppError('At least one guardian is required', 400);
   }
+
+  for (const guardian of guardians) {
+    if (guardian.mode === 'new') {
+      const hasEmail = guardian.email && guardian.email.trim().length > 0;
+      const hasPhone = guardian.phone && guardian.phone.trim().length > 0;
+      if (!hasEmail && !hasPhone) {
+        throw new AppError('At least one of email or phone is required for each guardian', 400);
+      }
+    } else if (!guardian.guardianId) {
+      throw new AppError('guardianId is required', 400);
+    }
+  }
+
+  // --- Reject duplicate guardian references within this request ---
+  const seenGuardianIds = new Set<string>();
+  const seenNewContacts = new Set<string>();
+  for (const guardian of guardians) {
+    if (guardian.mode === 'existing') {
+      if (seenGuardianIds.has(guardian.guardianId)) {
+        throw new AppError(`Duplicate guardian reference in request: ${guardian.guardianId}`, 400);
+      }
+      seenGuardianIds.add(guardian.guardianId);
+    } else {
+      const email = guardian.email?.trim().toLowerCase();
+      const phone = guardian.phone?.trim();
+      const contactKey = email ? `email:${email}` : phone ? `phone:${phone}` : null;
+      if (contactKey) {
+        if (seenNewContacts.has(contactKey)) {
+          throw new AppError('Duplicate guardian reference in request: two new guardians share the same email or phone', 400);
+        }
+        seenNewContacts.add(contactKey);
+      }
+    }
+  }
+
+  // --- Exact-match check per new guardian (defense in depth - the
+  // frontend already runs this before submit for the duplicate-confirm
+  // UX, but a direct API call must be refused too, not silently create a
+  // duplicate guardian record). Pooled query is fine here since this is
+  // still before BEGIN. ---
+  for (const guardian of guardians) {
+    if (guardian.mode !== 'new') continue;
+    if (!guardian.email && !guardian.phone) continue;
+    const matches = await findExactGuardianMatch(tenantId, {
+      email: guardian.email,
+      phone: guardian.phone,
+    });
+    if (matches.length > 0) {
+      throw new AppError(
+        `A guardian with this email or phone already exists: ${matches[0].firstName ?? ''} ${matches[0].lastName ?? ''}`.trim(),
+        409
+      );
+    }
+  }
+
+  // --- Resolve exactly one primary guardian ---
+  const explicitPrimaryCount = guardians.filter(g => g.isPrimary === true).length;
+  if (explicitPrimaryCount > 1) {
+    throw new AppError('Only one guardian may be marked primary', 400);
+  }
+  const primaryIndex = explicitPrimaryCount === 1 ? guardians.findIndex(g => g.isPrimary === true) : 0;
 
   const client = await getClient();
   try {
@@ -437,64 +499,74 @@ export const createStudentWithGuardian = async (
     );
     const newStudent = keysToCamel(studentResult.rows[0]) as Student;
 
-    let guardianRow: Guardian;
-    if (guardian.mode === 'new') {
-      const guardianResult = await client.query(
-        `INSERT INTO guardians (
-          tenant_id, first_name, last_name, email, phone, created_by, updated_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $6)
-        RETURNING *`,
+    // Every guardian's insert-or-lookup and link INSERT runs on this same
+    // client, inside this same transaction - a loop over one BEGIN/COMMIT,
+    // never N separate transactions (Constraint A).
+    const createdGuardians: Array<{ guardian: Guardian; link: StudentGuardianLink }> = [];
+
+    for (let i = 0; i < guardians.length; i++) {
+      const guardian = guardians[i];
+      let guardianRow: Guardian;
+
+      if (guardian.mode === 'new') {
+        const guardianResult = await client.query(
+          `INSERT INTO guardians (
+            tenant_id, first_name, last_name, email, phone, created_by, updated_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $6)
+          RETURNING *`,
+          [
+            tenantId,
+            guardian.firstName || null,
+            guardian.lastName || null,
+            guardian.email || null,
+            guardian.phone || null,
+            userId || null,
+          ]
+        );
+        guardianRow = keysToCamel(guardianResult.rows[0]) as Guardian;
+      } else {
+        const guardianCheck = await client.query(
+          'SELECT * FROM guardians WHERE id = $1 AND tenant_id = $2',
+          [guardian.guardianId, tenantId]
+        );
+        if (guardianCheck.rows.length === 0) {
+          throw new AppError('Guardian not found', 404);
+        }
+        guardianRow = keysToCamel(guardianCheck.rows[0]) as Guardian;
+      }
+
+      // Brand-new student - safe to insert is_primary directly (exactly
+      // one entry resolved to true above), no demote-then-promote needed
+      // since nothing else can conflict with the partial unique index yet.
+      const linkResult = await client.query(
+        `INSERT INTO student_guardians (tenant_id, student_id, guardian_id, relationship, is_primary)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
         [
           tenantId,
-          guardian.firstName || null,
-          guardian.lastName || null,
-          guardian.email || null,
-          guardian.phone || null,
-          userId || null,
+          newStudent.id,
+          guardianRow.id,
+          guardian.relationship || null,
+          i === primaryIndex,
         ]
       );
-      guardianRow = keysToCamel(guardianResult.rows[0]) as Guardian;
-    } else {
-      const guardianCheck = await client.query(
-        'SELECT * FROM guardians WHERE id = $1 AND tenant_id = $2',
-        [guardian.guardianId, tenantId]
-      );
-      if (guardianCheck.rows.length === 0) {
-        throw new AppError('Guardian not found', 404);
-      }
-      guardianRow = keysToCamel(guardianCheck.rows[0]) as Guardian;
-    }
+      const link = keysToCamel(linkResult.rows[0]) as StudentGuardianLink;
 
-    // First guardian for a brand-new student - safe to insert is_primary
-    // directly (defaults true unless explicitly false), no demote-then-
-    // promote needed since nothing else can conflict with the partial
-    // unique index yet.
-    const linkResult = await client.query(
-      `INSERT INTO student_guardians (tenant_id, student_id, guardian_id, relationship, is_primary)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [
-        tenantId,
-        newStudent.id,
-        guardianRow.id,
-        guardian.relationship || null,
-        guardian.isPrimary ?? true,
-      ]
-    );
-    const link = keysToCamel(linkResult.rows[0]) as StudentGuardianLink;
+      createdGuardians.push({ guardian: guardianRow, link });
+    }
 
     await client.query('COMMIT');
 
-    logger.info('Successfully created student with guardian', {
+    logger.info('Successfully created student with guardians', {
       tenantId,
       studentId: newStudent.id,
-      guardianId: guardianRow.id,
+      guardianIds: createdGuardians.map(g => g.guardian.id),
     });
 
-    return { student: newStudent, guardian: guardianRow, link };
+    return { student: newStudent, guardians: createdGuardians };
   } catch (error) {
     await client.query('ROLLBACK');
-    logger.error('Failed to create student with guardian, rolled back', error as Error, { tenantId });
+    logger.error('Failed to create student with guardians, rolled back', error as Error, { tenantId });
     throw error;
   } finally {
     client.release();

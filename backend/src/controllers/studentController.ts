@@ -103,9 +103,10 @@ export const createStudent = asyncHandler(async (req: Request, res: Response) =>
 
 /**
  * @route   POST /api/v1/students/with-guardian
- * @desc    Atomically create a student and create-or-link a guardian in a
- *          single transaction - a failure at any step leaves nothing
- *          persisted (no orphaned student, no orphaned guardian)
+ * @desc    Atomically create a student and create-or-link one or more
+ *          guardians (body: { student, guardians: [...] }) in a single
+ *          transaction - a failure at any step leaves nothing persisted
+ *          (no orphaned student, no orphaned guardian)
  * @access  Private
  */
 export const createStudentWithGuardian = asyncHandler(async (req: Request, res: Response) => {
@@ -117,7 +118,7 @@ export const createStudentWithGuardian = asyncHandler(async (req: Request, res: 
   res.status(201).json({
     success: true,
     data: result,
-    message: 'Student and guardian created successfully',
+    message: 'Student and guardian(s) created successfully',
   });
 });
 

@@ -47,13 +47,13 @@ router.post(
   studentController.createStudent
 );
 
-// Atomically create a student and create-or-link a guardian in one
-// transaction. Separate from the plain POST /students above - that route's
-// contract stays untouched for adults and for minors deferring guardian
-// setup.
+// Atomically create a student and create-or-link one or more guardians in
+// one transaction. Separate from the plain POST /students above - that
+// route's contract stays untouched for adults and for minors deferring
+// guardian setup.
 router.post(
   '/students/with-guardian',
-  validateRequired(['student', 'guardian']),
+  validateRequired(['student', 'guardians']),
   studentController.createStudentWithGuardian
 );
 
