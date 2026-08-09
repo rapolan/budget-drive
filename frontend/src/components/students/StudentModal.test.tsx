@@ -360,17 +360,21 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
   });
 });
 
-// Constraint A: creating a student with a guardian must go through the
-// single atomic endpoint, never create() followed by a separate link call.
+// Constraint A: creating a student with one or more guardians must go
+// through the single atomic endpoint, never create() followed by separate
+// link calls - not even for multiple staged guardians (item 4).
 describe('StudentModal - atomic create with guardian (Constraint A)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [guardianCandidate({ id: 'g1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' })],
+      data: [
+        guardianCandidate({ id: 'g1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }),
+        guardianCandidate({ id: 'g2', firstName: 'John', lastName: 'Doe', email: 'john@example.com' }),
+      ],
     });
     (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
     (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { student: { id: 'student-1', fullName: 'Minor Student' }, guardian: { id: 'g1' }, link: { id: 'link-1' } },
+      data: { student: { id: 'student-1', fullName: 'Minor Student' }, guardians: [{ guardian: { id: 'g1' }, link: { id: 'link-1' } }] },
     });
   });
 
@@ -381,14 +385,25 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
   }
 
-  it('calls studentsApi.createWithGuardian (not create) when an existing guardian is selected, and never calls create()', async () => {
+  async function stageExistingGuardian(name: RegExp, isFirst = false) {
+    if (isFirst) {
+      fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    } else {
+      // After the first stage, guardianMode is reset to 'search' (not
+      // 'none'), so reopening the picker via "+ Add guardian" shows the
+      // search box directly rather than the "Link a guardian" button.
+      fireEvent.click(screen.getByRole('button', { name: /^\+?\s*add guardian$/i }));
+    }
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+    const candidateButton = await screen.findByText(name);
+    fireEvent.click(candidateButton);
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+  }
+
+  it('calls studentsApi.createWithGuardian (not create) when an existing guardian is staged, and never calls create()', async () => {
     renderModal();
     fillBasicFields();
-
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
-    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
-    const candidateButton = await screen.findByText(/Jane Doe/);
-    fireEvent.click(candidateButton);
+    await stageExistingGuardian(/Jane Doe/, true);
 
     const form = screen.getByTitle('Date of Birth').closest('form')!;
     fireEvent.submit(form);
@@ -400,7 +415,7 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     expect(payload.guardians).toEqual([{ mode: 'existing', guardianId: 'g1', relationship: undefined, isPrimary: true }]);
   });
 
-  it('calls studentsApi.createWithGuardian with mode=new when creating a new guardian, and never calls create()', async () => {
+  it('calls studentsApi.createWithGuardian with mode=new when a new guardian is staged, and never calls create()', async () => {
     renderModal();
     fillBasicFields();
 
@@ -412,6 +427,7 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: 'New' } });
     fireEvent.change(lastNameInput, { target: { value: 'Guardian' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
 
     const form = screen.getByTitle('Date of Birth').closest('form')!;
     fireEvent.submit(form);
@@ -426,7 +442,7 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     expect(payload.guardians[0].lastName).toBe('Guardian');
   });
 
-  it('plain create() is still used when no guardian is being linked (adults, or minors deferring guardian setup)', async () => {
+  it('plain create() is still used when no guardian is staged (adults, or minors deferring guardian setup)', async () => {
     renderModal();
     fillBasicFields();
 
@@ -435,6 +451,64 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
 
     await waitFor(() => expect(studentsApi.create).toHaveBeenCalledTimes(1));
     expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+  });
+
+  it('staging two guardians and submitting sends both in ONE createWithGuardian call - never create() or a separate link call', async () => {
+    renderModal();
+    fillBasicFields();
+    await stageExistingGuardian(/Jane Doe/, true);
+    await stageExistingGuardian(/John Doe/);
+
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    expect(studentsApi.create).not.toHaveBeenCalled();
+    expect(guardiansApi.linkToStudent).not.toHaveBeenCalled();
+
+    const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(payload.guardians).toHaveLength(2);
+    expect(payload.guardians[0]).toMatchObject({ mode: 'existing', guardianId: 'g1', isPrimary: true });
+    expect(payload.guardians[1]).toMatchObject({ mode: 'existing', guardianId: 'g2', isPrimary: false });
+  });
+
+  it('staging the same guardian twice is blocked locally, with no API call', async () => {
+    renderModal();
+    fillBasicFields();
+    await stageExistingGuardian(/Jane Doe/, true);
+
+    fireEvent.click(screen.getByRole('button', { name: /^\+?\s*add guardian$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+    const candidateButtons = await screen.findAllByText(/Jane Doe/);
+    // The first match is the already-staged row; the candidate list result
+    // is a later match.
+    fireEvent.click(candidateButtons[candidateButtons.length - 1]);
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    expect(await screen.findByText(/already staged/i)).toBeInTheDocument();
+    expect(guardiansApi.findExactMatch).not.toHaveBeenCalled();
+  });
+
+  it('changing which staged guardian is primary before submit is reflected in the submitted payload', async () => {
+    renderModal();
+    fillBasicFields();
+    await stageExistingGuardian(/Jane Doe/, true);
+    await stageExistingGuardian(/John Doe/);
+
+    // Jane (g1) is primary by default (staged first) - promote John (g2) instead.
+    const stars = screen.getAllByTitle(/set as primary guardian/i);
+    fireEvent.click(stars[0]);
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const primaryEntry = payload.guardians.find((g: { isPrimary: boolean }) => g.isPrimary);
+    expect(primaryEntry.guardianId).toBe('g2');
   });
 });
 
@@ -467,52 +541,57 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
     fireEvent.change(emailInput, { target: { value: email } });
   }
 
-  it('shows the confirm panel when a new guardian email exactly matches an existing one, and does not submit yet', async () => {
+  it('shows the confirm panel when staging a new guardian whose email exactly matches an existing one, and does not stage it yet', async () => {
     (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [{ id: 'g-existing', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null }],
     });
 
     renderModal();
     fillBasicFieldsAndNewGuardian('jane@example.com');
-
-    const form = screen.getByTitle('Date of Birth').closest('form')!;
-    fireEvent.submit(form);
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
 
     expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
     expect(await screen.findByText(/parent of Alice Smith/i)).toBeInTheDocument();
     expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
   });
 
-  it('"Link to this guardian" links the existing match instead of creating a separate record', async () => {
+  it('"Link to this guardian" stages the existing match instead of creating a separate record', async () => {
     (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [{ id: 'g-existing', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null }],
     });
 
     renderModal();
     fillBasicFieldsAndNewGuardian('jane@example.com');
-
-    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
     await screen.findByText(/already exists/i);
 
     fireEvent.click(screen.getByRole('button', { name: /link to this guardian/i }));
+
+    // Staged, not yet submitted - confirm it shows in the sub-panel, then
+    // submit the form to see what was actually sent.
+    expect(await screen.findByText('Jane Doe')).toBeInTheDocument();
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
 
     await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(payload.guardians[0]).toMatchObject({ mode: 'existing', guardianId: 'g-existing' });
   });
 
-  it('"Create separate record" proceeds with the original new-guardian payload, bypassing the match', async () => {
+  it('"Create separate record" stages the original new-guardian payload, bypassing the match', async () => {
     (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [{ id: 'g-existing', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null }],
     });
 
     renderModal();
     fillBasicFieldsAndNewGuardian('jane@example.com');
-
-    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
     await screen.findByText(/already exists/i);
 
     fireEvent.click(screen.getByRole('button', { name: /create separate record/i }));
+
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
 
     await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -533,10 +612,9 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
     fireEvent.change(lastNameInput, { target: { value: 'Doe' } }); // matches an existing guardian's surname, but no email/phone entered
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
 
-    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
-
-    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText('Doe')).toBeInTheDocument());
     expect(guardiansApi.findExactMatch).not.toHaveBeenCalled();
   });
 });

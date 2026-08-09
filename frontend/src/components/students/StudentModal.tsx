@@ -20,6 +20,23 @@ type TabType = 'details' | 'progress' | 'history';
 
 type GuardianSelectionMode = 'none' | 'search' | 'selected-existing' | 'create-new';
 
+// A guardian staged locally in create mode - nothing hits the database
+// until the whole form is submitted, at which point every staged guardian
+// is sent to createWithGuardian in a SINGLE request (Constraint A: one
+// atomic transaction for the student + however many guardians were staged,
+// never N separate calls). key is a client-generated id since there's no
+// real guardian id yet for a 'new' entry (an 'existing' entry's key is the
+// real guardianId).
+type StagedGuardian =
+  | { key: string; mode: 'existing'; guardianId: string; display: GuardianCandidate; relationship: GuardianRelationship | ''; isPrimary: boolean }
+  | { key: string; mode: 'new'; firstName: string; lastName: string; email: string; phone: string; relationship: GuardianRelationship | ''; isPrimary: boolean };
+
+let stagedGuardianKeySeq = 0;
+function nextStagedGuardianKey(): string {
+  stagedGuardianKeySeq += 1;
+  return `staged-${stagedGuardianKeySeq}`;
+}
+
 const RELATIONSHIP_OPTIONS: { value: GuardianRelationship; label: string }[] = [
   { value: 'mother', label: 'Mother' },
   { value: 'father', label: 'Father' },
@@ -155,9 +172,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const studentAge = calculateAge(formData.dateOfBirth || '');
   const isAdult = studentAge !== null && studentAge >= 18;
 
-  // --- Guardian selection (create mode only) ---
+  // --- Guardian selection ---
   // Constraint C: selecting a candidate or "create new" only sets local
-  // state here - the actual link/create only happens in handleSubmit.
+  // state here - the actual link/create only happens on explicit
+  // confirmation (handleSubmit for create mode, submitGuardianForEdit for
+  // edit mode). The picker itself (guardianMode/guardianQuery/etc) is
+  // shared between create and edit mode - same UI, same Constraint B
+  // query-routing, just a different "on confirm" destination.
   const [guardianMode, setGuardianMode] = useState<GuardianSelectionMode>(
     prefillFromGuardian ? 'selected-existing' : 'none'
   );
@@ -178,16 +199,52 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const [sameAsGuardian, setSameAsGuardian] = useState(false);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [duplicateMatches, setDuplicateMatches] = useState<Guardian[]>([]);
+  const [stagingError, setStagingError] = useState('');
 
-  // Edit mode: the picker is opened on demand via the sub-panel's
-  // "+ Add guardian" affordance, rather than always being visible the way
-  // it is in create mode. isAddingGuardianEdit is edit-mode-only state;
-  // guardianMode/guardianQuery/etc above are shared with create mode since
-  // it's the same picker UI either way (Constraint B - no new matching
-  // logic, just reused rendering).
-  const [isAddingGuardianEdit, setIsAddingGuardianEdit] = useState(false);
+  // Create mode: guardians staged locally, nothing persisted until submit
+  // (item 4). Edit mode: the picker is opened on demand via the sub-panel's
+  // "+ Add guardian" affordance. Both modes use the same isAddingGuardian
+  // flag to control whether the picker is showing; create mode starts with
+  // it open only when there's nothing staged yet and no prefill (matching
+  // the old "always visible in create mode" behavior for the common
+  // single-guardian case), and edit mode always starts closed.
+  const [stagedGuardians, setStagedGuardians] = useState<StagedGuardian[]>(() => {
+    if (!prefillFromGuardian) return [];
+    return [{
+      key: prefillFromGuardian.guardianId,
+      mode: 'existing',
+      guardianId: prefillFromGuardian.guardianId,
+      display: {
+        id: prefillFromGuardian.guardianId,
+        tenantId: '',
+        firstName: null,
+        lastName: prefillFromGuardian.lastName ?? null,
+        email: null,
+        phone: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        linkedStudentNames: [],
+      },
+      relationship: '',
+      isPrimary: true,
+    }];
+  });
+  const [isAddingGuardian, setIsAddingGuardian] = useState(!isEditing && !prefillFromGuardian);
 
-  const isPickerOpen = !isEditing || isAddingGuardianEdit;
+  const isPickerOpen = isAddingGuardian;
+
+  // GuardianSubPanel's DisplayGuardian shape for create mode - staged
+  // guardians, keyed by their client-generated key (or the real guardianId
+  // for a staged 'existing' entry).
+  const stagedGuardianRows: DisplayGuardian[] = stagedGuardians.map(g => ({
+    key: g.key,
+    firstName: g.mode === 'existing' ? g.display.firstName : g.firstName || null,
+    lastName: g.mode === 'existing' ? g.display.lastName : g.lastName || null,
+    email: g.mode === 'existing' ? g.display.email : g.email || null,
+    phone: g.mode === 'existing' ? g.display.phone : g.phone || null,
+    relationship: g.relationship || null,
+    isPrimary: g.isPrimary,
+  }));
 
   const { data: candidatesData } = useQuery({
     queryKey: ['guardians', 'candidates', debouncedGuardianQuery],
@@ -337,7 +394,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       guardiansApi.linkToStudent(student!.id, data),
     onSuccess: () => {
       invalidateGuardianQueries();
-      setIsAddingGuardianEdit(false);
+      setIsAddingGuardian(false);
       handleResetGuardianSelection();
     },
     onError: (error: Error & { response?: { data?: { error?: string } } }) => {
@@ -401,42 +458,27 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                        (createWithGuardianMutation.isError ? 'Failed to create student' : '') ||
                        (updateMutation.isError ? 'Failed to update student' : '');
 
-  const submitWithGuardian = async (submitData: CreateStudentInput, skipDuplicateCheck = false) => {
-    if (guardianMode === 'create-new' && !skipDuplicateCheck) {
-      const hasContact = newGuardianFields.email.trim() || newGuardianFields.phone.trim();
-      if (hasContact) {
-        const matchResult = await guardiansApi.findExactMatch({
-          email: newGuardianFields.email || undefined,
-          phone: newGuardianFields.phone || undefined,
-        });
-        if (matchResult.data && matchResult.data.length > 0) {
-          setDuplicateMatches(matchResult.data);
-          setShowDuplicateConfirm(true);
-          return; // halt - wait for an explicit choice in the confirm panel
-        }
-      }
-    }
-
+  // Sends every STAGED guardian to createWithGuardian in a single request -
+  // one atomic transaction for the student + however many guardians were
+  // staged (Constraint A), never N separate calls. Any guardian still sitting
+  // in the picker (not yet staged) is ignored - the user must click
+  // "Add Guardian" to stage it first, same as any other staged entry.
+  const submitWithStagedGuardians = async (submitData: CreateStudentInput) => {
     await createWithGuardianMutation.mutateAsync({
       student: submitData,
-      guardians: [
-        guardianMode === 'selected-existing'
-          ? {
-              mode: 'existing',
-              guardianId: selectedGuardianId!,
-              relationship: guardianRelationship || undefined,
-              isPrimary: true,
-            }
+      guardians: stagedGuardians.map(g =>
+        g.mode === 'existing'
+          ? { mode: 'existing' as const, guardianId: g.guardianId, relationship: g.relationship || undefined, isPrimary: g.isPrimary }
           : {
-              mode: 'new',
-              firstName: newGuardianFields.firstName || undefined,
-              lastName: newGuardianFields.lastName || undefined,
-              email: newGuardianFields.email || undefined,
-              phone: newGuardianFields.phone || undefined,
-              relationship: newGuardianFields.relationship || undefined,
-              isPrimary: true,
-            },
-      ],
+              mode: 'new' as const,
+              firstName: g.firstName || undefined,
+              lastName: g.lastName || undefined,
+              email: g.email || undefined,
+              phone: g.phone || undefined,
+              relationship: g.relationship || undefined,
+              isPrimary: g.isPrimary,
+            }
+      ),
     });
   };
 
@@ -481,6 +523,69 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     }
   };
 
+  // Create-mode analogue: stages the picker's current selection locally
+  // instead of hitting the API - nothing persists until the whole form is
+  // submitted (item 4). Still runs the duplicate-check flow per staged
+  // guardian (Constraint C), and additionally prevents staging the same
+  // guardian twice (same guardianId for 'existing', or the same non-empty
+  // email/phone for 'new') so the rejection is immediate rather than only
+  // surfacing at submit time.
+  const stageGuardian = async (skipDuplicateCheck = false) => {
+    setStagingError('');
+
+    if (guardianMode === 'selected-existing') {
+      if (stagedGuardians.some(g => g.mode === 'existing' && g.guardianId === selectedGuardianId)) {
+        setStagingError('This guardian is already staged for this student.');
+        return;
+      }
+      setStagedGuardians(prev => [...prev, {
+        key: selectedGuardianId!,
+        mode: 'existing',
+        guardianId: selectedGuardianId!,
+        display: selectedGuardian!,
+        relationship: guardianRelationship,
+        isPrimary: prev.length === 0,
+      }]);
+    } else {
+      const email = newGuardianFields.email.trim().toLowerCase();
+      const phone = newGuardianFields.phone.trim();
+      const isDuplicateStaged = stagedGuardians.some(g => {
+        if (g.mode !== 'new') return false;
+        return (email && g.email.trim().toLowerCase() === email) || (phone && g.phone.trim() === phone);
+      });
+      if (isDuplicateStaged) {
+        setStagingError('A guardian with this email or phone is already staged for this student.');
+        return;
+      }
+
+      if (!skipDuplicateCheck && (email || phone)) {
+        const matchResult = await guardiansApi.findExactMatch({
+          email: newGuardianFields.email || undefined,
+          phone: newGuardianFields.phone || undefined,
+        });
+        if (matchResult.data && matchResult.data.length > 0) {
+          setDuplicateMatches(matchResult.data);
+          setShowDuplicateConfirm(true);
+          return; // halt - wait for an explicit choice in the confirm panel
+        }
+      }
+
+      setStagedGuardians(prev => [...prev, {
+        key: nextStagedGuardianKey(),
+        mode: 'new',
+        firstName: newGuardianFields.firstName,
+        lastName: newGuardianFields.lastName,
+        email: newGuardianFields.email,
+        phone: newGuardianFields.phone,
+        relationship: newGuardianFields.relationship,
+        isPrimary: prev.length === 0,
+      }]);
+    }
+
+    setIsAddingGuardian(false);
+    handleResetGuardianSelection();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
@@ -509,8 +614,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       fullName: generatedFullName,
     };
 
-    if (!isEditing && (guardianMode === 'selected-existing' || guardianMode === 'create-new')) {
-      await submitWithGuardian(submitData);
+    if (!isEditing && stagedGuardians.length > 0) {
+      await submitWithStagedGuardians(submitData);
     } else if (isEditing) {
       await updateMutation.mutateAsync(submitData);
     } else {
@@ -520,9 +625,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   // Duplicate-confirm panel actions (Constraint C: both require an
   // explicit click; nothing here links automatically). Branches on
-  // isEditing since create mode still creates the student atomically
-  // together with the guardian, while edit mode links to an
-  // already-existing student (see submitGuardianForEdit above).
+  // isEditing: edit mode links to the already-existing student immediately
+  // (see submitGuardianForEdit above); create mode stages the guardian
+  // (skipping its own duplicate check, since the match was already found
+  // and explicitly resolved here) - the student itself isn't created until
+  // the whole form is submitted, same as any other staged guardian.
   const handleLinkExistingFromDuplicate = async (guardianId: string) => {
     setSelectedGuardianId(guardianId);
     setGuardianMode('selected-existing');
@@ -536,14 +643,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       return;
     }
 
-    const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    await createWithGuardianMutation.mutateAsync({
-      student: { ...formData, fullName: generatedFullName },
-      guardians: [{ mode: 'existing', guardianId, relationship: guardianRelationship || undefined, isPrimary: true }],
-    });
+    const match = duplicateMatches.find(m => m.id === guardianId);
+    setStagedGuardians(prev => [...prev, {
+      key: guardianId,
+      mode: 'existing',
+      guardianId,
+      display: { ...(match as Guardian), linkedStudentNames: [] },
+      relationship: guardianRelationship,
+      isPrimary: prev.length === 0,
+    }]);
+    setIsAddingGuardian(false);
+    handleResetGuardianSelection();
   };
 
   const handleCreateSeparateFromDuplicate = async () => {
@@ -554,11 +664,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       return;
     }
 
-    const generatedFullName = [formData.firstName, formData.middleName, formData.lastName]
-      .filter(Boolean)
-      .join(' ')
-      .trim();
-    await submitWithGuardian({ ...formData, fullName: generatedFullName }, true);
+    await stageGuardian(true);
   };
 
   const handleSameAsGuardianToggle = (checked: boolean) => {
@@ -932,33 +1038,61 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </div>
                 )}
 
-                {/* Edit mode: the linked-guardians sub-panel, with the same
-                    picker below it (only while adding). This is what lets
-                    existing/seeded students finally get guardians through
-                    the UI - previously the whole picker was create-mode-only. */}
-                {isEditing && (
-                  <GuardianSubPanel
-                    guardians={editGuardianRows}
-                    isMinor={!isAdult}
-                    isAddingGuardian={isAddingGuardianEdit}
-                    onAddClick={() => setIsAddingGuardianEdit(true)}
-                    onUnlink={(guardianId) => unlinkGuardianMutation.mutate(guardianId)}
-                    onChangeRelationship={(guardianId, relationship) =>
-                      updateRelationshipMutation.mutate({ guardianId, relationship })
+                {/* The same sub-panel in both modes: real linked guardians
+                    in edit mode (immediate API calls), staged guardians in
+                    create mode (nothing persisted until submit - item 4).
+                    This is also what lets existing/seeded students finally
+                    get guardians through the UI - previously the whole
+                    picker was create-mode-only. */}
+                <GuardianSubPanel
+                  guardians={isEditing ? editGuardianRows : stagedGuardianRows}
+                  isMinor={!isAdult}
+                  isAddingGuardian={isAddingGuardian}
+                  onAddClick={() => setIsAddingGuardian(true)}
+                  onUnlink={(key) => {
+                    if (isEditing) {
+                      unlinkGuardianMutation.mutate(key);
+                    } else {
+                      setStagedGuardians(prev => {
+                        const next = prev.filter(g => g.key !== key);
+                        // If the removed guardian was primary, the first
+                        // remaining staged guardian becomes primary by
+                        // default (mirrors the backend's own default when
+                        // none is explicitly marked).
+                        if (next.length > 0 && !next.some(g => g.isPrimary)) {
+                          next[0] = { ...next[0], isPrimary: true };
+                        }
+                        return next;
+                      });
                     }
-                    onSetPrimary={(guardianId) => setPrimaryGuardianMutation.mutate(guardianId)}
-                  />
-                )}
+                  }}
+                  onChangeRelationship={(key, relationship) => {
+                    if (isEditing) {
+                      updateRelationshipMutation.mutate({ guardianId: key, relationship });
+                    } else {
+                      setStagedGuardians(prev => prev.map(g =>
+                        g.key === key ? { ...g, relationship: (relationship ?? '') as GuardianRelationship | '' } : g
+                      ));
+                    }
+                  }}
+                  onSetPrimary={(key) => {
+                    if (isEditing) {
+                      setPrimaryGuardianMutation.mutate(key);
+                    } else {
+                      setStagedGuardians(prev => prev.map(g => ({ ...g, isPrimary: g.key === key })));
+                    }
+                  }}
+                />
 
-                {/* Guardian picker - shown always in create mode, or in
-                    edit mode only while isAddingGuardianEdit (opened via
-                    the sub-panel's "+ Add guardian" above). */}
+                {/* Guardian picker - shown only while isAddingGuardian
+                    (opened via the sub-panel's "+ Add guardian" above, in
+                    either mode). */}
                 {isPickerOpen && (
                   <div className="space-y-3">
-                    {isEditing && (
+                    {(isEditing || stagedGuardians.length > 0) && (
                       <button
                         type="button"
-                        onClick={() => { setIsAddingGuardianEdit(false); handleResetGuardianSelection(); }}
+                        onClick={() => { setIsAddingGuardian(false); handleResetGuardianSelection(); }}
                         className="text-xs text-tx-muted hover:text-tx-secondary"
                       >
                         Cancel
@@ -1122,13 +1256,22 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     )}
 
-                    {/* Edit mode has no form submit to confirm the add
-                        through - a dedicated button runs the same
-                        duplicate-check-then-link flow immediately. */}
-                    {isEditing && (guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
+                    {stagingError && (
+                      <p className="text-xs text-status-danger-text">{stagingError}</p>
+                    )}
+
+                    {/* Neither mode confirms an add through the student
+                        form's own submit - edit mode has no form submit at
+                        all for this, and create mode's submit sends every
+                        ALREADY-staged guardian in one shot (item 4), so
+                        staging one more is a separate, explicit action too.
+                        Edit mode calls the API immediately; create mode
+                        pushes into stagedGuardians - nothing hits the
+                        database until the whole form is submitted. */}
+                    {(guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
                       <button
                         type="button"
-                        onClick={() => submitGuardianForEdit()}
+                        onClick={() => (isEditing ? submitGuardianForEdit() : stageGuardian())}
                         disabled={linkGuardianMutation.isPending}
                         className="w-full px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 disabled:opacity-60 transition-colors"
                       >
