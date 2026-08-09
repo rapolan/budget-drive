@@ -197,6 +197,20 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   });
   const [guardianRelationship, setGuardianRelationship] = useState<GuardianRelationship | ''>('');
   const [sameAsGuardian, setSameAsGuardian] = useState(false);
+  // Which linked/staged guardian "same as guardian" should copy from, once
+  // 2+ guardians make the source ambiguous. Unset (null) is fine when there's
+  // 0 or 1 guardian - the single-guardian case doesn't need a selection.
+  const [sameAsGuardianId, setSameAsGuardianId] = useState<string | null>(null);
+
+  // Progressive emergency contacts: the whole block is collapsed behind a
+  // checkbox, unchecked by default when empty and checked automatically
+  // when the incoming student/formData already has emergency-contact data
+  // (so nothing existing is ever hidden from view). Unchecking never
+  // clears already-entered data, matching "same as guardian"'s existing
+  // non-destructive-uncheck behavior.
+  const [emergencyContactEnabled, setEmergencyContactEnabled] = useState(
+    Boolean(prefillFromGuardian?.emergencyContactFirstName || prefillFromGuardian?.emergencyContactPhone)
+  );
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [duplicateMatches, setDuplicateMatches] = useState<Guardian[]>([]);
   const [stagingError, setStagingError] = useState('');
@@ -245,6 +259,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     relationship: g.relationship || null,
     isPrimary: g.isPrimary,
   }));
+
+  // Source list for "same as guardian" - the real linked guardians in edit
+  // mode, or the locally-staged ones in create mode. Same list the sub-panel
+  // itself renders, so the radio options always match what's on screen.
+  const availableGuardiansForCopy: DisplayGuardian[] = isEditing ? editGuardianRows : stagedGuardianRows;
 
   const { data: candidatesData } = useQuery({
     queryKey: ['guardians', 'candidates', debouncedGuardianQuery],
@@ -330,6 +349,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
           : '',
         notes: student.notes || '',
       });
+      if (student.emergencyContactFirstName || student.emergencyContactLastName || student.emergencyContactPhone) {
+        setEmergencyContactEnabled(true);
+      }
     }
   }, [student, defaultHoursRequired]);
 
@@ -667,21 +689,37 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     await stageGuardian(true);
   };
 
-  const handleSameAsGuardianToggle = (checked: boolean) => {
-    setSameAsGuardian(checked);
-    if (!checked) return;
-
-    const source =
-      guardianMode === 'selected-existing' && selectedGuardian
-        ? { firstName: selectedGuardian.firstName ?? '', lastName: selectedGuardian.lastName ?? '', phone: selectedGuardian.phone ?? '' }
-        : newGuardianFields;
-
+  const copyEmergencyContactFrom = (source: { firstName?: string | null; lastName?: string | null; phone?: string | null }) => {
     setFormData(prev => ({
       ...prev,
       emergencyContactFirstName: source.firstName || prev.emergencyContactFirstName,
       emergencyContactLastName: source.lastName || prev.emergencyContactLastName,
       emergencyContactPhone: source.phone || prev.emergencyContactPhone,
     }));
+  };
+
+  // Guardian-count-aware: 0 guardians has nothing to copy from and the
+  // option doesn't render at all; exactly 1 copies immediately on check,
+  // same as before; 2+ is ambiguous, so checking just reveals a radio list
+  // (handled by handleSameAsGuardianSelect) instead of copying right away.
+  const handleSameAsGuardianToggle = (checked: boolean) => {
+    setSameAsGuardian(checked);
+    if (!checked) {
+      setSameAsGuardianId(null);
+      return;
+    }
+
+    if (availableGuardiansForCopy.length === 1) {
+      copyEmergencyContactFrom(availableGuardiansForCopy[0]);
+      setSameAsGuardianId(availableGuardiansForCopy[0].key);
+      return;
+    }
+  };
+
+  const handleSameAsGuardianSelect = (key: string) => {
+    setSameAsGuardianId(key);
+    const source = availableGuardiansForCopy.find(g => g.key === key);
+    if (source) copyEmergencyContactFrom(source);
   };
 
   // Calculate form completion percentage
@@ -1290,7 +1328,10 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 3b: Emergency Contact - structurally separate
-                  free-text fields, distinct from a linked guardian record. */}
+                  free-text fields, distinct from a linked guardian record.
+                  Progressive disclosure: collapsed behind a checkbox unless
+                  data already exists, so an empty form doesn't front-load
+                  fields most students won't need. */}
               <div className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4 text-tx-muted" />
@@ -1300,74 +1341,67 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   )}
                 </h3>
 
-                {!isEditing && (guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
-                  <label className="flex items-center gap-2 text-sm text-tx-secondary">
-                    <input
-                      type="checkbox"
-                      checked={sameAsGuardian}
-                      onChange={(e) => handleSameAsGuardianToggle(e.target.checked)}
-                      className="rounded border-edge-strong text-primary focus:ring-primary"
-                    />
-                    Same as guardian above
-                  </label>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-tx-secondary mb-1.5">Name</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      name="guardian_firstname_input"
-                      value={formData.emergencyContactFirstName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactFirstName: e.target.value }))}
-                      autoComplete="new-password"
-                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                      placeholder="First"
-                    />
-                    <input
-                      type="text"
-                      name="guardian_lastname_input"
-                      value={formData.emergencyContactLastName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactLastName: e.target.value }))}
-                      autoComplete="new-password"
-                      className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                      placeholder="Last"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-tx-secondary mb-1.5">Phone</label>
+                <label className="flex items-center gap-2 text-sm text-tx-secondary">
                   <input
-                    type="tel"
-                    name="guardian_phone_input"
-                    value={formData.emergencyContactPhone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                    placeholder="(555) 123-4567"
+                    type="checkbox"
+                    checked={emergencyContactEnabled}
+                    onChange={(e) => setEmergencyContactEnabled(e.target.checked)}
+                    className="rounded border-edge-strong text-primary focus:ring-primary"
                   />
-                </div>
+                  Add an emergency contact
+                </label>
 
-                {/* Secondary contact - optional */}
-                {(formData.emergencyContact2FirstName || formData.emergencyContact2LastName || formData.emergencyContact2Phone) ? (
-                  <div className="space-y-3">
+                {emergencyContactEnabled && (
+                  <>
+                    {availableGuardiansForCopy.length > 0 && (
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm text-tx-secondary">
+                          <input
+                            type="checkbox"
+                            checked={sameAsGuardian}
+                            onChange={(e) => handleSameAsGuardianToggle(e.target.checked)}
+                            className="rounded border-edge-strong text-primary focus:ring-primary"
+                          />
+                          Same as guardian{availableGuardiansForCopy.length > 1 ? '' : ' above'}
+                        </label>
+
+                        {sameAsGuardian && availableGuardiansForCopy.length > 1 && (
+                          <div className="pl-6 space-y-1.5">
+                            {availableGuardiansForCopy.map(g => (
+                              <label key={g.key} className="flex items-center gap-2 text-sm text-tx-secondary">
+                                <input
+                                  type="radio"
+                                  name="same_as_guardian_choice"
+                                  checked={sameAsGuardianId === g.key}
+                                  onChange={() => handleSameAsGuardianSelect(g.key)}
+                                  className="border-edge-strong text-primary focus:ring-primary"
+                                />
+                                {[g.firstName, g.lastName].filter(Boolean).join(' ') || 'Unnamed guardian'}
+                                {g.relationship ? ` (${g.relationship})` : ''}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div>
-                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact Name</label>
+                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Name</label>
                       <div className="grid grid-cols-2 gap-2">
                         <input
                           type="text"
-                          name="guardian2_firstname_input"
-                          value={formData.emergencyContact2FirstName}
-                          onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2FirstName: e.target.value }))}
+                          name="guardian_firstname_input"
+                          value={formData.emergencyContactFirstName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactFirstName: e.target.value }))}
                           autoComplete="new-password"
                           className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                           placeholder="First"
                         />
                         <input
                           type="text"
-                          name="guardian2_lastname_input"
-                          value={formData.emergencyContact2LastName}
-                          onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2LastName: e.target.value }))}
+                          name="guardian_lastname_input"
+                          value={formData.emergencyContactLastName}
+                          onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactLastName: e.target.value }))}
                           autoComplete="new-password"
                           className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                           placeholder="Last"
@@ -1375,26 +1409,70 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact Phone</label>
+                      <label className="block text-sm font-medium text-tx-secondary mb-1.5">Phone</label>
                       <input
                         type="tel"
-                        name="guardian2_phone_input"
-                        value={formData.emergencyContact2Phone}
-                        onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Phone: formatPhoneNumber(e.target.value) }))}
+                        name="guardian_phone_input"
+                        value={formData.emergencyContactPhone}
+                        onChange={(e) => setFormData(prev => ({ ...prev, emergencyContactPhone: formatPhoneNumber(e.target.value) }))}
                         autoComplete="new-password"
                         className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
                         placeholder="(555) 123-4567"
                       />
                     </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, emergencyContact2FirstName: ' ' }))}
-                    className="text-sm text-primary hover:text-primary"
-                  >
-                    + Add secondary contact
-                  </button>
+
+                    {/* Secondary contact - optional, and only offered once
+                        the first contact has something to distinguish it from. */}
+                    {(formData.emergencyContact2FirstName || formData.emergencyContact2LastName || formData.emergencyContact2Phone) ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact Name</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              name="guardian2_firstname_input"
+                              value={formData.emergencyContact2FirstName}
+                              onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2FirstName: e.target.value }))}
+                              autoComplete="new-password"
+                              className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                              placeholder="First"
+                            />
+                            <input
+                              type="text"
+                              name="guardian2_lastname_input"
+                              value={formData.emergencyContact2LastName}
+                              onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2LastName: e.target.value }))}
+                              autoComplete="new-password"
+                              className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                              placeholder="Last"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-tx-secondary mb-1.5">Secondary Contact Phone</label>
+                          <input
+                            type="tel"
+                            name="guardian2_phone_input"
+                            value={formData.emergencyContact2Phone}
+                            onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact2Phone: formatPhoneNumber(e.target.value) }))}
+                            autoComplete="new-password"
+                            className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                            placeholder="(555) 123-4567"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      (formData.emergencyContactFirstName || formData.emergencyContactPhone) && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, emergencyContact2FirstName: ' ' }))}
+                          className="text-sm text-primary hover:text-primary"
+                        >
+                          + Add secondary contact
+                        </button>
+                      )
+                    )}
+                  </>
                 )}
               </div>
 

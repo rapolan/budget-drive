@@ -134,8 +134,9 @@ describe('StudentModal create form - emergency contact field contract', () => {
     (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
   });
 
-  it('renders separate first/last name inputs for the parent/guardian contact', () => {
+  it('renders separate first/last name inputs for the parent/guardian contact once enabled', () => {
     renderModal();
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
     expect(document.getElementsByName('guardian_firstname_input')).toHaveLength(1);
     expect(document.getElementsByName('guardian_lastname_input')).toHaveLength(1);
     // The old single combined-name input no longer exists.
@@ -152,6 +153,7 @@ describe('StudentModal create form - emergency contact field contract', () => {
     });
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2010-01-01' } });
 
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
     fireEvent.change(document.getElementsByName('guardian_firstname_input')[0], { target: { value: 'Parent' } });
     fireEvent.change(document.getElementsByName('guardian_lastname_input')[0], { target: { value: 'Contact' } });
     fireEvent.change(document.getElementsByName('guardian_phone_input')[0], { target: { value: '5551234567' } });
@@ -167,6 +169,55 @@ describe('StudentModal create form - emergency contact field contract', () => {
     expect(payload).not.toHaveProperty('emergencyContact');
     expect(payload).not.toHaveProperty('emergencyContactName');
     expect(payload).not.toHaveProperty('emergencyContact2Name');
+  });
+});
+
+describe('StudentModal - progressive emergency contact disclosure (item 5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+  });
+
+  it('starts unchecked and hides the contact fields for a blank create-mode student', () => {
+    renderModal();
+    const checkbox = screen.getByLabelText(/add an emergency contact/i) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    expect(document.getElementsByName('guardian_firstname_input')).toHaveLength(0);
+  });
+
+  it('starts checked and shows the contact fields when editing a student with existing emergency-contact data', () => {
+    renderModal(editableStudent({
+      emergencyContactFirstName: 'Pat',
+      emergencyContactLastName: 'Guardian',
+      emergencyContactPhone: '5559998888',
+    } as Partial<Student>));
+
+    const checkbox = screen.getByLabelText(/add an emergency contact/i) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect((document.getElementsByName('guardian_firstname_input')[0] as HTMLInputElement).value).toBe('Pat');
+  });
+
+  it('hides the "+ Add secondary contact" button until the first contact has a name or phone', () => {
+    renderModal();
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
+
+    expect(screen.queryByRole('button', { name: /\+ add secondary contact/i })).not.toBeInTheDocument();
+
+    fireEvent.change(document.getElementsByName('guardian_firstname_input')[0], { target: { value: 'Parent' } });
+
+    expect(screen.getByRole('button', { name: /\+ add secondary contact/i })).toBeInTheDocument();
+  });
+
+  it('unchecking the emergency contact checkbox does not clear already-entered data', () => {
+    renderModal();
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
+    fireEvent.change(document.getElementsByName('guardian_firstname_input')[0], { target: { value: 'Parent' } });
+
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
+    expect(document.getElementsByName('guardian_firstname_input')).toHaveLength(0);
+
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
+    expect((document.getElementsByName('guardian_firstname_input')[0] as HTMLInputElement).value).toBe('Parent');
   });
 });
 
@@ -509,6 +560,35 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
     const primaryEntry = payload.guardians.find((g: { isPrimary: boolean }) => g.isPrimary);
     expect(primaryEntry.guardianId).toBe('g2');
+  });
+
+  it('"same as guardian" copies immediately with exactly one staged guardian, no radio list', async () => {
+    renderModal();
+    fillBasicFields();
+    await stageExistingGuardian(/Jane Doe/, true);
+
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
+    fireEvent.click(screen.getByLabelText(/same as guardian/i));
+
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect((document.getElementsByName('guardian_firstname_input')[0] as HTMLInputElement).value).toBe('Jane');
+  });
+
+  it('"same as guardian" shows a radio per staged guardian with 2+ staged, and copies the selected one', async () => {
+    renderModal();
+    fillBasicFields();
+    await stageExistingGuardian(/Jane Doe/, true);
+    await stageExistingGuardian(/John Doe/);
+
+    fireEvent.click(screen.getByLabelText(/add an emergency contact/i));
+    fireEvent.click(screen.getByLabelText(/^same as guardian$/i));
+
+    const radios = screen.getAllByRole('radio');
+    expect(radios).toHaveLength(2);
+
+    fireEvent.click(screen.getByLabelText(/John Doe/));
+
+    expect((document.getElementsByName('guardian_firstname_input')[0] as HTMLInputElement).value).toBe('John');
   });
 });
 
