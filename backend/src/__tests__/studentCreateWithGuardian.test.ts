@@ -406,3 +406,102 @@ describe('POST /api/v1/students/with-guardian', () => {
     expect(mockGetClient).not.toHaveBeenCalled();
   });
 });
+
+// Constraint A, structural proof: creating a student with N guardians must
+// issue exactly ONE BEGIN and ONE COMMIT - never one pair per guardian - and
+// every write to students/guardians/student_guardians must happen on the
+// transaction's client, never on the pooled connection. Mirrors
+// guardianMatching.test.ts's "never issues a write query" technique (spy on
+// a mechanism, assert a forbidden pattern is absent) and
+// progressCalculationOwnership.test.ts's "assert a forbidden pattern is
+// structurally absent" spirit, applied here to call counts rather than
+// source text since this function has a mockable client to spy on.
+describe('POST /api/v1/students/with-guardian - Constraint A structural test', () => {
+  beforeEach(() => {
+    resetMockQuery();
+    resetMockClient();
+  });
+
+  it('issues exactly one BEGIN and one COMMIT for a two-guardian create, not one pair per guardian', async () => {
+    const studentService = await import('../services/studentService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (both mode: 'existing')
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian #1 existence SELECT
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1', student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link #1 INSERT
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_2, tenant_id: TENANT_ID }])) // guardian #2 existence SELECT
+      .mockResolvedValueOnce(queryResult([{ id: 'link-2', student_id: 'student-1', guardian_id: GUARDIAN_ID_2, is_primary: false }])) // link #2 INSERT
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    await studentService.createStudentWithGuardian(
+      TENANT_ID,
+      {
+        student: minorStudentPayload(),
+        guardians: [
+          { mode: 'existing', guardianId: GUARDIAN_ID },
+          { mode: 'existing', guardianId: GUARDIAN_ID_2 },
+        ],
+      },
+      'staff-1'
+    );
+
+    const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+    const beginCount = clientCalls.filter(sql => sql === 'BEGIN').length;
+    const commitCount = clientCalls.filter(sql => sql === 'COMMIT').length;
+
+    expect(beginCount).toBe(1);
+    expect(commitCount).toBe(1);
+    expect(mockGetClient).toHaveBeenCalledTimes(1);
+
+    // Every write touching students/guardians/student_guardians must have
+    // happened on the transaction's client, never on the pooled connection.
+    // The pooled connection is only expected to see reads (getTenantSettings,
+    // and any pre-BEGIN exact-match check) - both read-only, both legitimate.
+    const pooledWritesToGuardedTables = mockQuery.mock.calls.filter(([sql]) => {
+      if (typeof sql !== 'string') return false;
+      const isWrite = /^\s*(INSERT|UPDATE|DELETE)/i.test(sql);
+      const touchesGuardedTable = /\b(students|guardians|student_guardians)\b/i.test(sql);
+      return isWrite && touchesGuardedTable;
+    });
+    expect(pooledWritesToGuardedTables).toHaveLength(0);
+  });
+
+  it('a three-guardian create still issues exactly one BEGIN/COMMIT pair, proving the count holds for N > 2', async () => {
+    const studentService = await import('../services/studentService');
+    const GUARDIAN_ID_3 = '33333333-3333-3333-3333-333333333333';
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }]))
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1' }]))
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_2, tenant_id: TENANT_ID }]))
+      .mockResolvedValueOnce(queryResult([{ id: 'link-2' }]))
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_3, tenant_id: TENANT_ID }]))
+      .mockResolvedValueOnce(queryResult([{ id: 'link-3' }]))
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    await studentService.createStudentWithGuardian(
+      TENANT_ID,
+      {
+        student: minorStudentPayload(),
+        guardians: [
+          { mode: 'existing', guardianId: GUARDIAN_ID },
+          { mode: 'existing', guardianId: GUARDIAN_ID_2 },
+          { mode: 'existing', guardianId: GUARDIAN_ID_3 },
+        ],
+      },
+      'staff-1'
+    );
+
+    const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+    expect(clientCalls.filter(sql => sql === 'BEGIN')).toHaveLength(1);
+    expect(clientCalls.filter(sql => sql === 'COMMIT')).toHaveLength(1);
+    expect(mockGetClient).toHaveBeenCalledTimes(1);
+  });
+});
