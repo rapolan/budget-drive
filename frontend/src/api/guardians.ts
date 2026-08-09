@@ -92,6 +92,14 @@ export const guardiansApi = {
     return response.data;
   },
 
+  updateRelationship: async (studentId: string, guardianId: string, relationship: GuardianRelationship | null) => {
+    const response = await apiClient.put<ApiResponse<StudentGuardianLink>>(
+      `/students/${studentId}/guardians/${guardianId}`,
+      { relationship }
+    );
+    return response.data;
+  },
+
   getForStudent: async (studentId: string) => {
     const response = await apiClient.get<ApiResponse<LinkedGuardian[]>>(`/students/${studentId}/guardians`);
     return response.data;

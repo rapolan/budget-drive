@@ -123,4 +123,13 @@ router.put(
   studentController.setPrimaryGuardian
 );
 
+// Change the relationship on an existing student-guardian link
+// (relationship is a property of the link, not the guardian)
+router.put(
+  '/students/:id/guardians/:guardianId',
+  validateUUID('id'),
+  validateUUID('guardianId'),
+  studentController.updateGuardianRelationship
+);
+
 export default router;

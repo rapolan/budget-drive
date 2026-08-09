@@ -123,6 +123,45 @@ describe('student-guardian linking', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
+  it('updates the relationship on an existing student-guardian link (a property of the link, not the guardian)', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: 'link-1',
+        tenant_id: TENANT_ID,
+        student_id: STUDENT_ID,
+        guardian_id: GUARDIAN_ID,
+        relationship: 'father',
+        is_primary: false,
+      }])
+    );
+
+    const res = await request(app)
+      .put(`/api/v1/students/${STUDENT_ID}/guardians/${GUARDIAN_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ relationship: 'father' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.relationship).toBe('father');
+
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/UPDATE student_guardians/);
+    expect(sql).toMatch(/SET relationship/);
+    expect(params).toEqual(['father', STUDENT_ID, GUARDIAN_ID, TENANT_ID]);
+  });
+
+  it('returns 404 when updating relationship on a link that does not exist', async () => {
+    const studentGuardianService = await import('../services/studentGuardianService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    await expect(
+      studentGuardianService.updateGuardianRelationship(STUDENT_ID, GUARDIAN_ID, TENANT_ID, 'mother')
+    ).rejects.toThrow('Guardian link not found for this student');
+  });
+
   it('blocks deleting a guardian who still has linked students, naming the student', async () => {
     const guardianService = await import('../services/guardianService');
 
@@ -147,17 +186,68 @@ describe('student-guardian linking', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('unlinking a guardian from a student succeeds and does not delete the guardian', async () => {
+  it('unlinking a guardian from an adult student succeeds and does not delete the guardian', async () => {
     const studentGuardianService = await import('../services/studentGuardianService');
 
-    mockQuery.mockResolvedValueOnce(queryResult([{ id: 'link-1' }]));
+    const adultDob = new Date();
+    adultDob.setFullYear(adultDob.getFullYear() - 25);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ date_of_birth: adultDob.toISOString() }])) // student DOB lookup - adult, no guardian-count check
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])); // DELETE
 
     await expect(
       studentGuardianService.unlinkGuardianFromStudent(STUDENT_ID, GUARDIAN_ID, TENANT_ID)
     ).resolves.toBeUndefined();
 
-    const [sql] = mockQuery.mock.calls[0];
-    expect(sql).toMatch(/DELETE FROM student_guardians/);
-    expect(sql).not.toMatch(/DELETE FROM guardians/);
+    const deleteCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('DELETE'));
+    expect(deleteCall![0]).toMatch(/DELETE FROM student_guardians/);
+    expect(deleteCall![0]).not.toMatch(/DELETE FROM guardians/);
+  });
+
+  it('unlinking a minor\'s second guardian succeeds (only the LAST guardian is protected)', async () => {
+    const studentGuardianService = await import('../services/studentGuardianService');
+
+    const minorDob = new Date();
+    minorDob.setFullYear(minorDob.getFullYear() - 10);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ date_of_birth: minorDob.toISOString() }])) // student DOB - minor
+      .mockResolvedValueOnce(queryResult([{ count: '2' }])) // guardian count - 2 linked
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])); // DELETE
+
+    await expect(
+      studentGuardianService.unlinkGuardianFromStudent(STUDENT_ID, GUARDIAN_ID, TENANT_ID)
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects unlinking a minor\'s only guardian, and never issues the DELETE', async () => {
+    const studentGuardianService = await import('../services/studentGuardianService');
+
+    const minorDob = new Date();
+    minorDob.setFullYear(minorDob.getFullYear() - 10);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ date_of_birth: minorDob.toISOString() }])) // student DOB - minor
+      .mockResolvedValueOnce(queryResult([{ count: '1' }])); // guardian count - only 1 linked
+
+    await expect(
+      studentGuardianService.unlinkGuardianFromStudent(STUDENT_ID, GUARDIAN_ID, TENANT_ID)
+    ).rejects.toThrow(/only guardian while they are a minor/i);
+
+    const deleteCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('DELETE'));
+    expect(deleteCall).toBeUndefined();
+  });
+
+  it('treats a student with an unknown date of birth as a minor for the last-guardian guard', async () => {
+    const studentGuardianService = await import('../services/studentGuardianService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ date_of_birth: null }])) // unknown DOB
+      .mockResolvedValueOnce(queryResult([{ count: '1' }])); // only 1 linked guardian
+
+    await expect(
+      studentGuardianService.unlinkGuardianFromStudent(STUDENT_ID, GUARDIAN_ID, TENANT_ID)
+    ).rejects.toThrow(/only guardian while they are a minor/i);
   });
 });

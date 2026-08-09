@@ -13,6 +13,7 @@ import { Guardian, Student } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
+import { calculateAge } from './studentProgressService';
 
 const logger = createLogger('StudentGuardianService');
 
@@ -121,12 +122,40 @@ export const linkGuardianToStudent = async (
 /**
  * Unlink a guardian from a student. Does not delete the guardian record
  * itself.
+ *
+ * Guarded: a minor (age < 18, or date_of_birth unknown - treated as a minor
+ * for safety, same convention as needsGuardian) may not have their only
+ * linked guardian removed. This mirrors the frontend's disabled-unlink-
+ * button UX so the rule is enforced here too, not just implied by the UI -
+ * a direct API call gets a clean rejection instead of silently leaving a
+ * minor guardian-less.
  */
 export const unlinkGuardianFromStudent = async (
   studentId: string,
   guardianId: string,
   tenantId: string
 ): Promise<void> => {
+  const studentResult = await query(
+    'SELECT date_of_birth FROM students WHERE id = $1 AND tenant_id = $2',
+    [studentId, tenantId]
+  );
+  if (studentResult.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+
+  const age = calculateAge(studentResult.rows[0].date_of_birth);
+  const isMinor = age === null || age < 18;
+
+  if (isMinor) {
+    const guardianCount = await countGuardiansForStudent(studentId, tenantId);
+    if (guardianCount <= 1) {
+      throw new AppError(
+        'Cannot unlink this student\'s only guardian while they are a minor - link another guardian first',
+        400
+      );
+    }
+  }
+
   const result = await query(
     `DELETE FROM student_guardians
      WHERE student_id = $1 AND guardian_id = $2 AND tenant_id = $3
@@ -137,6 +166,32 @@ export const unlinkGuardianFromStudent = async (
   if (result.rows.length === 0) {
     throw new AppError('Guardian link not found for this student', 404);
   }
+};
+
+/**
+ * Update the relationship on an existing student-guardian link. Relationship
+ * is a property of the LINK, not the guardian - this is the only place it
+ * changes after link creation.
+ */
+export const updateGuardianRelationship = async (
+  studentId: string,
+  guardianId: string,
+  tenantId: string,
+  relationship: string | null
+): Promise<StudentGuardianLink> => {
+  const result = await query(
+    `UPDATE student_guardians
+     SET relationship = $1, updated_at = NOW()
+     WHERE student_id = $2 AND guardian_id = $3 AND tenant_id = $4
+     RETURNING *`,
+    [relationship, studentId, guardianId, tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Guardian link not found for this student', 404);
+  }
+
+  return keysToCamel(result.rows[0]) as StudentGuardianLink;
 };
 
 /**

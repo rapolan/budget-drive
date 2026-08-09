@@ -310,3 +310,22 @@ export const setPrimaryGuardian = asyncHandler(async (req: Request, res: Respons
     message: 'Primary guardian updated',
   });
 });
+
+/**
+ * @route   PUT /api/v1/students/:id/guardians/:guardianId
+ * @desc    Change the relationship on an existing student-guardian link
+ * @access  Private
+ */
+export const updateGuardianRelationship = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id, guardianId } = req.params;
+  const { relationship } = req.body;
+
+  const link = await studentGuardianService.updateGuardianRelationship(id, guardianId, tenantId, relationship ?? null);
+
+  res.json({
+    success: true,
+    data: link,
+    message: 'Guardian relationship updated',
+  });
+});

@@ -20,6 +20,11 @@ vi.mock('@/api', async () => {
       findExactMatch: vi.fn().mockResolvedValue({ data: [] }),
       getStudentsForGuardian: vi.fn().mockResolvedValue({ data: [] }),
       getForStudent: vi.fn().mockResolvedValue({ data: [] }),
+      linkToStudent: vi.fn(),
+      unlinkFromStudent: vi.fn(),
+      setPrimary: vi.fn(),
+      updateRelationship: vi.fn(),
+      create: vi.fn(),
     },
     lessonsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
@@ -617,5 +622,153 @@ describe('StudentModal - siblings display', () => {
   it('does not fetch siblings for a new (not-yet-created) student', () => {
     renderModal(); // create mode
     expect(guardiansApi.getForStudent).not.toHaveBeenCalled();
+  });
+});
+
+// Item 3: the guardian sub-panel is now available in edit mode, calling the
+// API immediately for each action (unlike create mode's staged local state,
+// item 4) - this is what lets existing/seeded students finally get
+// guardians through the UI (the type-ahead used to be enabled: !isEditing).
+describe('StudentModal - guardian sub-panel in edit mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.getStudentsForGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('renders one row per linked guardian when editing an existing student', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        { id: 'guardian-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null, relationship: 'mother', isPrimary: true },
+        { id: 'guardian-2', firstName: 'John', lastName: 'Doe', email: 'john@example.com', phone: null, relationship: 'father', isPrimary: false },
+      ],
+    });
+
+    renderModal(editableStudent());
+
+    await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+  });
+
+  it('clicking unlink on a row calls guardiansApi.unlinkFromStudent with the student and guardian ids', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        { id: 'guardian-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null, relationship: 'mother', isPrimary: false },
+        { id: 'guardian-2', firstName: 'John', lastName: 'Doe', email: 'john@example.com', phone: null, relationship: 'father', isPrimary: true },
+      ],
+    });
+    (guardiansApi.unlinkFromStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByRole('button', { name: 'Unlink' })[0]);
+
+    await waitFor(() => expect(guardiansApi.unlinkFromStudent).toHaveBeenCalledWith('student-1', 'guardian-1'));
+  });
+
+  it('clicking "Add guardian" opens the type-ahead picker, and the candidates query is no longer disabled in edit mode', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderModal(editableStudent());
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+
+    await waitFor(() => {
+      expect(guardiansApi.findCandidates).toHaveBeenCalledWith({ lastName: 'Doe' });
+    });
+  });
+
+  it('selecting a candidate and confirming calls guardiansApi.linkToStudent immediately (not createWithGuardian)', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [guardianCandidate({ id: 'guardian-9', firstName: 'Jane', lastName: 'Doe' })],
+    });
+    (guardiansApi.linkToStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: 'link-1' } });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
+
+    const candidateButton = await screen.findByText(/Jane Doe/);
+    fireEvent.click(candidateButton);
+
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    await waitFor(() => expect(guardiansApi.linkToStudent).toHaveBeenCalledWith('student-1', {
+      guardianId: 'guardian-9',
+      relationship: undefined,
+    }));
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+  });
+
+  it('changing the relationship select on a row calls guardiansApi.updateRelationship', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'guardian-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null, relationship: 'mother', isPrimary: true }],
+    });
+    (guardiansApi.updateRelationship as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
+    const select = screen.getByDisplayValue('Mother');
+    fireEvent.change(select, { target: { value: 'grandparent' } });
+
+    await waitFor(() =>
+      expect(guardiansApi.updateRelationship).toHaveBeenCalledWith('student-1', 'guardian-1', 'grandparent')
+    );
+  });
+
+  it('clicking the star on a non-primary row calls guardiansApi.setPrimary', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        { id: 'guardian-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null, relationship: 'mother', isPrimary: true },
+        { id: 'guardian-2', firstName: 'John', lastName: 'Doe', email: 'john@example.com', phone: null, relationship: 'father', isPrimary: false },
+      ],
+    });
+    (guardiansApi.setPrimary as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByText('John Doe')).toBeInTheDocument());
+    fireEvent.click(screen.getByTitle('Set as primary guardian'));
+
+    await waitFor(() => expect(guardiansApi.setPrimary).toHaveBeenCalledWith('student-1', 'guardian-2'));
+  });
+
+  it('disables unlink for a minor with exactly one linked guardian', async () => {
+    const minorDob = new Date();
+    minorDob.setFullYear(minorDob.getFullYear() - 10);
+
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'guardian-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null, relationship: 'mother', isPrimary: true }],
+    });
+
+    renderModal(editableStudent({ id: 'student-1', dateOfBirth: minorDob }));
+
+    await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Unlink' })).toBeDisabled();
+  });
+
+  it('enables unlink for an adult with exactly one linked guardian', async () => {
+    const adultDob = new Date();
+    adultDob.setFullYear(adultDob.getFullYear() - 25);
+
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'guardian-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: null, relationship: 'mother', isPrimary: true }],
+    });
+
+    renderModal(editableStudent({ id: 'student-1', dateOfBirth: adultDob }));
+
+    await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Unlink' })).not.toBeDisabled();
   });
 });
