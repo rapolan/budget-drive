@@ -204,15 +204,15 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Do:** Click **Add Student** (Students tab). In the new "Guardian" section, click **Link a guardian**, then type a name, email, or phone that matches an existing guardian (e.g. one created in 2.3b).
 
-**Pass looks like:** Candidates appear below the search box as you type, each showing email/phone and, if applicable, "Parent of: <names>" for disambiguation. A **"Create new guardian instead"** option is always present at the bottom of the list, even when candidates are shown. Clicking a candidate selects it (shown as name + "Change") and reveals a **Relationship** dropdown (mother/father/grandparent/legal guardian/other). Clicking "Create new guardian instead" instead reveals blank first/last/email/phone fields, with last name pre-filled from the student's own last name (editable). Neither action does anything by itself — no network request fires until the form is actually submitted.
+**Pass looks like:** Candidates appear below the search box as you type, each showing email/phone and, if applicable, "Parent of: <names>" for disambiguation. A **"Create new guardian instead"** option is always present at the bottom of the list, even when candidates are shown. Clicking a candidate selects it (shown as name + "Change") and reveals a **Relationship** dropdown (mother/father/grandparent/legal guardian/other). Clicking "Create new guardian instead" instead reveals blank first/last/email/phone fields, with last name pre-filled from the student's own last name (editable). Neither action does anything by itself — no network request fires until you click **Add Guardian** in the picker, which stages it into the sub-panel's list (still nothing saved to the server yet).
 
-**Also check — emergency contact "same as guardian":** With a guardian selected or being created, check the new "Same as guardian above" checkbox in the Emergency Contact section below. Confirm it copies name and phone into the emergency-contact fields, and that unchecking it does *not* clear those fields afterward.
+**Also check — emergency contact "same as guardian":** Check the new "Add an emergency contact" checkbox to reveal the emergency-contact fields (it's unchecked by default on a blank form). With one guardian staged, check "Same as guardian" — confirm it copies name and phone into the emergency-contact fields immediately, with no radio list, and that unchecking the emergency-contact checkbox does *not* clear those fields afterward.
 
 ### 2.3e Duplicate guardian confirm
 
-**Do:** Start creating a new student. In the Guardian section, choose "Create new guardian instead" and enter an email or phone that already belongs to an existing guardian (not one you selected from the type-ahead). Submit the form.
+**Do:** Start creating a new student. In the Guardian section, choose "Create new guardian instead" and enter an email or phone that already belongs to an existing guardian (not one you selected from the type-ahead). Click **Add Guardian**.
 
-**Pass looks like:** Instead of saving, the form body swaps to a confirmation panel naming the matched guardian and their linked students (e.g. "Jane Doe, parent of Alice Smith"), with two buttons: **Link to this guardian** and **Create separate record**, plus Cancel. Confirm: this panel never appears for a name-only match (only email/phone), and nothing is saved until you click one of the two buttons. "Link to this guardian" links the existing record; "Create separate record" proceeds with a brand-new guardian sharing that contact info (this app allows that on purpose — e.g. divorced parents).
+**Pass looks like:** Instead of staging it, the picker swaps to a confirmation panel naming the matched guardian and their linked students (e.g. "Jane Doe, parent of Alice Smith"), with two buttons: **Link to this guardian** and **Create separate record**, plus Cancel. Confirm: this panel never appears for a name-only match (only email/phone), and nothing is staged until you click one of the two buttons. "Link to this guardian" stages the existing record; "Create separate record" stages a brand-new guardian sharing that contact info (this app allows that on purpose — e.g. divorced parents).
 
 ### 2.3f Siblings and unified search
 
@@ -222,7 +222,35 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like (search):** Results overlay the current tab's list regardless of which tab is active, each row labeled "Student" or "Guardian". The status filter chips are hidden while search results are showing. Clearing the box reverts to the normal list for whichever tab is active.
 
-**Note:** existing `needsGuardian` warning banner (in the student form) and the "Needs Guardian" badge/filter chip (Students list) are unchanged by this feature — they exist specifically to flag records created *before* this guardian UI existed, so admins can go back and correct them.
+**Note:** existing `needsGuardian` warning banner (in the student form) and the "Needs Guardian" badge/filter chip (Students list) are unchanged by this feature — they exist specifically to flag records created *before* this guardian UI existed, so admins can go back and correct them. The next section (2.3g) is exactly how those flagged records now get resolved.
+
+### 2.3g Adding a guardian to an existing (e.g. seeded) student
+
+**Do:** Open **Olivia Garcia** (seeded with zero guardians, `needsGuardian` flagged) in edit mode. Find the guardian sub-panel — previously this picker only appeared in create mode, so a student created before the guardian feature shipped had no way to get one through the UI.
+
+**Pass looks like:** The sub-panel is present and shows "+ Add guardian". Click it, search for an existing guardian (e.g. Grace Kim) or create a new one, then click **Add Guardian**. Unlike create mode, this fires immediately — check the Network tab for a `POST /api/v1/students/:id/guardians` call (not `with-guardian`, since the student already exists). The new guardian appears as a row in the sub-panel right away, and the `needsGuardian` badge/banner clears without a page reload.
+
+### 2.3h Adding a second guardian, and changing primary
+
+**Do:** On a student who already has one linked guardian, click **+ Add guardian** again in the sub-panel and link or create a second guardian (e.g. divorced parents, or a grandparent who does pickups).
+
+**Pass looks like:** Both guardians now show as rows; the first remains primary (filled star), the second is not primary. Click the star on the second guardian's row.
+
+**Pass looks like (primary change):** The second guardian's star fills in and the first guardian's star empties — never both filled at once. This is a `PUT /api/v1/students/:id/guardians/:guardianId/primary` call, and the previous primary is demoted server-side in the same transaction, not just visually in the UI.
+
+**Also check — relationship:** Change the **Relationship** dropdown on either row (e.g. to "grandparent"). Confirm it saves immediately (`PUT /api/v1/students/:id/guardians/:guardianId`) without needing a form submit, and persists after closing and reopening the student.
+
+### 2.3i Attempting to unlink the last guardian of a minor
+
+**Do:** On a minor student with exactly one linked guardian, look at that guardian's row in the sub-panel.
+
+**Pass looks like:** The **Unlink** button is disabled, with a title/tooltip explaining that a minor's only guardian can't be removed. Add a second guardian (2.3h) — the first guardian's Unlink button becomes enabled once there are two. Unlink it; the remaining guardian's Unlink button becomes disabled again, back to the single-guardian state. For an **adult** student, Unlink is always enabled, even with only one guardian linked.
+
+### 2.3j Creating a student with two guardians at once
+
+**Do:** Click **Add Student**. Stage two guardians via the sub-panel's "+ Add guardian" (2.3d) before submitting — e.g. link one existing guardian and create one new guardian. Confirm the sub-panel shows both staged rows, with the first marked primary by default (you can click the other's star to change which one before submitting). Fill in the required student fields and submit.
+
+**Pass looks like:** Exactly **one** `POST /api/v1/students/with-guardian` request fires (check the Network tab) — not two separate requests, and no follow-up `POST /students/:id/guardians` call. Its request body has a `guardians` array with two entries. The student is created with both guardians linked, and whichever one you set primary in the sub-panel before submitting is the one marked primary after creation.
 
 ### 2.4 Book a lesson (happy path)
 
