@@ -27,13 +27,15 @@ export const studentsApi = {
     return response.data;
   },
 
-  // Atomically creates a student and creates-or-links a guardian in one
-  // transaction (backend: POST /students/with-guardian). Use this instead
-  // of `create` whenever a guardian is being linked at creation time -
-  // never call `create` followed by a separate guardian-link request.
+  // Atomically creates a student and creates-or-links one or more guardians
+  // in one transaction (backend: POST /students/with-guardian). Use this
+  // instead of `create` whenever any guardian is being linked at creation
+  // time - never call `create` followed by separate guardian-link requests,
+  // even for multiple guardians (that would open N transactions instead
+  // of one).
   createWithGuardian: async (data: CreateStudentWithGuardianInput) => {
     const response = await apiClient.post<
-      ApiResponse<{ student: Student; guardian: Guardian; link: StudentGuardianLink }>
+      ApiResponse<{ student: Student; guardians: Array<{ guardian: Guardian; link: StudentGuardianLink }> }>
     >('/students/with-guardian', data);
     return response.data;
   },

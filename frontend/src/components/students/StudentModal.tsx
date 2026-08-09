@@ -348,7 +348,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
     await createWithGuardianMutation.mutateAsync({
       student: submitData,
-      guardian:
+      guardians: [
         guardianMode === 'selected-existing'
           ? {
               mode: 'existing',
@@ -365,6 +365,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               relationship: newGuardianFields.relationship || undefined,
               isPrimary: true,
             },
+      ],
     });
   };
 
@@ -418,7 +419,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       .trim();
     await createWithGuardianMutation.mutateAsync({
       student: { ...formData, fullName: generatedFullName },
-      guardian: { mode: 'existing', guardianId, relationship: guardianRelationship || undefined, isPrimary: true },
+      guardians: [{ mode: 'existing', guardianId, relationship: guardianRelationship || undefined, isPrimary: true }],
     });
   };
 

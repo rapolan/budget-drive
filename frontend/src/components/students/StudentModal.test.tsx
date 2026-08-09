@@ -392,7 +392,7 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     expect(studentsApi.create).not.toHaveBeenCalled();
 
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(payload.guardian).toEqual({ mode: 'existing', guardianId: 'g1', relationship: undefined, isPrimary: true });
+    expect(payload.guardians).toEqual([{ mode: 'existing', guardianId: 'g1', relationship: undefined, isPrimary: true }]);
   });
 
   it('calls studentsApi.createWithGuardian with mode=new when creating a new guardian, and never calls create()', async () => {
@@ -415,9 +415,10 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     expect(studentsApi.create).not.toHaveBeenCalled();
 
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(payload.guardian.mode).toBe('new');
-    expect(payload.guardian.firstName).toBe('New');
-    expect(payload.guardian.lastName).toBe('Guardian');
+    expect(payload.guardians).toHaveLength(1);
+    expect(payload.guardians[0].mode).toBe('new');
+    expect(payload.guardians[0].firstName).toBe('New');
+    expect(payload.guardians[0].lastName).toBe('Guardian');
   });
 
   it('plain create() is still used when no guardian is being linked (adults, or minors deferring guardian setup)', async () => {
@@ -443,7 +444,7 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
       data: [{ id: 's1', fullName: 'Alice Smith' }],
     });
     (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { student: { id: 'student-1', fullName: 'New Student' }, guardian: { id: 'g-existing' }, link: { id: 'link-1' } },
+      data: { student: { id: 'student-1', fullName: 'New Student' }, guardians: [{ guardian: { id: 'g-existing' }, link: { id: 'link-1' } }] },
     });
   });
 
@@ -492,7 +493,7 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
 
     await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(payload.guardian).toMatchObject({ mode: 'existing', guardianId: 'g-existing' });
+    expect(payload.guardians[0]).toMatchObject({ mode: 'existing', guardianId: 'g-existing' });
   });
 
   it('"Create separate record" proceeds with the original new-guardian payload, bypassing the match', async () => {
@@ -510,7 +511,7 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
 
     await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
     const payload = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(payload.guardian).toMatchObject({ mode: 'new', email: 'jane@example.com' });
+    expect(payload.guardians[0]).toMatchObject({ mode: 'new', email: 'jane@example.com' });
   });
 
   it('never checks for duplicates on name alone - only when email or phone is present', async () => {

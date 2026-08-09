@@ -442,11 +442,13 @@ export interface CreateStudentInput {
   notes?: string;
 }
 
+export type CreateStudentWithGuardianEntry =
+  | { mode: 'existing'; guardianId: string; relationship?: GuardianRelationship; isPrimary?: boolean }
+  | { mode: 'new'; firstName?: string; lastName?: string; email?: string; phone?: string; relationship?: GuardianRelationship; isPrimary?: boolean };
+
 export interface CreateStudentWithGuardianInput {
   student: CreateStudentInput;
-  guardian:
-    | { mode: 'existing'; guardianId: string; relationship?: GuardianRelationship; isPrimary?: boolean }
-    | { mode: 'new'; firstName?: string; lastName?: string; email?: string; phone?: string; relationship?: GuardianRelationship; isPrimary?: boolean };
+  guardians: CreateStudentWithGuardianEntry[]; // 1..N
 }
 
 export interface CreateInstructorInput {
