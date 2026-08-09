@@ -170,3 +170,143 @@ describe('findRankedAvailableSlots - ranking order', () => {
     expect(result.slots.length).toBeGreaterThan(0);
   });
 });
+
+// Regression coverage for getInstructorStartingPoint: it used to do
+// (lessonsByInstructorDate.get(key) || []).filter(...).sort(...)[0] - safe
+// only because .filter() happens to return a new array before .sort()
+// mutates it. Replaced with a single linear scan over the shared array with
+// no .filter()/.sort() at all, so it can never mutate lessonsByInstructorDate
+// no matter how the surrounding code changes later.
+describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mutation)', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const tomorrowDateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+  const dayOfWeek = tomorrow.getDay();
+
+  it('picks the latest-ending same-day lesson (not just any lesson) as the "coming from" point', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    // Instructor lookup
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
+    );
+    // Lessons for "coming from" lookup: two lessons for instructor-1 on the
+    // same day the search will generate slots for, both ending before the
+    // instructor's 09:00 availability window opens for later slots - the
+    // 08:00-08:30 lesson ends later than the 07:00-07:30 one, so its pickup
+    // zip (90005) must win, not 10001.
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          instructor_id: 'instructor-1',
+          date: tomorrowDateStr,
+          start_time: '07:00:00',
+          end_time: '07:30:00',
+          pickup_address: '123 Early St, 10001',
+        },
+        {
+          instructor_id: 'instructor-1',
+          date: tomorrowDateStr,
+          start_time: '08:00:00',
+          end_time: '08:30:00',
+          pickup_address: '456 Later Ave, 90005',
+        },
+      ])
+    );
+
+    // findAvailableSlots(instructor-1): settings, availability (09:00-17:00
+    // so every generated slot starts after both lessons above end), time
+    // off, lessons (instructor-dimension conflict check), student's own
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 60,
+      dateRange: 1,
+      instructorId: 'instructor-1',
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    for (const slot of result.slots) {
+      expect(slot.comingFrom).toBe('lesson');
+      expect(slot.instructorZip).toBe('90005');
+    }
+  });
+
+  it('never sorts the lessons array while computing a slot\'s "coming from" point', async () => {
+    // findRankedAvailableSlots legitimately sorts its final rankedSlots
+    // result array (by proximity then date/time - unrelated to this fix).
+    // What must never happen is a .sort() call on an array of lesson rows
+    // (the shape stored in lessonsByInstructorDate) - that's the specific
+    // mutation vector this fix removes from getInstructorStartingPoint.
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const sortSpy = vi.spyOn(Array.prototype, 'sort');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
+    );
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          instructor_id: 'instructor-1',
+          date: tomorrowDateStr,
+          start_time: '07:00:00',
+          end_time: '07:30:00',
+          pickup_address: '123 Early St, 10001',
+        },
+        {
+          instructor_id: 'instructor-1',
+          date: tomorrowDateStr,
+          start_time: '08:00:00',
+          end_time: '08:30:00',
+          pickup_address: '456 Later Ave, 90005',
+        },
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    try {
+      const result = await findRankedAvailableSlots({
+        tenantId: TENANT_ID,
+        studentId: STUDENT_ID,
+        pickupZip: '90210',
+        duration: 60,
+        dateRange: 1,
+        instructorId: 'instructor-1',
+      });
+
+      expect(result.slots.length).toBeGreaterThan(0);
+
+      // No sort call was made on an array of lesson rows (identifiable by
+      // each element having an `end_time` property, the shape returned by
+      // the lessons query and stored in lessonsByInstructorDate). The
+      // rankedSlots.sort(...) call on the final result array is expected
+      // and untouched by this fix - it sorts RankedTimeSlot objects, which
+      // have no `end_time` field.
+      const sortedLessonArrays = sortSpy.mock.instances.filter(
+        (arr) => Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object' && arr[0] !== null && 'end_time' in arr[0]
+      );
+      expect(sortedLessonArrays).toEqual([]);
+    } finally {
+      sortSpy.mockRestore();
+    }
+  });
+});

@@ -662,17 +662,27 @@ export const findRankedAvailableSlots = async (
       slotStartTime.includes('T') ? new Date(slotStartTime).toTimeString().slice(0, 5) : slotStartTime.slice(0, 5)
     );
 
-    const lessonsOnDate = (lessonsByInstructorDate.get(`${instId}|${slotDate}`) || []).filter(
-      (l) => l.end_time && timeToMinutes(l.end_time.slice(0, 5)) <= slotStartMinutes
-    );
+    // Single linear pass over the shared (unfiltered) array stored in
+    // lessonsByInstructorDate - deliberately no .filter()/.sort() here, so
+    // this can never mutate the Map's stored arrays no matter how the
+    // surrounding code changes later.
+    const lessonsOnDate = lessonsByInstructorDate.get(`${instId}|${slotDate}`) || [];
 
-    if (lessonsOnDate.length === 0) {
+    let mostRecent: (typeof lessonsOnDate)[number] | null = null;
+    let mostRecentEndMinutes = -Infinity;
+    for (const lesson of lessonsOnDate) {
+      if (!lesson.end_time) continue;
+      const endMinutes = timeToMinutes(lesson.end_time.slice(0, 5));
+      if (endMinutes <= slotStartMinutes && endMinutes > mostRecentEndMinutes) {
+        mostRecent = lesson;
+        mostRecentEndMinutes = endMinutes;
+      }
+    }
+
+    if (!mostRecent) {
       return { zip: homeZip, comingFrom: 'home' };
     }
 
-    const mostRecent = lessonsOnDate.sort(
-      (a, b) => timeToMinutes(b.end_time.slice(0, 5)) - timeToMinutes(a.end_time.slice(0, 5))
-    )[0];
     const previousZip = extractZipCode(mostRecent.pickup_address);
 
     return { zip: previousZip || homeZip, comingFrom: 'lesson' };
