@@ -276,6 +276,31 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   });
   const candidates: GuardianCandidate[] = candidatesData?.data ?? [];
 
+  // Inline match hint (item 2): while the user types into the blank
+  // guardian fields, keep calling the same candidate endpoint the type-ahead
+  // uses (Constraint B - backend does all matching, this just routes params)
+  // so a returning family's existing guardian can surface as an unobtrusive
+  // suggestion instead of only being reachable through "Link existing
+  // guardian". Debounced the same way as the search box.
+  const debouncedNewGuardianFields = useDebounce(newGuardianFields, 400);
+  const newGuardianHintQuery = useMemo(() => {
+    const firstName = debouncedNewGuardianFields.firstName.trim();
+    const lastName = debouncedNewGuardianFields.lastName.trim();
+    const email = debouncedNewGuardianFields.email.trim();
+    const phone = debouncedNewGuardianFields.phone.trim();
+    if (email) return { email };
+    if (phone) return { phone };
+    if (lastName) return { firstName: firstName || undefined, lastName };
+    return null;
+  }, [debouncedNewGuardianFields]);
+
+  const { data: newGuardianHintData } = useQuery({
+    queryKey: ['guardians', 'candidates', 'inline-hint', newGuardianHintQuery],
+    queryFn: () => guardiansApi.findCandidates(newGuardianHintQuery!),
+    enabled: isPickerOpen && guardianMode === 'fields' && newGuardianHintQuery !== null,
+  });
+  const newGuardianHintCandidates: GuardianCandidate[] = (newGuardianHintData?.data ?? []).slice(0, 3);
+
   const handleSelectCandidate = (candidate: GuardianCandidate) => {
     setSelectedGuardianId(candidate.id);
     setSelectedGuardian(candidate);
@@ -1289,6 +1314,34 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                             placeholder="(555) 123-4567"
                           />
                         </div>
+
+                        {/* Item 2: inline match hint. Purely a rendering of
+                            what the backend candidate endpoint returns
+                            (Constraint B) - clicking it links, same as
+                            picking a candidate from the search picker;
+                            ignoring it and submitting anyway still hits the
+                            save-time exact-match backstop (item 3). */}
+                        {newGuardianHintCandidates.length > 0 && (
+                          <div className="space-y-1 pt-1 border-t border-edge">
+                            {newGuardianHintCandidates.map((candidate) => (
+                              <button
+                                type="button"
+                                key={candidate.id}
+                                onClick={() => handleSelectCandidate(candidate)}
+                                className="w-full text-left px-2 py-1.5 rounded-md text-xs text-tx-secondary hover:bg-surface3 transition-colors"
+                              >
+                                <span className="font-medium text-tx-primary">
+                                  {candidate.firstName} {candidate.lastName}
+                                </span>
+                                {candidate.linkedStudentNames.length > 0 && (
+                                  <> · parent of {candidate.linkedStudentNames.join(', ')}</>
+                                )}
+                                {' '}already exists -{' '}
+                                <span className="text-primary font-medium">link instead?</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 
