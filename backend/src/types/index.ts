@@ -1083,6 +1083,12 @@ export interface AvailabilityRequest {
   endDate: Date;
   duration: number; // minutes
   studentId?: string; // Optional: for checking if student has conflicts
+  // Internal only: findRankedAvailableSlots resolves the tenant's timezone
+  // once and passes it here so findAvailableSlots (called once per
+  // candidate instructor) doesn't re-query tenant_settings on every
+  // iteration. Callers outside schedulingService should omit this -
+  // findAvailableSlots resolves it itself when absent.
+  timezone?: string;
 }
 
 // A TimeSlot annotated with proximity info, for the ranked-slots endpoint

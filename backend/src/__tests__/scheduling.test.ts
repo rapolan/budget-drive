@@ -26,20 +26,35 @@ const SETTINGS_ROW = {
   updated_at: new Date(),
 };
 
+// schedulingService now resolves the tenant's timezone (getTenantSettings,
+// a query against tenant_settings - a different table from scheduling_
+// settings above) before every date computation. Pinned to Pacific so this
+// file's getHours()-based slot-time assertions (written before tenant-
+// timezone awareness existed) keep asserting the same wall-clock hours
+// without themselves needing to become timezone-aware - the hostile-clock
+// coverage proving this works under OTHER timezones lives in
+// tenantTimeHostileClock.test.ts instead.
+const TENANT_SETTINGS_ROW = {
+  id: 'tenant-settings-1',
+  tenant_id: TENANT_ID,
+  timezone: 'America/Los_Angeles',
+};
+
 const AVAILABLE_ROW = { id: 'avail-1', start_time: '09:00:00', end_time: '17:00:00' };
 
 /**
  * checkSchedulingConflicts issues these queries in order (with vehicleId and
  * studentId both provided):
- *   1. getSchedulingSettings -> SELECT scheduling_settings
- *   2. availability check
- *   3. capacity check (daily lesson count vs max_students)
- *   4. time-off check
- *   5. instructor-overlap check
- *   6. buffer-violation check
- *   7. vehicle lookup (ownership_type)
- *   8. vehicle-overlap check (only if vehicle is school-owned / no owner)
- *   9. student-overlap check
+ *   1. getTenantSettings -> SELECT tenant_settings (timezone)
+ *   2. getSchedulingSettings -> SELECT scheduling_settings
+ *   3. availability check
+ *   4. capacity check (daily lesson count vs max_students)
+ *   5. time-off check
+ *   6. instructor-overlap check
+ *   7. buffer-violation check
+ *   8. vehicle lookup (ownership_type)
+ *   9. vehicle-overlap check (only if vehicle is school-owned / no owner)
+ *   10. student-overlap check
  *
  * Each test configures only the calls relevant to what it wants to assert;
  * unlisted calls default to "no rows"/zero-count (no conflict) via the
@@ -57,6 +72,7 @@ function mockConflictSequence(overrides: Partial<{
 }> = {}) {
   mockQuery.mockReset();
   mockQuery
+    .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (timezone)
     .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
     .mockResolvedValueOnce(queryResult(overrides.availability ?? [AVAILABLE_ROW])) // availability
     .mockResolvedValueOnce(queryResult([{ count: String(overrides.dailyLessonCount ?? 0) }])) // capacity count
@@ -208,6 +224,7 @@ describe('scheduling conflict detection', () => {
     // count to 2, under the cap of 3.
     mockQuery.mockReset();
     mockQuery
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (timezone)
       .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
       .mockResolvedValueOnce(queryResult([AVAILABLE_ROW])) // availability
       .mockResolvedValueOnce(queryResult([{ count: '2' }])) // capacity count (excludeLessonId applied)
@@ -231,7 +248,8 @@ describe('scheduling conflict detection', () => {
     expect(conflicts).not.toContainEqual(expect.objectContaining({ type: 'capacity_reached' }));
 
     // Confirm the capacity-count query actually received the exclusion
-    const capacityCountCall = mockQuery.mock.calls[2];
+    // (index 3: getTenantSettings, getSchedulingSettings, availability, THEN capacity count)
+    const capacityCountCall = mockQuery.mock.calls[3];
     expect(capacityCountCall[0]).toContain('id !=');
     expect(capacityCountCall[1]).toContain(RESCHEDULED_LESSON_ID);
   });
@@ -265,6 +283,7 @@ describe('scheduling conflict detection', () => {
     // deterministic even if more than one block could match.
     mockQuery.mockReset();
     mockQuery
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (timezone)
       .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
       .mockResolvedValueOnce(
         queryResult([{ id: 'avail-evening', start_time: '17:00:00', end_time: '20:00:00', max_students: 4 }])
@@ -291,6 +310,7 @@ describe('scheduling conflict detection', () => {
     // Same evening block (cap 4), but now 4 lessons already booked -> at capacity
     mockQuery.mockReset();
     mockQuery
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]))
       .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
       .mockResolvedValueOnce(
         queryResult([{ id: 'avail-evening', start_time: '17:00:00', end_time: '20:00:00', max_students: 4 }])
@@ -317,6 +337,7 @@ describe('scheduling conflict detection', () => {
     // booked hits ITS OWN lower cap, even though the evening block's cap is 4
     mockQuery.mockReset();
     mockQuery
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]))
       .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
       .mockResolvedValueOnce(
         queryResult([{ id: 'avail-morning', start_time: '09:00:00', end_time: '12:00:00', max_students: 2 }])
@@ -370,11 +391,12 @@ describe('scheduling conflict detection', () => {
 /**
  * findAvailableSlots (batched) issues these queries in order, regardless of
  * how many days/instructors are in the request:
- *   1. getSchedulingSettings -> SELECT scheduling_settings
- *   2. availability for all candidate instructors (all days at once)
- *   3. time-off for all candidate instructors (whole date range)
- *   4. lessons for all candidate instructors (whole date range)
- *   5. student's own lessons in range (only if studentId is provided)
+ *   1. getTenantSettings -> SELECT tenant_settings (timezone)
+ *   2. getSchedulingSettings -> SELECT scheduling_settings
+ *   3. availability for all candidate instructors (all days at once)
+ *   4. time-off for all candidate instructors (whole date range)
+ *   5. lessons for all candidate instructors (whole date range)
+ *   6. student's own lessons in range (only if studentId is provided)
  */
 function mockSlotsSequence(overrides: Partial<{
   availability: any[];
@@ -384,6 +406,7 @@ function mockSlotsSequence(overrides: Partial<{
 }> = {}) {
   mockQuery.mockReset();
   mockQuery
+    .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]))
     .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
     .mockResolvedValueOnce(queryResult(overrides.availability ?? []))
     .mockResolvedValueOnce(queryResult(overrides.timeOff ?? []))

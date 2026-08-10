@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { tenantTomorrow, tenantDayOfWeek } from '../utils/tenantTime';
 
 vi.mock('../config/database', () => ({ query: mockQuery }));
 
 const TENANT_ID = 'tenant-abc';
 const STUDENT_ID = 'student-1';
+const TEST_TIMEZONE = 'America/Los_Angeles';
 
 const SETTINGS_ROW = {
   id: 'settings-1',
@@ -24,6 +26,20 @@ const SETTINGS_ROW = {
   updated_at: new Date(),
 };
 
+// findRankedAvailableSlots resolves the tenant's timezone (getTenantSettings,
+// a query against tenant_settings) before deriving "tomorrow" - pinned to
+// Pacific so this file's fixtures (which used to hand-compute server-local
+// "tomorrow" to mirror the service's OWN server-local computation) can
+// instead compute it via the same tenantTime helper the service now uses,
+// with both sides agreeing on the same zone. Hostile-clock coverage proving
+// this is correct under OTHER timezones lives in
+// tenantTimeHostileClock.test.ts.
+const TENANT_SETTINGS_ROW = {
+  id: 'tenant-settings-1',
+  tenant_id: TENANT_ID,
+  timezone: TEST_TIMEZONE,
+};
+
 describe('findRankedAvailableSlots - single-instructor scope', () => {
   beforeEach(() => {
     resetMockQuery();
@@ -32,25 +48,30 @@ describe('findRankedAvailableSlots - single-instructor scope', () => {
   it('only searches the requested instructor when instructorId is provided', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
-    // 1. Instructor lookup (scoped to the one instructor)
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    // 1. getTenantSettings (timezone)
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    // 2. Instructor lookup (scoped to the one instructor)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
-    // 2. Lessons for candidate instructors in the search window (for "coming from" lookup)
+    // 3. Lessons for candidate instructors in the search window (for "coming from" lookup)
     mockQuery.mockResolvedValueOnce(queryResult([]));
-    // 3. findAvailableSlots(instructor-1): settings
+    // 4. findAvailableSlots(instructor-1): settings (timezone already resolved
+    //    above and passed straight through - no second tenant_settings query)
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
-    // 4. availability (all days at once)
+    // 5. availability (all days at once)
     mockQuery.mockResolvedValueOnce(
       queryResult([
-        { instructor_id: 'instructor-1', day_of_week: new Date().getDay(), start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+        { instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
       ])
     );
-    // 5. time off
+    // 6. time off
     mockQuery.mockResolvedValueOnce(queryResult([]));
-    // 6. lessons
+    // 7. lessons
     mockQuery.mockResolvedValueOnce(queryResult([]));
-    // 7. student's own lessons
+    // 8. student's own lessons
     mockQuery.mockResolvedValueOnce(queryResult([]));
 
     const result = await findRankedAvailableSlots({
@@ -83,8 +104,10 @@ describe('findRankedAvailableSlots - ranking order', () => {
   it('sorts slots by proximity score descending, then by date/time ascending', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
-    const dayOfWeek = new Date(Date.now() + 24 * 60 * 60 * 1000).getDay();
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
 
+    // 0. getTenantSettings (timezone)
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
     // 1. Instructor lookup (all active - two instructors)
     mockQuery.mockResolvedValueOnce(
       queryResult([
@@ -135,8 +158,9 @@ describe('findRankedAvailableSlots - ranking order', () => {
   it('reports a failed instructor without failing the whole search', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
-    const dayOfWeek = new Date(Date.now() + 24 * 60 * 60 * 1000).getDay();
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
 
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
       queryResult([
         { id: 'instructor-ok', full_name: 'Works Fine', zip_code: '90210' },
@@ -182,13 +206,14 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
     resetMockQuery();
   });
 
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const tomorrowDateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-  const dayOfWeek = tomorrow.getDay();
+  const tomorrowDateStr = tenantTomorrow(TEST_TIMEZONE);
+  const dayOfWeek = tenantDayOfWeek(tomorrowDateStr, TEST_TIMEZONE);
 
   it('picks the latest-ending same-day lesson (not just any lesson) as the "coming from" point', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
+    // getTenantSettings (timezone)
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
     // Instructor lookup
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
@@ -254,6 +279,7 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
 
     const sortSpy = vi.spyOn(Array.prototype, 'sort');
 
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );

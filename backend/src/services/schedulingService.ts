@@ -13,7 +13,16 @@ import {
   RankedAvailabilityResult,
 } from '../types';
 import { getSchedulingSettings } from './availabilityService';
+import { getTenantSettings } from './tenantService';
 import { extractZipCode, calculateProximityScore } from '../utils/zipCode';
+import {
+  resolveTenantTimezone,
+  formatInTenantZone,
+  tenantDayOfWeek,
+  tenantTomorrow,
+  addTenantDays,
+  zonedWallClockToUtc,
+} from '../utils/tenantTime';
 
 // Helper function to parse time string to minutes since midnight
 const timeToMinutes = (timeStr: string): number => {
@@ -21,18 +30,18 @@ const timeToMinutes = (timeStr: string): number => {
   return hours * 60 + minutes;
 };
 
-// Helper function to get day of week from date (0 = Sunday, 6 = Saturday)
-const getDayOfWeek = (date: Date): number => {
-  return date.getDay();
+// Resolves the tenant's configured timezone (Constraint B/C - all date/
+// wall-clock interpretation in this file goes through backend/src/utils/
+// tenantTime.ts, never server-local Date getters).
+const resolveTimezone = async (tenantId: string): Promise<string> => {
+  const settings = await getTenantSettings(tenantId);
+  return resolveTenantTimezone(settings?.timezone);
 };
 
-// Helper function to format date as YYYY-MM-DD (using local timezone)
-const formatDate = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+// Format a Date as YYYY-MM-DD in the tenant's timezone (replaces the old
+// server-local formatDate helper).
+const formatDate = (date: Date, timezone: string): string =>
+  formatInTenantZone(date, timezone, 'yyyy-MM-dd');
 
 /**
  * Find available time slots for scheduling lessons.
@@ -47,10 +56,11 @@ export const findAvailableSlots = async (
 ): Promise<TimeSlot[]> => {
   const { tenantId, instructorId, vehicleId, startDate, endDate, duration, studentId } = request;
 
+  const timezone = request.timezone ?? (await resolveTimezone(tenantId));
   const settings = await getSchedulingSettings(tenantId);
   const bufferTime = settings.bufferTimeBetweenLessons;
-  const startDateStr = formatDate(startDate);
-  const endDateStr = formatDate(endDate);
+  const startDateStr = formatDate(startDate, timezone);
+  const endDateStr = formatDate(endDate, timezone);
 
   // Get instructors to check (either specific one or all active instructors)
   let instructorsToCheck: string[] = [];
@@ -115,7 +125,10 @@ export const findAvailableSlots = async (
   );
   const lessonsByInstructorDate = new Map<string, any[]>();
   for (const row of lessonsResult.rows) {
-    const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
+    // row.date is a plain DATE column (no time component) - a Date instance
+    // from pg is always UTC midnight of that calendar date, so this key
+    // needs no tenant-zone conversion (there's no wall-clock to interpret).
+    const dateKey = row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0];
     const key = `${row.instructor_id}|${dateKey}`;
     const existing = lessonsByInstructorDate.get(key) || [];
     existing.push(row);
@@ -136,7 +149,8 @@ export const findAvailableSlots = async (
       [studentId, tenantId, startDateStr, endDateStr]
     );
     for (const row of studentLessonsResult.rows) {
-      const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
+      // Same DATE-column reasoning as the instructor lessons map above.
+      const dateKey = row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0];
       const existing = studentLessonsByDate.get(dateKey) || [];
       existing.push(row);
       studentLessonsByDate.set(dateKey, existing);
@@ -146,13 +160,15 @@ export const findAvailableSlots = async (
   const availableSlots: TimeSlot[] = [];
   const vehicleForLesson: string | null = vehicleId || null;
 
-  // Everything below is computed in memory - no further queries.
-  const currentDate = new Date(startDate);
-  const end = new Date(endDate);
+  // Everything below is computed in memory - no further queries. Walk
+  // TENANT calendar dates as strings (via addTenantDays), not a process-
+  // local Date stepped with setDate/getDate - the day-walk itself must
+  // resolve in tenant time, same as everything it derives.
+  let dateCursor = startDateStr;
 
-  while (currentDate <= end) {
-    const dayOfWeek = getDayOfWeek(currentDate);
-    const dateStr = formatDate(currentDate);
+  while (dateCursor <= endDateStr) {
+    const dayOfWeek = tenantDayOfWeek(dateCursor, timezone);
+    const dateStr = dateCursor;
 
     for (const instId of instructorsToCheck) {
       const blocksForDay = availabilityByInstructorDay.get(`${instId}|${dayOfWeek}`) || [];
@@ -203,11 +219,15 @@ export const findAvailableSlots = async (
         }
 
         for (const slot of slots) {
-          const slotStart = new Date(currentDate);
-          slotStart.setHours(Math.floor(slot.start / 60), slot.start % 60, 0, 0);
-
-          const slotEnd = new Date(currentDate);
-          slotEnd.setHours(Math.floor(slot.end / 60), slot.end % 60, 0, 0);
+          // The slot's minutes-since-midnight are tenant wall-clock minutes
+          // on dateStr - zonedWallClockToUtc converts that intended
+          // wall-clock moment to the correct UTC instant, replacing the old
+          // new Date(currentDate); setHours(...) (which set the PROCESS's
+          // local time, not the tenant's).
+          const startHHMM = `${String(Math.floor(slot.start / 60)).padStart(2, '0')}:${String(slot.start % 60).padStart(2, '0')}`;
+          const endHHMM = `${String(Math.floor(slot.end / 60)).padStart(2, '0')}:${String(slot.end % 60).padStart(2, '0')}`;
+          const slotStart = zonedWallClockToUtc(dateStr, startHHMM, timezone);
+          const slotEnd = zonedWallClockToUtc(dateStr, endHHMM, timezone);
 
           availableSlots.push({
             date: dateStr,
@@ -223,7 +243,7 @@ export const findAvailableSlots = async (
       }
     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
+    dateCursor = addTenantDays(dateCursor, 1, timezone);
   }
 
   return availableSlots;
@@ -319,14 +339,15 @@ export const checkSchedulingConflicts = async (
   excludeLessonId?: string
 ): Promise<SchedulingConflict[]> => {
   const conflicts: SchedulingConflict[] = [];
+  const timezone = await resolveTimezone(tenantId);
   const settings = await getSchedulingSettings(tenantId);
 
-  const dateStr = formatDate(startTime);
-  const dayOfWeek = getDayOfWeek(startTime);
-  const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-  const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
-  const startTimeStr = `${startTime.getHours().toString().padStart(2, '0')}:${startTime.getMinutes().toString().padStart(2, '0')}:00`;
-  const endTimeStr = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}:00`;
+  const dateStr = formatDate(startTime, timezone);
+  const dayOfWeek = tenantDayOfWeek(dateStr, timezone);
+  const startTimeStr = formatInTenantZone(startTime, timezone, 'HH:mm:ss');
+  const endTimeStr = formatInTenantZone(endTime, timezone, 'HH:mm:ss');
+  const startMinutes = timeToMinutes(startTimeStr);
+  const endMinutes = timeToMinutes(endTimeStr);
 
   // 1. Check if instructor has availability on this day/time
   // ORDER BY narrows to the most specific containing block first, so that
@@ -457,10 +478,10 @@ export const checkSchedulingConflicts = async (
     instructorId,
     tenantId,
     dateStr,
-    beforeBufferStart.toTimeString().split(' ')[0],
+    formatInTenantZone(beforeBufferStart, timezone, 'HH:mm:ss'),
     startTimeStr,
     endTimeStr,
-    afterBufferEnd.toTimeString().split(' ')[0],
+    formatInTenantZone(afterBufferEnd, timezone, 'HH:mm:ss'),
   ];
 
   if (excludeLessonId) {
@@ -597,12 +618,16 @@ export const findRankedAvailableSlots = async (
 ): Promise<RankedAvailabilityResult> => {
   const { tenantId, studentId, pickupZip, duration, dateRange, timePreference, instructorId } = request;
 
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() + 1);
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + dateRange);
-  const startDateStr = formatDate(startDate);
-  const endDateStr = formatDate(endDate);
+  const timezone = await resolveTimezone(tenantId);
+
+  // "Tomorrow" and the search window's end both resolve in TENANT time, not
+  // server "now" - the previous new Date() here was the single most
+  // consequential server-local-time site in this file (see docs/
+  // ARCHITECTURE.md's tenant-timezone section).
+  const startDateStr = tenantTomorrow(timezone);
+  const endDateStr = addTenantDays(startDateStr, dateRange - 1, timezone);
+  const startDate = zonedWallClockToUtc(startDateStr, '00:00', timezone);
+  const endDate = zonedWallClockToUtc(endDateStr, '00:00', timezone);
 
   // Candidate instructors: either just the one requested, or every active instructor
   let candidateInstructors: Array<{ id: string; full_name: string; zip_code: string | null }> = [];
@@ -640,7 +665,9 @@ export const findRankedAvailableSlots = async (
   );
   const lessonsByInstructorDate = new Map<string, any[]>();
   for (const row of lessonsResult.rows) {
-    const dateKey = row.date instanceof Date ? formatDate(row.date) : String(row.date).split('T')[0];
+    // Same DATE-column reasoning as findAvailableSlots above - no tenant-zone
+    // conversion needed for a value with no time component.
+    const dateKey = row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date).split('T')[0];
     const key = `${row.instructor_id}|${dateKey}`;
     const existing = lessonsByInstructorDate.get(key) || [];
     existing.push(row);
@@ -659,7 +686,9 @@ export const findRankedAvailableSlots = async (
     const homeZip = instructor?.zip_code || null;
 
     const slotStartMinutes = timeToMinutes(
-      slotStartTime.includes('T') ? new Date(slotStartTime).toTimeString().slice(0, 5) : slotStartTime.slice(0, 5)
+      slotStartTime.includes('T')
+        ? formatInTenantZone(new Date(slotStartTime), timezone, 'HH:mm')
+        : slotStartTime.slice(0, 5)
     );
 
     // Single linear pass over the shared (unfiltered) array stored in
@@ -692,7 +721,7 @@ export const findRankedAvailableSlots = async (
     if (!timePreference || timePreference === 'any') return slots;
     return slots.filter((slot) => {
       const hour = slot.startTime.includes('T')
-        ? new Date(slot.startTime).getHours()
+        ? parseInt(formatInTenantZone(new Date(slot.startTime), timezone, 'HH'), 10)
         : parseInt(slot.startTime.split(':')[0], 10);
       switch (timePreference) {
         case 'morning':
@@ -716,6 +745,7 @@ export const findRankedAvailableSlots = async (
         endDate,
         duration,
         studentId,
+        timezone,
       });
 
       const filteredSlots = filterByTimePreference(slots);
