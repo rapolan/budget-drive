@@ -316,23 +316,29 @@ describe('StudentModal - needsGuardian surfaced in the guardian section', () => 
     expect(screen.queryByText(/needs a linked guardian record/i)).not.toBeInTheDocument();
   });
 
-  it('shows the "recommended for minors" hint and the guardian picker entry point for a new minor student', () => {
+  it('shows the "recommended for minors" hint and blank guardian fields for a new minor student', () => {
     renderModal(); // create mode, student is null
 
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
 
     expect(screen.getByText(/recommended for minors/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /link a guardian/i })).toBeInTheDocument();
+    // Fields-first (item 1 of the add-flow UX fix): the blank guardian
+    // entry fields are the default landing spot, not a search box. "First"
+    // also matches the student's own first-name field, so scope the query.
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    expect(newGuardianSection.querySelector('input[placeholder="First"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /link existing guardian/i })).toBeInTheDocument();
   });
 
-  it('does not show the "recommended for minors" hint for a new adult student, but the picker is still available', () => {
+  it('does not show the "recommended for minors" hint for a new adult student, but the fields are still available', () => {
     renderModal();
 
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
 
     expect(screen.queryByText(/recommended for minors/i)).not.toBeInTheDocument();
     // Adults may also link a guardian - it's optional either way, not gated by age.
-    expect(screen.getByRole('button', { name: /link a guardian/i })).toBeInTheDocument();
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    expect(newGuardianSection.querySelector('input[placeholder="First"]')).toBeInTheDocument();
   });
 });
 
@@ -347,7 +353,7 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
     (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
   });
 
-  it('shows candidates with disambiguating context and a permanent "create new" option', async () => {
+  it('"Link existing guardian" reveals the search box, shows candidates with disambiguating context, and a "create new" fallback', async () => {
     (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
         guardianCandidate({ id: 'g1', firstName: 'Jane', lastName: 'Smith', linkedStudentNames: ['Alice Smith', 'Bob Smith'] }),
@@ -355,7 +361,7 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
     });
 
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Smith' } });
 
     await waitFor(() => {
@@ -369,7 +375,7 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
 
   it('routes an email-shaped query to the email param, not lastName', async () => {
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), {
       target: { value: 'jane@example.com' },
     });
@@ -385,7 +391,7 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
     });
 
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
 
     const candidateButton = await screen.findByText(/Jane Doe/);
@@ -395,13 +401,13 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
     expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
   });
 
-  it('"Create new guardian instead" reveals editable fields and is always present regardless of results', async () => {
+  it('"Create new guardian instead" (from the search picker) returns to the editable fields and is always present regardless of results', async () => {
     (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [guardianCandidate({ id: 'g1' })],
     });
 
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
     await screen.findByText(/Jane Doe/);
 
@@ -437,14 +443,13 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
   }
 
   async function stageExistingGuardian(name: RegExp, isFirst = false) {
-    if (isFirst) {
-      fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
-    } else {
-      // After the first stage, guardianMode is reset to 'search' (not
-      // 'none'), so reopening the picker via "+ Add guardian" shows the
-      // search box directly rather than the "Link a guardian" button.
+    if (!isFirst) {
+      // After the first stage, the picker collapses; reopening it via
+      // "+ Add guardian" lands back on the fields-first default, so
+      // "Link existing guardian" is needed again to reach the search box.
       fireEvent.click(screen.getByRole('button', { name: /^\+?\s*add guardian$/i }));
     }
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
     const candidateButton = await screen.findByText(name);
     fireEvent.click(candidateButton);
@@ -466,13 +471,12 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     expect(payload.guardians).toEqual([{ mode: 'existing', guardianId: 'g1', relationship: undefined, isPrimary: true }]);
   });
 
-  it('calls studentsApi.createWithGuardian with mode=new when a new guardian is staged, and never calls create()', async () => {
+  it('calls studentsApi.createWithGuardian with mode=new when a new guardian is staged via the fields-first default, and never calls create()', async () => {
     renderModal();
     fillBasicFields();
 
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
-    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
-
+    // Fields-first (item 1): no click needed to reach the new-guardian
+    // fields - they're already open by default.
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
     const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
@@ -532,6 +536,7 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     await stageExistingGuardian(/Jane Doe/, true);
 
     fireEvent.click(screen.getByRole('button', { name: /^\+?\s*add guardian$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
     const candidateButtons = await screen.findAllByText(/Jane Doe/);
     // The first match is the already-staged row; the candidate list result
@@ -613,9 +618,7 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
     fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
-    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
-
+    // Fields-first (item 1): the new-guardian fields are already open.
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: email } });
@@ -687,8 +690,7 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
     fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
-    fireEvent.click(screen.getByRole('button', { name: /create new guardian instead/i }));
+    // Fields-first (item 1): the new-guardian fields are already open.
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
     fireEvent.change(lastNameInput, { target: { value: 'Doe' } }); // matches an existing guardian's surname, but no email/phone entered
@@ -826,7 +828,7 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
     await waitFor(() => expect(guardiansApi.unlinkFromStudent).toHaveBeenCalledWith('student-1', 'guardian-1'));
   });
 
-  it('clicking "Add guardian" opens the type-ahead picker, and the candidates query is no longer disabled in edit mode', async () => {
+  it('clicking "Add guardian" opens the blank fields directly (fields-first), not a search box', async () => {
     (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
 
     renderModal(editableStudent());
@@ -834,7 +836,21 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    // "First" also matches the student's own first-name field, so scope to
+    // the New Guardian fields section.
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    expect(newGuardianSection.querySelector('input[placeholder="First"]')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/search by name, email, or phone/i)).not.toBeInTheDocument();
+  });
+
+  it('"Link existing guardian" switches to the type-ahead picker, and the candidates query is no longer disabled in edit mode', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderModal(editableStudent());
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
 
     await waitFor(() => {
@@ -853,7 +869,7 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
-    fireEvent.click(screen.getByRole('button', { name: /link a guardian/i }));
+    fireEvent.click(screen.getByRole('button', { name: /link existing guardian/i }));
     fireEvent.change(screen.getByPlaceholderText(/search by name, email, or phone/i), { target: { value: 'Doe' } });
 
     const candidateButton = await screen.findByText(/Jane Doe/);

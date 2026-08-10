@@ -18,7 +18,11 @@ import { useDebounce } from '@/hooks/useDebounce';
 
 type TabType = 'details' | 'progress' | 'history';
 
-type GuardianSelectionMode = 'none' | 'search' | 'selected-existing' | 'create-new';
+// 'fields' is the default landing spot for "+ Add guardian" - blank
+// first/last/email/phone fields, since most guardians being added are new
+// people, not a returning sibling's existing guardian (the rarer case,
+// reached instead via the "Link existing guardian" action into 'search').
+type GuardianSelectionMode = 'fields' | 'search' | 'selected-existing';
 
 // A guardian staged locally in create mode - nothing hits the database
 // until the whole form is submitted, at which point every staged guardian
@@ -180,7 +184,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // shared between create and edit mode - same UI, same Constraint B
   // query-routing, just a different "on confirm" destination.
   const [guardianMode, setGuardianMode] = useState<GuardianSelectionMode>(
-    prefillFromGuardian ? 'selected-existing' : 'none'
+    prefillFromGuardian ? 'selected-existing' : 'fields'
   );
   const [guardianQuery, setGuardianQuery] = useState('');
   const debouncedGuardianQuery = useDebounce(guardianQuery, 400);
@@ -278,19 +282,23 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     setGuardianMode('selected-existing');
   };
 
-  const handleCreateNewGuardian = () => {
+  const handleLinkExistingGuardian = () => {
+    setGuardianMode('search');
+  };
+
+  const handleUseFields = () => {
     setNewGuardianFields(prev => ({
       ...prev,
       // Prefill lastName once from the student's own last name, on first
-      // entry into create-new mode only - not re-synced afterward so it
-      // doesn't clobber an in-progress edit.
+      // entry into the fields, not re-synced afterward so it doesn't
+      // clobber an in-progress edit.
       lastName: prev.lastName || formData.lastName || '',
     }));
-    setGuardianMode('create-new');
+    setGuardianMode('fields');
   };
 
   const handleResetGuardianSelection = () => {
-    setGuardianMode('search');
+    setGuardianMode('fields');
     setGuardianQuery('');
     setSelectedGuardianId(null);
     setSelectedGuardian(null);
@@ -511,7 +519,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // student together with its guardian(s), not adding a guardian to an
   // already-existing student. Runs the same duplicate-check flow first.
   const submitGuardianForEdit = async (skipDuplicateCheck = false) => {
-    if (guardianMode === 'create-new' && !skipDuplicateCheck) {
+    if (guardianMode === 'fields' && !skipDuplicateCheck) {
       const hasContact = newGuardianFields.email.trim() || newGuardianFields.phone.trim();
       if (hasContact) {
         const matchResult = await guardiansApi.findExactMatch({
@@ -1137,17 +1145,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </button>
                     )}
 
-                    {guardianMode === 'none' && (
-                      <button
-                        type="button"
-                        onClick={() => setGuardianMode('search')}
-                        className="flex items-center gap-2 text-sm text-primary hover:text-primary font-medium"
-                      >
-                        <Search className="h-4 w-4" />
-                        Link a guardian
-                      </button>
-                    )}
-
                     {guardianMode === 'search' && (
                       <div className="space-y-2">
                         <div className="flex items-center rounded-lg border border-edge-strong bg-surface px-3 py-2">
@@ -1191,7 +1188,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
                         <button
                           type="button"
-                          onClick={handleCreateNewGuardian}
+                          onClick={handleUseFields}
                           className="w-full text-left px-3 py-2 border border-dashed border-edge-strong rounded-lg text-sm text-primary hover:bg-surface2 transition-colors flex items-center gap-2"
                         >
                           <Plus className="h-4 w-4" />
@@ -1220,14 +1217,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     )}
 
-                    {(guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
+                    {(guardianMode === 'selected-existing' || guardianMode === 'fields') && (
                       <div>
                         <label className="block text-sm font-medium text-tx-secondary mb-1.5">Relationship</label>
                         <select
-                          value={guardianMode === 'create-new' ? newGuardianFields.relationship : guardianRelationship}
+                          value={guardianMode === 'fields' ? newGuardianFields.relationship : guardianRelationship}
                           onChange={(e) => {
                             const value = e.target.value as GuardianRelationship | '';
-                            if (guardianMode === 'create-new') {
+                            if (guardianMode === 'fields') {
                               setNewGuardianFields(prev => ({ ...prev, relationship: value }));
                             } else {
                               setGuardianRelationship(value);
@@ -1243,16 +1240,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     )}
 
-                    {guardianMode === 'create-new' && (
+                    {guardianMode === 'fields' && (
                       <div className="space-y-3 p-3 bg-surface2 rounded-lg">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-tx-secondary uppercase tracking-wide">New Guardian</span>
                           <button
                             type="button"
-                            onClick={handleResetGuardianSelection}
-                            className="text-xs text-primary hover:text-primary"
+                            onClick={handleLinkExistingGuardian}
+                            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary"
                           >
-                            Search instead
+                            <Search className="h-3.5 w-3.5" />
+                            Link existing guardian
                           </button>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
@@ -1306,7 +1304,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         Edit mode calls the API immediately; create mode
                         pushes into stagedGuardians - nothing hits the
                         database until the whole form is submitted. */}
-                    {(guardianMode === 'selected-existing' || guardianMode === 'create-new') && (
+                    {(guardianMode === 'selected-existing' || guardianMode === 'fields') && (
                       <button
                         type="button"
                         onClick={() => (isEditing ? submitGuardianForEdit() : stageGuardian())}
