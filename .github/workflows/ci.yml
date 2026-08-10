@@ -10,6 +10,12 @@ jobs:
   backend:
     name: Backend Build & Type Check
     runs-on: ubuntu-latest
+    # Explicit rather than relying on the runner's undocumented default -
+    # tenant timezone is authoritative (backend/src/utils/tenantTime.ts),
+    # so the server's own timezone must never matter, but pinning it makes
+    # that an enforced fact instead of an incidental one.
+    env:
+      TZ: UTC
 
     steps:
       - name: Checkout code
