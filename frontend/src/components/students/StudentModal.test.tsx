@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
@@ -60,13 +61,16 @@ vi.mock('@/contexts/TenantContext', () => ({
 
 afterEach(cleanup);
 
-function renderModal(student: Student | null = null) {
+function renderModal(
+  student: Student | null = null,
+  extraProps: Partial<ComponentProps<typeof StudentModal>> = {}
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <StudentModal student={student} onClose={() => {}} />
+      <StudentModal student={student} onClose={() => {}} {...extraProps} />
     </QueryClientProvider>
   );
 }
@@ -118,6 +122,90 @@ describe('StudentModal create form - date of birth required', () => {
 
     expect(screen.getByText(/date of birth is required/i)).toBeInTheDocument();
     expect(studentsApi.create).not.toHaveBeenCalled();
+  });
+});
+
+// The success state after creating a student offers an optional "Book
+// First Lesson" action wired to the onBookLesson prop, preselecting the
+// just-created student for the parent page's booking flow (Students.tsx
+// wires this to SmartBookingForm). Creating a student without booking must
+// stay a one-click path - the action is additive, never required, and
+// "Close" alone is enough to finish.
+describe('StudentModal - create success offers an optional "Book First Lesson" action', () => {
+  const createdStudent = {
+    id: 'student-new-1',
+    tenantId: 'tenant-1',
+    fullName: 'Jane Doe',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    email: 'jane.doe@example.com',
+    phone: '5550100',
+    status: 'active',
+    enrollmentDate: new Date('2026-01-01'),
+    totalHoursCompleted: 0,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  } as Student;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: createdStudent });
+  });
+
+  function fillAndSubmitAdult() {
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], {
+      target: { value: 'jane.doe@example.com' },
+    });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+  }
+
+  it('shows "Book First Lesson" after a successful create when onBookLesson is provided, and clicking it calls onBookLesson with the created student and closes the modal', async () => {
+    const onBookLesson = vi.fn();
+    const onClose = vi.fn();
+    renderModal(null, { onBookLesson, onClose });
+
+    fillAndSubmitAdult();
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+    expect(screen.getByText(/Jane Doe is ready for their first lesson/i)).toBeInTheDocument();
+
+    const bookButton = screen.getByRole('button', { name: /book first lesson/i });
+    fireEvent.click(bookButton);
+
+    expect(onBookLesson).toHaveBeenCalledWith(createdStudent);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('creating a student stays a one-click path - "Close" dismisses without booking, even when onBookLesson is provided', async () => {
+    const onBookLesson = vi.fn();
+    const onClose = vi.fn();
+    renderModal(null, { onBookLesson, onClose });
+
+    fillAndSubmitAdult();
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /^close$/i }));
+
+    expect(onClose).toHaveBeenCalled();
+    expect(onBookLesson).not.toHaveBeenCalled();
+  });
+
+  it('does not show "Book First Lesson" when onBookLesson is not provided - booking remains optional, not required', async () => {
+    renderModal(null, {});
+
+    fillAndSubmitAdult();
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+
+    expect(screen.queryByRole('button', { name: /book first lesson/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
   });
 });
 
