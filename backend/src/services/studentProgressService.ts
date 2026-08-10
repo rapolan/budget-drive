@@ -14,6 +14,7 @@
  */
 
 import { Student, Lesson, StudentProgress } from '../types';
+import { DEFAULT_TENANT_TIMEZONE, tenantToday, parseTenantDateOnly } from '../utils/tenantTime';
 
 export type { ProgressTrack, StudentProgress } from '../types';
 
@@ -25,18 +26,27 @@ type ProgressStudentInput = Pick<
 type ProgressLessonInput = Pick<Lesson, 'status' | 'duration'>;
 
 /**
- * Calculate age in whole years from a date of birth, live against today.
+ * Calculate age in whole years from a date of birth, live against "today"
+ * in the tenant's timezone (never server-local - a birthday at 11pm
+ * Eastern on the 14th is still the 14th there even when the server's UTC
+ * clock has already rolled to the 15th). `timezone` defaults to the
+ * documented fallback so any not-yet-updated caller keeps compiling and
+ * behaving as before; every real call site passes the tenant's actual zone.
  * Mirrors frontend/src/utils/age.ts's calculateAge - same algorithm,
  * written once per side since there's no shared module across the
- * language boundary.
+ * language boundary (the frontend's version remains server-local, per the
+ * documented frontend-follow-up).
  */
-export function calculateAge(dob: Date | string | null): number | null {
+export function calculateAge(
+  dob: Date | string | null,
+  timezone: string = DEFAULT_TENANT_TIMEZONE
+): number | null {
   if (!dob) return null;
   const birthDate = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+  const today = parseTenantDateOnly(tenantToday(timezone));
+  let age = today.getUTCFullYear() - birthDate.getUTCFullYear();
+  const monthDiff = today.getUTCMonth() - birthDate.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birthDate.getUTCDate())) {
     age--;
   }
   return age;
@@ -45,7 +55,8 @@ export function calculateAge(dob: Date | string | null): number | null {
 export function computeStudentProgress(
   student: ProgressStudentInput,
   lessons: ProgressLessonInput[],
-  standardLessonLengthMinutes: number = 120
+  standardLessonLengthMinutes: number = 120,
+  timezone: string = DEFAULT_TENANT_TIMEZONE
 ): StudentProgress {
   const needsDateOfBirth = !student.dateOfBirth;
 
@@ -63,7 +74,7 @@ export function computeStudentProgress(
 
   // 2. A persisted track override pins the track regardless of age.
   // 3. Otherwise derive live from age; missing DOB defaults to HOURS track.
-  const age = calculateAge(student.dateOfBirth);
+  const age = calculateAge(student.dateOfBirth, timezone);
   const isMinor = age === null || age < 18;
   const track: 'hours' | 'lessons' =
     student.trackOverride === 'hours' || student.trackOverride === 'lessons'

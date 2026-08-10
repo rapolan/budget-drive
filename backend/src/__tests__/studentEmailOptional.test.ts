@@ -96,20 +96,23 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings - resolves the tenant's timezone for the age check
+
     const res = await request(app)
       .post('/api/v1/students')
       .set('Authorization', `Bearer ${token}`)
       .send(adultPayload({ email: undefined }));
 
     expect(res.status).toBe(400);
-    expect(mockQuery).not.toHaveBeenCalled();
   });
 
   it('two adult students cannot share an email within a tenant', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery.mockResolvedValueOnce(queryResult([{ id: 'existing-student' }])); // duplicate-email check finds a match
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([{ id: 'existing-student' }])); // duplicate-email check finds a match
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -123,7 +126,9 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery.mockResolvedValueOnce(queryResult([{ id: 'existing-minor' }])); // duplicate-email check finds a match
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([{ id: 'existing-minor' }])); // duplicate-email check finds a match
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -137,13 +142,15 @@ describe('student email optional for minors, required for adults', () => {
     const studentService = await import('../services/studentService');
 
     // getStudentById's fetch-before-write pre-check: 1. the student row
-    // 2. attachProgress's batched lessons lookup 3. tenant settings lookup
+    // 2. attachProgress's batched lessons lookup 3. attachProgress's tenant
+    // settings lookup 4. the age-check's own tenant settings lookup
     mockQuery
       .mockResolvedValueOnce(
         queryResult([{ id: 'student-3', tenant_id: TENANT_ID, date_of_birth: ADULT_DOB, email: 'adult@example.com' }])
       )
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }]))
       .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }]));
+      .mockResolvedValueOnce(queryResult([]));
 
     await expect(
       studentService.updateStudent('student-3', TENANT_ID, { email: '' })

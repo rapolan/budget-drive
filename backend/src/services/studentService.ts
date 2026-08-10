@@ -10,6 +10,7 @@ import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { countGuardiansForStudentsBatch, StudentGuardianLink } from './studentGuardianService';
 import { findExactGuardianMatch } from './guardianService';
@@ -33,6 +34,10 @@ const emptyToNull = (value: any): any => {
 async function attachProgress(students: Student[], tenantId: string): Promise<Student[]> {
   if (students.length === 0) return students;
 
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const standardLessonLengthMinutes = tenantSettings?.standardLessonLengthMinutes ?? 120;
+
   const studentIds = students.map(s => s.id);
   const lessonsResult = await query(
     `SELECT student_id, status, duration FROM lessons WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
@@ -48,24 +53,26 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
 
   const minorIds = students
     .filter(s => {
-      const age = calculateAge(s.dateOfBirth);
+      const age = calculateAge(s.dateOfBirth, timezone);
       return age === null || age < 18;
     })
     .map(s => s.id);
 
   const guardianCounts = await countGuardiansForStudentsBatch(minorIds, tenantId);
 
-  const tenantSettings = await getTenantSettings(tenantId);
-  const standardLessonLengthMinutes = tenantSettings?.standardLessonLengthMinutes ?? 120;
-
   return students.map(student => {
-    const age = calculateAge(student.dateOfBirth);
+    const age = calculateAge(student.dateOfBirth, timezone);
     const isMinor = age === null || age < 18;
     const needsGuardian = isMinor && (guardianCounts.get(student.id) ?? 0) === 0;
 
     return {
       ...student,
-      progress: computeStudentProgress(student, lessonsByStudent.get(student.id) ?? [], standardLessonLengthMinutes),
+      progress: computeStudentProgress(
+        student,
+        lessonsByStudent.get(student.id) ?? [],
+        standardLessonLengthMinutes,
+        timezone
+      ),
       needsGuardian,
     };
   });
@@ -212,7 +219,9 @@ export const createStudent = async (
     // Validate: email is required for adults (18+); optional for minors,
     // who often have no email of their own and share a parent's contact.
     // Can't be a DB CHECK - age changes daily.
-    const age = calculateAge(data.dateOfBirth ?? null);
+    const tenantSettings = await getTenantSettings(tenantId);
+    const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+    const age = calculateAge(data.dateOfBirth ?? null, timezone);
     const isAdult = age !== null && age >= 18;
     if (isAdult && (!data.email || data.email.trim().length === 0)) {
       throw new AppError('Email is required for adult students (18+)', 400);
@@ -239,7 +248,6 @@ export const createStudent = async (
     // Set defaults for optional fields
     let hoursRequired = data.hoursRequired;
     if (hoursRequired === undefined) {
-      const tenantSettings = await getTenantSettings(tenantId);
       hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
     }
     const licenseType = data.licenseType ?? 'car';
@@ -358,7 +366,9 @@ export const createStudentWithGuardian = async (
     throw new AppError('Date of birth is required', 400);
   }
 
-  const age = calculateAge(data.dateOfBirth ?? null);
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const age = calculateAge(data.dateOfBirth ?? null, timezone);
   const isAdult = age !== null && age >= 18;
   if (isAdult && (!data.email || data.email.trim().length === 0)) {
     throw new AppError('Email is required for adult students (18+)', 400);
@@ -449,7 +459,6 @@ export const createStudentWithGuardian = async (
 
     let hoursRequired = data.hoursRequired;
     if (hoursRequired === undefined) {
-      const tenantSettings = await getTenantSettings(tenantId);
       hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
     }
     const licenseType = data.licenseType ?? 'car';
@@ -730,7 +739,9 @@ export const updateStudent = async (
     }
     const resultingEmail = data.email !== undefined ? data.email : current.email;
     const resultingDob = data.dateOfBirth !== undefined ? data.dateOfBirth : current.dateOfBirth;
-    const resultingAge = calculateAge(resultingDob ?? null);
+    const tenantSettings = await getTenantSettings(tenantId);
+    const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+    const resultingAge = calculateAge(resultingDob ?? null, timezone);
     const resultingIsAdult = resultingAge !== null && resultingAge >= 18;
     if (resultingIsAdult && (!resultingEmail || resultingEmail.trim().length === 0)) {
       throw new AppError('Email is required for adult students (18+)', 400);

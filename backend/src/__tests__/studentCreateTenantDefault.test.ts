@@ -32,10 +32,13 @@ describe('POST /api/v1/students - tenant default hours', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery.mockResolvedValueOnce(queryResult([])); // duplicate-email check
+    // getTenantSettings now runs unconditionally (the age check resolves the
+    // tenant's timezone first) and its result is reused for the
+    // hoursRequired default - only one tenant_settings lookup total.
     mockQuery.mockResolvedValueOnce(
       queryResult([{ tenant_id: TENANT_ID, default_hours_required: 8 }])
     ); // getTenantSettings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // duplicate-email check
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'student-1', tenant_id: TENANT_ID, hours_required: 8 }])
     ); // INSERT
@@ -59,8 +62,10 @@ describe('POST /api/v1/students - tenant default hours', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
+    // getTenantSettings still runs (for the age check) even though the
+    // explicit hoursRequired means its result is never used for hours.
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(queryResult([])); // duplicate-email check
-    // No getTenantSettings call expected - explicit hoursRequired short-circuits it
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'student-1', tenant_id: TENANT_ID, hours_required: 12 }])
     ); // INSERT
@@ -71,7 +76,7 @@ describe('POST /api/v1/students - tenant default hours', () => {
       .send({ ...basePayload, hoursRequired: 12 });
 
     expect(res.status).toBe(201);
-    expect(mockQuery).toHaveBeenCalledTimes(2); // duplicate-email check + INSERT, no tenant_settings lookup
+    expect(mockQuery).toHaveBeenCalledTimes(3); // getTenantSettings + duplicate-email check + INSERT
 
     const insertCall = mockQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')

@@ -39,13 +39,13 @@ describe('GET /api/v1/students - progress attachment', () => {
         completed: false,
       }])
     ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings - resolved first, before the lessons query
     mockQuery.mockResolvedValueOnce(
       queryResult([
         { student_id: STUDENT_ID, status: 'completed', duration: 270 },
       ])
     ); // batched lessons
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
-    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -79,9 +79,9 @@ describe('GET /api/v1/students - progress attachment', () => {
         completed: false,
       }])
     ); // student row
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings - resolved first
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched lessons (none)
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
-    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
 
     const res = await request(app)
       .get(`/api/v1/students/${STUDENT_ID}`)

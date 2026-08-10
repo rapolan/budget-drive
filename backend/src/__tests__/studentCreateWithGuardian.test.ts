@@ -46,11 +46,12 @@ describe('POST /api/v1/students/with-guardian', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    // Pre-BEGIN, on the pooled query: exact-match check for the one new
-    // guardian (has a phone), then getTenantSettings (hoursRequired undefined).
+    // Pre-BEGIN, on the pooled query: getTenantSettings (the age check,
+    // now also reused for hoursRequired), then the exact-match check for
+    // the one new guardian (has a phone).
     mockQuery
-      .mockResolvedValueOnce(queryResult([])) // findExactGuardianMatch - no match
-      .mockResolvedValueOnce(queryResult([])); // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])); // findExactGuardianMatch - no match
 
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
@@ -201,8 +202,8 @@ describe('POST /api/v1/students/with-guardian', () => {
     const studentService = await import('../services/studentService');
 
     mockQuery
-      .mockResolvedValueOnce(queryResult([])) // findExactGuardianMatch - no match
-      .mockResolvedValueOnce(queryResult([])); // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])); // findExactGuardianMatch - no match
 
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
@@ -314,6 +315,8 @@ describe('POST /api/v1/students/with-guardian', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (age check, runs before the guardians-required check)
+
     const res = await request(app)
       .post('/api/v1/students/with-guardian')
       .set('Authorization', `Bearer ${token}`)
@@ -329,6 +332,8 @@ describe('POST /api/v1/students/with-guardian', () => {
   it('rejects a duplicate guardian reference within one request (same guardianId twice) before opening a transaction', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (age check)
 
     const res = await request(app)
       .post('/api/v1/students/with-guardian')
@@ -350,6 +355,8 @@ describe('POST /api/v1/students/with-guardian', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (age check)
+
     const res = await request(app)
       .post('/api/v1/students/with-guardian')
       .set('Authorization', `Bearer ${token}`)
@@ -370,10 +377,13 @@ describe('POST /api/v1/students/with-guardian', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    // findExactGuardianMatch (pooled query) returns a match for the one new guardian.
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID, first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com' }])
-    );
+    // getTenantSettings (the age check) runs first, then findExactGuardianMatch
+    // (pooled query) returns a match for the one new guardian.
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+      .mockResolvedValueOnce(
+        queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID, first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com' }])
+      );
 
     const res = await request(app)
       .post('/api/v1/students/with-guardian')
@@ -390,6 +400,8 @@ describe('POST /api/v1/students/with-guardian', () => {
   it('rejects with 400 when more than one guardian is explicitly marked primary', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (age check)
 
     const res = await request(app)
       .post('/api/v1/students/with-guardian')

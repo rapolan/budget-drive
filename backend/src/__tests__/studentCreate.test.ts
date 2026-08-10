@@ -56,9 +56,11 @@ describe('POST /api/v1/students', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    // 1. duplicate-email check inside studentService.createStudent
+    // 1. getTenantSettings (age check, resolves the tenant's timezone)
     mockQuery.mockResolvedValueOnce(queryResult([]));
-    // 2. the INSERT itself
+    // 2. duplicate-email check inside studentService.createStudent
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    // 3. the INSERT itself
     mockQuery.mockResolvedValueOnce(
       queryResult([{
         id: 'student-1',

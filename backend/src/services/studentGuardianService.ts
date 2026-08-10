@@ -14,6 +14,8 @@ import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { calculateAge } from './studentProgressService';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone } from '../utils/tenantTime';
 
 const logger = createLogger('StudentGuardianService');
 
@@ -143,7 +145,9 @@ export const unlinkGuardianFromStudent = async (
     throw new AppError('Student not found', 404);
   }
 
-  const age = calculateAge(studentResult.rows[0].date_of_birth);
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const age = calculateAge(studentResult.rows[0].date_of_birth, timezone);
   const isMinor = age === null || age < 18;
 
   if (isMinor) {

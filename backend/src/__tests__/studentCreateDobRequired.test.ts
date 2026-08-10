@@ -58,11 +58,11 @@ describe('POST /api/v1/students - date of birth required', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // duplicate-email check
     mockQuery.mockResolvedValueOnce({
       rows: [{ id: 'tenant-1', default_hours_required: 6 }],
       rowCount: 1,
-    }); // getTenantSettings
+    }); // getTenantSettings (age check, reused for hoursRequired default)
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // duplicate-email check
     mockQuery.mockResolvedValueOnce({
       rows: [{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }],
       rowCount: 1,

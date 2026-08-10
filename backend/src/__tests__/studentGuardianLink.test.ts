@@ -194,6 +194,7 @@ describe('student-guardian linking', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ date_of_birth: adultDob.toISOString() }])) // student DOB lookup - adult, no guardian-count check
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])); // DELETE
 
     await expect(
@@ -213,6 +214,7 @@ describe('student-guardian linking', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ date_of_birth: minorDob.toISOString() }])) // student DOB - minor
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ count: '2' }])) // guardian count - 2 linked
       .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])); // DELETE
 
@@ -229,6 +231,7 @@ describe('student-guardian linking', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ date_of_birth: minorDob.toISOString() }])) // student DOB - minor
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ count: '1' }])); // guardian count - only 1 linked
 
     await expect(
@@ -244,6 +247,7 @@ describe('student-guardian linking', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ date_of_birth: null }])) // unknown DOB
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ count: '1' }])); // only 1 linked guardian
 
     await expect(
