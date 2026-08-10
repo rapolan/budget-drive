@@ -5,16 +5,18 @@
 
 import { createEmailTransporter, getEmailConfig } from '../config/email';
 import { query } from '../config/database';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 
-interface LessonInviteData {
+export interface LessonInviteData {
   lessonId: string;
   studentName: string;
   studentPhone: string;
   instructorName: string;
   instructorEmail: string;
-  lessonDate: string; // YYYY-MM-DD
-  startTime: string;  // HH:MM
-  endTime: string;    // HH:MM
+  lessonDate: string; // YYYY-MM-DD, in the tenant's timezone
+  startTime: string;  // HH:MM, in the tenant's timezone
+  endTime: string;    // HH:MM, in the tenant's timezone
   lessonType: string;
   duration: number;   // in minutes
   lessonNumber?: number | null;
@@ -22,6 +24,7 @@ interface LessonInviteData {
   pickupAddress?: string;
   notes?: string;
   tenantName?: string;
+  timezone: string; // IANA zone - authoritative for the date/time fields above
 }
 
 /**
@@ -35,29 +38,37 @@ function formatTime(time: string): string {
 }
 
 /**
- * Format date to readable format (e.g., "Tuesday, December 10, 2025")
+ * Format a tenant-wall-clock date string to readable format (e.g.,
+ * "Tuesday, December 10, 2025"). lessonDate/timezone are already
+ * tenant-correct (resolved in sendLessonInviteForLesson) - this only needs
+ * to render them, via the tenant-timezone helper module rather than parsing
+ * dateStr as a naive Date (the old `new Date(dateStr + 'T12:00:00')` hack
+ * existed only to dodge that naive parse rolling the date back a day).
  */
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + 'T12:00:00'); // Add time to avoid timezone issues
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+export function formatDate(dateStr: string, timezone: string): string {
+  const instant = zonedWallClockToUtc(dateStr, '12:00', timezone);
+  return formatInTenantZone(instant, timezone, 'EEEE, MMMM d, yyyy');
 }
 
 /**
  * Generate ICS calendar file content for a lesson
  */
-function generateICSContent(data: LessonInviteData): string {
+export function generateICSContent(data: LessonInviteData): string {
   const uid = `lesson-${data.lessonId}@budgetdrivingschool.com`;
-  
-  // Convert date and time to ICS format (YYYYMMDDTHHMMSS)
-  const dateStr = data.lessonDate.replace(/-/g, '');
-  const startTime = data.startTime.replace(':', '') + '00';
-  const endTime = data.endTime.replace(':', '') + '00';
-  
+
+  // DTSTART/DTEND as UTC instants (Z suffix, computed from the tenant's
+  // wall-clock date/time via the tenant-timezone helper module), rather
+  // than a hardcoded `TZID=America/Los_Angeles` + a hand-rolled VTIMEZONE
+  // block with Pacific Time's specific DST transition rules baked in.
+  // Hand-rolling a correct VTIMEZONE block (accurate DST rules) for an
+  // arbitrary IANA zone would mean re-deriving tzdata ourselves for 400+
+  // possible zones - a UTC DTSTART is RFC-5545-legal and every mainstream
+  // calendar client (Google, Apple, Outlook) renders it correctly in the
+  // viewer's own local time.
+  const startInstant = zonedWallClockToUtc(data.lessonDate, data.startTime, data.timezone);
+  const endInstant = zonedWallClockToUtc(data.lessonDate, data.endTime, data.timezone);
+  const toICSUtc = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
   // Build description
   const descriptionParts = [
     `Student: ${data.studentName}`,
@@ -101,28 +112,11 @@ function generateICSContent(data: LessonInviteData): string {
     'PRODID:-//Budget Driving School//Lesson Invite//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:REQUEST',
-    'BEGIN:VTIMEZONE',
-    'TZID:America/Los_Angeles',
-    'BEGIN:DAYLIGHT',
-    'TZOFFSETFROM:-0800',
-    'TZOFFSETTO:-0700',
-    'TZNAME:PDT',
-    'DTSTART:19700308T020000',
-    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
-    'END:DAYLIGHT',
-    'BEGIN:STANDARD',
-    'TZOFFSETFROM:-0700',
-    'TZOFFSETTO:-0800',
-    'TZNAME:PST',
-    'DTSTART:19701101T020000',
-    'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
-    'END:STANDARD',
-    'END:VTIMEZONE',
     'BEGIN:VEVENT',
     `UID:${uid}`,
-    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}`,
-    `DTSTART;TZID=America/Los_Angeles:${dateStr}T${startTime}`,
-    `DTEND;TZID=America/Los_Angeles:${dateStr}T${endTime}`,
+    `DTSTAMP:${toICSUtc(new Date())}`,
+    `DTSTART:${toICSUtc(startInstant)}`,
+    `DTEND:${toICSUtc(endInstant)}`,
     `SUMMARY:${escapeICS(summary)}`,
     `DESCRIPTION:${escapeICS(description)}`,
     `LOCATION:${escapeICS(location)}`,
@@ -152,7 +146,7 @@ function escapeICS(text: string | null | undefined): string {
  * Generate HTML email content for lesson invite
  */
 function generateEmailHTML(data: LessonInviteData): string {
-  const formattedDate = formatDate(data.lessonDate);
+  const formattedDate = formatDate(data.lessonDate, data.timezone);
   const formattedStartTime = formatTime(data.startTime);
   const formattedEndTime = formatTime(data.endTime);
 
@@ -235,7 +229,7 @@ function generateEmailHTML(data: LessonInviteData): string {
  * Generate plain text email content
  */
 function generateEmailText(data: LessonInviteData): string {
-  const formattedDate = formatDate(data.lessonDate);
+  const formattedDate = formatDate(data.lessonDate, data.timezone);
   const formattedStartTime = formatTime(data.startTime);
   const formattedEndTime = formatTime(data.endTime);
 
@@ -279,7 +273,7 @@ export async function sendLessonInviteEmail(data: LessonInviteData): Promise<boo
 
     const transporter = createEmailTransporter();
     
-    const formattedDate = formatDate(data.lessonDate);
+    const formattedDate = formatDate(data.lessonDate, data.timezone);
     const formattedTime = formatTime(data.startTime);
     
     // Generate ICS content
@@ -360,14 +354,21 @@ export async function sendLessonInviteForLesson(
 
     const lesson = result.rows[0];
 
-    // Build invite data
+    const tenantSettings = await getTenantSettings(tenantId);
+    const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
+    // Build invite data. lesson.date is a plain DATE column (no time
+    // component) - a Date instance from pg is always UTC midnight of that
+    // calendar date, so this split is safe (no wall-clock roll risk).
+    // start_time/end_time are already tenant wall-clock strings, stored
+    // directly by lessonService (see item 3).
     const inviteData: LessonInviteData = {
       lessonId: lesson.id,
       studentName: lesson.student_name,
       studentPhone: lesson.student_phone || 'Not provided',
       instructorName: lesson.instructor_name,
       instructorEmail: lesson.instructor_email,
-      lessonDate: lesson.lesson_date instanceof Date 
+      lessonDate: lesson.lesson_date instanceof Date
         ? lesson.lesson_date.toISOString().split('T')[0]
         : lesson.lesson_date,
       startTime: lesson.start_time,
@@ -379,6 +380,7 @@ export async function sendLessonInviteForLesson(
       pickupAddress: lesson.pickup_address,
       notes: lesson.notes,
       tenantName: lesson.tenant_name,
+      timezone,
     };
 
     return await sendLessonInviteEmail(inviteData);

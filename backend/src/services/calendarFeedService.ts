@@ -11,6 +11,8 @@
 
 import { query } from '../config/database';
 import crypto from 'crypto';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 /**
  * Generate a unique, secure feed token for an instructor
@@ -138,8 +140,11 @@ export const generateICSFeed = async (
     `SELECT full_name FROM instructors WHERE id = $1 AND tenant_id = $2`,
     [instructorId, tenantId]
   );
-  
+
   const instructorName = instructorResult.rows[0]?.full_name || 'Instructor';
+
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
 
   // Get upcoming lessons for this instructor, including student contact info
   const lessonsResult = await query(
@@ -168,7 +173,15 @@ export const generateICSFeed = async (
     [instructorId, tenantId]
   );
 
-  // Build ICS content
+  // Build ICS content. DTSTART/DTEND are emitted as UTC instants (Z suffix,
+  // computed via the tenant-timezone helper module) rather than a
+  // hardcoded `TZID=America/Los_Angeles` + hand-rolled VTIMEZONE block with
+  // Pacific Time's specific DST rules baked in - see lessonInviteService's
+  // generateICSContent for the same fix and its rationale (a UTC DTSTART is
+  // RFC-5545-legal and every mainstream calendar client renders it in the
+  // viewer's own local time, without needing us to re-derive tzdata for
+  // 400+ possible zones). X-WR-TIMEZONE is purely informational (a label
+  // some clients show), so it's set to the tenant's real zone.
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -176,36 +189,22 @@ export const generateICSFeed = async (
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeICS(instructorName)}'s Driving Lessons`,
-    'X-WR-TIMEZONE:America/Los_Angeles',
+    `X-WR-TIMEZONE:${timezone}`,
   ];
-
-  // Add timezone definition
-  lines.push(
-    'BEGIN:VTIMEZONE',
-    'TZID:America/Los_Angeles',
-    'BEGIN:DAYLIGHT',
-    'TZOFFSETFROM:-0800',
-    'TZOFFSETTO:-0700',
-    'TZNAME:PDT',
-    'DTSTART:19700308T020000',
-    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
-    'END:DAYLIGHT',
-    'BEGIN:STANDARD',
-    'TZOFFSETFROM:-0700',
-    'TZOFFSETTO:-0800',
-    'TZNAME:PST',
-    'DTSTART:19701101T020000',
-    'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
-    'END:STANDARD',
-    'END:VTIMEZONE'
-  );
 
   // Add each lesson as an event
   for (const lesson of lessonsResult.rows) {
-    // Parse date and times
-    const dateStr = lesson.date.toISOString().split('T')[0].replace(/-/g, '');
-    const startTime = lesson.start_time.replace(/:/g, '').substring(0, 6);
-    const endTime = lesson.end_time.replace(/:/g, '').substring(0, 6);
+    // lesson.date is a plain DATE column (no time component) - a Date
+    // instance from pg is always UTC midnight of that calendar date, so
+    // this split is safe (no wall-clock roll risk). start_time/end_time are
+    // already tenant wall-clock strings, stored directly by lessonService
+    // (see item 3) - zonedWallClockToUtc converts the pair to the correct
+    // UTC instant for DTSTART/DTEND below.
+    const dateStr = lesson.date instanceof Date
+      ? lesson.date.toISOString().split('T')[0]
+      : String(lesson.date).split('T')[0];
+    const startInstant = zonedWallClockToUtc(dateStr, lesson.start_time.slice(0, 5), timezone);
+    const endInstant = zonedWallClockToUtc(dateStr, lesson.end_time.slice(0, 5), timezone);
 
     // Build description lines
     const descParts: string[] = [];
@@ -259,8 +258,8 @@ export const generateICSFeed = async (
       'BEGIN:VEVENT',
       `UID:${uid}`,
       `DTSTAMP:${formatICSDate(new Date())}`,
-      `DTSTART;TZID=America/Los_Angeles:${dateStr}T${startTime}`,
-      `DTEND;TZID=America/Los_Angeles:${dateStr}T${endTime}`,
+      `DTSTART:${formatICSDate(startInstant)}`,
+      `DTEND:${formatICSDate(endInstant)}`,
       `SUMMARY:${escapeICS(summary)}`,
       `DESCRIPTION:${escapeICS(description)}`,
       `LOCATION:${escapeICS(location)}`,
