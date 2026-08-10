@@ -537,6 +537,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     });
   };
 
+  // Any failure in the exact-match/create/link sequence below (429 from the
+  // rate limiter, a network blip, a 500) must be visible - the "Add
+  // Guardian" button's only loading/label state is driven by
+  // linkGuardianMutation.isPending, which is never reached if an earlier
+  // await throws, so an unguarded throw here previously looked like the
+  // button doing nothing at all.
+  function guardianActionErrorMessage(err: unknown): string {
+    const response = (err as { response?: { data?: { error?: string } } })?.response;
+    return response?.data?.error || "Couldn't add this guardian - try again.";
+  }
+
   // Edit-mode analogue of submitWithGuardian: the student already exists,
   // so a new guardian is created (or an existing one linked) via
   // guardiansApi.create + linkToStudent rather than the atomic
@@ -544,37 +555,43 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // student together with its guardian(s), not adding a guardian to an
   // already-existing student. Runs the same duplicate-check flow first.
   const submitGuardianForEdit = async (skipDuplicateCheck = false) => {
-    if (guardianMode === 'fields' && !skipDuplicateCheck) {
-      const hasContact = newGuardianFields.email.trim() || newGuardianFields.phone.trim();
-      if (hasContact) {
-        const matchResult = await guardiansApi.findExactMatch({
+    setStagingError('');
+
+    try {
+      if (guardianMode === 'fields' && !skipDuplicateCheck) {
+        const hasContact = newGuardianFields.email.trim() || newGuardianFields.phone.trim();
+        if (hasContact) {
+          const matchResult = await guardiansApi.findExactMatch({
+            email: newGuardianFields.email || undefined,
+            phone: newGuardianFields.phone || undefined,
+          });
+          if (matchResult.data && matchResult.data.length > 0) {
+            setDuplicateMatches(matchResult.data);
+            setShowDuplicateConfirm(true);
+            return; // halt - wait for an explicit choice in the confirm panel
+          }
+        }
+      }
+
+      if (guardianMode === 'selected-existing') {
+        await linkGuardianMutation.mutateAsync({
+          guardianId: selectedGuardianId!,
+          relationship: guardianRelationship || undefined,
+        });
+      } else {
+        const createResult = await guardiansApi.create({
+          firstName: newGuardianFields.firstName || undefined,
+          lastName: newGuardianFields.lastName || undefined,
           email: newGuardianFields.email || undefined,
           phone: newGuardianFields.phone || undefined,
         });
-        if (matchResult.data && matchResult.data.length > 0) {
-          setDuplicateMatches(matchResult.data);
-          setShowDuplicateConfirm(true);
-          return; // halt - wait for an explicit choice in the confirm panel
-        }
+        await linkGuardianMutation.mutateAsync({
+          guardianId: createResult.data!.id,
+          relationship: newGuardianFields.relationship || undefined,
+        });
       }
-    }
-
-    if (guardianMode === 'selected-existing') {
-      await linkGuardianMutation.mutateAsync({
-        guardianId: selectedGuardianId!,
-        relationship: guardianRelationship || undefined,
-      });
-    } else {
-      const createResult = await guardiansApi.create({
-        firstName: newGuardianFields.firstName || undefined,
-        lastName: newGuardianFields.lastName || undefined,
-        email: newGuardianFields.email || undefined,
-        phone: newGuardianFields.phone || undefined,
-      });
-      await linkGuardianMutation.mutateAsync({
-        guardianId: createResult.data!.id,
-        relationship: newGuardianFields.relationship || undefined,
-      });
+    } catch (err) {
+      setStagingError(guardianActionErrorMessage(err));
     }
   };
 
@@ -588,57 +605,61 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const stageGuardian = async (skipDuplicateCheck = false) => {
     setStagingError('');
 
-    if (guardianMode === 'selected-existing') {
-      if (stagedGuardians.some(g => g.mode === 'existing' && g.guardianId === selectedGuardianId)) {
-        setStagingError('This guardian is already staged for this student.');
-        return;
-      }
-      setStagedGuardians(prev => [...prev, {
-        key: selectedGuardianId!,
-        mode: 'existing',
-        guardianId: selectedGuardianId!,
-        display: selectedGuardian!,
-        relationship: guardianRelationship,
-        isPrimary: prev.length === 0,
-      }]);
-    } else {
-      const email = newGuardianFields.email.trim().toLowerCase();
-      const phone = newGuardianFields.phone.trim();
-      const isDuplicateStaged = stagedGuardians.some(g => {
-        if (g.mode !== 'new') return false;
-        return (email && g.email.trim().toLowerCase() === email) || (phone && g.phone.trim() === phone);
-      });
-      if (isDuplicateStaged) {
-        setStagingError('A guardian with this email or phone is already staged for this student.');
-        return;
-      }
-
-      if (!skipDuplicateCheck && (email || phone)) {
-        const matchResult = await guardiansApi.findExactMatch({
-          email: newGuardianFields.email || undefined,
-          phone: newGuardianFields.phone || undefined,
-        });
-        if (matchResult.data && matchResult.data.length > 0) {
-          setDuplicateMatches(matchResult.data);
-          setShowDuplicateConfirm(true);
-          return; // halt - wait for an explicit choice in the confirm panel
+    try {
+      if (guardianMode === 'selected-existing') {
+        if (stagedGuardians.some(g => g.mode === 'existing' && g.guardianId === selectedGuardianId)) {
+          setStagingError('This guardian is already staged for this student.');
+          return;
         }
+        setStagedGuardians(prev => [...prev, {
+          key: selectedGuardianId!,
+          mode: 'existing',
+          guardianId: selectedGuardianId!,
+          display: selectedGuardian!,
+          relationship: guardianRelationship,
+          isPrimary: prev.length === 0,
+        }]);
+      } else {
+        const email = newGuardianFields.email.trim().toLowerCase();
+        const phone = newGuardianFields.phone.trim();
+        const isDuplicateStaged = stagedGuardians.some(g => {
+          if (g.mode !== 'new') return false;
+          return (email && g.email.trim().toLowerCase() === email) || (phone && g.phone.trim() === phone);
+        });
+        if (isDuplicateStaged) {
+          setStagingError('A guardian with this email or phone is already staged for this student.');
+          return;
+        }
+
+        if (!skipDuplicateCheck && (email || phone)) {
+          const matchResult = await guardiansApi.findExactMatch({
+            email: newGuardianFields.email || undefined,
+            phone: newGuardianFields.phone || undefined,
+          });
+          if (matchResult.data && matchResult.data.length > 0) {
+            setDuplicateMatches(matchResult.data);
+            setShowDuplicateConfirm(true);
+            return; // halt - wait for an explicit choice in the confirm panel
+          }
+        }
+
+        setStagedGuardians(prev => [...prev, {
+          key: nextStagedGuardianKey(),
+          mode: 'new',
+          firstName: newGuardianFields.firstName,
+          lastName: newGuardianFields.lastName,
+          email: newGuardianFields.email,
+          phone: newGuardianFields.phone,
+          relationship: newGuardianFields.relationship,
+          isPrimary: prev.length === 0,
+        }]);
       }
 
-      setStagedGuardians(prev => [...prev, {
-        key: nextStagedGuardianKey(),
-        mode: 'new',
-        firstName: newGuardianFields.firstName,
-        lastName: newGuardianFields.lastName,
-        email: newGuardianFields.email,
-        phone: newGuardianFields.phone,
-        relationship: newGuardianFields.relationship,
-        isPrimary: prev.length === 0,
-      }]);
+      setIsAddingGuardian(false);
+      handleResetGuardianSelection();
+    } catch (err) {
+      setStagingError(guardianActionErrorMessage(err));
     }
-
-    setIsAddingGuardian(false);
-    handleResetGuardianSelection();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

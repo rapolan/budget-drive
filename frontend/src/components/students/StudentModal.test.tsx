@@ -595,6 +595,40 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
 
     expect((document.getElementsByName('guardian_firstname_input')[0] as HTMLInputElement).value).toBe('John');
   });
+
+  // Regression coverage: submitGuardianForEdit and stageGuardian each called
+  // guardiansApi.findExactMatch with a bare, unguarded await. If that call
+  // rejected (429 from the rate limiter, a network error, a 500), the
+  // "Add Guardian" click silently did nothing - no error, no staged row,
+  // no loading state (the button's label/disabled state only reacts to
+  // linkGuardianMutation, a mutation this code path never reaches). This
+  // exercises the real click path (fields-first form + "Add Guardian"
+  // button), not a shortcut, and a mocked rejection rather than a resolved
+  // empty result - the gap the previous tests didn't cover.
+  it('shows a visible error and keeps the fields populated when findExactMatch rejects while staging a new guardian', async () => {
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      Object.assign(new Error('Too many requests'), { response: { data: { error: 'Too many requests. Please try again later.' } } })
+    );
+
+    renderModal();
+    fillBasicFields();
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'Some' } });
+    fireEvent.change(emailInput, { target: { value: 'some.person@example.com' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    expect(await screen.findByText(/too many requests/i)).toBeInTheDocument();
+    // Nothing was staged, and the fields the user typed are still there -
+    // the failure is visible, not a silent data loss.
+    expect(screen.queryByText('Some Person')).not.toBeInTheDocument();
+    expect(firstNameInput.value).toBe('Some');
+    expect(emailInput.value).toBe('some.person@example.com');
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+  });
 });
 
 // Constraint C: never merge silently. A new guardian whose email/phone
@@ -1022,5 +1056,37 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
 
     expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
     expect(guardiansApi.linkToStudent).not.toHaveBeenCalled();
+  });
+
+  // Regression coverage (edit-mode counterpart to the create-mode test in
+  // "atomic create with guardian"): submitGuardianForEdit had the same
+  // unguarded findExactMatch await - a rejection (429, network error, 500)
+  // made "Add Guardian" silently do nothing in edit mode too, since
+  // linkToStudent (and the mutation driving the button's label/disabled
+  // state) was never reached.
+  it('shows a visible error and keeps the fields populated when findExactMatch rejects while adding a guardian in edit mode', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      Object.assign(new Error('Too many requests'), { response: { data: { error: 'Too many requests. Please try again later.' } } })
+    );
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'Some' } });
+    fireEvent.change(emailInput, { target: { value: 'some.person@example.com' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    expect(await screen.findByText(/too many requests/i)).toBeInTheDocument();
+    expect(firstNameInput.value).toBe('Some');
+    expect(emailInput.value).toBe('some.person@example.com');
+    expect(guardiansApi.linkToStudent).not.toHaveBeenCalled();
+    expect(guardiansApi.create).not.toHaveBeenCalled();
   });
 });
