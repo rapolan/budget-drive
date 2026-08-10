@@ -70,6 +70,7 @@ describe('no-show notification creation', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: 'vehicle-explicit' }])); // explicit vehicle check
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });

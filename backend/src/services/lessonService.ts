@@ -13,11 +13,23 @@ import treasuryService from './treasuryService';
 import { ledger } from './Ledger';
 import lessonInviteService from './lessonInviteService';
 import { validateLessonBooking } from './schedulingService';
+import { getTenantSettings } from './tenantService';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import * as notificationService from './notificationService';
+import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 const logger = createLogger('LessonService');
+
+// Resolves the tenant's configured timezone (Constraint B/C - see
+// backend/src/utils/tenantTime.ts). A lesson's stored date/start_time/
+// end_time are wall-clock values meant in the TENANT's timezone; this is
+// what makes storing/reading them correct regardless of where the server
+// or the booking browser physically are.
+const resolveTimezone = async (tenantId: string): Promise<string> => {
+  const settings = await getTenantSettings(tenantId);
+  return resolveTenantTimezone(settings?.timezone);
+};
 
 export const getAllLessons = async (
   tenantId: string,
@@ -231,16 +243,36 @@ export const createLesson = async (
     // Otherwise use separate date/startTime/endTime fields
     let lessonDate, lessonStartTime, endTime, duration, startDate, endDate;
 
-    if (data.scheduledStart && data.scheduledEnd) {
-      startDate = new Date(data.scheduledStart);
-      endDate = new Date(data.scheduledEnd);
+    const timezone = await resolveTimezone(tenantId);
 
-      lessonDate = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
-      lessonStartTime = startDate.toTimeString().substring(0, 8); // HH:MM:SS
-      endTime = endDate.toTimeString().substring(0, 8); // HH:MM:SS
+    if (data.scheduledStart && data.scheduledEnd) {
+      // scheduledStart/scheduledEnd are real UTC instants - both the DATE
+      // and the wall-clock TIME stored for this lesson must be read back in
+      // the tenant's timezone, not the UTC date (toISOString().split) mixed
+      // with the server's local time-of-day (toTimeString) as before. That
+      // mismatch was the most severe bug in this feature: for a tenant
+      // outside the server's own zone, it could store a lesson on the wrong
+      // calendar day AND at the wrong wall-clock hour.
+      const rawStartDate = new Date(data.scheduledStart);
+      const rawEndDate = new Date(data.scheduledEnd);
+
+      lessonDate = formatInTenantZone(rawStartDate, timezone, 'yyyy-MM-dd');
+      lessonStartTime = formatInTenantZone(rawStartDate, timezone, 'HH:mm:ss');
+      endTime = formatInTenantZone(rawEndDate, timezone, 'HH:mm:ss');
 
       // Calculate duration in minutes
-      duration = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60));
+      duration = Math.round((rawEndDate.getTime() - rawStartDate.getTime()) / (1000 * 60));
+
+      // startDate/endDate (used below for the scheduling-conflict check)
+      // must be the SAME instants the caller sent - re-derive them from the
+      // tenant-wall-clock strings just computed so every downstream
+      // consumer of startDate/endDate agrees with lessonDate/
+      // lessonStartTime/endTime, rather than keeping the raw parse (which
+      // is equivalent here, but re-deriving via the helper keeps this
+      // block's only source of truth for "what instant is this" in one
+      // place instead of two).
+      startDate = zonedWallClockToUtc(lessonDate, lessonStartTime, timezone);
+      endDate = zonedWallClockToUtc(lessonDate, endTime, timezone);
 
       logger.debug('Parsed lesson schedule from timestamps', {
         tenantId,
@@ -254,9 +286,13 @@ export const createLesson = async (
       lessonStartTime = data.startTime;
       endTime = data.endTime;
       duration = data.duration;
-      // Fallback: create Date objects for validation
-      startDate = new Date(`${lessonDate}T${lessonStartTime}`);
-      endDate = new Date(`${lessonDate}T${endTime}`);
+      // The provided date/startTime/endTime are already tenant wall-clock
+      // strings - zonedWallClockToUtc converts them to the correct UTC
+      // instant for the scheduling-conflict check below, replacing the old
+      // new Date(`${lessonDate}T${lessonStartTime}`) naive parse (which was
+      // interpreted in the PROCESS's local timezone, not the tenant's).
+      startDate = zonedWallClockToUtc(lessonDate, lessonStartTime, timezone);
+      endDate = zonedWallClockToUtc(lessonDate, endTime, timezone);
 
       logger.debug('Using provided lesson schedule', {
         tenantId,
@@ -461,8 +497,11 @@ export const createLesson = async (
       const studentEmail = studentResult.rows[0]?.email;
       const instructorEmail = instructorResult.rows[0]?.email;
 
-      // Calculate notification times
-      const lessonDateTime = new Date(`${lessonDate}T${lessonStartTime}`);
+      // Calculate notification times - lessonDate/lessonStartTime are
+      // tenant wall-clock strings, so the actual instant the lesson starts
+      // (what reminder offsets are computed against) must go through the
+      // tenant timezone, not a naive process-local parse.
+      const lessonDateTime = zonedWallClockToUtc(lessonDate, lessonStartTime, timezone);
       const twentyFourHoursBefore = new Date(lessonDateTime.getTime() - 24 * 60 * 60 * 1000);
       const oneHourBefore = new Date(lessonDateTime.getTime() - 60 * 60 * 1000);
 
@@ -754,12 +793,22 @@ export const updateLesson = async (
       const existingDateStr = existing.date instanceof Date
         ? existing.date.toISOString().split('T')[0]
         : existing.date;
-      const mergedDate = data.date ?? existingDateStr;
+      const rawMergedDate = data.date ?? existingDateStr;
+      // data.date is typed as Date (matching Lesson's own field type) but a
+      // caller updating just the date sends a plain YYYY-MM-DD string in
+      // practice - normalize the same way existingDateStr does above.
+      const mergedDate = rawMergedDate instanceof Date
+        ? rawMergedDate.toISOString().split('T')[0]
+        : rawMergedDate;
       const mergedStartTime = data.startTime ?? existing.startTime;
       const mergedEndTime = data.endTime ?? existing.endTime;
 
-      const startDate = new Date(`${mergedDate}T${mergedStartTime}`);
-      const endDate = new Date(`${mergedDate}T${mergedEndTime}`);
+      // mergedDate/mergedStartTime/mergedEndTime are tenant wall-clock
+      // values - the scheduling-conflict check needs the real UTC instant,
+      // via the tenant's timezone, not a naive process-local parse.
+      const timezone = await resolveTimezone(tenantId);
+      const startDate = zonedWallClockToUtc(mergedDate, mergedStartTime, timezone);
+      const endDate = zonedWallClockToUtc(mergedDate, mergedEndTime, timezone);
 
       const { valid, conflicts } = await validateLessonBooking(
         tenantId,

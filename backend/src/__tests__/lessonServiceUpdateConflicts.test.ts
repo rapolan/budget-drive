@@ -60,7 +60,8 @@ describe('lessonService.updateLesson - scheduling conflict validation', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([existingLessonRow])) // fetch existing lesson
-      .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])); // instructor existence check
+      .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor existence check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
 
     const conflicts = [
       { type: 'instructor_busy', message: 'Instructor already has a lesson during this time' },
@@ -101,6 +102,7 @@ describe('lessonService.updateLesson - scheduling conflict validation', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([existingLessonRow])) // fetch existing lesson
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ ...existingLessonRow, start_time: '13:00:00', end_time: '15:00:00' }])); // UPDATE ... RETURNING *
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });

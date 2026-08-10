@@ -39,6 +39,7 @@ describe('lessonService.createLesson - structured conflict propagation', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: VEHICLE_ID }])); // explicit vehicle check
 
     const conflicts = [
@@ -73,6 +74,7 @@ describe('lessonService.createLesson - structured conflict propagation', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([])) // no instructor-owned vehicle
       .mockResolvedValueOnce(queryResult([{ id: 'car-A' }, { id: 'car-B' }])) // school-owned vehicles exist
       .mockResolvedValueOnce(queryResult([])); // none available - both busy

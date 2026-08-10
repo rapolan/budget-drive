@@ -37,6 +37,7 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: 'vehicle-instructor-owned' }])); // instructor-owned vehicle lookup
 
     mockValidateLessonBooking.mockResolvedValueOnce({
@@ -79,6 +80,7 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([])) // no instructor-owned vehicle
       .mockResolvedValueOnce(queryResult([{ id: 'car-A' }, { id: 'car-B' }])) // school-owned vehicles exist
       .mockResolvedValueOnce(queryResult([{ id: 'car-B' }])); // available (no overlap) -> car B (car A excluded by the query itself)
@@ -131,6 +133,7 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([])) // no instructor-owned vehicle
       .mockResolvedValueOnce(queryResult([{ id: 'car-A' }, { id: 'car-B' }])) // school-owned vehicles DO exist
       .mockResolvedValueOnce(queryResult([])); // but none are available - both busy at this time
@@ -159,6 +162,7 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([])) // no instructor-owned vehicle
       .mockResolvedValueOnce(queryResult([])); // no school-owned vehicles exist in the tenant at all
 
@@ -209,6 +213,7 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: 'vehicle-explicit' }])); // explicit vehicle check
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
