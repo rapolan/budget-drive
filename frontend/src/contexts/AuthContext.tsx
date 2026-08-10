@@ -48,10 +48,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(null);
       }
     } catch (err) {
-      // Token invalid, expired, network error, or timeout — clear and show login
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('tenant_id');
-      setUser(null);
+      // Only an actual auth rejection (401 - token invalid/expired) should
+      // clear credentials and force a logout. A 429 (rate limit), a network
+      // error, or the 5s timeout above are transient/unrelated to whether
+      // the token is still valid - clearing credentials on those would
+      // silently log the user out from under an in-progress action (and
+      // wipe any unsaved local state) over a server hiccup, not a real
+      // auth failure.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('tenant_id');
+        setUser(null);
+      }
+      // Otherwise: leave the existing token/user alone and just stop loading.
     } finally {
       setIsLoading(false);
     }
