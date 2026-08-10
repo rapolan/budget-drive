@@ -4,6 +4,8 @@
  */
 
 import pool from '../config/database';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 export class RecurringPatternService {
   /**
@@ -69,9 +71,19 @@ export class RecurringPatternService {
 
     const pattern = patternResult.rows[0];
     const lessons = [];
+
+    // start_date/end_date come back from pg as Date instances of a plain
+    // DATE column (no time component, so UTC-midnight = the calendar date
+    // itself - no wall-clock roll risk). currentDate is walked via this
+    // same UTC-midnight representation throughout; only when a wall-clock
+    // TIME is combined with a date (endTime below) does the tenant's
+    // timezone matter, since time_of_day is a tenant wall-clock value.
     let currentDate = new Date(pattern.start_date);
     const endDate = pattern.end_date ? new Date(pattern.end_date) : null;
     let occurrenceCount = 0;
+
+    const tenantSettings = await getTenantSettings(tenantId);
+    const timezone = resolveTenantTimezone(tenantSettings?.timezone);
 
     // Generate lessons
     // eslint-disable-next-line no-constant-condition -- terminates via break below (max occurrences / end date)
@@ -99,9 +111,14 @@ export class RecurringPatternService {
           // Create lesson
           const lessonDate = currentDate.toISOString().split('T')[0];
           const startTime = pattern.time_of_day;
-          const endTimeDate = new Date(`${lessonDate}T${startTime}`);
-          endTimeDate.setMinutes(endTimeDate.getMinutes() + pattern.duration);
-          const endTime = endTimeDate.toTimeString().split(' ')[0];
+          // time_of_day is a tenant wall-clock value - zonedWallClockToUtc
+          // (not a naive `${lessonDate}T${startTime}` parse, which was
+          // interpreted in the PROCESS's local timezone) gives the correct
+          // UTC instant to add the lesson's duration to before reading the
+          // end time back in the tenant's own zone.
+          const startInstant = zonedWallClockToUtc(lessonDate, startTime, timezone);
+          const endInstant = new Date(startInstant.getTime() + pattern.duration * 60 * 1000);
+          const endTime = formatInTenantZone(endInstant, timezone, 'HH:mm:ss');
 
           const lessonResult = await pool.query(
             `INSERT INTO lessons (
