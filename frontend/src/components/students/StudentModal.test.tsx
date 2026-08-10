@@ -945,4 +945,82 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
     await waitFor(() => expect(screen.getByText('Jane Doe')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Unlink' })).not.toBeDisabled();
   });
+
+  // Item 2: inline match hint. Same candidate endpoint the type-ahead uses
+  // (Constraint B), just triggered by typing into the fields instead of a
+  // search box.
+  it('typing a matching last name into the fields surfaces an inline match hint', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [guardianCandidate({ id: 'guardian-9', firstName: 'Ana', lastName: 'Rodriguez', linkedStudentNames: ['Diego Rodriguez'] })],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    fireEvent.change(lastNameInput, { target: { value: 'Rodriguez' } });
+
+    expect(await screen.findByText(/Ana Rodriguez/)).toBeInTheDocument();
+    expect(screen.getByText(/parent of Diego Rodriguez/i)).toBeInTheDocument();
+    expect(screen.getByText(/link instead\?/i)).toBeInTheDocument();
+  });
+
+  it('clicking the inline match hint links that guardian and collapses the form', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [guardianCandidate({ id: 'guardian-9', firstName: 'Ana', lastName: 'Rodriguez' })],
+    });
+    (guardiansApi.linkToStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: 'link-1' } });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    fireEvent.change(lastNameInput, { target: { value: 'Rodriguez' } });
+
+    const hint = await screen.findByText(/link instead\?/i);
+    fireEvent.click(hint);
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    await waitFor(() => expect(guardiansApi.linkToStudent).toHaveBeenCalledWith('student-1', {
+      guardianId: 'guardian-9',
+      relationship: undefined,
+    }));
+    // Collapses back to the row list, not left open on the fields.
+    await waitFor(() => expect(screen.queryByText('New Guardian')).not.toBeInTheDocument());
+  });
+
+  // Item 3: ignoring the inline hint (or never triggering it - e.g. an
+  // email/phone match with no visible hint interaction) and submitting
+  // anyway still hits the save-time exact-match backstop, unchanged.
+  it('ignoring the inline hint and submitting still triggers the exact-match duplicate confirm', async () => {
+    (guardiansApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.getStudentsForGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 's1', fullName: 'Diego Rodriguez' }],
+    });
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'guardian-9', firstName: 'Ana', lastName: 'Rodriguez', email: 'ana@example.com', phone: null }],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /add guardian/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
+    fireEvent.change(emailInput, { target: { value: 'ana@example.com' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
+    expect(guardiansApi.linkToStudent).not.toHaveBeenCalled();
+  });
 });
