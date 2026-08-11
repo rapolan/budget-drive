@@ -358,6 +358,16 @@ curl http://localhost:4000/api/v1/treasury/status \
 
 **Note:** the ledger implementation is chosen once at backend startup from `BSV_ENABLED`, not per-request — if you change it, restart the backend for it to take effect.
 
+### 2.17 Changing a tenant's timezone
+
+**Do:** Go to `/settings` → **General** tab, find the **Localization** card, change **School Timezone** from Pacific to `Eastern Time (New York)`, click **Save General Settings**. Then check three backend-sourced surfaces: (a) go to `/scheduling` and search for available slots for tomorrow, (b) book a new lesson and check its stored date/time, (c) send/regenerate a lesson invite or calendar-feed URL for an upcoming lesson.
+
+**Pass looks like:** The save succeeds (`PUT /api/v1/tenant/settings` returns `200`, no "Invalid timezone" error). Scheduling's "tomorrow" search window now reflects the Eastern calendar day, not whatever it showed under Pacific — near a day boundary (e.g. testing late in the Pacific evening) this can visibly shift which date "tomorrow" resolves to. A freshly booked lesson's stored `date`/`start_time` match the wall-clock time you selected in the booking form (a "2pm" slot is still stored as `14:00:00`, per Constraint A — only which zone "2pm" is interpreted in has changed). The lesson invite's date text and the `.ics` feed's `DTSTART`/`DTEND` (viewed in a calendar client, or inspect the raw `.ics` text for a `Z`-suffixed UTC instant) reflect the new Eastern time correctly.
+
+**Also check — invalid input:** Attempt `PUT /api/v1/tenant/settings` with `{"timezone": "Not/A_Real_Zone"}` directly (curl or devtools). Expect `400` with an "Invalid timezone" message, and confirm (via a follow-up `GET /api/v1/tenant/settings`) the tenant's timezone was **not** changed.
+
+**Known gap, not a bug to chase:** the frontend does not yet resolve its own "today"/"this week" boundaries (Dashboard, Lessons, the calendar view, the instructor weekly schedule) through the tenant's timezone — those still use the browser's local clock. Changing the tenant's timezone in this test will not visibly change what those specific pages consider "today" unless your browser's own timezone happens to match. This is a tracked, deliberate follow-up (see docs/ARCHITECTURE.md § Tenant Timezone Authority), not something this checklist step is meant to catch.
+
 ---
 
 ## 3. Known issues to route around

@@ -104,7 +104,49 @@ Student progress is derived live, never stored as a running total. `students.tot
 
 ---
 
-## 7. Guardians
+## 7. Tenant Timezone Authority
+
+Every date, "today"/"tomorrow" calculation, wall-clock interpretation, and derived age in this codebase resolves against the **tenant's** configured timezone (`tenant_settings.timezone`, default `America/Los_Angeles`) — never the server's own timezone, and never the browser's. This must hold regardless of what physical machine or region the Node process happens to run in, since the product is sold to driving schools nationwide.
+
+### Wall-clock storage, tenant-relative interpretation
+
+**Storage is unchanged and does not encode a timezone.** The 84 `timestamp without time zone` columns, plus every `date`/`time` column, remain exactly as they are — a 2pm lesson is stored as wall-clock `14:00:00` and stays `14:00:00` across a daylight-saving transition. This is the correct design for scheduling: a lesson booked for "2pm" means 2pm in the tenant's own clock, not a fixed instant that would silently drift an hour twice a year. What changed is **interpretation** — which timezone a stored wall-clock value or a computed "today" is understood to mean when it's read, compared, or converted to/from a real UTC instant.
+
+### The helper module — the single entry point
+
+All tenant-timezone date math lives in **one** module: `backend/src/utils/tenantTime.ts`. No other backend file reimplements offset/DST logic, and none of it is ported into the frontend. Built on `date-fns` + `date-fns-tz`, which read the IANA tzdata bundled with Node's own ICU build — the same source of truth browsers and operating systems use, rather than hand-rolled and inevitably incomplete offset arithmetic.
+
+Primitives exported:
+- `resolveTenantTimezone(timezone)` — the configured zone, or the documented default (`DEFAULT_TENANT_TIMEZONE = 'America/Los_Angeles'`, matching the DB column's own default) when unset.
+- `tenantToday(timezone, reference?)` / `tenantTomorrow(timezone, reference?)` — today's/tomorrow's date as `YYYY-MM-DD` in the tenant's zone.
+- `addTenantDays(dateStr, days, timezone)` — walks a date string forward/backward within the tenant's zone (used for day-by-day iteration instead of mutating a `Date` with `setDate`).
+- `formatInTenantZone(date, timezone, formatStr?)` — formats a real UTC instant (a `Date`) as a string in the tenant's zone. Never `toISOString().split('T')[0]` for this — that reads the UTC calendar date, which differs from the tenant's for roughly half of every day.
+- `zonedWallClockToUtc(dateStr, timeStr, timezone)` — the inverse: given a tenant wall-clock date+time, returns the correct UTC instant. This is the primitive that fixes slot serialization and lesson storage; it replaces both `new Date(); date.setHours(...)` (which sets the *process's* local time) and naive `` `${date}T${time}` `` string parsing (ambiguous — parsed as either UTC or process-local depending on the exact string shape).
+- `tenantMonthBoundaries(timezone, reference?)` — start/end of a month in the tenant's zone, correct even when the reference instant's UTC month differs from the tenant's.
+- `tenantDayOfWeek(dateStr, timezone)` — day-of-week for a date string, resolved in the tenant's zone rather than the process's.
+- `parseTenantDateOnly(dateStr)` — parses a `YYYY-MM-DD` string into a `Date` at UTC midnight of that calendar date, for callers (e.g. `calculateAge`) that need to compare year/month/day components, not a real instant.
+
+One exception is explicitly safe and does **not** go through the helper: extracting the calendar date from a plain Postgres `DATE` column value (e.g. `lessons.date`, `recurring_lesson_patterns.start_date`). A `Date` instance `pg` returns for a `DATE`-typed column is always UTC midnight of that calendar date — there's no wall-clock time attached, so `toISOString().split('T')[0]` carries no roll risk there specifically. This is called out inline with a comment everywhere it's used, so it isn't "fixed" by a future reader who doesn't realize the distinction. Contrast this with the same pattern applied to a real timestamp/instant value (e.g. a lesson's resolved start time), which *is* a live bug this module exists to eliminate.
+
+### Where this applies
+
+- **Scheduling** (`schedulingService.ts`): slot generation, date-range interpretation, "today"/"tomorrow" search-window origin, and conflict-detection date/time-string derivation all resolve in the tenant's zone.
+- **Lesson storage** (`lessonService.ts`): a lesson's stored `date`/`start_time`/`end_time` are derived from the tenant zone consistently (previously the most severe bug found — the date was read in UTC while the time was read in server-local time, an internal inconsistency that could store a lesson on the wrong calendar day).
+- **Lesson invites and calendar feeds** (`lessonInviteService.ts`, `calendarFeedService.ts`): invite date text and `.ics` `DTSTART`/`DTEND` resolve in the tenant zone. Both emit `DTSTART`/`DTEND` as UTC instants (`Z`-suffixed, RFC-5545-legal) rather than hand-rolling a `VTIMEZONE` block with baked-in DST transition rules for one hardcoded zone — every mainstream calendar client renders a UTC-suffixed `DTSTART` correctly in the viewer's own local time, and this approach doesn't require re-deriving IANA's DST rules for 400+ zones.
+- **Recurring lesson patterns** (`recurringPatternService.ts`): generated lessons' end-time computation (start time + duration) resolves in the tenant zone.
+- **Student age** (`studentProgressService.ts`'s `calculateAge`): a student's age — which gates the adult-email requirement and the hours/lessons progress track — transitions on the tenant's calendar day, not the server's or UTC's.
+
+### Server timezone is irrelevant by design
+
+The server process runs with `TZ=UTC` (`.env.example`, `.env.test`, and the CI workflow's job-level `env`) — not because UTC is privileged, but to make "the server's own timezone must never matter" an enforced, testable fact rather than an incidental one that happens to hold only on whichever machine a developer's shell defaults to. A structural test (`backend/src/__tests__/noServerLocalDateDerivation.test.ts`) statically scans every file in the list above for `toISOString().split('T'`, `.getFullYear()`/`.getMonth()`/`.getDate()`/`.getDay()`, and bare `new Date()` outside a small, explicitly documented allowlist (DATE-column extraction, RFC 5545 `DTSTAMP`, instant-vs-"now" comparisons, and the helper module's own default-reference parameters). A companion hostile-clock test suite (`tenantTimeHostileClock.test.ts`) exercises the helper primitives, `calculateAge`, and slot generation against `America/New_York` (DST-observing) and `America/Phoenix` (no DST) tenants while the process itself runs UTC, including at instants where the UTC calendar date and the tenant's disagree.
+
+### Known gap: frontend browser-local time (deferred)
+
+The frontend does **not** yet route its own "today"/"this week"/"this month" computations through this system. `Dashboard.tsx`, `Lessons.tsx`, `LessonsCalendarView.tsx`, `InstructorWeeklySchedule.tsx`, and `utils/studentStatus.ts` all derive date boundaries from the browser's local clock; `SmartBookingForm`'s `extractTime` reads a generated slot's ISO timestamp back via the browser's local `getHours()`. These are real Constraint-B violations, but fixing them compliantly means threading tenant-resolved boundaries from the backend into roughly ten frontend files — architecturally, the frontend must never reimplement timezone conversion itself (no `date-fns-tz` in the browser); it can only ever receive already-tenant-correct values from an API response. This is a deliberate, tracked follow-up, not an oversight — until it lands, these specific frontend surfaces are correct only when the browser and the tenant happen to share a timezone.
+
+---
+
+## 8. Guardians
 
 Guardians are tenant-scoped records, independent of students, linked via a many-to-many junction table — the first such junction table in this schema.
 
