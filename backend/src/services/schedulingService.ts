@@ -15,6 +15,7 @@ import {
 import { getSchedulingSettings } from './availabilityService';
 import { getTenantSettings } from './tenantService';
 import { extractZipCode, calculateProximityScore } from '../utils/zipCode';
+import { AppError } from '../middleware/errorHandler';
 import {
   resolveTenantTimezone,
   formatInTenantZone,
@@ -22,6 +23,7 @@ import {
   tenantTomorrow,
   addTenantDays,
   zonedWallClockToUtc,
+  parseTenantDateOnly,
 } from '../utils/tenantTime';
 
 // Helper function to parse time string to minutes since midnight
@@ -32,8 +34,10 @@ const timeToMinutes = (timeStr: string): number => {
 
 // Resolves the tenant's configured timezone (Constraint B/C - all date/
 // wall-clock interpretation in this file goes through backend/src/utils/
-// tenantTime.ts, never server-local Date getters).
-const resolveTimezone = async (tenantId: string): Promise<string> => {
+// tenantTime.ts, never server-local Date getters). Exported so other
+// services (e.g. bookingPresetsService) reuse this exact resolution
+// instead of duplicating the getTenantSettings/resolveTenantTimezone pair.
+export const resolveTimezone = async (tenantId: string): Promise<string> => {
   const settings = await getTenantSettings(tenantId);
   return resolveTenantTimezone(settings?.timezone);
 };
@@ -613,19 +617,36 @@ export const validateLessonBooking = async (
  * (descending) then date/time (ascending), matching the ordering the
  * frontend previously computed client-side.
  */
+// A custom range wider than this is rejected - bounds findRankedAvailableSlots's
+// per-day, per-instructor scan against a pathological "anytime this year"
+// query while still covering multi-month advance planning (state permit/
+// road-test scheduling windows commonly run 3-6 months out).
+export const MAX_DATE_RANGE_DAYS = 180;
+
 export const findRankedAvailableSlots = async (
   request: RankedAvailabilityRequest
 ): Promise<RankedAvailabilityResult> => {
-  const { tenantId, studentId, pickupZip, duration, dateRange, timePreference, instructorId } = request;
+  const { tenantId, studentId, pickupZip, duration, startDate: requestedStart, endDate: requestedEnd, timePreference, instructorId } = request;
 
   const timezone = await resolveTimezone(tenantId);
 
   // "Tomorrow" and the search window's end both resolve in TENANT time, not
   // server "now" - the previous new Date() here was the single most
   // consequential server-local-time site in this file (see docs/
-  // ARCHITECTURE.md's tenant-timezone section).
-  const startDateStr = tenantTomorrow(timezone);
-  const endDateStr = addTenantDays(startDateStr, dateRange - 1, timezone);
+  // ARCHITECTURE.md's tenant-timezone section). When the caller omits an
+  // explicit range, this is the same 14-day default that has always applied
+  // (tomorrow through 13 days later).
+  const startDateStr = requestedStart ?? tenantTomorrow(timezone);
+  const endDateStr = requestedEnd ?? addTenantDays(startDateStr, 13, timezone);
+
+  if (endDateStr < startDateStr) {
+    throw new AppError('endDate must not be before startDate', 400);
+  }
+  const spanDays = (parseTenantDateOnly(endDateStr).getTime() - parseTenantDateOnly(startDateStr).getTime()) / (24 * 60 * 60 * 1000);
+  if (spanDays > MAX_DATE_RANGE_DAYS) {
+    throw new AppError(`Search range cannot exceed ${MAX_DATE_RANGE_DAYS} days`, 400);
+  }
+
   const startDate = zonedWallClockToUtc(startDateStr, '00:00', timezone);
   const endDate = zonedWallClockToUtc(endDateStr, '00:00', timezone);
 

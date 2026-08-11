@@ -71,6 +71,43 @@ export const validateRequiredOneOf = (fieldGroups: string[][]) => {
   };
 };
 
+// Validate an optional start/end date pair in the body: passes if neither
+// field is present (caller wants the endpoint's own default), or both are
+// present as valid YYYY-MM-DD strings with end >= start. Rejects one-sided
+// pairs and malformed strings early, before the request reaches a service
+// that would otherwise have to re-derive the same check. This is a cheap,
+// HTTP-layer guard only - the service itself remains the authoritative
+// check for any non-HTTP caller (see schedulingService.findRankedAvailableSlots).
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export const validateDateRangePair = (startField: string, endField: string) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const start = req.body[startField];
+    const end = req.body[endField];
+
+    if (start === undefined && end === undefined) {
+      next();
+      return;
+    }
+
+    if (start === undefined || end === undefined) {
+      throw new AppError(`${startField} and ${endField} must both be provided, or both omitted`, 400);
+    }
+
+    if (typeof start !== 'string' || !DATE_ONLY_PATTERN.test(start)) {
+      throw new AppError(`${startField} must be a YYYY-MM-DD date string`, 400);
+    }
+    if (typeof end !== 'string' || !DATE_ONLY_PATTERN.test(end)) {
+      throw new AppError(`${endField} must be a YYYY-MM-DD date string`, 400);
+    }
+    if (end < start) {
+      throw new AppError(`${endField} must not be before ${startField}`, 400);
+    }
+
+    next();
+  };
+};
+
 // Sanitize input (basic XSS prevention)
 export const sanitizeInput = (input: any): any => {
   if (typeof input === 'string') {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
-import { tenantTomorrow, tenantDayOfWeek } from '../utils/tenantTime';
+import { tenantTomorrow, tenantDayOfWeek, addTenantDays } from '../utils/tenantTime';
 
 vi.mock('../config/database', () => ({ query: mockQuery }));
 
@@ -79,7 +79,8 @@ describe('findRankedAvailableSlots - single-instructor scope', () => {
       studentId: STUDENT_ID,
       pickupZip: '90210',
       duration: 120,
-      dateRange: 1,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
       instructorId: 'instructor-1',
     });
 
@@ -93,6 +94,135 @@ describe('findRankedAvailableSlots - single-instructor scope', () => {
 
     expect(result.slots.every((s) => s.instructorId === 'instructor-1')).toBe(true);
     expect(result.failedInstructors).toEqual([]);
+  });
+});
+
+// Item 1: startDate/endDate replaced the old dateRange:number parameter.
+// Omitting both falls back to the documented default (tomorrow through 13
+// days later - the same 14-day window dateRange:14 used to produce); an
+// inverted or over-limit explicit range is rejected before any query runs.
+describe('findRankedAvailableSlots - explicit date range', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('falls back to the 14-day tomorrow-based default when startDate/endDate are omitted', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const expectedStart = tenantTomorrow(TEST_TIMEZONE);
+    const expectedEnd = addTenantDays(expectedStart, 13, TEST_TIMEZONE);
+    const dayOfWeek = tenantDayOfWeek(expectedStart, TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW])); // findAvailableSlots settings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // time off
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons
+    mockQuery.mockResolvedValueOnce(queryResult([])); // student's own lessons
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      instructorId: 'instructor-1',
+    });
+
+    // Call 3 (0-indexed: 2) is the lessons-for-"coming from" lookup, which
+    // is passed the resolved window as its date-range params - confirms the
+    // default actually landed on expectedStart/expectedEnd, not some other
+    // fallback. (Call order: getTenantSettings, instructor lookup, this one.)
+    const [lessonsSql, lessonsParams] = mockQuery.mock.calls[2];
+    expect(lessonsSql).toContain('FROM lessons');
+    expect(lessonsParams).toContain(expectedStart);
+    expect(lessonsParams).toContain(expectedEnd);
+    expect(result.slots.length).toBeGreaterThan(0);
+  });
+
+  it('returns only slots within a narrower explicit range', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const start = tenantTomorrow(TEST_TIMEZONE);
+    const dayOfWeek = tenantDayOfWeek(start, TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: start,
+      endDate: start,
+      instructorId: 'instructor-1',
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    for (const slot of result.slots) {
+      expect(slot.date).toBe(start);
+    }
+  });
+
+  it('rejects an endDate before startDate before any instructor/slot query runs', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const start = tenantTomorrow(TEST_TIMEZONE);
+    const beforeStart = addTenantDays(start, -1, TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings - resolved before validation
+
+    await expect(
+      findRankedAvailableSlots({
+        tenantId: TENANT_ID,
+        studentId: STUDENT_ID,
+        pickupZip: '90210',
+        duration: 120,
+        startDate: start,
+        endDate: beforeStart,
+      })
+    ).rejects.toThrow('endDate must not be before startDate');
+
+    // Only the timezone lookup ran - no instructor lookup, no slot search.
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a range spanning more than 180 days before any instructor/slot query runs', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const start = tenantTomorrow(TEST_TIMEZONE);
+    const tooFar = addTenantDays(start, 181, TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+
+    await expect(
+      findRankedAvailableSlots({
+        tenantId: TENANT_ID,
+        studentId: STUDENT_ID,
+        pickupZip: '90210',
+        duration: 120,
+        startDate: start,
+        endDate: tooFar,
+      })
+    ).rejects.toThrow('180 days');
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -141,7 +271,8 @@ describe('findRankedAvailableSlots - ranking order', () => {
       studentId: STUDENT_ID,
       pickupZip: '90210',
       duration: 120,
-      dateRange: 1,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
     });
 
     expect(result.slots.length).toBeGreaterThan(0);
@@ -186,7 +317,8 @@ describe('findRankedAvailableSlots - ranking order', () => {
       studentId: STUDENT_ID,
       pickupZip: '90210',
       duration: 120,
-      dateRange: 1,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
     });
 
     expect(result.failedInstructors).toEqual(['instructor-broken']);
@@ -258,7 +390,8 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
       studentId: STUDENT_ID,
       pickupZip: '90210',
       duration: 60,
-      dateRange: 1,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
       instructorId: 'instructor-1',
     });
 
@@ -315,7 +448,8 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
         studentId: STUDENT_ID,
         pickupZip: '90210',
         duration: 60,
-        dateRange: 1,
+        startDate: tenantTomorrow(TEST_TIMEZONE),
+        endDate: tenantTomorrow(TEST_TIMEZONE),
         instructorId: 'instructor-1',
       });
 

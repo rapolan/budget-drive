@@ -7,7 +7,7 @@ import { Router } from 'express';
 import * as availabilityController from '../controllers/availabilityController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import { validateRequired, validateUUID } from '../middleware/validate';
+import { validateRequired, validateUUID, validateDateRangePair } from '../middleware/validate';
 
 const router = Router();
 
@@ -126,7 +126,8 @@ router.post(
 // Find available time slots ranked by proximity to a pickup zip
 router.post(
   '/availability/find-slots-ranked',
-  validateRequired(['studentId', 'pickupZip', 'duration', 'dateRange']),
+  validateRequired(['studentId', 'pickupZip', 'duration']),
+  validateDateRangePair('startDate', 'endDate'),
   availabilityController.findRankedAvailableSlots
 );
 

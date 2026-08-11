@@ -1105,7 +1105,12 @@ export interface RankedAvailabilityRequest {
   studentId: string;
   pickupZip: string;
   duration: number; // minutes
-  dateRange: number; // days ahead to search
+  // Search window, as YYYY-MM-DD strings in the tenant's timezone. Both
+  // optional - when omitted, findRankedAvailableSlots falls back to its
+  // documented default (tomorrow through 13 days later, 14 days total),
+  // computed server-side via tenantTime.ts exactly as it always has.
+  startDate?: string;
+  endDate?: string;
   timePreference?: 'any' | 'morning' | 'afternoon' | 'evening';
   instructorId?: string; // Optional: scope to a single instructor
 }

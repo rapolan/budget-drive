@@ -280,14 +280,15 @@ export const findAvailableSlots = asyncHandler(async (req: Request, res: Respons
  */
 export const findRankedAvailableSlots = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const { studentId, pickupZip, duration, dateRange, timePreference, instructorId } = req.body;
+  const { studentId, pickupZip, duration, startDate, endDate, timePreference, instructorId } = req.body;
 
   const result = await schedulingService.findRankedAvailableSlots({
     tenantId,
     studentId,
     pickupZip,
     duration,
-    dateRange,
+    startDate,
+    endDate,
     timePreference,
     instructorId,
   });
