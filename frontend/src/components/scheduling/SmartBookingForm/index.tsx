@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
-import { schedulingApi, lessonsApi, studentsApi } from '@/api';
+import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { Student, Instructor, Lesson, CreateLessonInput, FindRankedSlotsResult } from '@/types';
 import { ProgressStepper } from '@/components/common';
 import { formatShortDate, formatLocalDate } from '@/utils/timeFormat';
@@ -14,9 +14,20 @@ import { ConfirmStep } from './ConfirmStep';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
+  // Locks the instructor as a read-only display card (Reschedule flow) -
+  // distinct from prefilledInstructorId below, which seeds a SELECTABLE
+  // choice ("Book again"). The two are never both passed by the same caller.
   preselectedInstructor?: Instructor;
   preselectedDate?: Date;
   preselectedTime?: { start: string; end: string };
+  // "Book again" prefill (from a student's most recent lesson) - seeds
+  // setup-step fields the user can still freely change before searching,
+  // never skips ahead the way the preselected* props above do.
+  prefilledInstructorId?: string;
+  prefilledDuration?: number;
+  prefilledLessonType?: LessonType;
+  prefilledTimePreference?: TimePreference;
+  prefilledPickupAddress?: string;
   onBookingComplete?: (lessonId: string) => void;
   onCancel?: () => void;
 }
@@ -38,6 +49,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   preselectedInstructor,
   preselectedDate,
   preselectedTime,
+  prefilledInstructorId,
+  prefilledDuration,
+  prefilledLessonType,
+  prefilledTimePreference,
+  prefilledPickupAddress,
   onBookingComplete,
   onCancel,
 }) => {
@@ -55,11 +71,15 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
   const [pickupAddress, setPickupAddress] = useState('');
   const [pickupZip, setPickupZip] = useState<string | null>(null);
-  const [duration, setDuration] = useState(120);
-  const [lessonType, setLessonType] = useState<LessonType>('behind_wheel');
+  const [duration, setDuration] = useState(prefilledDuration ?? 120);
+  const [lessonType, setLessonType] = useState<LessonType>(prefilledLessonType ?? 'behind_wheel');
+  // "Book again" instructor prefill - a real, freely-changeable selection,
+  // never a locked display (that's preselectedInstructor's job, for
+  // Reschedule). Empty string means "any instructor."
+  const [selectedInstructorId, setSelectedInstructorId] = useState(prefilledInstructorId ?? '');
 
   // Step 2: Filters
-  const [timePreference, setTimePreference] = useState<TimePreference>('any');
+  const [timePreference, setTimePreference] = useState<TimePreference>(prefilledTimePreference ?? 'any');
   // Search date range - always either copied verbatim from the server-
   // computed datePresets response, or a raw keystroke into a date input.
   // Never computed here (Constraint B - tenant-timezone date math is
@@ -90,6 +110,17 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   });
 
   const students = studentsData?.data || [];
+
+  // Only needed for "Book again"'s free-choice instructor selector, which
+  // only renders when there's no LOCKED preselectedInstructor (Reschedule)
+  // - skip the fetch entirely for every other entry point.
+  const showInstructorSelector = !preselectedInstructor && prefilledInstructorId !== undefined;
+  const { data: instructorsData } = useQuery({
+    queryKey: ['instructors', 'booking'],
+    queryFn: () => instructorsApi.getAll(),
+    enabled: showInstructorSelector,
+  });
+  const instructors = instructorsData?.data || [];
 
   // Server-computed date-range preset boundaries (Constraint B) - fetched
   // once, never derived here. See backend/src/services/bookingPresetsService.ts.
@@ -124,11 +155,15 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   const selectedStudent = students.find((s: Student) => s.id === selectedStudentId);
 
-  // Auto-fill pickup address when student is selected
+  // Auto-fill pickup address when student is selected. "Book again"'s
+  // prefilledPickupAddress (the most recent lesson's actual pickup
+  // location) takes priority over the student's general home address when
+  // both are available - the lesson's own pickup point is the more
+  // relevant default for a repeat booking.
   useEffect(() => {
     if (preselectedStudent) {
       setSelectedStudentId(preselectedStudent.id);
-      const addr = preselectedStudent.addressLine1
+      const addr = prefilledPickupAddress || (preselectedStudent.addressLine1
         ? [
             preselectedStudent.addressLine1,
             preselectedStudent.addressLine2,
@@ -137,11 +172,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
               : preselectedStudent.city || preselectedStudent.state,
             preselectedStudent.zipCode,
           ].filter(Boolean).join(', ')
-        : preselectedStudent.address || '';
+        : preselectedStudent.address || '');
       setPickupAddress(addr);
       setPickupZip(extractZipCode(addr) || preselectedStudent.zipCode || null);
     }
-  }, [preselectedStudent]);
+  }, [preselectedStudent, prefilledPickupAddress]);
 
   // Update pickup zip when address changes
   useEffect(() => {
@@ -197,7 +232,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         startDate: searchStartDate ?? undefined,
         endDate: searchEndDate ?? undefined,
         timePreference,
-        instructorId: preselectedInstructor?.id,
+        // A locked preselection (Reschedule) always wins; otherwise use
+        // whatever "Book again"'s free-choice selector currently holds
+        // (empty string means "any instructor").
+        instructorId: preselectedInstructor?.id ?? (selectedInstructorId || undefined),
       }),
     onSuccess: (result) => {
       setSlotsWithProximity(result.slots);
@@ -404,6 +442,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           setSearchStartDate={setSearchStartDate}
           searchEndDate={searchEndDate}
           setSearchEndDate={setSearchEndDate}
+          showInstructorSelector={showInstructorSelector}
+          instructors={instructors}
+          selectedInstructorId={selectedInstructorId}
+          setSelectedInstructorId={setSelectedInstructorId}
           loading={loading}
           onCancel={onCancel}
           onFindSlots={handleFindSlots}

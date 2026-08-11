@@ -35,6 +35,13 @@ interface SetupStepProps {
   setSearchStartDate: (value: string | null) => void;
   searchEndDate: string | null;
   setSearchEndDate: (value: string | null) => void;
+  // "Book again" free-choice instructor selector - only rendered when the
+  // parent explicitly opts in (Reschedule's locked preselectedInstructor
+  // never triggers this; the two are mutually exclusive per booking).
+  showInstructorSelector?: boolean;
+  instructors?: Instructor[];
+  selectedInstructorId?: string;
+  setSelectedInstructorId?: (value: string) => void;
   loading: boolean;
   onCancel?: () => void;
   onFindSlots: () => void;
@@ -68,6 +75,10 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   setSearchStartDate,
   searchEndDate,
   setSearchEndDate,
+  showInstructorSelector,
+  instructors,
+  selectedInstructorId,
+  setSelectedInstructorId,
   loading,
   onCancel,
   onFindSlots,
@@ -212,6 +223,29 @@ export const SetupStep: React.FC<SetupStepProps> = ({
               <div className="text-sm text-tx-secondary">{preselectedInstructor.email}</div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Instructor (free choice - "Book again" prefill, preselected but changeable) */}
+      {showInstructorSelector && !preselectedInstructor && (
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <User className="h-5 w-5 text-primary" />
+            <label htmlFor="booking-instructor-select" className="block text-sm font-semibold text-tx-primary">
+              Instructor <span className="text-tx-muted font-normal">(optional - any available if not selected)</span>
+            </label>
+          </div>
+          <select
+            id="booking-instructor-select"
+            value={selectedInstructorId ?? ''}
+            onChange={(e) => setSelectedInstructorId?.(e.target.value)}
+            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
+          >
+            <option value="">Any available instructor</option>
+            {(instructors ?? []).map((instructor) => (
+              <option key={instructor.id} value={instructor.id}>{instructor.fullName}</option>
+            ))}
+          </select>
         </div>
       )}
 

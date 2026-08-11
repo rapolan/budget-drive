@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
-import { studentsApi, guardiansApi } from '@/api';
-import type { Student, GuardianCandidate } from '@/types';
+import { studentsApi, guardiansApi, lessonsApi } from '@/api';
+import type { Student, GuardianCandidate, Lesson } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -27,7 +27,10 @@ vi.mock('@/api', async () => {
       updateRelationship: vi.fn(),
       create: vi.fn(),
     },
-    lessonsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
+    lessonsApi: {
+      getAll: vi.fn().mockResolvedValue({ data: [] }),
+      getMostRecentByStudent: vi.fn().mockResolvedValue({ data: null }),
+    },
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
   };
 });
@@ -206,6 +209,71 @@ describe('StudentModal - create success offers an optional "Book First Lesson" a
 
     expect(screen.queryByRole('button', { name: /book first lesson/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
+  });
+});
+
+// "Book again" on an existing student's record - only offered once a most
+// recent lesson exists to prefill from (item 5).
+describe('StudentModal - "Book again" entry point', () => {
+  function mostRecentLesson(overrides: Partial<Lesson> = {}): Lesson {
+    return {
+      id: 'lesson-1',
+      tenantId: 'tenant-1',
+      studentId: 'student-1',
+      instructorId: 'instructor-1',
+      vehicleId: 'vehicle-1',
+      date: '2026-08-01',
+      startTime: '14:00:00',
+      endTime: '16:00:00',
+      duration: 120,
+      lessonType: 'behind_wheel',
+      pickupAddress: '123 Main St, 90008',
+      cost: 75,
+      status: 'completed',
+      createdAt: new Date('2026-08-01'),
+      updatedAt: new Date('2026-08-01'),
+      ...overrides,
+    } as Lesson;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+  });
+
+  it('shows "Book Again" when the student has a most recent lesson, and clicking it calls onBookAgain with the student and lesson, then closes', async () => {
+    const lesson = mostRecentLesson();
+    (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: lesson });
+    const onBookAgain = vi.fn();
+    const onClose = vi.fn();
+    const student = editableStudent();
+
+    renderModal(student, { onBookAgain, onClose });
+
+    const bookAgainButton = await screen.findByRole('button', { name: /book again/i });
+    fireEvent.click(bookAgainButton);
+
+    expect(onBookAgain).toHaveBeenCalledWith(student, lesson);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('does not show "Book Again" when the student has no lesson history', async () => {
+    (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
+    const onBookAgain = vi.fn();
+
+    renderModal(editableStudent(), { onBookAgain });
+
+    await waitFor(() => expect(lessonsApi.getMostRecentByStudent).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /book again/i })).not.toBeInTheDocument();
+  });
+
+  it('does not show "Book Again" when onBookAgain is not provided, even with lesson history', async () => {
+    (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mostRecentLesson() });
+
+    renderModal(editableStudent(), {});
+
+    await waitFor(() => expect(lessonsApi.getMostRecentByStudent).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /book again/i })).not.toBeInTheDocument();
   });
 });
 

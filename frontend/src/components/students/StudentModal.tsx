@@ -5,7 +5,7 @@ import {
   CheckCircle, AlertCircle, FileText, Users, Plus, Search
 } from 'lucide-react';
 import { studentsApi, lessonsApi, instructorsApi, guardiansApi } from '@/api';
-import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship } from '@/types';
+import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
 import { GuardianSubPanel, type DisplayGuardian } from './GuardianSubPanel';
@@ -77,10 +77,15 @@ interface StudentModalProps {
   student: Student | null;
   onClose: () => void;
   onBookLesson?: (student: Student) => void;
+  // Prefills the booking wizard from this student's most recent lesson
+  // (instructor/duration/lessonType/timePreference/pickupAddress) - only
+  // ever called with a real Lesson, since the button that triggers it is
+  // hidden when the student has no lesson history.
+  onBookAgain?: (student: Student, mostRecentLesson: Lesson) => void;
   prefillFromGuardian?: GuardianPrefill;
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, onBookAgain, prefillFromGuardian }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
@@ -106,6 +111,18 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   const studentLessons = lessonsData?.data?.filter(l => l.studentId === student?.id) || [];
   const instructors = instructorsData?.data || [];
+
+  // "Book again" is only offered when this student has a prior lesson to
+  // prefill from - scoped, cheap query rather than reusing the bulk
+  // lessonsData above (which is itself gated to the progress/history tabs
+  // and would require opening one of those tabs just to know whether the
+  // button should appear).
+  const { data: mostRecentLessonData } = useQuery({
+    queryKey: ['lessons', 'most-recent', student?.id],
+    queryFn: () => lessonsApi.getMostRecentByStudent(student!.id),
+    enabled: isEditing && !!student,
+  });
+  const mostRecentLesson = mostRecentLessonData?.data ?? null;
 
   // Siblings, derived from shared guardians. 1 + G queries per open (G =
   // this student's guardian count, typically 1-2) - fine at this app's
@@ -835,6 +852,23 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Book Lesson</span>
                   <span className="sm:hidden">Book</span>
+                </button>
+              )}
+              {/* Book Again - only offered once this student has a prior
+                  lesson to prefill from; opens the wizard's setup step with
+                  instructor/duration/lessonType/timePreference/pickup
+                  prefilled from it (not a shortcut past the normal flow). */}
+              {isEditing && student && onBookAgain && mostRecentLesson && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onBookAgain(student, mostRecentLesson);
+                    onClose();
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border-2 border-edge-strong text-tx-secondary text-sm font-medium rounded-lg hover:bg-surface2 transition-colors"
+                >
+                  <span className="hidden sm:inline">Book Again</span>
+                  <span className="sm:hidden">Again</span>
                 </button>
               )}
               <button

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
 import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi } from '@/api';
-import type { Student, Guardian, LinkedStudent } from '@/types';
+import type { Student, Guardian, LinkedStudent, Lesson } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { StudentProgressBar } from '@/components/students/StudentProgressBar';
 import type { GuardianPrefill } from '@/components/students/StudentModal';
@@ -12,6 +12,7 @@ import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
+import { bucketTimePreference } from '@/utils/timePreferenceBucket';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
@@ -36,6 +37,16 @@ export const StudentsPage: React.FC = () => {
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentForBooking, setStudentForBooking] = useState<Student | null>(null);
+  // "Book again" prefill, derived from a student's most recent lesson -
+  // undefined for the plain "Book Lesson" entry point, which passes none
+  // of these and gets the wizard's normal blank setup step.
+  const [bookAgainPrefill, setBookAgainPrefill] = useState<{
+    instructorId: string;
+    duration: number;
+    lessonType: 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
+    timePreference: 'any' | 'morning' | 'afternoon' | 'evening';
+    pickupAddress: string;
+  } | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [comparisonMode, setComparisonMode] = useState<'month' | 'year'>('month');
   const [sortBy, setSortBy] = useState<SortOption>('name');
@@ -204,12 +215,40 @@ export const StudentsPage: React.FC = () => {
 
   const handleBookLesson = (student: Student) => {
     setStudentForBooking(student);
+    setBookAgainPrefill(undefined);
+    setIsSmartBookingOpen(true);
+  };
+
+  // The wizard's Lesson Type <select> only offers these four values, but
+  // the DB's real CHECK constraint (a separate, pre-existing mismatch, not
+  // introduced here) allows 'road_test_prep' instead of 'road_test' - a
+  // historical lesson can carry a value the dropdown has no option for.
+  // Falls back to the default rather than silently setting the <select>
+  // to something it can't render as selected.
+  const KNOWN_LESSON_TYPES = new Set(['behind_wheel', 'classroom', 'observation', 'road_test']);
+  const toKnownLessonType = (value: string): 'behind_wheel' | 'classroom' | 'observation' | 'road_test' =>
+    KNOWN_LESSON_TYPES.has(value) ? (value as 'behind_wheel' | 'classroom' | 'observation' | 'road_test') : 'behind_wheel';
+
+  // Prefills the wizard's setup step from a student's most recent lesson -
+  // instructor stays a real, changeable selection (never locked), the
+  // date range is left at its own default ("Next 2 Weeks"), and the user
+  // still runs a fresh search rather than skipping ahead.
+  const handleBookAgain = (student: Student, mostRecentLesson: Lesson) => {
+    setStudentForBooking(student);
+    setBookAgainPrefill({
+      instructorId: mostRecentLesson.instructorId,
+      duration: mostRecentLesson.duration,
+      lessonType: toKnownLessonType(mostRecentLesson.lessonType),
+      timePreference: bucketTimePreference(mostRecentLesson.startTime),
+      pickupAddress: mostRecentLesson.pickupAddress || '',
+    });
     setIsSmartBookingOpen(true);
   };
 
   const handleBookingComplete = (_lessonId: string) => {
     setIsSmartBookingOpen(false);
     setStudentForBooking(null);
+    setBookAgainPrefill(undefined);
     queryClient.invalidateQueries({ queryKey: ['lessons'] });
   };
 
@@ -1123,6 +1162,7 @@ export const StudentsPage: React.FC = () => {
             setGuardianPrefill(undefined);
           }}
           onBookLesson={handleBookLesson}
+          onBookAgain={handleBookAgain}
           prefillFromGuardian={selectedStudent ? undefined : guardianPrefill}
         />
       )}
@@ -1133,10 +1173,16 @@ export const StudentsPage: React.FC = () => {
           <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <SmartBookingForm
               preselectedStudent={studentForBooking || undefined}
+              prefilledInstructorId={bookAgainPrefill?.instructorId}
+              prefilledDuration={bookAgainPrefill?.duration}
+              prefilledLessonType={bookAgainPrefill?.lessonType}
+              prefilledTimePreference={bookAgainPrefill?.timePreference}
+              prefilledPickupAddress={bookAgainPrefill?.pickupAddress}
               onBookingComplete={handleBookingComplete}
               onCancel={() => {
                 setIsSmartBookingOpen(false);
                 setStudentForBooking(null);
+                setBookAgainPrefill(undefined);
               }}
             />
           </div>

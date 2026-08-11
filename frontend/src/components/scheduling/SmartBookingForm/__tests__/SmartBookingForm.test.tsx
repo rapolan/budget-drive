@@ -1,16 +1,24 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, within, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SmartBookingForm } from '../index';
 import type { Student, Instructor, RankedTimeSlot } from '@/types';
+
+// This file previously had no afterEach(cleanup), so DOM from earlier
+// tests in the same file could remain mounted for later ones (harmless for
+// tests that scope queries narrowly, but the new "Book again" tests below
+// query by a plain label match across the whole document and were flaky
+// without this).
+afterEach(cleanup);
 
 const findRankedAvailableSlots = vi.fn();
 const getDatePresets = vi.fn();
 const createLesson = vi.fn();
 const getAllStudents = vi.fn();
 const getByStudent = vi.fn();
+const getAllInstructors = vi.fn();
 
 vi.mock('@/api', () => ({
   schedulingApi: {
@@ -23,6 +31,9 @@ vi.mock('@/api', () => ({
   },
   studentsApi: {
     getAll: (...args: unknown[]) => getAllStudents(...args),
+  },
+  instructorsApi: {
+    getAll: (...args: unknown[]) => getAllInstructors(...args),
   },
 }));
 
@@ -45,6 +56,15 @@ const INSTRUCTOR: Instructor = {
   email: 'john@example.com',
   phone: '555-1111',
   zipCode: '90008',
+} as Instructor;
+
+const INSTRUCTOR_2: Instructor = {
+  id: 'instructor-2',
+  tenantId: 'tenant-1',
+  fullName: 'Priya Patel',
+  email: 'priya@example.com',
+  phone: '555-2222',
+  zipCode: '90010',
 } as Instructor;
 
 const SLOT: RankedTimeSlot = {
@@ -87,10 +107,12 @@ beforeEach(() => {
   createLesson.mockReset();
   getAllStudents.mockReset();
   getByStudent.mockReset();
+  getAllInstructors.mockReset();
 
   getAllStudents.mockResolvedValue({ data: [STUDENT] });
   getByStudent.mockResolvedValue({ data: [] });
   getDatePresets.mockResolvedValue(DATE_PRESETS);
+  getAllInstructors.mockResolvedValue({ data: [INSTRUCTOR, INSTRUCTOR_2] });
 });
 
 describe('SmartBookingForm - happy path', () => {
@@ -229,5 +251,79 @@ describe('SmartBookingForm - preselected-instructor mode', () => {
     expect(findRankedAvailableSlots).toHaveBeenCalledWith(
       expect.objectContaining({ instructorId: 'instructor-1' })
     );
+  });
+});
+
+// "Book again" prefill mode (item 5): only prefilledInstructorId/etc. are
+// passed, never the locked preselectedInstructor - the wizard must land on
+// 'setup' (canSkipToConfirm stays false) with a real, changeable instructor
+// selector, not a locked display.
+describe('SmartBookingForm - "Book again" prefill mode', () => {
+  it('lands on the setup step (not confirm) with prefilled fields, and shows a changeable instructor selector', async () => {
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: 'instructor-1',
+      prefilledDuration: 90,
+      prefilledLessonType: 'classroom',
+      prefilledTimePreference: 'afternoon',
+      prefilledPickupAddress: '456 Prior Lesson Ave, 90008',
+    });
+
+    // Still on setup, not skipped ahead to confirm - the locked-preselect
+    // gate (student+instructor+date+time all required) never fires here.
+    expect(await screen.findByText('Aisha Williams')).toBeInTheDocument();
+    expect(screen.queryByText('Booking Summary')).not.toBeInTheDocument();
+
+    // A real <select>, pre-populated with the prefilled instructor but
+    // changeable - not the locked display card preselectedInstructor renders.
+    const instructorSelect = await screen.findByLabelText(/instructor/i) as HTMLSelectElement;
+    expect(instructorSelect.tagName).toBe('SELECT');
+    expect(instructorSelect.value).toBe('instructor-1');
+
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('Priya Patel')).toBeInTheDocument());
+    await user.selectOptions(instructorSelect, 'instructor-2');
+    expect(instructorSelect.value).toBe('instructor-2');
+  });
+
+  it('sends the newly-selected instructor (not the original prefill) once changed, and duration/lessonType/timePreference from the prefill', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: 'instructor-1',
+      prefilledDuration: 90,
+      prefilledLessonType: 'classroom',
+      prefilledTimePreference: 'afternoon',
+      prefilledPickupAddress: '456 Prior Lesson Ave, 90008',
+    });
+
+    const instructorSelect = await screen.findByLabelText(/instructor/i) as HTMLSelectElement;
+    await waitFor(() => expect(screen.getByText('Priya Patel')).toBeInTheDocument());
+    await user.selectOptions(instructorSelect, 'instructor-2');
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    await waitFor(() => expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1));
+    expect(findRankedAvailableSlots).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructorId: 'instructor-2',
+        duration: 90,
+        timePreference: 'afternoon',
+      })
+    );
+  });
+
+  it('does not render the free-choice instructor selector for the Reschedule flow (locked preselectedInstructor)', async () => {
+    renderForm({ preselectedStudent: STUDENT, preselectedInstructor: INSTRUCTOR });
+
+    // The locked display card renders (already covered by the
+    // preselected-instructor describe block above); the new <select>
+    // must not also appear alongside it.
+    await screen.findByText('Instructor', { selector: 'label' });
+    expect(screen.queryByRole('combobox', { name: /instructor/i })).not.toBeInTheDocument();
   });
 });
