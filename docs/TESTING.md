@@ -368,6 +368,47 @@ curl http://localhost:4000/api/v1/treasury/status \
 
 **Known gap, not a bug to chase:** the frontend does not yet resolve its own "today"/"this week" boundaries (Dashboard, Lessons, the calendar view, the instructor weekly schedule) through the tenant's timezone — those still use the browser's local clock. Changing the tenant's timezone in this test will not visibly change what those specific pages consider "today" unless your browser's own timezone happens to match. This is a tracked, deliberate follow-up (see docs/ARCHITECTURE.md § Tenant Timezone Authority), not something this checklist step is meant to catch.
 
+### 2.18 Searching a specific month via preset
+
+**Do:** Open the booking wizard's setup step. Click **This Month**, then separately click **Next Month**, noting the From/To values each time. Pick a tenant/date combination that straddles a month boundary if possible (e.g. run this test in the last few days of a month so "This Month" and "Next Month" are visibly different spans), and if you can, try it once for a 31-day month rolling into a 30-day month (e.g. May → June).
+
+**Pass looks like:** Clicking a preset chip highlights it (active style) and immediately populates both From and To with the computed boundary — no loading flicker where the inputs sit empty. **This Month**'s To date is the actual last day of the current calendar month (28/29/30/31 as appropriate), not a fixed offset. **Next Month**'s From is the 1st of next month and its To is the last day of *that* month — for a May → June rollover this must read **06/30**, never 06/31. Searching with either preset active only returns slots inside that window (spot-check a returned slot's date falls between From and To inclusive).
+
+### 2.19 Searching a custom week
+
+**Do:** On the setup step, manually edit the **From** date input to a date of your choosing (e.g. "the week of the 15th" of some future month), then edit **To** to 6-7 days later.
+
+**Pass looks like:** As soon as you touch either date field, the preset chips all lose their active highlight (none of "Next 2 Weeks"/"This Month"/"Next Month" stays selected) — editing a date always switches the control to an implicit "Custom" state. The search runs against exactly the typed range. Separately, try setting **To** before **From**: expect the search to fail with a clear inverted-range error rather than silently returning an empty or wrong list.
+
+### 2.20 Booking three lessons for one student in a single session
+
+**Do:** Open the booking wizard for a student with **Book Lesson** (not Book Again). Search, pick a slot, confirm. On the resulting success screen, click **Book Another Lesson**. Repeat two more times for a total of three separate lessons, then click **Done** on the last one.
+
+**Pass looks like:** After the first confirm, you land on a success screen reading "Lesson Booked!" with **Done** and **Book Another Lesson** buttons — the wizard does not close. Clicking **Book Another Lesson** returns you to the **slot list** (not back to the setup step — you should not have to re-pick student/instructor/duration/lesson type/date range), the list is freshly re-searched, and the slot you just booked is no longer offered. All three lessons show up independently on the student's record / the Lessons page, each having gone through a normal conflict check (try deliberately colliding the second or third booking with the first, e.g. same instructor/overlapping time, and confirm it's rejected exactly like any standalone booking — see §2.13 for what that recovery looks like if you land on an already-taken slot mid-loop). Clicking **Done** at any point closes the wizard in one click with no extra confirmation step.
+
+### 2.21 Rebooking a returning student with prefilled preferences
+
+**Do:** Open a student who already has at least one past lesson (student detail / edit modal) and click **Book Again**. Separately, open a student with **no** prior lessons at all and confirm what button(s) are available.
+
+**Pass looks like:** For the student with history, the wizard opens directly on the **setup** step (not skipped ahead to slot selection or confirm) with instructor, duration, lesson type, time-of-day preference, and pickup address all prefilled from that student's most recent lesson. The prefilled instructor is shown as the default selection but is a normal, changeable dropdown (including an "any available instructor" option) — confirm you can switch it to a different instructor or to "any" before searching. For the student with no prior lessons, no **Book Again** button appears at all (only the plain **Book Lesson** entry point) — opening the wizard via the normal path works cleanly with no error and no stale/blank prefill.
+
+**Regression guard, cross-reference §2.14:** the **Reschedule** flow's instructor display must still be the original locked, non-editable card — open Reschedule on any existing lesson and confirm there is no dropdown/selector next to the instructor, only the plain display. The free-choice instructor selector introduced for Book Again must never appear there.
+
+### 2.22 Booking-workflow screenshot script (manual, on-demand)
+
+Not part of the automated suite or CI — a small Playwright script for visually spot-checking the setup step's date presets and the success state's "Book another" offer, in both themes.
+
+**Do:**
+```bash
+cd frontend
+npm run screenshots
+```
+Requires both dev servers already running (backend on `:4000`, frontend on `:5173` — see §1) with the repo's seed data loaded. First run creates a saved login session (`e2e-screenshots/.auth/admin.json`, gitignored); subsequent runs reuse it so the script doesn't repeatedly hit the backend's `authLimiter`.
+
+**Pass looks like:** All 5 checks (1 login setup + 4 screenshot tests) pass, producing `setup-step-light.png`, `setup-step-dark.png`, `success-state-light.png`, `success-state-dark.png` in `frontend/e2e-screenshots/__screenshots__/` (gitignored — these are point-in-time captures for manual review, not committed golden-master baselines). Open each PNG and confirm: the setup-step screenshots show the three preset chips with "Next 2 Weeks" active and populated From/To dates; the success-state screenshots show "Lesson Booked!" with a visible "Book Another Lesson" button; dark-theme screenshots are actually dark, not a light-theme capture mislabeled.
+
+**If login times out with "Too many authentication attempts":** the backend's `authLimiter` (10 requests/15 min, in-memory) was exhausted by repeated runs. Either wait out the 15-minute window or restart the backend dev server, which resets its in-memory rate-limit store.
+
 ---
 
 ## 3. Known issues to route around
