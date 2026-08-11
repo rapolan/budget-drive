@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { formatInTenantZone } from '../utils/tenantTime';
 
 vi.mock('../config/database', () => ({ query: mockQuery }));
 
@@ -28,17 +29,20 @@ const SETTINGS_ROW = {
 
 // schedulingService now resolves the tenant's timezone (getTenantSettings,
 // a query against tenant_settings - a different table from scheduling_
-// settings above) before every date computation. Pinned to Pacific so this
-// file's getHours()-based slot-time assertions (written before tenant-
-// timezone awareness existed) keep asserting the same wall-clock hours
-// without themselves needing to become timezone-aware - the hostile-clock
-// coverage proving this works under OTHER timezones lives in
-// tenantTimeHostileClock.test.ts instead.
+// settings above) before every date computation. Pinned to Pacific - slot-
+// time assertions read the hour back via formatInTenantZone(..., 'America/
+// Los_Angeles', 'H'), not new Date(...).getHours() (which reads the
+// PROCESS's local hour, not the tenant's, and silently asserted the wrong
+// thing whenever the process itself wasn't also Pacific - e.g. under CI's
+// TZ=UTC). The hostile-clock coverage proving this works under OTHER
+// timezones lives in tenantTimeHostileClock.test.ts.
 const TENANT_SETTINGS_ROW = {
   id: 'tenant-settings-1',
   tenant_id: TENANT_ID,
   timezone: 'America/Los_Angeles',
 };
+
+const slotHour = (isoString: string) => Number(formatInTenantZone(new Date(isoString), 'America/Los_Angeles', 'H'));
 
 const AVAILABLE_ROW = { id: 'avail-1', start_time: '09:00:00', end_time: '17:00:00' };
 
@@ -434,15 +438,15 @@ describe('findAvailableSlots - student dimension', () => {
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
       instructorId: INSTRUCTOR_ID,
-      startDate: new Date('2026-08-03T00:00:00'),
-      endDate: new Date('2026-08-03T00:00:00'),
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
       duration: 120,
       studentId: STUDENT_ID,
     });
 
     // Buffer is 30 (SETTINGS_ROW), so theoretical slots are 9:00-11:00, 11:30-1:30, 2:00-4:00.
     // The student already has 9:00-11:00 booked, so that slot must be excluded.
-    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
+    const slotStartHours = slots.map((s) => slotHour(s.startTime));
     expect(slotStartHours).not.toContain(9);
     expect(slots.length).toBeGreaterThan(0);
   });
@@ -460,13 +464,13 @@ describe('findAvailableSlots - student dimension', () => {
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
       instructorId: INSTRUCTOR_ID,
-      startDate: new Date('2026-08-03T00:00:00'),
-      endDate: new Date('2026-08-03T00:00:00'),
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
       duration: 120,
       studentId: STUDENT_ID,
     });
 
-    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
+    const slotStartHours = slots.map((s) => slotHour(s.startTime));
     expect(slotStartHours).toContain(11); // 11:30 local -> hour 11, still offered
   });
 });
@@ -489,12 +493,12 @@ describe('findAvailableSlots - split shifts', () => {
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
       instructorId: INSTRUCTOR_ID,
-      startDate: new Date('2026-08-03T00:00:00'),
-      endDate: new Date('2026-08-03T00:00:00'),
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
       duration: 120,
     });
 
-    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours()).sort((a, b) => a - b);
+    const slotStartHours = slots.map((s) => slotHour(s.startTime)).sort((a, b) => a - b);
     expect(slotStartHours).toEqual([9, 17]);
   });
 
@@ -513,13 +517,13 @@ describe('findAvailableSlots - split shifts', () => {
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
       instructorId: INSTRUCTOR_ID,
-      startDate: new Date('2026-08-03T00:00:00'),
-      endDate: new Date('2026-08-03T00:00:00'),
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
       duration: 120,
     });
 
     expect(slots).toHaveLength(1);
-    expect(new Date(slots[0].startTime).getHours()).toBe(9);
+    expect(slotHour(slots[0].startTime)).toBe(9);
   });
 });
 
@@ -543,8 +547,8 @@ describe('findAvailableSlots - partial-day time off', () => {
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
       instructorId: INSTRUCTOR_ID,
-      startDate: new Date('2026-08-03T00:00:00'),
-      endDate: new Date('2026-08-03T00:00:00'),
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
       duration: 120,
     });
 
@@ -568,12 +572,12 @@ describe('findAvailableSlots - partial-day time off', () => {
     const slots = await findAvailableSlots({
       tenantId: TENANT_ID,
       instructorId: INSTRUCTOR_ID,
-      startDate: new Date('2026-08-03T00:00:00'),
-      endDate: new Date('2026-08-03T00:00:00'),
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
       duration: 120,
     });
 
-    const slotStartHours = slots.map((s) => new Date(s.startTime).getHours());
+    const slotStartHours = slots.map((s) => slotHour(s.startTime));
     expect(slotStartHours).not.toContain(9);
     expect(slots.length).toBeGreaterThan(0);
   });
