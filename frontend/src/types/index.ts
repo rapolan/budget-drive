@@ -635,7 +635,12 @@ export interface FindRankedSlotsRequest {
   studentId: string;
   pickupZip: string;
   duration: number;
-  dateRange: number;
+  // Search window, as YYYY-MM-DD strings in the tenant's timezone. Both
+  // optional - the backend applies its own default (tomorrow through 13
+  // days later) when omitted. Always sourced from a DatePresetsResponse or
+  // raw user keystrokes into a date input - never computed client-side.
+  startDate?: string;
+  endDate?: string;
   timePreference?: 'any' | 'morning' | 'afternoon' | 'evening';
   instructorId?: string;
 }

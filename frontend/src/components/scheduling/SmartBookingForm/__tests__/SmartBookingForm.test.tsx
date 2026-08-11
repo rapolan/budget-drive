@@ -7,6 +7,7 @@ import { SmartBookingForm } from '../index';
 import type { Student, Instructor, RankedTimeSlot } from '@/types';
 
 const findRankedAvailableSlots = vi.fn();
+const getDatePresets = vi.fn();
 const createLesson = vi.fn();
 const getAllStudents = vi.fn();
 const getByStudent = vi.fn();
@@ -14,6 +15,7 @@ const getByStudent = vi.fn();
 vi.mock('@/api', () => ({
   schedulingApi: {
     findRankedAvailableSlots: (...args: unknown[]) => findRankedAvailableSlots(...args),
+    getDatePresets: (...args: unknown[]) => getDatePresets(...args),
   },
   lessonsApi: {
     create: (...args: unknown[]) => createLesson(...args),
@@ -73,14 +75,22 @@ function renderForm(props: Partial<React.ComponentProps<typeof SmartBookingForm>
   return { ...utils, onBookingComplete, onCancel, queryClient };
 }
 
+const DATE_PRESETS = {
+  next2Weeks: { start: '2026-08-04', end: '2026-08-17' },
+  thisMonth: { start: '2026-08-01', end: '2026-08-31' },
+  nextMonth: { start: '2026-09-01', end: '2026-09-30' },
+};
+
 beforeEach(() => {
   findRankedAvailableSlots.mockReset();
+  getDatePresets.mockReset();
   createLesson.mockReset();
   getAllStudents.mockReset();
   getByStudent.mockReset();
 
   getAllStudents.mockResolvedValue({ data: [STUDENT] });
   getByStudent.mockResolvedValue({ data: [] });
+  getDatePresets.mockResolvedValue(DATE_PRESETS);
 });
 
 describe('SmartBookingForm - happy path', () => {
@@ -104,8 +114,15 @@ describe('SmartBookingForm - happy path', () => {
 
     // Slots step
     expect(await screen.findByText('Available Time Slots')).toBeInTheDocument();
+    // The default "Next 2 Weeks" preset's server-computed boundary is sent
+    // as explicit startDate/endDate - never a client-computed dateRange count.
     expect(findRankedAvailableSlots).toHaveBeenCalledWith(
-      expect.objectContaining({ studentId: 'student-1', pickupZip: '90008' })
+      expect.objectContaining({
+        studentId: 'student-1',
+        pickupZip: '90008',
+        startDate: DATE_PRESETS.next2Weeks.start,
+        endDate: DATE_PRESETS.next2Weeks.end,
+      })
     );
 
     // Expand the instructor group, then pick the slot

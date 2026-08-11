@@ -8,7 +8,7 @@ import { formatShortDate, formatLocalDate } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
 import { getConflictMessage } from '@/utils/conflictMessages';
 import { SlotWithProximity } from './GroupedAvailabilityView';
-import { SetupStep, TimePreference, LessonType } from './SetupStep';
+import { SetupStep, TimePreference, LessonType, DatePreset } from './SetupStep';
 import { SlotsStep } from './SlotsStep';
 import { ConfirmStep } from './ConfirmStep';
 
@@ -60,7 +60,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   // Step 2: Filters
   const [timePreference, setTimePreference] = useState<TimePreference>('any');
-  const [dateRange] = useState(14); // days ahead to search
+  // Search date range - always either copied verbatim from the server-
+  // computed datePresets response, or a raw keystroke into a date input.
+  // Never computed here (Constraint B - tenant-timezone date math is
+  // backend-only, via backend/src/utils/tenantTime.ts).
+  const [datePreset, setDatePreset] = useState<DatePreset>('next2Weeks');
+  const [searchStartDate, setSearchStartDate] = useState<string | null>(null);
+  const [searchEndDate, setSearchEndDate] = useState<string | null>(null);
 
   // Step 3: Slot selection
   const [slotsWithProximity, setSlotsWithProximity] = useState<SlotWithProximity[]>([]);
@@ -84,6 +90,28 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   });
 
   const students = studentsData?.data || [];
+
+  // Server-computed date-range preset boundaries (Constraint B) - fetched
+  // once, never derived here. See backend/src/services/bookingPresetsService.ts.
+  const { data: datePresets } = useQuery({
+    queryKey: ['availability', 'date-presets'],
+    queryFn: () => schedulingApi.getDatePresets(),
+  });
+
+  // Populate the search date inputs from the active preset whenever the
+  // preset selection changes or the presets finish loading. Does nothing
+  // while datePreset is 'custom' - the user's own keystrokes own those
+  // fields at that point.
+  useEffect(() => {
+    if (!datePresets || datePreset === 'custom') return;
+    const boundary: { start: string; end: string } | undefined =
+      datePreset === 'next2Weeks' ? datePresets.next2Weeks
+      : datePreset === 'thisMonth' ? datePresets.thisMonth
+      : datePresets.nextMonth;
+    if (!boundary) return;
+    setSearchStartDate(boundary.start);
+    setSearchEndDate(boundary.end);
+  }, [datePresets, datePreset]);
 
   // Only needed for the "suggested lesson number" field - scoped to the
   // selected student rather than fetching every lesson in the tenant.
@@ -166,7 +194,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         studentId: selectedStudentId,
         pickupZip: pickupZip!,
         duration,
-        dateRange,
+        startDate: searchStartDate ?? undefined,
+        endDate: searchEndDate ?? undefined,
         timePreference,
         instructorId: preselectedInstructor?.id,
       }),
@@ -368,6 +397,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           setDuration={setDuration}
           timePreference={timePreference}
           setTimePreference={setTimePreference}
+          datePresets={datePresets}
+          datePreset={datePreset}
+          setDatePreset={setDatePreset}
+          searchStartDate={searchStartDate}
+          setSearchStartDate={setSearchStartDate}
+          searchEndDate={searchEndDate}
+          setSearchEndDate={setSearchEndDate}
           loading={loading}
           onCancel={onCancel}
           onFindSlots={handleFindSlots}

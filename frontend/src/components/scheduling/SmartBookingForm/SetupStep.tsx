@@ -1,10 +1,11 @@
 import React from 'react';
 import { Calendar, User, Clock, MapPin, CheckCircle, Filter, Sun, Sunset, Moon } from 'lucide-react';
-import { Student, Instructor } from '@/types';
+import { Student, Instructor, DatePresetsResponse } from '@/types';
 import { extractZipCode } from '@/utils/zipCode';
 
 export type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
 export type LessonType = 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
+export type DatePreset = 'next2Weeks' | 'thisMonth' | 'nextMonth' | 'custom';
 
 interface SetupStepProps {
   preselectedStudent?: Student;
@@ -27,6 +28,13 @@ interface SetupStepProps {
   setDuration: (value: number) => void;
   timePreference: TimePreference;
   setTimePreference: (value: TimePreference) => void;
+  datePresets: DatePresetsResponse | undefined;
+  datePreset: DatePreset;
+  setDatePreset: (value: DatePreset) => void;
+  searchStartDate: string | null;
+  setSearchStartDate: (value: string | null) => void;
+  searchEndDate: string | null;
+  setSearchEndDate: (value: string | null) => void;
   loading: boolean;
   onCancel?: () => void;
   onFindSlots: () => void;
@@ -53,6 +61,13 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   setDuration,
   timePreference,
   setTimePreference,
+  datePresets,
+  datePreset,
+  setDatePreset,
+  searchStartDate,
+  setSearchStartDate,
+  searchEndDate,
+  setSearchEndDate,
   loading,
   onCancel,
   onFindSlots,
@@ -262,6 +277,67 @@ export const SetupStep: React.FC<SetupStepProps> = ({
             <option value={90}>1.5 hours</option>
             <option value={120}>2 hours</option>
           </select>
+        </div>
+      </div>
+
+      {/* Search Dates */}
+      <div className="space-y-3">
+        <div className="flex items-center space-x-2">
+          <Calendar className="h-5 w-5 text-primary" />
+          <label className="block text-sm font-semibold text-tx-primary">
+            Search Dates
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { value: 'next2Weeks', label: 'Next 2 Weeks' },
+              { value: 'thisMonth', label: 'This Month' },
+              { value: 'nextMonth', label: 'Next Month' },
+            ] as const
+          ).map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              disabled={!datePresets}
+              onClick={() => setDatePreset(value)}
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 ${
+                datePreset === value
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-surface text-tx-secondary border-edge-strong hover:bg-surface2'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="booking-search-from" className="block text-xs font-medium text-tx-secondary mb-1">From</label>
+            <input
+              id="booking-search-from"
+              type="date"
+              value={searchStartDate ?? ''}
+              onChange={(e) => {
+                setSearchStartDate(e.target.value || null);
+                setDatePreset('custom');
+              }}
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label htmlFor="booking-search-to" className="block text-xs font-medium text-tx-secondary mb-1">To</label>
+            <input
+              id="booking-search-to"
+              type="date"
+              value={searchEndDate ?? ''}
+              onChange={(e) => {
+                setSearchEndDate(e.target.value || null);
+                setDatePreset('custom');
+              }}
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
         </div>
       </div>
 
