@@ -177,6 +177,24 @@ export const getLessonsByStudent = asyncHandler(async (req: Request, res: Respon
 });
 
 /**
+ * @route   GET /api/v1/lessons/student/:studentId/most-recent
+ * @desc    A student's single most recent lesson, or null if they have none
+ *          - powers "Book again" prefill on the student record.
+ * @access  Private
+ */
+export const getMostRecentLessonByStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { studentId } = req.params;
+
+  const lesson = await lessonService.getMostRecentLessonForStudent(tenantId, studentId);
+
+  res.json({
+    success: true,
+    data: lesson,
+  });
+});
+
+/**
  * @route   GET /api/v1/lessons/instructor/:instructorId
  * @desc    Get lessons by instructor
  * @access  Private

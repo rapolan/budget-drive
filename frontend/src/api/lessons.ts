@@ -39,6 +39,15 @@ export const lessonsApi = {
     return response.data;
   },
 
+  // A student's single most recent lesson, or null if they have none -
+  // powers "Book again" prefill on the student record.
+  getMostRecentByStudent: async (studentId: string) => {
+    const response = await apiClient.get<ApiResponse<Lesson | null>>(
+      `/lessons/student/${studentId}/most-recent`
+    );
+    return response.data;
+  },
+
   getByInstructor: async (instructorId: string) => {
     const response = await apiClient.get<ApiResponse<Lesson[]>>(`/lessons/instructor/${instructorId}`);
     return response.data;

@@ -27,6 +27,14 @@ router.get(
   lessonController.getLessonsByStatus
 );
 
+// A student's most recent lesson - powers "Book again" prefill (must be
+// before the more general /lessons/student/:studentId below)
+router.get(
+  '/lessons/student/:studentId/most-recent',
+  validateUUID('studentId'),
+  lessonController.getMostRecentLessonByStudent
+);
+
 // Get lessons by student (must be before /:id)
 router.get(
   '/lessons/student/:studentId',

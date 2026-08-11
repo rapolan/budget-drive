@@ -125,6 +125,33 @@ export const getLessonsByStudent = async (
   return result.rows.map(keysToCamel) as Lesson[];
 };
 
+/**
+ * A student's single most recent lesson (by date, then start_time), or
+ * null if they have none. getLessonsByStudent above already returns every
+ * lesson in this same order - this is purely a LIMIT 1 efficiency variant
+ * for "Book again" prefill, which only ever needs the one most recent
+ * record, not the student's whole history.
+ */
+export const getMostRecentLessonForStudent = async (
+  tenantId: string,
+  studentId: string
+): Promise<Lesson | null> => {
+  const result = await query(
+    `SELECT l.*
+     FROM lessons l
+     WHERE l.tenant_id = $1 AND l.student_id = $2
+     ORDER BY l.date DESC, l.start_time DESC
+     LIMIT 1`,
+    [tenantId, studentId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return keysToCamel(result.rows[0]) as Lesson;
+};
+
 export const getLessonsByInstructor = async (
   tenantId: string,
   instructorId: string
