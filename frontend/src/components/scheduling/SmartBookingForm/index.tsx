@@ -11,6 +11,7 @@ import { SlotWithProximity } from './GroupedAvailabilityView';
 import { SetupStep, TimePreference, LessonType, DatePreset } from './SetupStep';
 import { SlotsStep } from './SlotsStep';
 import { ConfirmStep } from './ConfirmStep';
+import { SuccessStep } from './SuccessStep';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
@@ -61,11 +62,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     preselectedStudent && preselectedInstructor && preselectedDate && preselectedTime
   );
 
-  // Steps: 'setup' (student, pickup, duration, type) -> 'filter' (date/time prefs) -> 'slots' (ranked slots) -> 'confirm'
-  const [step, setStep] = useState<'setup' | 'slots' | 'confirm'>(canSkipToConfirm ? 'confirm' : 'setup');
+  // Steps: 'setup' (student, pickup, duration, type) -> 'slots' (ranked
+  // slots) -> 'confirm' -> 'success' (offers "Book another", loops back to
+  // 'slots' with preferences intact - Constraint C).
+  const [step, setStep] = useState<'setup' | 'slots' | 'confirm' | 'success'>(canSkipToConfirm ? 'confirm' : 'setup');
   const [error, setError] = useState<string | null>(null);
   const [failedInstructorCount, setFailedInstructorCount] = useState(0);
   const [staleSlotNotice, setStaleSlotNotice] = useState<string | null>(null);
+  const [lastBookedLessonId, setLastBookedLessonId] = useState<string | null>(null);
 
   // Step 1: Setup data
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
@@ -324,7 +328,19 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
     try {
       const lesson = await confirmBookingMutation.mutateAsync(lessonData);
-      onBookingComplete?.(lesson.data?.id || '');
+      const bookedLessonId = lesson.data?.id || '';
+      if (canSkipToConfirm) {
+        // Reschedule flow: student/instructor/date/time were all locked in
+        // by the caller - there's no meaningful "book another" here, so
+        // preserve today's exact behavior (fire immediately, let the
+        // parent close the wizard).
+        onBookingComplete?.(bookedLessonId);
+      } else {
+        // Normal search-driven flow (including "Book again") - offer
+        // "Book another" before handing control back to the parent.
+        setLastBookedLessonId(bookedLessonId);
+        setStep('success');
+      }
     } catch (err: any) {
       const conflictType = err.response?.data?.conflictType;
       const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create lesson';
@@ -347,7 +363,37 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     }
   };
 
-  const loading = findSlotsMutation.isPending || confirmBookingMutation.isPending;
+  // Constraint C: returns to SLOT SELECTION, never 'setup' - student,
+  // instructor choice, duration, lesson type, time preference, and date
+  // range are all left untouched. Only clears what's specific to the
+  // lesson just booked, then re-runs the same search handleFindSlots
+  // already uses for stale-slot recovery, so the just-booked slot is
+  // excluded and any newly-created conflict is reflected.
+  const [bookingAnother, setBookingAnother] = useState(false);
+  const handleBookAnother = async () => {
+    setSelectedSlot(null);
+    setCost(50);
+    setNotes('');
+    setLessonNumber(null);
+    setStaleSlotNotice(null);
+    setError(null);
+    setStep('slots');
+    setBookingAnother(true);
+    try {
+      await handleFindSlots();
+    } finally {
+      setBookingAnother(false);
+    }
+  };
+
+  // The one place onBookingComplete fires for the normal (non-Reschedule)
+  // flow - only once the user explicitly chooses to finish rather than
+  // book another.
+  const handleDoneBooking = () => {
+    onBookingComplete?.(lastBookedLessonId || '');
+  };
+
+  const loading = findSlotsMutation.isPending || confirmBookingMutation.isPending || bookingAnother;
 
   const formatTime = (time: string) => {
     let hour: number, minutes: string;
@@ -379,6 +425,10 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   ];
 
   const currentStepNumber = step === 'setup' ? 1 : step === 'slots' ? 2 : 3;
+  // 'success' is a terminal state with an optional loop back to slot
+  // selection, not really "step 4" of the same journey - the numbered
+  // stepper (Setup/Select Slot/Confirm) is simply not shown there.
+  const showStepper = step !== 'success';
 
   return (
     <div className="bg-surface rounded-lg shadow-xl max-w-4xl mx-auto">
@@ -403,7 +453,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
             </button>
           )}
         </div>
-        <ProgressStepper steps={bookingSteps} currentStep={currentStepNumber} />
+        {showStepper && <ProgressStepper steps={bookingSteps} currentStep={currentStepNumber} />}
       </div>
 
       {/* Error Display */}
@@ -485,6 +535,18 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           getProximityBadge={getProximityBadge}
           onBack={() => setStep('slots')}
           onConfirm={handleConfirmBooking}
+        />
+      )}
+
+      {step === 'success' && selectedSlot && (
+        <SuccessStep
+          selectedStudent={selectedStudent}
+          bookedSlot={selectedSlot}
+          loading={loading}
+          formatShortDate={formatShortDate}
+          formatTime={formatTime}
+          onBookAnother={handleBookAnother}
+          onDone={handleDoneBooking}
         />
       )}
     </div>

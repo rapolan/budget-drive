@@ -169,9 +169,14 @@ describe('SmartBookingForm - happy path', () => {
       })
     );
 
-    await waitFor(() => expect(onBookingComplete).toHaveBeenCalledWith('lesson-1'));
+    // Success step, not an immediate close - onBookingComplete is deferred
+    // until the user explicitly clicks "Done" (or "Book Another Lesson").
+    expect(await screen.findByText('Lesson Booked!')).toBeInTheDocument();
+    expect(onBookingComplete).not.toHaveBeenCalled();
 
-    // Cache invalidation fired for lessons/instructor-lessons and availability
+    // Cache invalidation already fired on the booking itself, independent
+    // of onBookingComplete's timing - confirms list views stay live even
+    // while the wizard remains open on the success step.
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['availability'] })
     );
@@ -179,6 +184,9 @@ describe('SmartBookingForm - happy path', () => {
       ([arg]) => typeof (arg as { predicate?: unknown })?.predicate === 'function'
     );
     expect(predicateCall).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: /^done$/i }));
+    expect(onBookingComplete).toHaveBeenCalledWith('lesson-1');
   });
 });
 
@@ -325,5 +333,117 @@ describe('SmartBookingForm - "Book again" prefill mode', () => {
     // must not also appear alongside it.
     await screen.findByText('Instructor', { selector: 'label' });
     expect(screen.queryByRole('combobox', { name: /instructor/i })).not.toBeInTheDocument();
+  });
+});
+
+// Reschedule flow regression guard: when student+instructor+date+time are
+// ALL preselected (canSkipToConfirm), there's no meaningful "book another"
+// - onBookingComplete must still fire immediately on confirm, exactly as
+// it did before the success step existed.
+describe('SmartBookingForm - Reschedule flow (canSkipToConfirm) skips the success step', () => {
+  it('calls onBookingComplete immediately on confirm, without showing the success step', async () => {
+    const user = userEvent.setup();
+    createLesson.mockResolvedValue({ data: { id: 'lesson-reschedule-1' } });
+
+    const { onBookingComplete } = renderForm({
+      preselectedStudent: STUDENT,
+      preselectedInstructor: INSTRUCTOR,
+      preselectedDate: new Date('2026-08-03T00:00:00'),
+      preselectedTime: { start: '10:00', end: '12:00' },
+    });
+
+    // Jumps straight to confirm - no setup/slots search at all.
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+    expect(findRankedAvailableSlots).not.toHaveBeenCalled();
+
+    const confirmButton = screen.getByRole('button', { name: /confirm booking/i });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(onBookingComplete).toHaveBeenCalledWith('lesson-reschedule-1'));
+    // The success step's own text never appears - this path bypasses it entirely.
+    expect(screen.queryByText('Lesson Booked!')).not.toBeInTheDocument();
+  });
+});
+
+// "Book Another" (Constraint C): returns to SLOT SELECTION with student,
+// instructor choice, duration, lesson type, time preference, and date
+// range intact - only the just-booked slot/cost/notes/lesson-number reset,
+// and the slot list is freshly re-fetched (excluding the just-booked slot,
+// reflecting any newly-created conflict).
+describe('SmartBookingForm - "Book Another" preserves preferences and returns to slots', () => {
+  it('lands on the slots step (not setup) with preferences intact, and the just-booked slot is absent from the refreshed list', async () => {
+    const user = userEvent.setup();
+    const SLOT_2 = { ...SLOT, startTime: '14:00', endTime: '16:00' };
+
+    findRankedAvailableSlots
+      .mockResolvedValueOnce({ slots: [SLOT], failedInstructors: [] })
+      // Refreshed list after "Book Another" - the just-booked 10-12 slot
+      // is gone, replaced by a genuinely different 2-4pm slot (simulating
+      // the server excluding it and reflecting the new conflict it created).
+      .mockResolvedValueOnce({ slots: [SLOT_2], failedInstructors: [] });
+    createLesson.mockResolvedValue({ data: { id: 'lesson-1' } });
+
+    renderForm({ preselectedStudent: STUDENT });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm booking/i });
+    await user.click(confirmButton);
+
+    expect(await screen.findByText('Lesson Booked!')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /book another lesson/i }));
+
+    // Back on the slots step (not setup - Constraint C) with a freshly
+    // re-fetched list.
+    expect(await screen.findByText('Available Time Slots')).toBeInTheDocument();
+    expect(findRankedAvailableSlots).toHaveBeenCalledTimes(2);
+
+    // Same preferences sent both times - student/duration/timePreference/
+    // date range all preserved across the loop, not reset to blank.
+    const [firstCallArgs] = findRankedAvailableSlots.mock.calls[0];
+    const [secondCallArgs] = findRankedAvailableSlots.mock.calls[1];
+    expect(secondCallArgs).toEqual(firstCallArgs);
+
+    // The just-booked 10-12 slot is gone from the refreshed list; the new
+    // 2-4pm slot is offered instead.
+    const instructorHeaderAgain = await screen.findByText('John Smith');
+    await user.click(instructorHeaderAgain);
+    expect(screen.queryByText(/10:00 AM - 12:00 PM/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/2:00 PM - 4:00 PM/i)).toBeInTheDocument();
+  });
+
+  it('"Done" closes without booking again - a one-click exit from the success step', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+    createLesson.mockResolvedValue({ data: { id: 'lesson-1' } });
+
+    const { onBookingComplete } = renderForm({ preselectedStudent: STUDENT });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm booking/i });
+    await user.click(confirmButton);
+
+    expect(await screen.findByText('Lesson Booked!')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^done$/i }));
+
+    expect(onBookingComplete).toHaveBeenCalledWith('lesson-1');
+    // Only the one search ran - "Done" never re-triggers a search.
+    expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1);
   });
 });
