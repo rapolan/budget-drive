@@ -46,3 +46,13 @@ yarn-error.log*
 tmp/
 temp/
 nul
+
+# Playwright screenshot output (point-in-time visual captures for manual
+# review, not committed golden-master baselines - see frontend/playwright.config.ts)
+frontend/e2e-screenshots/__screenshots__/
+frontend/test-results/
+frontend/playwright-report/
+
+# Playwright saved auth session (contains a live auth token) - see
+# frontend/e2e-screenshots/auth.setup.ts
+frontend/e2e-screenshots/.auth/
