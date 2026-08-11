@@ -131,6 +131,12 @@ router.post(
   availabilityController.findRankedAvailableSlots
 );
 
+// Server-computed date-range preset boundaries for the booking wizard
+router.get(
+  '/availability/date-presets',
+  availabilityController.getDatePresets
+);
+
 // Check for conflicts
 router.post(
   '/availability/check-conflicts',

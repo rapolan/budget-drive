@@ -4,6 +4,8 @@ import {
   tenantToday,
   tenantTomorrow,
   tenantMonthBoundaries,
+  tenantNextMonthBoundaries,
+  addTenantDays,
 } from '../utils/tenantTime';
 import { calculateAge } from '../services/studentProgressService';
 
@@ -69,6 +71,60 @@ describe('tenantTime primitives under a forced UTC process clock', () => {
     expect(tenantMonthBoundaries('America/Phoenix', newYearEve)).toEqual({
       start: '2025-12-01',
       end: '2025-12-31',
+    });
+  });
+});
+
+// tenantNextMonthBoundaries is composed from tenantMonthBoundaries/
+// addTenantDays/zonedWallClockToUtc only (never a hand-rolled month-add) -
+// these tests specifically exercise the two cases that composition must get
+// right: a 31-day month rolling into a 30-day month (the direction that
+// would silently overflow if next month's boundaries were derived by naive
+// arithmetic instead of asking date-fns for the real answer), and a
+// December-to-January year rollover.
+describe('tenantNextMonthBoundaries under a forced UTC process clock', () => {
+  it('rolls a 31-day month (May) into the correct 30-day next month (June) for America/New_York', () => {
+    // Noon Eastern on May 15 is safely mid-day UTC too - no rollover ambiguity
+    // in the reference instant itself; the case under test is the BOUNDARY
+    // composition, not another UTC-vs-tenant date disagreement.
+    const midMay = new Date('2026-05-15T16:00:00Z'); // noon EDT (UTC-4)
+    expect(tenantNextMonthBoundaries('America/New_York', midMay)).toEqual({
+      start: '2026-06-01',
+      end: '2026-06-30', // NOT '2026-06-31' - June has 30 days
+    });
+  });
+
+  it('rolls a 31-day month (May) into the correct 30-day next month (June) for America/Phoenix (no DST)', () => {
+    const midMay = new Date('2026-05-15T19:00:00Z'); // noon Phoenix (fixed UTC-7)
+    expect(tenantNextMonthBoundaries('America/Phoenix', midMay)).toEqual({
+      start: '2026-06-01',
+      end: '2026-06-30',
+    });
+  });
+
+  it('rolls December into January of the following year for America/New_York', () => {
+    const midDec = new Date('2026-12-15T17:00:00Z'); // noon EST (UTC-5)
+    expect(tenantNextMonthBoundaries('America/New_York', midDec)).toEqual({
+      start: '2027-01-01',
+      end: '2027-01-31',
+    });
+  });
+
+  it('rolls December into January of the following year for America/Phoenix', () => {
+    const midDec = new Date('2026-12-15T19:00:00Z'); // noon Phoenix
+    expect(tenantNextMonthBoundaries('America/Phoenix', midDec)).toEqual({
+      start: '2027-01-01',
+      end: '2027-01-31',
+    });
+  });
+
+  it('resolves the correct next month even when UTC and tenant date disagree at the reference instant', () => {
+    // 9:30pm Feb 28 Eastern is already March 1 in UTC - tenant "this month"
+    // must still read February, so "next month" must still be March.
+    const lateFeb = new Date('2026-03-01T02:30:00Z');
+    expect(tenantNextMonthBoundaries('America/New_York', lateFeb)).toEqual({
+      start: '2026-03-01',
+      end: '2026-03-31',
     });
   });
 });
@@ -180,5 +236,34 @@ describe('findAvailableSlots slot dates under a forced UTC process clock', () =>
     for (const slot of slots) {
       expect(slot.date).toBe('2026-08-03');
     }
+  });
+});
+
+// bookingPresetsService.getDatePresets end-to-end, under the forced-UTC
+// process clock, for an America/New_York tenant - asserts against values
+// computed via the same tenantTime.ts helpers the service itself calls
+// (not hardcoded date literals), so this test doesn't rot as "today" changes.
+describe('getDatePresets under a forced UTC process clock', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('resolves all three preset boundaries for an America/New_York tenant', async () => {
+    const { getDatePresets } = await import('../services/bookingPresetsService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'ts-1', tenant_id: TENANT_ID, timezone: 'America/New_York' }])
+    ); // getTenantSettings (the only query getDatePresets issues)
+
+    const presets = await getDatePresets(TENANT_ID);
+
+    const expectedNext2WeeksStart = tenantTomorrow('America/New_York');
+    const expectedNext2WeeksEnd = addTenantDays(expectedNext2WeeksStart, 13, 'America/New_York');
+    const expectedThisMonth = tenantMonthBoundaries('America/New_York');
+    const expectedNextMonth = tenantNextMonthBoundaries('America/New_York');
+
+    expect(presets.next2Weeks).toEqual({ start: expectedNext2WeeksStart, end: expectedNext2WeeksEnd });
+    expect(presets.thisMonth).toEqual(expectedThisMonth);
+    expect(presets.nextMonth).toEqual(expectedNextMonth);
   });
 });

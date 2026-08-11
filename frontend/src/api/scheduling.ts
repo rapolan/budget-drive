@@ -12,6 +12,7 @@ import {
   FindRankedSlotsRequest,
   FindRankedSlotsResult,
   CheckConflictsRequest,
+  DatePresetsResponse,
   ApiResponse,
 } from '@/types';
 
@@ -191,6 +192,18 @@ export const schedulingApi = {
       slots: response.data.data || [],
       failedInstructors: response.data.failedInstructors || [],
     };
+  },
+
+  /**
+   * Server-computed date-range preset boundaries (Next 2 Weeks/This Month/
+   * Next Month) for the booking wizard's setup step, resolved in the
+   * tenant's timezone. Never compute these client-side.
+   */
+  async getDatePresets(): Promise<DatePresetsResponse> {
+    const response = await apiClient.get<ApiResponse<DatePresetsResponse>>(
+      '/availability/date-presets'
+    );
+    return response.data.data as DatePresetsResponse;
   },
 
   /**

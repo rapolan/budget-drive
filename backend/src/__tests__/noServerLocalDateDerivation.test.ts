@@ -48,6 +48,7 @@ const TARGET_FILES = [
   'src/services/calendarFeedService.ts',
   'src/services/recurringPatternService.ts',
   'src/services/studentProgressService.ts',
+  'src/services/bookingPresetsService.ts',
   'src/utils/tenantTime.ts',
 ];
 
@@ -91,6 +92,7 @@ const ALLOWLIST: Record<string, string[]> = {
     `currentDate.toISOString().split('T')[0]`,
   ],
   'src/services/studentProgressService.ts': [],
+  'src/services/bookingPresetsService.ts': [],
   'src/utils/tenantTime.ts': [
     // The module's own default-reference parameters - the ONE place real
     // "now" is legitimately read, so every other file can call these

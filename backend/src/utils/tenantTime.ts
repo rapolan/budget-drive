@@ -127,6 +127,26 @@ export function tenantMonthBoundaries(
 }
 
 /**
+ * Start/end of the month AFTER the reference month (default: tenant "now")
+ * as YYYY-MM-DD strings, in the tenant's timezone. Composed entirely from
+ * this module's own exports (never a hand-rolled month-add) so the
+ * 31-day-to-30-day and December-to-January cases are handled by the same
+ * date-fns machinery tenantMonthBoundaries already relies on: get this
+ * month's boundaries, step one day past its end (guaranteed to land in
+ * next month regardless of this month's length), then ask
+ * tenantMonthBoundaries for THAT month's boundaries.
+ */
+export function tenantNextMonthBoundaries(
+  timezone: string,
+  reference: Date = new Date()
+): { start: string; end: string } {
+  const thisMonth = tenantMonthBoundaries(timezone, reference);
+  const firstDayNextMonth = addTenantDays(thisMonth.end, 1, timezone);
+  const referenceNextMonth = zonedWallClockToUtc(firstDayNextMonth, '00:00', timezone);
+  return tenantMonthBoundaries(timezone, referenceNextMonth);
+}
+
+/**
  * Day of week (0 = Sunday, 6 = Saturday) for a YYYY-MM-DD date string,
  * interpreted in the tenant's timezone. Replaces reading .getDay() off a
  * Date constructed in the process's own local time.

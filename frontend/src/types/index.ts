@@ -645,6 +645,20 @@ export interface FindRankedSlotsResult {
   failedInstructors: string[];
 }
 
+// A date range as YYYY-MM-DD strings, always server-computed in the
+// tenant's timezone (backend/src/utils/tenantTime.ts) - the frontend only
+// ever displays these values, never derives them itself.
+export interface DateRangeBoundary {
+  start: string;
+  end: string;
+}
+
+export interface DatePresetsResponse {
+  next2Weeks: DateRangeBoundary;
+  thisMonth: DateRangeBoundary;
+  nextMonth: DateRangeBoundary;
+}
+
 // ===================================================================
 // REFERRAL SYSTEM TYPES
 // ===================================================================

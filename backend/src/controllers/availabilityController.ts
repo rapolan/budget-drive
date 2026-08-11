@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as availabilityService from '../services/availabilityService';
 import * as schedulingService from '../services/schedulingService';
+import * as bookingPresetsService from '../services/bookingPresetsService';
 import { getTenantId } from '../middleware/tenantContext';
 
 // =====================================================
@@ -298,6 +299,25 @@ export const findRankedAvailableSlots = asyncHandler(async (req: Request, res: R
     data: result.slots,
     count: result.slots.length,
     failedInstructors: result.failedInstructors,
+  });
+});
+
+/**
+ * @route   GET /api/v1/availability/date-presets
+ * @desc    Server-computed date-range preset boundaries (Next 2 Weeks/This
+ *          Month/Next Month) for the booking wizard's setup step, resolved
+ *          in the tenant's timezone. The frontend never computes these
+ *          itself - it only ever displays what this endpoint returns.
+ * @access  Private
+ */
+export const getDatePresets = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const presets = await bookingPresetsService.getDatePresets(tenantId);
+
+  res.json({
+    success: true,
+    data: presets,
   });
 });
 
