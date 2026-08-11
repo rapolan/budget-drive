@@ -296,6 +296,13 @@ export const updateTenantSettings = async (
 
   // Localization
   if (data.timezone !== undefined) {
+    // Validated against Node's own ICU/IANA tzdata (the same source of
+    // truth backend/src/utils/tenantTime.ts's date-fns-tz relies on) -
+    // storage itself is untouched (Constraint A), this only rejects a
+    // value date-fns-tz couldn't resolve at read time.
+    if (!Intl.supportedValuesOf('timeZone').includes(data.timezone)) {
+      throw new AppError('Invalid timezone', 400);
+    }
     fields.push(`timezone = $${paramCount++}`);
     values.push(data.timezone);
   }

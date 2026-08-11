@@ -10,6 +10,39 @@ import { TeamSettings } from './TeamSettings';
 
 const API_BASE = 'http://127.0.0.1:4000/api/v1';
 
+// Backend-validated (backend/src/services/tenantService.ts checks against
+// Intl.supportedValuesOf('timeZone')) but this list is curated to the ~30
+// zones a US-focused driving-school customer plausibly needs, rather than
+// the full ~418-zone IANA set - keeps the dropdown usable. Must match the
+// DB column's default (backend/database/migrations/001_baseline.sql).
+const DEFAULT_TIMEZONE = 'America/Los_Angeles';
+const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'America/New_York', label: 'Eastern Time (New York)' },
+  { value: 'America/Detroit', label: 'Eastern Time (Detroit)' },
+  { value: 'America/Indiana/Indianapolis', label: 'Eastern Time (Indianapolis)' },
+  { value: 'America/Chicago', label: 'Central Time (Chicago)' },
+  { value: 'America/Menominee', label: 'Central Time (Menominee, WI)' },
+  { value: 'America/North_Dakota/Center', label: 'Central Time (ND)' },
+  { value: 'America/Denver', label: 'Mountain Time (Denver)' },
+  { value: 'America/Boise', label: 'Mountain Time (Boise)' },
+  { value: 'America/Phoenix', label: 'Mountain Time - no DST (Arizona)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (Los Angeles)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (Anchorage)' },
+  { value: 'America/Juneau', label: 'Alaska Time (Juneau)' },
+  { value: 'America/Sitka', label: 'Alaska Time (Sitka)' },
+  { value: 'America/Metlakatla', label: 'Alaska Time (Metlakatla)' },
+  { value: 'America/Yakutat', label: 'Alaska Time (Yakutat)' },
+  { value: 'America/Nome', label: 'Alaska Time (Nome)' },
+  { value: 'America/Adak', label: 'Hawaii-Aleutian Time (Adak)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time (Honolulu)' },
+  { value: 'America/Puerto_Rico', label: 'Atlantic Time (Puerto Rico)' },
+  { value: 'America/St_Thomas', label: 'Atlantic Time (US Virgin Islands)' },
+  { value: 'Pacific/Guam', label: 'Chamorro Time (Guam)' },
+  { value: 'Pacific/Pago_Pago', label: 'Samoa Time (American Samoa)' },
+  { value: 'America/Toronto', label: 'Eastern Time (Toronto, Canada)' },
+  { value: 'America/Vancouver', label: 'Pacific Time (Vancouver, Canada)' },
+  { value: 'UTC', label: 'UTC' },
+];
 
 type SettingsTab = 'general' | 'team' | 'features' | 'scheduling' | 'branding' | 'notifications';
 
@@ -96,6 +129,7 @@ const GeneralSettings: React.FC = () => {
     zipCode:             (settings as any)?.zip_code        || settings?.zipCode        || '',
     defaultHoursRequired: settings?.defaultHoursRequired ?? 6,
     standardLessonLengthMinutes: settings?.standardLessonLengthMinutes ?? 120,
+    timezone:            settings?.timezone || DEFAULT_TIMEZONE,
   });
 
   React.useEffect(() => {
@@ -113,6 +147,7 @@ const GeneralSettings: React.FC = () => {
       zipCode:             (settings as any).zip_code         || settings.zipCode         || '',
       defaultHoursRequired: settings.defaultHoursRequired ?? 6,
       standardLessonLengthMinutes: settings.standardLessonLengthMinutes ?? 120,
+      timezone:            settings.timezone || DEFAULT_TIMEZONE,
     });
   }, [settings]);
 
@@ -278,6 +313,28 @@ const GeneralSettings: React.FC = () => {
               className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Localization */}
+      <div className="border border-edge rounded-lg p-6 space-y-4">
+        <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Localization</h3>
+        <div>
+          <label htmlFor="settings-timezone" className="block text-sm font-medium text-tx-secondary mb-1">School Timezone</label>
+          <p className="text-xs text-tx-muted mb-3">
+            Every scheduled lesson time, "today"/"tomorrow" calculation, and student age is resolved in this
+            timezone - not the server's or your browser's.
+          </p>
+          <select
+            id="settings-timezone"
+            value={form.timezone}
+            onChange={set('timezone')}
+            className="w-full sm:w-96 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
+          >
+            {TIMEZONE_OPTIONS.map(tz => (
+              <option key={tz.value} value={tz.value}>{tz.label}</option>
+            ))}
+          </select>
         </div>
       </div>
 

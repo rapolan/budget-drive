@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeStudentProgress } from '../services/studentProgressService';
+import { DEFAULT_TENANT_TIMEZONE, tenantToday, parseTenantDateOnly } from '../utils/tenantTime';
 
 function minor(overrides: Partial<Parameters<typeof computeStudentProgress>[0]> = {}) {
   const seventeenYearsAgo = new Date();
@@ -121,17 +122,23 @@ describe('computeStudentProgress', () => {
   });
 
   it('age boundary: birthday is today crosses into adult (18+) on the LESSONS track', () => {
-    const eighteenToday = new Date();
-    eighteenToday.setFullYear(eighteenToday.getFullYear() - 18);
+    // computeStudentProgress's default timezone is DEFAULT_TENANT_TIMEZONE
+    // (Pacific) - "today" must be derived the same way calculateAge derives
+    // it internally, via tenantToday, not process-local new Date(). Under
+    // TZ=UTC (item 7's server config) those two can disagree by a day.
+    const today = tenantToday(DEFAULT_TENANT_TIMEZONE);
+    const eighteenToday = parseTenantDateOnly(today);
+    eighteenToday.setUTCFullYear(eighteenToday.getUTCFullYear() - 18);
 
     const progress = computeStudentProgress(minor({ dateOfBirth: eighteenToday }), []);
     expect(progress.track).toBe('lessons');
   });
 
   it('age boundary: one day before an 18th birthday stays a minor on the HOURS track', () => {
-    const almostEighteen = new Date();
-    almostEighteen.setFullYear(almostEighteen.getFullYear() - 18);
-    almostEighteen.setDate(almostEighteen.getDate() + 1);
+    const today = tenantToday(DEFAULT_TENANT_TIMEZONE);
+    const almostEighteen = parseTenantDateOnly(today);
+    almostEighteen.setUTCFullYear(almostEighteen.getUTCFullYear() - 18);
+    almostEighteen.setUTCDate(almostEighteen.getUTCDate() + 1);
 
     const progress = computeStudentProgress(minor({ dateOfBirth: almostEighteen }), []);
     expect(progress.track).toBe('hours');
