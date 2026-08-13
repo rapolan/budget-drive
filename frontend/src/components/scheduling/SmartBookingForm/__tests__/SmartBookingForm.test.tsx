@@ -468,6 +468,65 @@ describe('SmartBookingForm - proximity badge consistency', () => {
   });
 });
 
+// Lesson-number auto-suggestion (bug fix): the effect that computes it
+// previously required studentLessons.length > 0, so a student with ZERO
+// prior lessons never got a suggestion at all (stuck on "Not set") even
+// though completedOrScheduled.length + 1 is a valid "1" from an empty array.
+describe('SmartBookingForm - lesson number auto-suggestion', () => {
+  async function getToConfirmStep(user: ReturnType<typeof userEvent.setup>) {
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+    renderForm({ preselectedStudent: STUDENT });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+  }
+
+  it('suggests "1" for a student with zero prior lessons', async () => {
+    const user = userEvent.setup();
+    getByStudent.mockResolvedValue({ data: [] });
+
+    await getToConfirmStep(user);
+
+    const lessonNumberSelect = screen.getByTitle('Select lesson number') as HTMLSelectElement;
+    await waitFor(() => expect(lessonNumberSelect.value).toBe('1'));
+  });
+
+  it('suggests "2" for a student with 1 prior completed/scheduled lesson', async () => {
+    const user = userEvent.setup();
+    getByStudent.mockResolvedValue({
+      data: [{ id: 'prior-1', status: 'completed' }],
+    });
+
+    await getToConfirmStep(user);
+
+    const lessonNumberSelect = screen.getByTitle('Select lesson number') as HTMLSelectElement;
+    await waitFor(() => expect(lessonNumberSelect.value).toBe('2'));
+  });
+
+  it('suggests "3" for a student with 2 prior completed/scheduled lessons', async () => {
+    const user = userEvent.setup();
+    getByStudent.mockResolvedValue({
+      data: [
+        { id: 'prior-1', status: 'completed' },
+        { id: 'prior-2', status: 'scheduled' },
+      ],
+    });
+
+    await getToConfirmStep(user);
+
+    const lessonNumberSelect = screen.getByTitle('Select lesson number') as HTMLSelectElement;
+    await waitFor(() => expect(lessonNumberSelect.value).toBe('3'));
+  });
+});
+
 describe('SmartBookingForm - "Book Another" done button', () => {
   it('"Done" closes without booking again - a one-click exit from the success step', async () => {
     const user = userEvent.setup();

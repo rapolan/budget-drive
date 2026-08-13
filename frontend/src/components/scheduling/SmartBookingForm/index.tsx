@@ -190,9 +190,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     }
   }, [pickupAddress]);
 
-  // Calculate suggested lesson number
+  // Calculate suggested lesson number - completedOrScheduled.length + 1 is
+  // correct even from an empty array (a student with zero prior lessons
+  // suggests "1"), so this only needs to wait for a student to be selected,
+  // not for studentLessons to be non-empty.
   useEffect(() => {
-    if (selectedStudentId && studentLessons.length > 0) {
+    if (selectedStudentId) {
       const completedOrScheduled = studentLessons.filter(
         (l: Lesson) => l.status === 'completed' || l.status === 'scheduled'
       );
