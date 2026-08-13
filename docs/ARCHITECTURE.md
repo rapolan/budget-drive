@@ -106,7 +106,7 @@ Student progress is derived live, never stored as a running total. `students.tot
 
 ## 7. Tenant Timezone Authority
 
-Every date, "today"/"tomorrow" calculation, wall-clock interpretation, and derived age in this codebase resolves against the **tenant's** configured timezone (`tenant_settings.timezone`, default `America/Los_Angeles`) — never the server's own timezone, and never the browser's. This must hold regardless of what physical machine or region the Node process happens to run in, since the product is sold to driving schools nationwide.
+Every date, "today"/"tomorrow" calculation, wall-clock interpretation, and derived age in this codebase resolves against the **tenant's** configured timezone (`tenant_settings.timezone`) — never the server's own timezone, and never the browser's. This must hold regardless of what physical machine or region the Node process happens to run in, since the product is sold to driving schools nationwide. `timezone` is nullable and, as of migration 011, has no DB-level default — a newly created tenant starts with it genuinely unset (see "Timezone auto-detect" below); `resolveTenantTimezone` is what turns that `null` into a concrete zone for actual date math.
 
 ### Wall-clock storage, tenant-relative interpretation
 
@@ -117,7 +117,7 @@ Every date, "today"/"tomorrow" calculation, wall-clock interpretation, and deriv
 All tenant-timezone date math lives in **one** module: `backend/src/utils/tenantTime.ts`. No other backend file reimplements offset/DST logic, and none of it is ported into the frontend. Built on `date-fns` + `date-fns-tz`, which read the IANA tzdata bundled with Node's own ICU build — the same source of truth browsers and operating systems use, rather than hand-rolled and inevitably incomplete offset arithmetic.
 
 Primitives exported:
-- `resolveTenantTimezone(timezone)` — the configured zone, or the documented default (`DEFAULT_TENANT_TIMEZONE = 'America/Los_Angeles'`, matching the DB column's own default) when unset.
+- `resolveTenantTimezone(timezone)` — the configured zone, or the documented default (`DEFAULT_TENANT_TIMEZONE = 'America/Los_Angeles'`) when `null`/`undefined`/empty. This is the only place an unset timezone becomes a concrete zone for real date math.
 - `tenantToday(timezone, reference?)` / `tenantTomorrow(timezone, reference?)` — today's/tomorrow's date as `YYYY-MM-DD` in the tenant's zone.
 - `addTenantDays(dateStr, days, timezone)` — walks a date string forward/backward within the tenant's zone (used for day-by-day iteration instead of mutating a `Date` with `setDate`).
 - `formatInTenantZone(date, timezone, formatStr?)` — formats a real UTC instant (a `Date`) as a string in the tenant's zone. Never `toISOString().split('T')[0]` for this — that reads the UTC calendar date, which differs from the tenant's for roughly half of every day.
@@ -139,6 +139,10 @@ One exception is explicitly safe and does **not** go through the helper: extract
 ### Server timezone is irrelevant by design
 
 The server process runs with `TZ=UTC` (`.env.example`, `.env.test`, and the CI workflow's job-level `env`) — not because UTC is privileged, but to make "the server's own timezone must never matter" an enforced, testable fact rather than an incidental one that happens to hold only on whichever machine a developer's shell defaults to. A structural test (`backend/src/__tests__/noServerLocalDateDerivation.test.ts`) statically scans every file in the list above for `toISOString().split('T'`, `.getFullYear()`/`.getMonth()`/`.getDate()`/`.getDay()`, and bare `new Date()` outside a small, explicitly documented allowlist (DATE-column extraction, RFC 5545 `DTSTAMP`, instant-vs-"now" comparisons, and the helper module's own default-reference parameters). A companion hostile-clock test suite (`tenantTimeHostileClock.test.ts`) exercises the helper primitives, `calculateAge`, and slot generation against `America/New_York` (DST-observing) and `America/Phoenix` (no DST) tenants while the process itself runs UTC, including at instants where the UTC calendar date and the tenant's disagree.
+
+### Timezone auto-detect (Settings UI convenience, not an exception to the rule above)
+
+`frontend/src/pages/Settings.tsx`'s General tab is the one place the frontend is allowed to call `Intl.DateTimeFormat().resolvedOptions().timeZone` — and even there, the result is never used for date math, only to pre-populate a suggestion an admin must explicitly accept and then explicitly save. The suggestion banner renders only while `tenant_settings.timezone` is `null` (never configured — see migration 011, which dropped the column's DB-level default so a new tenant starts unset instead of silently landing on the old Pacific default). Accepting the suggestion sets the ordinary form field; nothing is persisted or treated as authoritative until the existing `PUT /tenant/settings` save path runs, going through the same `Intl.supportedValuesOf('timeZone')` validation as any manually-typed zone. Existing tenants already sitting at the pre-migration default value are not backfilled to `null` and so never see the suggestion — there's no way to tell whether that value was an explicit choice.
 
 ### Known gap: frontend browser-local time (deferred)
 

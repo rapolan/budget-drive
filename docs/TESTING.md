@@ -409,6 +409,22 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **If login times out with "Too many authentication attempts":** the backend's `authLimiter` (10 requests/15 min, in-memory) was exhausted by repeated runs. Either wait out the 15-minute window or restart the backend dev server, which resets its in-memory rate-limit store.
 
+### 2.23 Default lesson cost
+
+**Do:** Go to `/settings` → **General** tab → **Training Defaults** → **Default Lesson Cost**, change it to a new value (e.g. `$175`) via either the number input or one of the quick-select chips, and click **Save General Settings**. Then open the booking wizard for any student, search, and select a slot to reach the Confirm step.
+
+**Pass looks like:** The save succeeds and the field still shows the new value after a page refresh. The Confirm step's **Cost ($)** field is prefilled with the new tenant default (not the old hardcoded `50`), and the **Confirm Booking - $175.00** button label reflects it. The field is still freely editable — type a different amount, confirm the booking, and check the created lesson's stored cost matches what you typed, not the tenant default. Existing lessons booked before the change keep whatever cost they already had (no backfill).
+
+**Also check — "Book Another":** from the success step, click **Book Another Lesson**. The next Confirm step's cost field resets to the tenant default again, not to whatever you'd typed for the previous lesson in this session.
+
+### 2.24 Timezone auto-detect suggestion
+
+**Do:** This one needs a tenant whose `tenant_settings.timezone` is genuinely `NULL` — a brand-new tenant created after this feature shipped qualifies; an existing tenant that already has a timezone value (including ones sitting at the old default) will never show the suggestion, by design. If you don't have a fresh tenant handy, this is easiest to verify by temporarily nulling the row directly (`UPDATE tenant_settings SET timezone = NULL WHERE tenant_id = '<id>'`), reloading `/settings` → **General**, and restoring the original value afterward. Set your OS/browser timezone to something other than Pacific before loading the page, so the detected suggestion is visibly different from the fallback shown in the dropdown.
+
+**Pass looks like:** A suggestion banner appears above the timezone dropdown reading "Suggested, based on your browser: **\<your zone\>**" with a **Use this timezone** button — the dropdown itself still shows the ordinary hardcoded Pacific fallback, unchanged, until you act. Clicking **Use this timezone** updates the dropdown to the suggested zone but does **not** save anything by itself — the banner's job is done at that point (it won't reappear once the value differs from the suggestion), and only clicking **Save General Settings** afterward persists it. Once any timezone is saved (whether the suggestion or a manually picked one), `tenant_settings.timezone` is no longer null and the banner never appears again for that tenant, even if you clear the dropdown back toward the old value.
+
+**Also check — existing tenants never see it:** on a tenant whose timezone is already set to anything (including the pre-migration default), confirm the banner never renders, regardless of what the browser's detected zone is.
+
 ---
 
 ## 3. Known issues to route around
