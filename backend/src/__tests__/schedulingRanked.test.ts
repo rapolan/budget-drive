@@ -470,3 +470,63 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
     }
   });
 });
+
+// Regression coverage: Postgres numeric columns (e.g. lessons.duration)
+// come back through pg as strings ("60.00", not 60). A caller that reuses a
+// stored lesson's duration to prefill a new search (e.g. "Book again")
+// could pass that string straight through - route-level validateNumeric
+// now coerces it before this service ever sees it, but this test proves
+// the service itself is also defended (findSlotsInBlock's
+// `currentTime + duration` would otherwise silently string-concatenate,
+// e.g. 540 + "60.00" = "54060.00", making every theoretical slot fail the
+// blockEnd check on its first iteration - zero slots, always). The
+// `as unknown as number` cast simulates a caller bypassing the TypeScript
+// `duration: number` contract, exactly as a real HTTP request body does
+// (JSON has no way to enforce it, and this project's own frontend bug
+// sent duration as a string before being fixed at the call site too).
+describe('findRankedAvailableSlots - duration arrives as a numeric string', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('still generates slots when duration is a numeric string like "60.00", not the empty result the string-concatenation bug produced', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const start = tenantTomorrow(TEST_TIMEZONE);
+    const dayOfWeek = tenantDayOfWeek(start, TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW])); // findAvailableSlots settings
+    mockQuery.mockResolvedValueOnce(
+      // A single 9am-5pm block - with a genuine number duration this
+      // produces multiple slots; with the string-concat bug it produces zero.
+      queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // time off
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons
+    mockQuery.mockResolvedValueOnce(queryResult([])); // student's own lessons
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: '60.00' as unknown as number,
+      startDate: start,
+      endDate: start,
+      instructorId: 'instructor-1',
+    });
+
+    expect(result.failedInstructors).toEqual([]);
+    expect(result.slots.length).toBeGreaterThan(0);
+    // Every returned slot's own duration field must also be the coerced
+    // number, not the original string, since findAvailableSlots stores
+    // whatever `duration` it was given directly onto each TimeSlot.
+    for (const slot of result.slots) {
+      expect(slot.duration).toBe(60);
+    }
+  });
+});

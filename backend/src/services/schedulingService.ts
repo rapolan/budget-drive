@@ -58,7 +58,18 @@ const formatDate = (date: Date, timezone: string): string =>
 export const findAvailableSlots = async (
   request: AvailabilityRequest
 ): Promise<TimeSlot[]> => {
-  const { tenantId, instructorId, vehicleId, startDate, endDate, duration, studentId } = request;
+  const { tenantId, instructorId, vehicleId, startDate, endDate, studentId } = request;
+
+  // Coerced once, here, rather than at every downstream use - duration is a
+  // number in the type system but Postgres numeric columns (and any caller
+  // that reuses a stored lesson's duration) can hand this function a
+  // numeric string at runtime. Every use below (findSlotsInBlock's
+  // arithmetic, and the duration stored onto each returned TimeSlot) reads
+  // this coerced value, not request.duration directly.
+  const duration = Number(request.duration);
+  if (!Number.isFinite(duration)) {
+    throw new AppError(`Invalid lesson duration: ${request.duration}`, 400);
+  }
 
   const timezone = request.timezone ?? (await resolveTimezone(tenantId));
   const settings = await getSchedulingSettings(tenantId);
@@ -285,6 +296,18 @@ function findSlotsInBlock(
 ): Array<{ start: number; end: number }> {
   const slots: Array<{ start: number; end: number }> = [];
 
+  // Defense in depth: the route layer (validateNumeric) already guarantees
+  // a real number for any request reaching this via the HTTP API, but this
+  // function has other/future callers (direct service calls, scripts) that
+  // could bypass that gate - coerce here too so `currentTime + duration`
+  // below can never silently string-concatenate (e.g. 540 + "60.00" =
+  // "54060.00") instead of adding, which would make every theoretical slot
+  // fail the blockEnd check on the very first iteration.
+  const safeDuration = Number(duration);
+  if (!Number.isFinite(safeDuration)) {
+    throw new AppError(`Invalid lesson duration: ${duration}`, 400);
+  }
+
   // Generate the theoretical slots for the block (based on capacity, capped
   // to the block's own end_time)
   const theoreticalSlots: Array<{ start: number; end: number }> = [];
@@ -292,7 +315,7 @@ function findSlotsInBlock(
 
   for (let i = 0; i < maxSlots; i++) {
     const slotStart = currentTime;
-    const slotEnd = currentTime + duration;
+    const slotEnd = currentTime + safeDuration;
 
     if (slotEnd > blockEnd) {
       break; // This and any further slot would run past the block's end

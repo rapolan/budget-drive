@@ -7,7 +7,7 @@ import { Router } from 'express';
 import * as availabilityController from '../controllers/availabilityController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import { validateRequired, validateUUID, validateDateRangePair } from '../middleware/validate';
+import { validateRequired, validateUUID, validateDateRangePair, validateNumeric } from '../middleware/validate';
 
 const router = Router();
 
@@ -120,6 +120,7 @@ router.delete(
 router.post(
   '/availability/find-slots',
   validateRequired(['startDate', 'endDate', 'duration']),
+  validateNumeric(['duration']),
   availabilityController.findAvailableSlots
 );
 
@@ -127,6 +128,7 @@ router.post(
 router.post(
   '/availability/find-slots-ranked',
   validateRequired(['studentId', 'pickupZip', 'duration']),
+  validateNumeric(['duration']),
   validateDateRangePair('startDate', 'endDate'),
   availabilityController.findRankedAvailableSlots
 );

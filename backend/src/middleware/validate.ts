@@ -108,6 +108,44 @@ export const validateDateRangePair = (startField: string, endField: string) => {
   };
 };
 
+// Coerce and validate numeric fields in the body. Postgres numeric/decimal
+// columns come back through pg as JS strings ("60.00", not 60) - a value
+// read from one query and passed straight into another request (e.g. a
+// lesson's stored duration reused to prefill a new search) carries that
+// string all the way into arithmetic deep in a service, where `+` silently
+// string-concatenates instead of adding. Only present fields are checked -
+// this composes with validateRequired for fields that must also be present.
+// Unlike every other validator in this file, this one MUTATES req.body:
+// on success it overwrites each field with its coerced Number(), so every
+// downstream layer (controller, service) receives a guaranteed real number
+// rather than a string that merely looks numeric.
+export const validateNumeric = (fields: string[]) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const invalidFields: string[] = [];
+
+    for (const field of fields) {
+      if (req.body[field] === undefined || req.body[field] === null) {
+        continue;
+      }
+      const coerced = Number(req.body[field]);
+      if (Number.isNaN(coerced)) {
+        invalidFields.push(field);
+        continue;
+      }
+      req.body[field] = coerced;
+    }
+
+    if (invalidFields.length > 0) {
+      throw new AppError(
+        `Invalid numeric value for: ${invalidFields.join(', ')}`,
+        400
+      );
+    }
+
+    next();
+  };
+};
+
 // Sanitize input (basic XSS prevention)
 export const sanitizeInput = (input: any): any => {
   if (typeof input === 'string') {
