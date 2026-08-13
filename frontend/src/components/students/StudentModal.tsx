@@ -92,6 +92,37 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('details');
 
+  // Auto-scroll (create mode only): as each section is filled in, scroll
+  // the next one into view instead of requiring the user to scroll
+  // manually. scrolledSectionsRef tracks which transitions already fired
+  // so re-editing a field after the fact never re-triggers a jump - this
+  // is what keeps it from ever fighting the user's own scrolling.
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const addressSectionRef = React.useRef<HTMLDivElement>(null);
+  const guardianSectionRef = React.useRef<HTMLDivElement>(null);
+  const successBlockRef = React.useRef<HTMLDivElement>(null);
+  const scrolledSectionsRef = React.useRef<Set<string>>(new Set());
+
+  const scrollSectionIntoView = (ref: React.RefObject<HTMLElement>, key: string) => {
+    if (!ref.current || scrolledSectionsRef.current.has(key)) return;
+    scrolledSectionsRef.current.add(key);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Skip the scroll if the target is already sufficiently visible inside
+    // the modal's own scroll container - avoids a jarring jump for a user
+    // who can already see the next section. Only trusted when the
+    // container reports a real (non-zero) layout height - unlaid-out
+    // environments (e.g. jsdom in tests) report an all-zero rect, which
+    // would otherwise look "already visible" and silently skip every scroll.
+    const container = scrollContainerRef.current;
+    if (container && container.getBoundingClientRect().height > 0) {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = ref.current.getBoundingClientRect();
+      const alreadyVisible = targetRect.top >= containerRect.top && targetRect.bottom <= containerRect.bottom;
+      if (alreadyVisible) return;
+    }
+    ref.current.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+  };
+
   // Get default hours from tenant settings (California default is 6)
   const defaultHoursRequired = settings?.defaultHoursRequired ?? 6;
   const adultHoursDefault = 2; // Adults (18+) typically want fewer lessons
@@ -813,9 +844,33 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Check if at least one contact phone is provided (student OR parent/guardian)
   const hasAtLeastOnePhone = isValidPhone(formData.phone || '') || isValidPhone(formData.emergencyContactPhone || '');
 
+  // Create-mode only - editing an already-complete record should never
+  // auto-scroll, since the user isn't filling it out top-to-bottom.
+  const basicInfoComplete =
+    !isEditing && !!formData.firstName && !!formData.lastName && (hasAtLeastOnePhone || !!formData.email);
+  useEffect(() => {
+    if (basicInfoComplete) scrollSectionIntoView(addressSectionRef, 'address');
+  }, [basicInfoComplete]);
+
+  const addressComplete = !isEditing && !!formData.addressLine1 && !!formData.city && !!formData.zipCode;
+  useEffect(() => {
+    if (addressComplete) scrollSectionIntoView(guardianSectionRef, 'guardian');
+  }, [addressComplete]);
+
+  // On successful creation, scroll to the bottom so Close/Book Lesson are
+  // visible without the user having to scroll manually.
+  useEffect(() => {
+    if (!createdStudent) return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    successBlockRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'end' });
+  }, [createdStudent]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
+      <div
+        ref={scrollContainerRef}
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60"
+      >
         {/* Header - Clean & Minimal */}
         <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between gap-4">
@@ -1080,7 +1135,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 2: Address (for pickup) */}
-              <div className="space-y-4 pt-4 border-t border-edge">
+              <div ref={addressSectionRef} className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-tx-muted" />
                   Home Address
@@ -1142,7 +1197,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
 
               {/* Section 3: Guardian (structured, linked record) */}
-              <div className="space-y-4 pt-4 border-t border-edge">
+              <div ref={guardianSectionRef} className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4 text-tx-muted" />
                   Guardian
@@ -1671,7 +1726,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                 </div>
               ) : (
-                <div className="pt-4 border-t border-edge">
+                <div ref={successBlockRef} className="pt-4 border-t border-edge">
                   <div className="bg-status-success-bg border border-status-success-border rounded-xl p-4 mb-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-status-success-bg rounded-full">

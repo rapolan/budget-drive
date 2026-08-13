@@ -212,6 +212,141 @@ describe('StudentModal - create success offers an optional "Book First Lesson" a
   });
 });
 
+// Create-mode auto-scroll: as each section is completed, the next one
+// scrolls into view instead of requiring the user to scroll manually.
+// scrollIntoView/matchMedia are polyfilled globally in src/test/setup.ts
+// (jsdom implements neither) - here they're spied on to assert calls.
+describe('StudentModal - create-mode auto-scroll', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
+  });
+
+  it('scrolls the Address section into view once Basic Info is complete', () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+
+    // A real 10-digit number, not the file's usual '5550100' placeholder -
+    // Basic Info's completion check uses hasAtLeastOnePhone (>=10 digits),
+    // the same stricter validity check the submit button itself gates on.
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5551234567' } });
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: 'smooth', block: 'start' })
+    );
+  });
+
+  it('scrolls the Guardian section into view once Address is complete', () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5551234567' } });
+    (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();
+
+    fireEvent.change(document.getElementsByName('student_street_input')[0], { target: { value: '123 Main St' } });
+    fireEvent.change(document.getElementsByName('student_city_input')[0], { target: { value: 'San Diego' } });
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+
+    fireEvent.change(document.getElementsByName('student_zip_input')[0], { target: { value: '92101' } });
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-trigger a scroll when a field is edited again after its section was already complete', () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5551234567' } });
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+
+    // Editing the now-complete section again must never re-fire the jump -
+    // this is what keeps the feature from fighting the user's own scrolling.
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Janet' } });
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an instant jump instead of a smooth scroll when prefers-reduced-motion is set', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as unknown as MediaQueryList));
+
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5551234567' } });
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: 'auto', block: 'start' })
+    );
+  });
+
+  it('never auto-scrolls in edit mode', () => {
+    const student = editableStudent();
+    renderModal(student);
+
+    const firstNameInputs = document.getElementsByName('student_firstname_input');
+    if (firstNameInputs.length > 0) {
+      fireEvent.change(firstNameInputs[0], { target: { value: 'Updated' } });
+    }
+    const phoneInputs = document.getElementsByName('student_phone_input');
+    if (phoneInputs.length > 0) {
+      fireEvent.change(phoneInputs[0], { target: { value: '5559999' } });
+    }
+
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('scrolls to the bottom (success block) once the student is created', async () => {
+    const created = {
+      id: 'student-new-2',
+      tenantId: 'tenant-1',
+      fullName: 'Jane Doe',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      email: 'jane.doe@example.com',
+      phone: '5550100',
+      status: 'active',
+      enrollmentDate: new Date('2026-01-01'),
+      totalHoursCompleted: 0,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    } as Student;
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: created });
+
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], { target: { value: 'jane.doe@example.com' } });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
+    (Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith(
+      expect.objectContaining({ block: 'end' })
+    );
+  });
+});
+
 // "Book again" on an existing student's record - only offered once a most
 // recent lesson exists to prefill from (item 5).
 describe('StudentModal - "Book again" entry point', () => {
