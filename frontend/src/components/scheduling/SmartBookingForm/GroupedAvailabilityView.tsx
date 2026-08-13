@@ -109,8 +109,12 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-tx-primary text-base md:text-lg">{instructor.instructorName}</span>
+                    {/* This is the BEST proximity across all of this instructor's
+                        slots, not a guarantee for every slot - each slot row
+                        below shows its own badge, which is what actually
+                        carries through to ConfirmStep once picked. */}
                     <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${badge.class}`}>
-                      {badge.label}
+                      Closest: {badge.label}
                     </span>
                   </div>
                   <div className="text-sm text-tx-secondary mt-1">
@@ -140,22 +144,30 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
 
                       {/* Time slots for this date */}
                       <div className="space-y-2">
-                        {dateGroup.slots.map((slot, idx) => (
-                          <button
-                            key={`${slot.instructorId}-${slot.date}-${slot.startTime}-${idx}`}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectSlot(slot);
-                            }}
-                            className="w-full p-3 bg-surface border border-edge rounded-lg hover:border-primary hover:bg-status-info-bg transition-all text-left flex items-center justify-between active:scale-[0.98]"
-                          >
-                            <span className="text-sm font-medium text-tx-primary">
-                              {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-                            </span>
-                            <span className="text-tx-muted text-sm">→</span>
-                          </button>
-                        ))}
+                        {dateGroup.slots.map((slot, idx) => {
+                          const slotBadge = getProximityBadge(slot.proximityScore);
+                          return (
+                            <button
+                              key={`${slot.instructorId}-${slot.date}-${slot.startTime}-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectSlot(slot);
+                              }}
+                              className="w-full p-3 bg-surface border border-edge rounded-lg hover:border-primary hover:bg-status-info-bg transition-all text-left flex items-center justify-between active:scale-[0.98]"
+                            >
+                              <span className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium text-tx-primary">
+                                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                                </span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${slotBadge.class}`}>
+                                  {slotBadge.label}
+                                </span>
+                              </span>
+                              <span className="text-tx-muted text-sm">→</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
