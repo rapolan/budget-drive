@@ -165,22 +165,26 @@ export function studentNeedsFollowup(student: Student, studentLessons: Lesson[])
     return daysSinceEnrollment > 7;
   }
 
-  // 3. Recent cancelled or no-show lessons (within 14 days)
+  // Upcoming lessons - computed once, used both to resolve a recent
+  // cancellation/no-show (clause 3) and to gate the long-gap check (clause 4).
+  const upcomingLessons = studentLessons.filter(l =>
+    l.status === 'scheduled' && new Date(l.date) >= now
+  );
+
+  // 3. Recent cancelled or no-show lessons (within 14 days), UNLESS a
+  // future lesson has since been booked - a replacement lesson resolves
+  // the flag rather than leaving it stuck until the 14-day window lapses.
   const recentCancelledOrNoShow = studentLessons.filter(lesson => {
     const lessonDate = new Date(lesson.date);
     const daysSinceLesson = (now.getTime() - lessonDate.getTime()) / (1000 * 60 * 60 * 24);
     return (lesson.status === 'cancelled' || lesson.status === 'no_show') && daysSinceLesson <= 14;
   });
 
-  if (recentCancelledOrNoShow.length > 0) {
+  if (recentCancelledOrNoShow.length > 0 && upcomingLessons.length === 0) {
     return true;
   }
 
   // 4. Gap of 14-60 days since last completed lesson (and no upcoming)
-  const upcomingLessons = studentLessons.filter(l =>
-    l.status === 'scheduled' && new Date(l.date) >= now
-  );
-
   if (upcomingLessons.length === 0) {
     const lastCompletedLesson = studentLessons
       .filter(l => l.status === 'completed')
@@ -221,7 +225,12 @@ export function getFollowupReason(student: Student, lessons: Lesson[]): string {
     return `Enrolled ${daysSinceEnrollment} days ago, no lessons booked`;
   }
 
-  // 3. Recent cancelled or no-show
+  // 3. Recent cancelled or no-show, UNLESS a future lesson has since been
+  // booked (mirrors studentNeedsFollowup's clause 3 - see there for why).
+  const upcomingLessons = studentLessons.filter(l =>
+    l.status === 'scheduled' && new Date(l.date) >= now
+  );
+
   const recentCancelledOrNoShow = studentLessons
     .filter(lesson => {
       const lessonDate = new Date(lesson.date);
@@ -230,7 +239,7 @@ export function getFollowupReason(student: Student, lessons: Lesson[]): string {
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  if (recentCancelledOrNoShow.length > 0) {
+  if (recentCancelledOrNoShow.length > 0 && upcomingLessons.length === 0) {
     const latest = recentCancelledOrNoShow[0];
     const daysAgo = Math.floor((now.getTime() - new Date(latest.date).getTime()) / (1000 * 60 * 60 * 24));
     if (latest.status === 'cancelled') {
