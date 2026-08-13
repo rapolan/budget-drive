@@ -2,6 +2,7 @@ import React from 'react';
 import { Calendar, User, Clock, MapPin, CheckCircle, Filter, Sun, Sunset, Moon } from 'lucide-react';
 import { Student, Instructor, DatePresetsResponse } from '@/types';
 import { extractZipCode } from '@/utils/zipCode';
+import { Button } from '@/components/common';
 
 export type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
 export type LessonType = 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
@@ -125,10 +126,10 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Student Selection */}
       <div className="space-y-3">
         <div className="flex items-center space-x-2">
-          <User className="h-5 w-5 text-primary" />
-          <label className="block text-sm font-semibold text-tx-primary">
+          <User className="h-4 w-4 text-tx-muted" />
+          <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide">
             Student <span className="text-status-danger-text">*</span>
-          </label>
+          </h3>
         </div>
         {preselectedStudent ? (
           <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
@@ -174,7 +175,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
               onFocus={() => setShowStudentDropdown(true)}
               placeholder="Search by name or email..."
               autoComplete="nope"
-              className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
             />
             {showStudentDropdown && filteredStudents.length > 0 && (
               <div className="absolute z-20 w-full mt-2 bg-surface border border-edge-strong rounded-lg shadow-xl max-h-64 overflow-y-auto">
@@ -211,8 +212,8 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {preselectedInstructor && (
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
-            <User className="h-5 w-5 text-primary" />
-            <label className="block text-sm font-semibold text-tx-primary">Instructor</label>
+            <User className="h-4 w-4 text-tx-muted" />
+            <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide">Instructor</h3>
           </div>
           <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
             <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
@@ -230,16 +231,16 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {showInstructorSelector && !preselectedInstructor && (
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
-            <User className="h-5 w-5 text-primary" />
-            <label htmlFor="booking-instructor-select" className="block text-sm font-semibold text-tx-primary">
-              Instructor <span className="text-tx-muted font-normal">(optional - any available if not selected)</span>
+            <User className="h-4 w-4 text-tx-muted" />
+            <label htmlFor="booking-instructor-select" className="block text-sm font-semibold text-tx-primary uppercase tracking-wide">
+              Instructor <span className="text-tx-muted font-normal normal-case">(optional - any available if not selected)</span>
             </label>
           </div>
           <select
             id="booking-instructor-select"
             value={selectedInstructorId ?? ''}
             onChange={(e) => setSelectedInstructorId?.(e.target.value)}
-            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm bg-surface"
           >
             <option value="">Any available instructor</option>
             {(instructors ?? []).map((instructor) => (
@@ -252,17 +253,17 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Pickup Address */}
       <div className="space-y-3">
         <div className="flex items-center space-x-2">
-          <MapPin className="h-5 w-5 text-status-warning-text" />
-          <label className="block text-sm font-semibold text-tx-primary">
+          <MapPin className="h-4 w-4 text-tx-muted" />
+          <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide">
             Pickup Location <span className="text-status-danger-text">*</span>
-          </label>
+          </h3>
         </div>
         <textarea
           value={pickupAddress}
           onChange={(e) => setPickupAddress(e.target.value)}
           placeholder="Enter pickup address (include zip code for best results)..."
           rows={2}
-          className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+          className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
         />
         {pickupZip ? (
           <p className="text-xs text-status-success-text flex items-center gap-1">
@@ -279,15 +280,15 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Lesson Details Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-2">
-            <Calendar className="h-4 w-4 inline mr-1 text-purple-600" />
+          <label className="block text-sm font-medium text-tx-secondary mb-1.5">
+            <Calendar className="h-4 w-4 inline mr-1 text-tx-muted" />
             Lesson Type
           </label>
           <select
             title="Select lesson type"
             value={lessonType}
             onChange={(e) => setLessonType(e.target.value as LessonType)}
-            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-purple-500"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
           >
             <option value="behind_wheel">Behind the Wheel</option>
             <option value="classroom">Classroom</option>
@@ -297,15 +298,15 @@ export const SetupStep: React.FC<SetupStepProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-2">
-            <Clock className="h-4 w-4 inline mr-1 text-orange-600" />
+          <label className="block text-sm font-medium text-tx-secondary mb-1.5">
+            <Clock className="h-4 w-4 inline mr-1 text-tx-muted" />
             Duration
           </label>
           <select
             title="Select lesson duration"
             value={duration}
             onChange={(e) => setDuration(parseInt(e.target.value))}
-            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-orange-500"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
           >
             <option value={60}>1 hour</option>
             <option value={90}>1.5 hours</option>
@@ -317,10 +318,10 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Search Dates */}
       <div className="space-y-3">
         <div className="flex items-center space-x-2">
-          <Calendar className="h-5 w-5 text-primary" />
-          <label className="block text-sm font-semibold text-tx-primary">
+          <Calendar className="h-4 w-4 text-tx-muted" />
+          <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide">
             Search Dates
-          </label>
+          </h3>
         </div>
         <div className="flex flex-wrap gap-2">
           {(
@@ -356,7 +357,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                 setSearchStartDate(e.target.value || null);
                 setDatePreset('custom');
               }}
-              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
           <div>
@@ -369,7 +370,7 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                 setSearchEndDate(e.target.value || null);
                 setDatePreset('custom');
               }}
-              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
         </div>
@@ -378,10 +379,10 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Time Preference */}
       <div className="space-y-3">
         <div className="flex items-center space-x-2">
-          <Filter className="h-5 w-5 text-indigo-600" />
-          <label className="block text-sm font-semibold text-tx-primary">
+          <Filter className="h-4 w-4 text-tx-muted" />
+          <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide">
             Time Preference (optional)
-          </label>
+          </h3>
         </div>
         <div className="flex flex-wrap gap-2">
           {[
@@ -394,10 +395,10 @@ export const SetupStep: React.FC<SetupStepProps> = ({
               key={value}
               type="button"
               onClick={() => setTimePreference(value as TimePreference)}
-              className={`px-4 py-2 rounded-lg border-2 transition-all flex items-center gap-2 ${
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 ${
                 timePreference === value
-                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                  : 'border-edge hover:border-edge-strong text-tx-secondary'
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-surface text-tx-secondary border-edge-strong hover:bg-surface2'
               }`}
             >
               {Icon && <Icon className="h-4 w-4" />}
@@ -410,34 +411,24 @@ export const SetupStep: React.FC<SetupStepProps> = ({
       {/* Continue Button */}
       <div className="border-t border-edge pt-6 flex space-x-3">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
-          >
+          <Button type="button" variant="secondary" onClick={onCancel} className="flex-1">
             Cancel
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="button"
+          variant="primary"
           onClick={onFindSlots}
           disabled={!selectedStudentId || !pickupZip || loading}
-          className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg"
+          loading={loading}
+          className="flex-1"
         >
-          {loading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Finding Best Slots...
-            </span>
-          ) : preselectedInstructor ? (
-            'Find Available Times'
-          ) : (
-            'Find Available Instructors'
-          )}
-        </button>
+          {loading
+            ? 'Finding Best Slots...'
+            : preselectedInstructor
+            ? 'Find Available Times'
+            : 'Find Available Instructors'}
+        </Button>
       </div>
     </div>
   );

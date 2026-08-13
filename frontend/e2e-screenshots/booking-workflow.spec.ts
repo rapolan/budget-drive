@@ -98,4 +98,38 @@ for (const theme of ['light', 'dark'] as const) {
       fullPage: true,
     });
   });
+
+  // Visual-consistency pass: the wizard's chrome/headers/labels/inputs/
+  // buttons were aligned to StudentModal's conventions (glass modal card,
+  // uppercase tracking-wide section headers, token-only focus rings, the
+  // shared common/Button component) - these two screenshots are for manual
+  // side-by-side comparison against StudentModal, not automated pixel
+  // assertions.
+  test(`setup step matches StudentModal's visual conventions (${theme})`, async ({ page }) => {
+    await openBookingWizardForMarcus(page, theme);
+
+    await page.getByText('Search Dates').waitFor();
+
+    await page.screenshot({
+      path: `e2e-screenshots/__screenshots__/setup-step-restyled-${theme}.png`,
+    });
+  });
+
+  test(`confirm step matches StudentModal's visual conventions (${theme})`, async ({ page }) => {
+    await openBookingWizardForMarcus(page, theme);
+
+    await page.getByRole('button', { name: /find available/i }).click();
+    await page.getByText(/available time slots/i).waitFor();
+
+    const instructorGroup = page.locator('button', { hasText: /available slots/i }).first();
+    await instructorGroup.click();
+    await page.getByText(/\d{1,2}:\d{2} (AM|PM) - \d{1,2}:\d{2} (AM|PM)/i).first().waitFor();
+    await page.getByText(/\d{1,2}:\d{2} (AM|PM) - \d{1,2}:\d{2} (AM|PM)/i).last().click();
+
+    await page.getByText('Booking Summary').waitFor();
+
+    await page.screenshot({
+      path: `e2e-screenshots/__screenshots__/confirm-step-restyled-${theme}.png`,
+    });
+  });
 }

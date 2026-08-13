@@ -255,7 +255,7 @@ describe('SmartBookingForm - preselected-instructor mode', () => {
     renderForm({ preselectedStudent: STUDENT, preselectedInstructor: INSTRUCTOR });
 
     // Instructor is shown as a locked card, not a picker
-    const instructorLabel = await screen.findByText('Instructor', { selector: 'label' });
+    const instructorLabel = await screen.findByText('Instructor', { selector: 'h3' });
     const instructorSection = instructorLabel.closest('div')?.parentElement as HTMLElement;
     expect(within(instructorSection).getByText('John Smith')).toBeInTheDocument();
 
@@ -339,7 +339,7 @@ describe('SmartBookingForm - "Book again" prefill mode', () => {
     // The locked display card renders (already covered by the
     // preselected-instructor describe block above); the new <select>
     // must not also appear alongside it.
-    await screen.findByText('Instructor', { selector: 'label' });
+    await screen.findByText('Instructor', { selector: 'h3' });
     expect(screen.queryByRole('combobox', { name: /instructor/i })).not.toBeInTheDocument();
   });
 });

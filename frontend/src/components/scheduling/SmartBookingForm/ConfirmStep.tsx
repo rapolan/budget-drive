@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle, FileText } from 'lucide-react';
 import { Student } from '@/types';
 import { SlotWithProximity } from './GroupedAvailabilityView';
+import { Button } from '@/components/common';
 
 interface ConfirmStepProps {
   selectedStudent: Student | undefined;
@@ -96,14 +97,14 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
       {/* Editable fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-2">
+          <label className="block text-sm font-medium text-tx-secondary mb-1.5">
             Lesson # (auto-suggested)
           </label>
           <select
             title="Select lesson number"
             value={lessonNumber || ''}
             onChange={(e) => setLessonNumber(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
           >
             <option value="">Not set</option>
             {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
@@ -113,7 +114,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-2">
+          <label className="block text-sm font-medium text-tx-secondary mb-1.5">
             Cost ($) - Edit for discounts
           </label>
           <input
@@ -125,14 +126,14 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
             min="0"
             step="0.01"
             autoComplete="nope"
-            className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-green-500"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
           />
         </div>
       </div>
 
       {/* Notes */}
       <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-2">
+        <label className="block text-sm font-medium text-tx-secondary mb-1.5">
           <FileText className="h-4 w-4 inline mr-1" />
           Notes (optional)
         </label>
@@ -141,37 +142,25 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Add any notes for the instructor..."
           rows={2}
-          className="w-full px-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-purple-500 resize-none"
+          className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm resize-none"
         />
       </div>
 
       {/* Action Buttons */}
       <div className="flex space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex-1 px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
-        >
+        <Button type="button" variant="secondary" onClick={onBack} className="flex-1">
           ← Back
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="primary"
           onClick={onConfirm}
           disabled={loading}
-          className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all disabled:opacity-50 font-medium shadow-lg"
+          loading={loading}
+          className="flex-1"
         >
-          {loading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Booking...
-            </span>
-          ) : (
-            `Confirm Booking - $${cost.toFixed(2)}`
-          )}
-        </button>
+          {loading ? 'Booking...' : `Confirm Booking - $${cost.toFixed(2)}`}
+        </Button>
       </div>
     </div>
   );

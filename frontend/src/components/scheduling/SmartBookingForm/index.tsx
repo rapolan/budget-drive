@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { Student, Instructor, Lesson, CreateLessonInput, FindRankedSlotsResult } from '@/types';
 import { ProgressStepper } from '@/components/common';
@@ -459,25 +459,25 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const showStepper = step !== 'success';
 
   return (
-    <div className="bg-surface rounded-lg shadow-xl max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
       {/* Header */}
-      <div className="border-b border-edge p-6">
+      <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-status-info-bg rounded-lg">
               <Sparkles className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-tx-primary">Smart Booking</h2>
+              <h2 className="text-xl font-semibold text-tx-primary">Smart Booking</h2>
               <p className="text-sm text-tx-muted">Find the closest available instructor</p>
             </div>
           </div>
           {onCancel && (
             <button
               onClick={onCancel}
-              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-colors"
+              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-all"
             >
-              <span className="text-2xl">×</span>
+              <X className="h-5 w-5" />
             </button>
           )}
         </div>

@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Student } from '@/types';
 import { SlotWithProximity } from './GroupedAvailabilityView';
+import { Button } from '@/components/common';
 
 interface SuccessStepProps {
   selectedStudent: Student | undefined;
@@ -36,31 +37,19 @@ export const SuccessStep: React.FC<SuccessStepProps> = ({
       </div>
 
       <div className="flex space-x-3 pt-2">
-        <button
-          type="button"
-          onClick={onDone}
-          className="flex-1 px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
-        >
+        <Button type="button" variant="secondary" onClick={onDone} className="flex-1">
           Done
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="primary"
           onClick={onBookAnother}
           disabled={loading}
-          className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg"
+          loading={loading}
+          className="flex-1"
         >
-          {loading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Finding Slots...
-            </span>
-          ) : (
-            'Book Another Lesson'
-          )}
-        </button>
+          {loading ? 'Finding Slots...' : 'Book Another Lesson'}
+        </Button>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, MapPin } from 'lucide-react';
 import { GroupedAvailabilityView, SlotWithProximity } from './GroupedAvailabilityView';
+import { Button } from '@/components/common';
 
 interface SlotsStepProps {
   pickupAddress: string;
@@ -85,13 +86,9 @@ export const SlotsStep: React.FC<SlotsStepProps> = ({
 
       {/* Back button */}
       <div className="border-t border-edge pt-6">
-        <button
-          type="button"
-          onClick={onChangeFilters}
-          className="w-full px-6 py-3 border-2 border-edge-strong text-tx-secondary rounded-lg hover:bg-surface2 transition-colors font-medium"
-        >
+        <Button type="button" variant="secondary" onClick={onChangeFilters} className="w-full">
           ← Back to Setup
-        </button>
+        </Button>
       </div>
     </div>
   );
