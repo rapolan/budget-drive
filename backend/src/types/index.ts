@@ -78,7 +78,11 @@ export interface TenantSettings {
   defaultLessonCost: number;
 
   // Localization
-  timezone: string;
+  // null only until an admin (or the create-tenant flow) explicitly sets
+  // one - resolveTenantTimezone() (backend/src/utils/tenantTime.ts) is the
+  // ONLY place this null is ever turned into a concrete zone for real date
+  // math, via its documented DEFAULT_TENANT_TIMEZONE fallback.
+  timezone: string | null;
   dateFormat: string;
   timeFormat: string;
   currencyCode: string;

@@ -66,8 +66,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // Tenant-configured default lesson cost (Settings > General > Training
   // Defaults) - prefills the Confirm step's cost field below; the field
   // stays freely editable per lesson, this is only the starting value.
+  // Postgres numeric columns come back through the API as strings (e.g.
+  // "150.00", not 150), same as defaultHoursRequired already does - must
+  // go through Number() or cost.toFixed() below throws at render time.
   const { settings: tenantSettings } = useTenant();
-  const defaultLessonCost = tenantSettings?.defaultLessonCost ?? 50;
+  const defaultLessonCost = Number(tenantSettings?.defaultLessonCost) || 50;
 
   // Steps: 'setup' (student, pickup, duration, type) -> 'slots' (ranked
   // slots) -> 'confirm' -> 'success' (offers "Book another", loops back to

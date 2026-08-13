@@ -303,8 +303,11 @@ export const updateTenantSettings = async (
     // Validated against Node's own ICU/IANA tzdata (the same source of
     // truth backend/src/utils/tenantTime.ts's date-fns-tz relies on) -
     // storage itself is untouched (Constraint A), this only rejects a
-    // value date-fns-tz couldn't resolve at read time.
-    if (!Intl.supportedValuesOf('timeZone').includes(data.timezone)) {
+    // value date-fns-tz couldn't resolve at read time. null is only ever a
+    // pre-explicit-choice state set at tenant creation, never a value a
+    // client should be able to write back - reject it the same as any
+    // other invalid zone rather than silently clearing the setting.
+    if (!data.timezone || !Intl.supportedValuesOf('timeZone').includes(data.timezone)) {
       throw new AppError('Invalid timezone', 400);
     }
     fields.push(`timezone = $${paramCount++}`);

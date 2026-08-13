@@ -94,4 +94,21 @@ describe('tenantService camelCase conversion', () => {
     expect(sql).toMatch(/default_lesson_cost\s*=\s*\$/);
     expect(params).toContain(175);
   });
+
+  // A newly-created tenant's timezone column has no DB default (see
+  // backend/database/migrations/011_timezone_default_nullable.sql) - it
+  // must round-trip as a real null, not an empty string or the old
+  // 'America/Los_Angeles' default, so the frontend can tell "never
+  // configured" apart from "explicitly chose Pacific".
+  it('getTenantSettings returns timezone as null when never set', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', timezone: null }])
+    );
+
+    const settings = await tenantService.getTenantSettings('tenant-1');
+
+    expect(settings?.timezone).toBeNull();
+  });
 });

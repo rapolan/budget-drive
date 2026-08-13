@@ -81,7 +81,12 @@ export interface TenantSettings {
   country?: string;
 
   // Localization
-  timezone: string;
+  // null until an admin has explicitly saved one - the Settings page uses
+  // this to decide whether to offer the browser-detected zone as a
+  // suggestion. Never fall back to the browser's zone for anything other
+  // than that suggestion; all real date/time display already comes
+  // pre-resolved from the backend regardless of this value.
+  timezone: string | null;
   currency: string;
   language: string;
 

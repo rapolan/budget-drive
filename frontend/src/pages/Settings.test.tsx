@@ -27,9 +27,14 @@ const MOCK_SETTINGS = {
 const MOCK_TENANT = { name: 'Test Driving School' };
 const mockUpdateTheme = vi.fn();
 
+// Mutable so the timezone-suggestion tests can swap in a settings object
+// with timezone: null without a full vi.mock reset - reset to the
+// "explicitly set" fixture in each describe block's own beforeEach.
+let mockTenantSettings: typeof MOCK_SETTINGS | (Omit<typeof MOCK_SETTINGS, 'timezone'> & { timezone: null }) = MOCK_SETTINGS;
+
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({
-    settings: MOCK_SETTINGS,
+    settings: mockTenantSettings,
     tenant: MOCK_TENANT,
     tenantType: 'driving_school',
     loading: false,
@@ -54,6 +59,7 @@ afterEach(() => {
 describe('Settings - General tab timezone picker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
     // SettingsPage defaults to the Scheduling tab, whose own component
     // fetches scheduling settings on mount - mock fetch globally so that
@@ -102,6 +108,7 @@ describe('Settings - General tab timezone picker', () => {
 describe('Settings - General tab default lesson cost', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -140,5 +147,72 @@ describe('Settings - General tab default lesson cost', () => {
     expect(putCall).toBeDefined();
     const body = JSON.parse(putCall![1].body as string);
     expect(body.defaultLessonCost).toBe(175);
+  });
+});
+
+// Detection is a CONVENIENCE ONLY (see CLAUDE.md / the plan for this item):
+// it must never silently apply, and must only ever appear while the tenant
+// has genuinely never set a timezone (settings.timezone === null).
+describe('Settings - General tab timezone auto-detect suggestion', () => {
+  const UNSET_SETTINGS = { ...MOCK_SETTINGS, timezone: null as unknown as string };
+  let resolvedOptionsSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+
+    resolvedOptionsSpy = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+      timeZone: 'America/Denver',
+    } as Intl.ResolvedDateTimeFormatOptions);
+  });
+
+  afterEach(() => {
+    resolvedOptionsSpy.mockRestore();
+  });
+
+  it('surfaces the browser-detected timezone as a suggestion when unset, and applies it only on explicit confirm', async () => {
+    mockTenantSettings = UNSET_SETTINGS;
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const select = await screen.findByLabelText(/school timezone/i) as HTMLSelectElement;
+    // Detection never auto-applies - the select still shows the ordinary
+    // hardcoded fallback until the admin explicitly accepts the suggestion.
+    expect(select.value).not.toBe('America/Denver');
+
+    const suggestion = await screen.findByText(/suggested, based on your browser/i);
+    expect(suggestion).toBeInTheDocument();
+
+    const useButton = screen.getByRole('button', { name: /use this timezone/i });
+    fireEvent.click(useButton);
+
+    expect(select.value).toBe('America/Denver');
+    // Accepting the suggestion is still just a form edit - it only takes
+    // effect once the admin explicitly saves, same as any other field.
+    fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
+    await waitFor(() => {
+      const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+        ([, options]) => options?.method === 'PUT'
+      );
+      expect(putCall).toBeDefined();
+      const body = JSON.parse(putCall![1].body as string);
+      expect(body.timezone).toBe('America/Denver');
+    });
+  });
+
+  it('never shows the suggestion, and never overrides the stored value, when a timezone is already explicitly set', async () => {
+    mockTenantSettings = MOCK_SETTINGS; // timezone: 'America/New_York', explicitly set
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const select = await screen.findByLabelText(/school timezone/i) as HTMLSelectElement;
+    expect(select.value).toBe('America/New_York');
+
+    expect(screen.queryByText(/suggested, based on your browser/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /use this timezone/i })).not.toBeInTheDocument();
   });
 });

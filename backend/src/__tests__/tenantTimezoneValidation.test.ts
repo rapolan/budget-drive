@@ -33,6 +33,16 @@ describe('tenantService.updateTenantSettings - timezone validation', () => {
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
+  it('rejects an explicit null timezone rather than clearing the setting', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    await expect(
+      tenantService.updateTenantSettings('tenant-1', { timezone: null })
+    ).rejects.toThrow('Invalid timezone');
+
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
   it('accepts a real IANA zone and writes it through', async () => {
     const tenantService = await import('../services/tenantService');
 

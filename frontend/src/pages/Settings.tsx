@@ -129,7 +129,10 @@ const GeneralSettings: React.FC = () => {
     zipCode:             (settings as any)?.zip_code        || settings?.zipCode        || '',
     defaultHoursRequired: settings?.defaultHoursRequired ?? 6,
     standardLessonLengthMinutes: settings?.standardLessonLengthMinutes ?? 120,
-    defaultLessonCost:   settings?.defaultLessonCost   ?? 150,
+    // Postgres numeric columns come back as strings (e.g. "150.00") - must
+    // coerce with Number() or the quick-select buttons' === comparison
+    // below never matches and the field silently never shows as "active".
+    defaultLessonCost:   settings?.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
   });
 
@@ -148,13 +151,47 @@ const GeneralSettings: React.FC = () => {
       zipCode:             (settings as any).zip_code         || settings.zipCode         || '',
       defaultHoursRequired: settings.defaultHoursRequired ?? 6,
       standardLessonLengthMinutes: settings.standardLessonLengthMinutes ?? 120,
-      defaultLessonCost:   settings.defaultLessonCost   ?? 150,
+      defaultLessonCost:   settings.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
     });
   }, [settings]);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
+
+  // Only offer the browser-detected suggestion while the tenant has NEVER
+  // explicitly saved a timezone (settings.timezone is still null server-side
+  // - see backend/database/migrations/011_timezone_default_nullable.sql).
+  // Once any timezone is saved (including accepting this very suggestion),
+  // settings.timezone becomes non-null and this banner never appears again.
+  const timezoneIsUnset = !settings?.timezone;
+  // Intl.DateTimeFormat().resolvedOptions().timeZone is a browser API call,
+  // not tenant-timezone date math - this is the one place in the frontend
+  // that's allowed to call it, and its result is only ever used to
+  // pre-populate a suggestion the admin explicitly accepts via the normal
+  // save path below, never to compute or display an actual date/time.
+  const detectedTimezone = React.useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const detectedTimezoneLabel =
+    TIMEZONE_OPTIONS.find(tz => tz.value === detectedTimezone)?.label || detectedTimezone;
+  // The curated list may not include the currently-saved or detected zone
+  // (older data, or a zone outside the curated ~30) - append it as a real
+  // option rather than letting the <select> coerce away from it.
+  const timezoneOptionsWithCurrent = React.useMemo(() => {
+    const known = new Set(TIMEZONE_OPTIONS.map(tz => tz.value));
+    const extra = [form.timezone, detectedTimezone].filter(
+      (tz): tz is string => !!tz && !known.has(tz)
+    );
+    return [
+      ...TIMEZONE_OPTIONS,
+      ...Array.from(new Set(extra)).map(value => ({ value, label: value })),
+    ];
+  }, [form.timezone, detectedTimezone]);
 
   const handleSave = async () => {
     try {
@@ -327,13 +364,42 @@ const GeneralSettings: React.FC = () => {
             Every scheduled lesson time, "today"/"tomorrow" calculation, and student age is resolved in this
             timezone - not the server's or your browser's.
           </p>
+          {/* Detection is a CONVENIENCE ONLY, offered exactly once while the
+              tenant has never explicitly set a timezone (settings.timezone
+              is still null server-side) - it never auto-applies, and once
+              the admin saves any timezone (including this suggestion) the
+              banner never appears again. Nothing here feeds real date math;
+              detectedTimezone only ever becomes the ordinary form.timezone
+              value a save would send through the normal validated path. */}
+          {timezoneIsUnset && detectedTimezone && detectedTimezone !== form.timezone && (
+            <div
+              role="status"
+              className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-status-info-border bg-status-info-bg px-3 py-2 text-sm text-status-info-text"
+            >
+              <span>
+                Suggested, based on your browser: <strong>{detectedTimezoneLabel}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, timezone: detectedTimezone }))}
+                className="rounded-full border border-status-info-border bg-surface px-3 py-1 text-xs font-medium text-status-info-text transition-colors hover:brightness-95"
+              >
+                Use this timezone
+              </button>
+            </div>
+          )}
           <select
             id="settings-timezone"
             value={form.timezone}
             onChange={set('timezone')}
             className="w-full sm:w-96 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
           >
-            {TIMEZONE_OPTIONS.map(tz => (
+            {/* The curated list is US-focused and may not include whatever
+                IANA zone the browser detects (or an already-saved zone from
+                before this list existed) - render it as a real, selectable
+                option rather than letting the <select> silently coerce to
+                a different value than what's actually stored/suggested. */}
+            {timezoneOptionsWithCurrent.map(tz => (
               <option key={tz.value} value={tz.value}>{tz.label}</option>
             ))}
           </select>

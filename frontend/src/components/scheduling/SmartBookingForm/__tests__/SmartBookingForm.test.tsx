@@ -39,7 +39,7 @@ vi.mock('@/api', () => ({
 
 // Mutable so individual tests can override the tenant's defaultLessonCost
 // without a full vi.mock reset - defaults back to 150 in beforeEach.
-let mockTenantSettings: { defaultLessonCost: number } | null = { defaultLessonCost: 150 };
+let mockTenantSettings: { defaultLessonCost: number | string } | null = { defaultLessonCost: 150 };
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({ settings: mockTenantSettings }),
 }));
@@ -564,6 +564,21 @@ describe('SmartBookingForm - default lesson cost prefill', () => {
 
     const costInput = screen.getByTitle('Lesson cost') as HTMLInputElement;
     await waitFor(() => expect(costInput.value).toBe('175'));
+  });
+
+  // Regression: Postgres numeric columns come back through the API as
+  // strings (e.g. "150.00", not 150) - the real tenant_settings response
+  // shape, unlike a plain-number test fixture. cost.toFixed() in the
+  // Confirm Booking button label throws if cost is ever left as a string.
+  it('prefills correctly even when the tenant default arrives as a numeric string (real API shape)', async () => {
+    const user = userEvent.setup();
+    mockTenantSettings = { defaultLessonCost: '175.00' };
+
+    await getToConfirmStep(user);
+
+    const costInput = screen.getByTitle('Lesson cost') as HTMLInputElement;
+    await waitFor(() => expect(costInput.value).toBe('175'));
+    expect(screen.getByRole('button', { name: /confirm booking - \$175\.00/i })).toBeInTheDocument();
   });
 
   it('preserves an explicitly-entered cost rather than reverting to the tenant default', async () => {
