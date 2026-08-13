@@ -4,6 +4,7 @@ import { Sparkles } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { Student, Instructor, Lesson, CreateLessonInput, FindRankedSlotsResult } from '@/types';
 import { ProgressStepper } from '@/components/common';
+import { useTenant } from '@/contexts/TenantContext';
 import { formatShortDate, formatLocalDate } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
 import { getConflictMessage } from '@/utils/conflictMessages';
@@ -62,6 +63,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     preselectedStudent && preselectedInstructor && preselectedDate && preselectedTime
   );
 
+  // Tenant-configured default lesson cost (Settings > General > Training
+  // Defaults) - prefills the Confirm step's cost field below; the field
+  // stays freely editable per lesson, this is only the starting value.
+  const { settings: tenantSettings } = useTenant();
+  const defaultLessonCost = tenantSettings?.defaultLessonCost ?? 50;
+
   // Steps: 'setup' (student, pickup, duration, type) -> 'slots' (ranked
   // slots) -> 'confirm' -> 'success' (offers "Book another", loops back to
   // 'slots' with preferences intact - Constraint C).
@@ -96,8 +103,22 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [slotsWithProximity, setSlotsWithProximity] = useState<SlotWithProximity[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<SlotWithProximity | null>(null);
 
-  // Step 4: Confirm
-  const [cost, setCost] = useState(50);
+  // Step 4: Confirm - cost starts at the tenant default (or the same
+  // hardcoded 50 fallback used before this setting existed, if the tenant
+  // context hasn't finished loading yet) and stays freely editable;
+  // costTouched tracks whether the user has actually changed it, so the
+  // effect below can keep prefilling as tenantSettings arrives/changes
+  // without ever clobbering a real edit.
+  const [cost, setCost] = useState(defaultLessonCost);
+  const [costTouched, setCostTouched] = useState(false);
+  useEffect(() => {
+    if (!costTouched) setCost(defaultLessonCost);
+  }, [defaultLessonCost, costTouched]);
+  const handleSetCost = (value: number) => {
+    setCostTouched(true);
+    setCost(value);
+  };
+
   const [notes, setNotes] = useState('');
   const [lessonNumber, setLessonNumber] = useState<number | null>(null);
 
@@ -375,7 +396,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [bookingAnother, setBookingAnother] = useState(false);
   const handleBookAnother = async () => {
     setSelectedSlot(null);
-    setCost(50);
+    setCost(defaultLessonCost);
+    setCostTouched(false);
     setNotes('');
     setLessonNumber(null);
     setStaleSlotNotice(null);
@@ -529,7 +551,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           lessonNumber={lessonNumber}
           setLessonNumber={setLessonNumber}
           cost={cost}
-          setCost={setCost}
+          setCost={handleSetCost}
           notes={notes}
           setNotes={setNotes}
           loading={loading}

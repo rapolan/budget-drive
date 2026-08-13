@@ -129,6 +129,7 @@ const GeneralSettings: React.FC = () => {
     zipCode:             (settings as any)?.zip_code        || settings?.zipCode        || '',
     defaultHoursRequired: settings?.defaultHoursRequired ?? 6,
     standardLessonLengthMinutes: settings?.standardLessonLengthMinutes ?? 120,
+    defaultLessonCost:   settings?.defaultLessonCost   ?? 150,
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
   });
 
@@ -147,6 +148,7 @@ const GeneralSettings: React.FC = () => {
       zipCode:             (settings as any).zip_code         || settings.zipCode         || '',
       defaultHoursRequired: settings.defaultHoursRequired ?? 6,
       standardLessonLengthMinutes: settings.standardLessonLengthMinutes ?? 120,
+      defaultLessonCost:   settings.defaultLessonCost   ?? 150,
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
     });
   }, [settings]);
@@ -396,6 +398,37 @@ const GeneralSettings: React.FC = () => {
                   }`}
                 >
                   {m}m{m === 120 ? ' ⭐' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-default-lesson-cost" className="block text-sm font-medium text-tx-secondary mb-1">Default Lesson Cost</label>
+          <p className="text-xs text-tx-muted mb-3">Prefills the cost field when booking a new lesson - still editable per lesson.</p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-tx-secondary">$</span>
+            <input
+              id="settings-default-lesson-cost"
+              type="number"
+              value={form.defaultLessonCost}
+              onChange={e => setForm(f => ({ ...f, defaultLessonCost: parseFloat(e.target.value) || 150 }))}
+              min="0" step="0.01"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <div className="flex gap-2">
+              {[75, 100, 150, 200].map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, defaultLessonCost: c }))}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    form.defaultLessonCost === c
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                  }`}
+                >
+                  ${c}{c === 150 ? ' ⭐' : ''}
                 </button>
               ))}
             </div>

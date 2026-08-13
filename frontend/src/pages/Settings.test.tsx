@@ -21,6 +21,7 @@ const MOCK_SETTINGS = {
   zipCode: '',
   defaultHoursRequired: 6,
   standardLessonLengthMinutes: 120,
+  defaultLessonCost: 150,
   timezone: 'America/New_York',
 };
 const MOCK_TENANT = { name: 'Test Driving School' };
@@ -95,5 +96,49 @@ describe('Settings - General tab timezone picker', () => {
     expect(putCall).toBeDefined();
     const body = JSON.parse(putCall![1].body as string);
     expect(body.timezone).toBe('America/Phoenix');
+  });
+});
+
+describe('Settings - General tab default lesson cost', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('renders the default lesson cost field defaulted to the tenant\'s current value', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/default lesson cost/i);
+    expect((input as HTMLInputElement).value).toBe('150');
+  });
+
+  it('submits the newly-entered default lesson cost through the existing save path', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/default lesson cost/i);
+    fireEvent.change(input, { target: { value: '175' } });
+    expect((input as HTMLInputElement).value).toBe('175');
+
+    fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/tenant/settings'),
+        expect.objectContaining({ method: 'PUT' })
+      );
+    });
+
+    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([, options]) => options?.method === 'PUT'
+    );
+    expect(putCall).toBeDefined();
+    const body = JSON.parse(putCall![1].body as string);
+    expect(body.defaultLessonCost).toBe(175);
   });
 });

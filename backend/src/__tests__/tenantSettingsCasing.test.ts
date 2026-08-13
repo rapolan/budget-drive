@@ -66,4 +66,32 @@ describe('tenantService camelCase conversion', () => {
     expect(sql).toMatch(/standard_lesson_length_minutes\s*=\s*\$/);
     expect(params).toContain(90);
   });
+
+  it('getTenantSettings returns defaultLessonCost in camelCase', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', default_lesson_cost: '175.00' }])
+    );
+
+    const settings = await tenantService.getTenantSettings('tenant-1');
+
+    expect(settings?.defaultLessonCost).toBe('175.00');
+    expect((settings as unknown as { default_lesson_cost?: string }).default_lesson_cost).toBeUndefined();
+  });
+
+  it('updateTenantSettings writes default_lesson_cost when defaultLessonCost is provided', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', default_lesson_cost: '175.00' }])
+    );
+
+    const settings = await tenantService.updateTenantSettings('tenant-1', { defaultLessonCost: 175 });
+
+    expect(settings.defaultLessonCost).toBe('175.00');
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/default_lesson_cost\s*=\s*\$/);
+    expect(params).toContain(175);
+  });
 });

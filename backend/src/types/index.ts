@@ -75,6 +75,7 @@ export interface TenantSettings {
   // Student Defaults
   defaultHoursRequired: number;
   standardLessonLengthMinutes: number;
+  defaultLessonCost: number;
 
   // Localization
   timezone: string;

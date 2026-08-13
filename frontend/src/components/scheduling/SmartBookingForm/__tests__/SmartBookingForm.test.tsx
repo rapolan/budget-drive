@@ -37,6 +37,13 @@ vi.mock('@/api', () => ({
   },
 }));
 
+// Mutable so individual tests can override the tenant's defaultLessonCost
+// without a full vi.mock reset - defaults back to 150 in beforeEach.
+let mockTenantSettings: { defaultLessonCost: number } | null = { defaultLessonCost: 150 };
+vi.mock('@/contexts/TenantContext', () => ({
+  useTenant: () => ({ settings: mockTenantSettings }),
+}));
+
 const STUDENT: Student = {
   id: 'student-1',
   tenantId: 'tenant-1',
@@ -113,6 +120,7 @@ beforeEach(() => {
   getByStudent.mockResolvedValue({ data: [] });
   getDatePresets.mockResolvedValue(DATE_PRESETS);
   getAllInstructors.mockResolvedValue({ data: [INSTRUCTOR, INSTRUCTOR_2] });
+  mockTenantSettings = { defaultLessonCost: 150 };
 });
 
 describe('SmartBookingForm - happy path', () => {
@@ -524,6 +532,61 @@ describe('SmartBookingForm - lesson number auto-suggestion', () => {
 
     const lessonNumberSelect = screen.getByTitle('Select lesson number') as HTMLSelectElement;
     await waitFor(() => expect(lessonNumberSelect.value).toBe('3'));
+  });
+});
+
+// Default lesson cost (tenant_settings.default_lesson_cost): prefills the
+// Confirm step's cost field from the tenant's configured default, still
+// freely editable per lesson - never a substitute for a real per-lesson
+// price the user has actually entered.
+describe('SmartBookingForm - default lesson cost prefill', () => {
+  async function getToConfirmStep(user: ReturnType<typeof userEvent.setup>) {
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+    renderForm({ preselectedStudent: STUDENT });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+  }
+
+  it('prefills the cost field from the tenant default', async () => {
+    const user = userEvent.setup();
+    mockTenantSettings = { defaultLessonCost: 175 };
+
+    await getToConfirmStep(user);
+
+    const costInput = screen.getByTitle('Lesson cost') as HTMLInputElement;
+    await waitFor(() => expect(costInput.value).toBe('175'));
+  });
+
+  it('preserves an explicitly-entered cost rather than reverting to the tenant default', async () => {
+    const user = userEvent.setup();
+    mockTenantSettings = { defaultLessonCost: 150 };
+    createLesson.mockResolvedValue({ data: { id: 'lesson-1' } });
+
+    await getToConfirmStep(user);
+
+    const costInput = screen.getByTitle('Lesson cost') as HTMLInputElement;
+    await waitFor(() => expect(costInput.value).toBe('150'));
+
+    await user.clear(costInput);
+    await user.type(costInput, '99');
+    expect(costInput.value).toBe('99');
+
+    const confirmButton = screen.getByRole('button', { name: /confirm booking/i });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(createLesson).toHaveBeenCalledTimes(1));
+    expect(createLesson).toHaveBeenCalledWith(
+      expect.objectContaining({ cost: 99 })
+    );
   });
 });
 
