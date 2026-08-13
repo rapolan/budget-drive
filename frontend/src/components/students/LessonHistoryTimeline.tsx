@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle, Clock, XCircle, Calendar, MapPin } from 'lucide-react';
 import type { Lesson, Instructor } from '@/types';
 import { format12Hour, formatShortDate } from '@/utils/timeFormat';
+import { Button } from '@/components/common';
+
+const COLLAPSED_COUNT = 3;
 
 interface LessonHistoryTimelineProps {
   lessons: Lesson[];
@@ -12,10 +15,17 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
   lessons,
   instructors,
 }) => {
+  const [expanded, setExpanded] = useState(false);
+
   // Sort lessons by date (most recent first)
   const sortedLessons = [...lessons].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+
+  // Capped to the 3 most relevant (most recent) by default - a long
+  // history otherwise makes the tab scroll far past what's usually needed.
+  const visibleLessons = expanded ? sortedLessons : sortedLessons.slice(0, COLLAPSED_COUNT);
+  const hasMore = sortedLessons.length > COLLAPSED_COUNT;
 
   const getInstructorName = (instructorId: string): string => {
     const instructor = instructors.find(i => i.id === instructorId);
@@ -72,10 +82,10 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
 
   return (
     <div className="space-y-4">
-      {sortedLessons.map((lesson, index) => (
+      {visibleLessons.map((lesson, index) => (
         <div key={lesson.id} className="relative">
           {/* Timeline connector */}
-          {index < sortedLessons.length - 1 && (
+          {index < visibleLessons.length - 1 && (
             <div
               className="absolute left-6 top-12 bottom-0 w-0.5 bg-surface3"
               style={{ transform: 'translateX(-50%)' }}
@@ -149,6 +159,14 @@ export const LessonHistoryTimeline: React.FC<LessonHistoryTimelineProps> = ({
           </div>
         </div>
       ))}
+
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button type="button" variant="ghost" onClick={() => setExpanded((e) => !e)}>
+            {expanded ? 'Show less' : `Show all (${sortedLessons.length})`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
