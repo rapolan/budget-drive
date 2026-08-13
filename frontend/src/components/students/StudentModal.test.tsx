@@ -129,12 +129,12 @@ describe('StudentModal create form - date of birth required', () => {
 });
 
 // The success state after creating a student offers an optional "Book
-// First Lesson" action wired to the onBookLesson prop, preselecting the
+// Lesson" action wired to the onBookLesson prop, preselecting the
 // just-created student for the parent page's booking flow (Students.tsx
 // wires this to SmartBookingForm). Creating a student without booking must
 // stay a one-click path - the action is additive, never required, and
 // "Close" alone is enough to finish.
-describe('StudentModal - create success offers an optional "Book First Lesson" action', () => {
+describe('StudentModal - create success offers an optional "Book Lesson" action', () => {
   const createdStudent = {
     id: 'student-new-1',
     tenantId: 'tenant-1',
@@ -168,7 +168,7 @@ describe('StudentModal - create success offers an optional "Book First Lesson" a
     fireEvent.submit(form);
   }
 
-  it('shows "Book First Lesson" after a successful create when onBookLesson is provided, and clicking it calls onBookLesson with the created student and closes the modal', async () => {
+  it('shows "Book Lesson" after a successful create when onBookLesson is provided, and clicking it calls onBookLesson with the created student and closes the modal', async () => {
     const onBookLesson = vi.fn();
     const onClose = vi.fn();
     renderModal(null, { onBookLesson, onClose });
@@ -178,7 +178,7 @@ describe('StudentModal - create success offers an optional "Book First Lesson" a
     await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
     expect(screen.getByText(/Jane Doe is ready for their first lesson/i)).toBeInTheDocument();
 
-    const bookButton = screen.getByRole('button', { name: /book first lesson/i });
+    const bookButton = screen.getByRole('button', { name: /book lesson/i });
     fireEvent.click(bookButton);
 
     expect(onBookLesson).toHaveBeenCalledWith(createdStudent);
@@ -200,14 +200,14 @@ describe('StudentModal - create success offers an optional "Book First Lesson" a
     expect(onBookLesson).not.toHaveBeenCalled();
   });
 
-  it('does not show "Book First Lesson" when onBookLesson is not provided - booking remains optional, not required', async () => {
+  it('does not show "Book Lesson" when onBookLesson is not provided - booking remains optional, not required', async () => {
     renderModal(null, {});
 
     fillAndSubmitAdult();
 
     await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
 
-    expect(screen.queryByRole('button', { name: /book first lesson/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /book lesson/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
   });
 });

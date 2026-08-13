@@ -1758,7 +1758,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                       >
                         <Plus className="h-4 w-4" />
-                        Book First Lesson
+                        Book Lesson
                       </button>
                     )}
                   </div>
