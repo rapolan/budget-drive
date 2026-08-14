@@ -34,13 +34,14 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 
 - New migrations are **append-only**: add a new numbered `.sql` file; never edit an existing migration. `001_baseline` was squashed pre-production on 2026-07-27 (zero production databases existed at the time). From the first production deployment onward, migrations are append-only with NO exceptions — never squash, renumber, or edit an existing migration again.
 - API responses follow the existing `{ success, data, message }` envelope — match it.
-- Validation with `express-validator` at the route layer, mirroring existing routes.
+- Validation happens at the route layer using the hand-rolled middleware in `backend/src/middleware/validate.ts` (`validateRequired`, `validateRequiredOneOf`, `validateDateRangePair`, `validateNumeric`, etc.) — plain closures that throw `AppError(400)`. `express-validator` is a listed dependency but is unused; don't introduce it alongside the existing pattern.
 - No new dependencies without asking first. The dependency list was recently pruned — keep it lean.
 - Frontend data fetching goes through `frontend/src/api/*` modules and TanStack Query. No fetch/axios calls inside components.
 - New buttons use `common/Button`. Do not hand-roll button classes.
 - Guardian matching and duplicate detection live in the backend service layer only, never in React, so a future public signup form can reuse them. Matching (`findGuardianCandidates`/`findExactGuardianMatch`) never links — it surfaces candidates only; linking is always an explicit, separate call naming both a `studentId` and a `guardianId`.
 - `students.email` is nullable — required server-side for adults (18+ by `date_of_birth`), optional for minors. Don't assume it's always present.
 - All date and wall-clock interpretation resolves in the tenant's timezone via `backend/src/utils/tenantTime.ts` — never server or browser local time. See docs/ARCHITECTURE.md § Tenant Timezone Authority.
+- Postgres numeric columns serialize as JSON strings. Coerce numeric API fields to numbers at the API boundary before use in arithmetic, comparison, or formatting. Never assume a numeric column arrives as a number.
 
 ## Do not touch
 
