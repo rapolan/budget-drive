@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InstructorModal } from './InstructorModal';
 import { instructorsApi } from '@/api';
+import type { Instructor } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -28,6 +29,17 @@ function renderModal() {
   return render(
     <QueryClientProvider client={queryClient}>
       <InstructorModal instructor={null} onClose={() => {}} />
+    </QueryClientProvider>
+  );
+}
+
+function renderModalEditing(instructor: Instructor) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <InstructorModal instructor={instructor} onClose={() => {}} />
     </QueryClientProvider>
   );
 }
@@ -118,5 +130,28 @@ describe('InstructorModal form fields', () => {
 
     fireEvent.change(rateInput, { target: { value: '' } });
     expect(rateInput.value).toBe('');
+  });
+
+  // Regression: Postgres numeric columns (instructors.hourly_rate) come back
+  // through the API as strings ("25.00", not 25) - `|| 0` only falls back on
+  // falsy values, it doesn't coerce a non-empty string, so editing an
+  // existing instructor used to show the raw string in the number input.
+  it('coerces a string-typed hourlyRate to a number when editing an existing instructor', () => {
+    renderModalEditing({
+      id: 'instructor-1',
+      tenantId: 'tenant-1',
+      fullName: 'Jane Doe',
+      email: 'jane.doe@example.com',
+      phone: '5550100',
+      employmentType: 'w2_employee',
+      hireDate: new Date('2026-01-01'),
+      status: 'active',
+      hourlyRate: '25.00' as unknown as number,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    } as Instructor);
+
+    const rateInput = screen.getByPlaceholderText('35.00') as HTMLInputElement;
+    expect(rateInput.value).toBe('25');
   });
 });

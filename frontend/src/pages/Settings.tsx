@@ -127,11 +127,11 @@ const GeneralSettings: React.FC = () => {
     city:                settings?.city                || '',
     state:               settings?.state               || '',
     zipCode:             (settings as any)?.zip_code        || settings?.zipCode        || '',
-    defaultHoursRequired: settings?.defaultHoursRequired ?? 6,
-    standardLessonLengthMinutes: settings?.standardLessonLengthMinutes ?? 120,
     // Postgres numeric columns come back as strings (e.g. "150.00") - must
     // coerce with Number() or the quick-select buttons' === comparison
     // below never matches and the field silently never shows as "active".
+    defaultHoursRequired: settings?.defaultHoursRequired != null ? Number(settings.defaultHoursRequired) : 6,
+    standardLessonLengthMinutes: settings?.standardLessonLengthMinutes != null ? Number(settings.standardLessonLengthMinutes) : 120,
     defaultLessonCost:   settings?.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
   });
@@ -149,8 +149,8 @@ const GeneralSettings: React.FC = () => {
       city:                settings.city  || '',
       state:               settings.state || '',
       zipCode:             (settings as any).zip_code         || settings.zipCode         || '',
-      defaultHoursRequired: settings.defaultHoursRequired ?? 6,
-      standardLessonLengthMinutes: settings.standardLessonLengthMinutes ?? 120,
+      defaultHoursRequired: settings.defaultHoursRequired != null ? Number(settings.defaultHoursRequired) : 6,
+      standardLessonLengthMinutes: settings.standardLessonLengthMinutes != null ? Number(settings.standardLessonLengthMinutes) : 120,
       defaultLessonCost:   settings.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
     });

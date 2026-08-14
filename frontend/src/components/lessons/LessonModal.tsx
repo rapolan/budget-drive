@@ -169,10 +169,13 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
         date: new Date(lesson.date).toISOString().split('T')[0],
         startTime: lesson.startTime.substring(0, 5), // Convert HH:MM:SS to HH:MM
         endTime: lesson.endTime.substring(0, 5),
-        duration: lesson.duration,
+        // Postgres numeric columns arrive as strings ("60.00", not 60) -
+        // coerce here so the auto-calculate effect below and a submit
+        // without touching these fields don't round-trip a string.
+        duration: Number(lesson.duration),
         lessonNumber: lesson.lessonNumber || null,
         lessonType: lesson.lessonType,
-        cost: lesson.cost,
+        cost: Number(lesson.cost),
         pickupAddress: lesson.pickupAddress || '',
         notes: lesson.notes || '',
       });

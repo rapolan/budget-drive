@@ -150,6 +150,42 @@ describe('Settings - General tab default lesson cost', () => {
   });
 });
 
+// Regression: Postgres numeric columns (tenant_settings.default_hours_required,
+// standard_lesson_length_minutes) come back through the API as strings
+// ("6.00", not 6). Previously only defaultLessonCost was coerced with
+// Number() here - these two used `?? 6`/`?? 120`, which doesn't coerce a
+// truthy string, so the quick-select buttons' `=== h` comparison never
+// matched and no button ever showed as "active" for a tenant's real saved
+// value.
+describe('Settings - General tab numeric field coercion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('shows the matching quick-select as active when defaultHoursRequired arrives as a numeric string', async () => {
+    mockTenantSettings = { ...MOCK_SETTINGS, defaultHoursRequired: '8.00' as unknown as number };
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const activeButton = await screen.findByRole('button', { name: '8h' });
+    expect(activeButton.className).toContain('bg-primary');
+  });
+
+  it('shows the matching quick-select as active when standardLessonLengthMinutes arrives as a numeric string', async () => {
+    mockTenantSettings = { ...MOCK_SETTINGS, standardLessonLengthMinutes: '90.00' as unknown as number };
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const activeButton = await screen.findByRole('button', { name: '90m' });
+    expect(activeButton.className).toContain('bg-primary');
+  });
+});
+
 // Detection is a CONVENIENCE ONLY (see CLAUDE.md / the plan for this item):
 // it must never silently apply, and must only ever appear while the tenant
 // has genuinely never set a timezone (settings.timezone === null).

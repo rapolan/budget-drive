@@ -84,13 +84,16 @@ export function computeStudentProgress(
       : 'lessons';
 
   if (track === 'hours') {
+    // Postgres numeric columns (lessons.duration, students.hours_required)
+    // arrive as strings over the API/DB driver boundary - coerce before any
+    // arithmetic, or `+` silently string-concatenates instead of adding.
     const hoursCompleted = round2(
-      lessons.filter(l => l.status === 'completed').reduce((sum, l) => sum + l.duration, 0) / 60
+      lessons.filter(l => l.status === 'completed').reduce((sum, l) => sum + Number(l.duration), 0) / 60
     );
     const hoursScheduled = round2(
-      lessons.filter(l => l.status === 'scheduled').reduce((sum, l) => sum + l.duration, 0) / 60
+      lessons.filter(l => l.status === 'scheduled').reduce((sum, l) => sum + Number(l.duration), 0) / 60
     );
-    const hoursRequired = student.hoursRequired;
+    const hoursRequired = Number(student.hoursRequired);
 
     // Lesson-equivalent view: how many standard-length lessons it takes to
     // reach hoursRequired, so the Students list can speak "lessons" for

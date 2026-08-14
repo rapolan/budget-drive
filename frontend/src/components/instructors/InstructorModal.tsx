@@ -70,7 +70,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
           : '',
         employmentType: instructor.employmentType,
         hireDate: new Date(instructor.hireDate).toISOString().split('T')[0],
-        hourlyRate: instructor.hourlyRate || 0,
+        // Postgres numeric columns arrive as strings ("25.00", not 25) - `||`
+        // only falls back on falsy values, it doesn't coerce a non-empty string.
+        hourlyRate: Number(instructor.hourlyRate) || 0,
         notes: instructor.notes || '',
       });
     }

@@ -199,4 +199,28 @@ describe('computeStudentProgress', () => {
       expect(progress.lessonsRequired).toBe(0);
     });
   });
+
+  // Regression: Postgres numeric columns (lessons.duration,
+  // students.hours_required) come back through the DB driver as strings
+  // ("270.00", not 270) unless a caller remembers to parseFloat first. This
+  // function must coerce its own inputs rather than trust every caller to -
+  // an uncoerced string here previously reached `+` and silently
+  // string-concatenated instead of adding.
+  describe('numeric-string inputs (Postgres numeric-column shape)', () => {
+    it('coerces string-typed lesson durations before summing hoursCompleted', () => {
+      const progress = computeStudentProgress(minor(), [
+        { status: 'completed', duration: '270.00' as unknown as number }, // 4.5 hrs
+      ]);
+      expect(progress.hoursCompleted).toBe(4.5);
+    });
+
+    it('coerces a string-typed hoursRequired', () => {
+      const progress = computeStudentProgress(
+        minor({ hoursRequired: '6.00' as unknown as number }),
+        [{ status: 'completed', duration: 270 }]
+      );
+      expect(progress.hoursRequired).toBe(6);
+      expect(progress.displayLabel).toBe('4.5 / 6 hrs');
+    });
+  });
 });
