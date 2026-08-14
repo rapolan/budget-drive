@@ -4,14 +4,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { StudentsPage } from './Students';
 import { studentsApi, lessonsApi, dashboardApi, guardiansApi, searchApi } from '@/api';
-import type { Student, Guardian } from '@/types';
+import type { Student, Guardian, Lesson } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
   return {
     ...actual,
     studentsApi: { ...actual.studentsApi, getAll: vi.fn(), getById: vi.fn() },
-    lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
+    lessonsApi: { ...actual.lessonsApi, getAll: vi.fn(), getMostRecentByStudent: vi.fn().mockResolvedValue({ data: null }) },
     dashboardApi: { ...actual.dashboardApi, getNoShowAlerts: vi.fn() },
     guardiansApi: {
       ...actual.guardiansApi,
@@ -23,6 +23,15 @@ vi.mock('@/api', async () => {
     searchApi: { ...actual.searchApi, people: vi.fn() },
   };
 });
+
+// SmartBookingForm pulls in the full booking wizard (date presets, slot
+// search, etc.) - irrelevant to proving what prop value Students.tsx's
+// handleBookAgain hands it. Stub it down to just the one prop under test.
+vi.mock('@/components/scheduling/SmartBookingForm', () => ({
+  SmartBookingForm: (props: { prefilledDuration?: number }) => (
+    <div data-testid="smart-booking-form" data-prefilled-duration={JSON.stringify(props.prefilledDuration)} />
+  ),
+}));
 
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({
@@ -386,5 +395,52 @@ describe('Students page - unified search', () => {
 
     await waitFor(() => expect(guardiansApi.getById).toHaveBeenCalledWith('guardian-1'));
     expect(await screen.findByRole('button', { name: /save changes/i })).toBeInTheDocument();
+  });
+});
+
+// Regression: Postgres numeric columns (lessons.duration) come back through
+// the API as strings ("60.00", not 60). handleBookAgain must coerce before
+// building bookAgainPrefill, or the wizard's duration state initializes as
+// that string, which schedulingService's slot-generation arithmetic then
+// silently string-concatenates instead of adding (540 + "60.00" =
+// "54060.00"), producing zero search results every time.
+describe('Students page - "Book Again" duration coercion', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Pepper Pottsss' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('coerces mostRecentLesson.duration to a number before it reaches the booking wizard', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+
+    (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        id: 'lesson-1',
+        instructorId: 'instructor-1',
+        // Real Postgres numeric-column shape: a string, not a number.
+        duration: '60.00' as unknown as number,
+        lessonType: 'behind_wheel',
+        startTime: '09:00:00',
+        pickupAddress: '123 Main St',
+      } as Lesson,
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Pepper Pottsss')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText('Pepper Pottsss'));
+
+    const bookAgainButton = await screen.findByRole('button', { name: /book again/i });
+    await userEvent.click(bookAgainButton);
+
+    const form = await screen.findByTestId('smart-booking-form');
+    const prefilledDuration = JSON.parse(form.getAttribute('data-prefilled-duration')!);
+    expect(prefilledDuration).toBe(60);
+    expect(typeof prefilledDuration).toBe('number');
   });
 });

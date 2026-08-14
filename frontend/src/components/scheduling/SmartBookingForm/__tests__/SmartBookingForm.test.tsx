@@ -333,6 +333,40 @@ describe('SmartBookingForm - "Book again" prefill mode', () => {
     );
   });
 
+  // Regression: Postgres numeric columns (lessons.duration) come back
+  // through the API as strings ("60.00", not 60) - Students.tsx's
+  // handleBookAgain is supposed to coerce this before it ever reaches
+  // prefilledDuration, but this proves the wizard is ALSO safe on its own
+  // if a future caller forgets, since an uncoerced string here used to
+  // reach schedulingService's slot-generation arithmetic and silently
+  // string-concatenate instead of adding (540 + "60.00" = "54060.00"),
+  // producing zero search results every time.
+  it('coerces a string-typed prefilledDuration (real Postgres numeric-column shape) to a number before searching', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: 'instructor-1',
+      prefilledDuration: '60.00' as unknown as number,
+      prefilledLessonType: 'behind_wheel',
+      prefilledTimePreference: 'any',
+      prefilledPickupAddress: '456 Prior Lesson Ave, 90008',
+    });
+
+    const durationSelect = await screen.findByTitle('Select lesson duration') as HTMLSelectElement;
+    expect(durationSelect.value).toBe('60');
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    await waitFor(() => expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1));
+    const [callArgs] = findRankedAvailableSlots.mock.calls[0];
+    expect(callArgs.duration).toBe(60);
+    expect(typeof callArgs.duration).toBe('number');
+  });
+
   it('does not render the free-choice instructor selector for the Reschedule flow (locked preselectedInstructor)', async () => {
     renderForm({ preselectedStudent: STUDENT, preselectedInstructor: INSTRUCTOR });
 

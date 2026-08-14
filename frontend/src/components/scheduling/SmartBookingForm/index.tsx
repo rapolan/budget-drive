@@ -85,7 +85,14 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   const [selectedStudentId, setSelectedStudentId] = useState(preselectedStudent?.id || '');
   const [pickupAddress, setPickupAddress] = useState('');
   const [pickupZip, setPickupZip] = useState<string | null>(null);
-  const [duration, setDuration] = useState(prefilledDuration ?? 120);
+  // Defensive coercion: prefilledDuration should already be a real number by
+  // the time it reaches here (its one caller, Students.tsx's handleBookAgain,
+  // coerces it), but Number(...) || 120 keeps this component safe on its own
+  // terms against any future caller that forgets - Postgres numeric columns
+  // arrive as strings ("60.00", not 60), and an uncoerced string here would
+  // reach schedulingService's slot-generation arithmetic and silently
+  // string-concatenate instead of adding, producing zero search results.
+  const [duration, setDuration] = useState(Number(prefilledDuration) || 120);
   const [lessonType, setLessonType] = useState<LessonType>(prefilledLessonType ?? 'behind_wheel');
   // "Book again" instructor prefill - a real, freely-changeable selection,
   // never a locked display (that's preselectedInstructor's job, for

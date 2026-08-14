@@ -237,7 +237,12 @@ export const StudentsPage: React.FC = () => {
     setStudentForBooking(student);
     setBookAgainPrefill({
       instructorId: mostRecentLesson.instructorId,
-      duration: mostRecentLesson.duration,
+      // Postgres numeric columns come back through the API as strings
+      // (e.g. "60.00", not 60) - must coerce with Number() here or the
+      // wizard's duration state initializes as that string, which
+      // schedulingService's slot-generation arithmetic then silently
+      // string-concatenates instead of adding, producing zero results.
+      duration: Number(mostRecentLesson.duration),
       lessonType: toKnownLessonType(mostRecentLesson.lessonType),
       timePreference: bucketTimePreference(mostRecentLesson.startTime),
       pickupAddress: mostRecentLesson.pickupAddress || '',
