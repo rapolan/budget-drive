@@ -425,6 +425,30 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Also check — existing tenants never see it:** on a tenant whose timezone is already set to anything (including the pre-migration default), confirm the banner never renders, regardless of what the browser's detected zone is.
 
+### 2.25 Editing a weekly availability grid and saving
+
+**Do:** Go to `/scheduling` → select any instructor → **Availability** tab. Check a currently-unchecked day, set a Start time, End time, and pick a Max Students value, then click **Save Week**.
+
+**Pass looks like:** The summary line at the top (e.g. "4 days · 26 hrs") updates immediately as you edit, before you ever click Save. **Save Week** is disabled until you actually change something, then becomes enabled. After clicking it, the button shows a saving state, then the page reflects the saved values. Refresh the page (or re-select the instructor) — the day you just configured still shows checked with the same start/end/max-students values, confirming the write persisted to `instructor_availability`, not just local state.
+
+### 2.26 Unchecking a day (row survives, inactive, not deleted)
+
+**Do:** On an instructor with at least one working day configured, uncheck that day's checkbox. Before saving, re-check the same box.
+
+**Pass looks like:** Unchecking immediately collapses the row to a muted **Not working** label — the Start/End/Max Students inputs disappear. Re-checking it again (still before saving) instantly restores the exact times and cap it had before, with no network request in between — this is a pure local-state restore within the same editing session. Now click **Save Week** with the day left unchecked, and confirm via the API directly (`GET /api/v1/availability/instructor/:id` with a valid token) that no row for that day of week appears in the response — the row still exists in the database (it was deactivated, not deleted), it's just excluded because the endpoint only returns active rows.
+
+### 2.27 Copying one day's times and cap to all checked days
+
+**Do:** Check at least two days with different start/end times and max-students values. Click **Copy to all checked days** on one of them.
+
+**Pass looks like:** Every other currently-checked day's Start, End, and Max Students fields immediately update to match the row you copied from — unchecked days are untouched. This is a local edit only: open your browser's network tab first and confirm no request fires from the copy click itself; the copied values only reach the server once you click **Save Week** afterward.
+
+### 2.28 Confirming slot search reflects an edited end time
+
+**Do:** Shorten an instructor's availability for a specific day to a tight window that fits exactly one short lesson — e.g. `09:00`–`10:00` — and save. Then, using the booking wizard (or `POST /api/v1/availability/find-slots-ranked` directly), search that instructor on that date for a 60-minute lesson, then again for a 120-minute lesson.
+
+**Pass looks like:** The 60-minute search returns exactly one slot, `09:00`–`10:00`, filling the window. The 120-minute search on the same day returns zero slots for that instructor — a lesson that can't fit inside the real, explicit end time is correctly rejected, not padded out past it. (If the student you're testing with already has another lesson booked that same day, you'll see zero slots for an unrelated reason — the one-lesson-per-student-per-day rule, not this feature; pick a student with no existing lesson on the test date.)
+
 ---
 
 ## 3. Known issues to route around
