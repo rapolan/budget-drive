@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { instructorsApi } from '@/api';
 import {
-  AvailabilityCalendar,
   WeeklyAvailabilityGrid,
   TimeOffManager,
   CalendarSync,
@@ -95,24 +94,11 @@ export const SchedulingPage: React.FC = () => {
           {activeTab === 'availability' && (
             <div className="space-y-6">
               {selectedInstructorId ? (
-                <>
-                  <WeeklyAvailabilityGrid
-                    key={`editor-${refreshKey}`}
-                    instructorId={selectedInstructorId}
-                    onUpdate={handleRefresh}
-                  />
-
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold text-tx-primary mb-4">
-                      Weekly Calendar View
-                    </h3>
-                    <AvailabilityCalendar
-                      key={`calendar-${refreshKey}`}
-                      instructorId={selectedInstructorId}
-                      editable={false}
-                    />
-                  </div>
-                </>
+                <WeeklyAvailabilityGrid
+                  key={`editor-${refreshKey}`}
+                  instructorId={selectedInstructorId}
+                  onUpdate={handleRefresh}
+                />
               ) : (
                 <div className="text-center py-12 text-tx-muted">
                   Please select an instructor above to manage availability
