@@ -95,6 +95,34 @@ describe('tenantService camelCase conversion', () => {
     expect(params).toContain(175);
   });
 
+  it('getTenantSettings returns maxLessonsPerStudentPerDay in camelCase', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', max_lessons_per_student_per_day: 2 }])
+    );
+
+    const settings = await tenantService.getTenantSettings('tenant-1');
+
+    expect(settings?.maxLessonsPerStudentPerDay).toBe(2);
+    expect((settings as unknown as { max_lessons_per_student_per_day?: number }).max_lessons_per_student_per_day).toBeUndefined();
+  });
+
+  it('updateTenantSettings writes max_lessons_per_student_per_day when maxLessonsPerStudentPerDay is provided', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', max_lessons_per_student_per_day: 2 }])
+    );
+
+    const settings = await tenantService.updateTenantSettings('tenant-1', { maxLessonsPerStudentPerDay: 2 });
+
+    expect(settings.maxLessonsPerStudentPerDay).toBe(2);
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/max_lessons_per_student_per_day\s*=\s*\$/);
+    expect(params).toContain(2);
+  });
+
   // A newly-created tenant's timezone column has no DB default (see
   // backend/database/migrations/011_timezone_default_nullable.sql) - it
   // must round-trip as a real null, not an empty string or the old

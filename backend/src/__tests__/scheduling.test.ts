@@ -40,6 +40,7 @@ const TENANT_SETTINGS_ROW = {
   id: 'tenant-settings-1',
   tenant_id: TENANT_ID,
   timezone: 'America/Los_Angeles',
+  max_lessons_per_student_per_day: 1,
 };
 
 const slotHour = (isoString: string) => Number(formatInTenantZone(new Date(isoString), 'America/Los_Angeles', 'H'));
@@ -59,6 +60,8 @@ const AVAILABLE_ROW = { id: 'avail-1', start_time: '09:00:00', end_time: '17:00:
  *   8. vehicle lookup (ownership_type)
  *   9. vehicle-overlap check (only if vehicle is school-owned / no owner)
  *   10. student-overlap check
+ *   11. getTenantSettings -> SELECT tenant_settings (max_lessons_per_student_per_day)
+ *   12. student daily-count check
  *
  * Each test configures only the calls relevant to what it wants to assert;
  * unlisted calls default to "no rows"/zero-count (no conflict) via the
@@ -73,6 +76,8 @@ function mockConflictSequence(overrides: Partial<{
   vehicleLookup: any[];
   vehicleOverlap: any[];
   studentOverlap: any[];
+  studentDailyCount: number;
+  tenantSettings: typeof TENANT_SETTINGS_ROW;
 }> = {}) {
   mockQuery.mockReset();
   mockQuery
@@ -85,7 +90,9 @@ function mockConflictSequence(overrides: Partial<{
     .mockResolvedValueOnce(queryResult(overrides.bufferViolation ?? [])) // buffer violation
     .mockResolvedValueOnce(queryResult(overrides.vehicleLookup ?? [{ ownership_type: 'school_owned', owner_instructor_id: null }])) // vehicle lookup
     .mockResolvedValueOnce(queryResult(overrides.vehicleOverlap ?? [])) // vehicle overlap
-    .mockResolvedValueOnce(queryResult(overrides.studentOverlap ?? [])); // student overlap
+    .mockResolvedValueOnce(queryResult(overrides.studentOverlap ?? [])) // student overlap
+    .mockResolvedValueOnce(queryResult([overrides.tenantSettings ?? TENANT_SETTINGS_ROW])) // getTenantSettings (max_lessons_per_student_per_day)
+    .mockResolvedValueOnce(queryResult([{ count: String(overrides.studentDailyCount ?? 0) }])); // student daily count
 }
 
 describe('scheduling conflict detection', () => {
@@ -145,6 +152,118 @@ describe('scheduling conflict detection', () => {
     expect(conflicts).toContainEqual(
       expect.objectContaining({ type: 'student_busy', conflictingLessonId: 'lesson-student-conflict' })
     );
+  });
+
+  it('rejects a second lesson for the same student on the same day, even at a non-overlapping time (student_daily_limit)', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+    // Tenant default max_lessons_per_student_per_day is 1 (TENANT_SETTINGS_ROW);
+    // student already has 1 non-cancelled lesson that day, at a different time.
+    mockConflictSequence({ studentDailyCount: 1 });
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00')
+    );
+
+    expect(conflicts).toContainEqual(expect.objectContaining({ type: 'student_daily_limit' }));
+  });
+
+  it('does not report student_daily_limit when the student has no lessons that day', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+    mockConflictSequence({ studentDailyCount: 0 });
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00')
+    );
+
+    expect(conflicts).not.toContainEqual(expect.objectContaining({ type: 'student_daily_limit' }));
+  });
+
+  it('a tenant with max_lessons_per_student_per_day set to 2 allows a second lesson the same day', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+    mockConflictSequence({
+      studentDailyCount: 1,
+      tenantSettings: { ...TENANT_SETTINGS_ROW, max_lessons_per_student_per_day: 2 },
+    });
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00')
+    );
+
+    expect(conflicts).not.toContainEqual(expect.objectContaining({ type: 'student_daily_limit' }));
+  });
+
+  it('a tenant with max_lessons_per_student_per_day set to 2 rejects a third lesson the same day', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+    mockConflictSequence({
+      studentDailyCount: 2,
+      tenantSettings: { ...TENANT_SETTINGS_ROW, max_lessons_per_student_per_day: 2 },
+    });
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00')
+    );
+
+    expect(conflicts).toContainEqual(expect.objectContaining({ type: 'student_daily_limit' }));
+  });
+
+  it('student daily-limit check excludes excludeLessonId, so rescheduling a student\'s only lesson within its own day still works', async () => {
+    const { checkSchedulingConflicts } = await import('../services/schedulingService');
+    const RESCHEDULED_LESSON_ID = 'lesson-being-rescheduled';
+
+    // Student has exactly 1 lesson that day (the default cap), but it IS the
+    // one being rescheduled - excluding it should bring the count to 0.
+    mockQuery.mockReset();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (timezone)
+      .mockResolvedValueOnce(queryResult([SETTINGS_ROW])) // getSchedulingSettings
+      .mockResolvedValueOnce(queryResult([AVAILABLE_ROW])) // availability
+      .mockResolvedValueOnce(queryResult([{ count: '0' }])) // capacity count
+      .mockResolvedValueOnce(queryResult([])) // time off
+      .mockResolvedValueOnce(queryResult([])) // instructor overlap
+      .mockResolvedValueOnce(queryResult([])) // buffer violation
+      .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }])) // vehicle lookup
+      .mockResolvedValueOnce(queryResult([])) // vehicle overlap
+      .mockResolvedValueOnce(queryResult([])) // student overlap
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (max_lessons_per_student_per_day)
+      .mockResolvedValueOnce(queryResult([{ count: '0' }])); // student daily count (excludeLessonId applied)
+
+    const conflicts = await checkSchedulingConflicts(
+      TENANT_ID,
+      INSTRUCTOR_ID,
+      STUDENT_ID,
+      VEHICLE_ID,
+      new Date('2026-08-03T14:00:00'),
+      new Date('2026-08-03T16:00:00'),
+      RESCHEDULED_LESSON_ID
+    );
+
+    expect(conflicts).not.toContainEqual(expect.objectContaining({ type: 'student_daily_limit' }));
+
+    // Confirm the daily-count query actually received the exclusion
+    // (index 11: ...student overlap, getTenantSettings, THEN daily count)
+    const dailyCountCall = mockQuery.mock.calls[11];
+    expect(dailyCountCall[0]).toContain('id !=');
+    expect(dailyCountCall[1]).toContain(RESCHEDULED_LESSON_ID);
   });
 
   it('detects buffer-time violation (allowBackToBackLessons: false)', async () => {
@@ -237,7 +356,9 @@ describe('scheduling conflict detection', () => {
       .mockResolvedValueOnce(queryResult([])) // buffer violation
       .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }])) // vehicle lookup
       .mockResolvedValueOnce(queryResult([])) // vehicle overlap
-      .mockResolvedValueOnce(queryResult([])); // student overlap
+      .mockResolvedValueOnce(queryResult([])) // student overlap
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (max_lessons_per_student_per_day)
+      .mockResolvedValueOnce(queryResult([{ count: '0' }])); // student daily count
 
     const conflicts = await checkSchedulingConflicts(
       TENANT_ID,
@@ -298,7 +419,9 @@ describe('scheduling conflict detection', () => {
       .mockResolvedValueOnce(queryResult([])) // buffer violation
       .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }])) // vehicle lookup
       .mockResolvedValueOnce(queryResult([])) // vehicle overlap
-      .mockResolvedValueOnce(queryResult([])); // student overlap
+      .mockResolvedValueOnce(queryResult([])) // student overlap
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])) // getTenantSettings (max_lessons_per_student_per_day)
+      .mockResolvedValueOnce(queryResult([{ count: '0' }])); // student daily count
 
     // 3 lessons booked, evening cap is 4 -> under capacity, should succeed
     const conflictsUnderCap = await checkSchedulingConflicts(
@@ -325,7 +448,9 @@ describe('scheduling conflict detection', () => {
       .mockResolvedValueOnce(queryResult([]))
       .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }]))
       .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([]));
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]))
+      .mockResolvedValueOnce(queryResult([{ count: '0' }]));
 
     const conflictsAtCap = await checkSchedulingConflicts(
       TENANT_ID,
@@ -352,7 +477,9 @@ describe('scheduling conflict detection', () => {
       .mockResolvedValueOnce(queryResult([]))
       .mockResolvedValueOnce(queryResult([{ ownership_type: 'school_owned', owner_instructor_id: null }]))
       .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([]));
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]))
+      .mockResolvedValueOnce(queryResult([{ count: '0' }]));
 
     const conflictsMorningAtCap = await checkSchedulingConflicts(
       TENANT_ID,
@@ -397,21 +524,30 @@ describe('scheduling conflict detection', () => {
  * how many days/instructors are in the request:
  *   1. getTenantSettings -> SELECT tenant_settings (timezone)
  *   2. getSchedulingSettings -> SELECT scheduling_settings
- *   3. availability for all candidate instructors (all days at once)
- *   4. time-off for all candidate instructors (whole date range)
- *   5. lessons for all candidate instructors (whole date range)
- *   6. student's own lessons in range (only if studentId is provided)
+ *   3. getTenantSettings -> SELECT tenant_settings (max_lessons_per_student_per_day) - only if studentId is provided
+ *   4. availability for all candidate instructors (all days at once)
+ *   5. time-off for all candidate instructors (whole date range)
+ *   6. lessons for all candidate instructors (whole date range)
+ *   7. student's own lessons in range (only if studentId is provided)
  */
 function mockSlotsSequence(overrides: Partial<{
   availability: any[];
   timeOff: any[];
   lessons: any[];
   studentLessons: any[];
+  hasStudentId: boolean;
+  maxLessonsPerStudentPerDay: number;
 }> = {}) {
   mockQuery.mockReset();
   mockQuery
     .mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]))
-    .mockResolvedValueOnce(queryResult([SETTINGS_ROW]))
+    .mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+  if (overrides.studentLessons !== undefined || overrides.hasStudentId) {
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ ...TENANT_SETTINGS_ROW, max_lessons_per_student_per_day: overrides.maxLessonsPerStudentPerDay ?? 1 }])
+    ); // getTenantSettings (max_lessons_per_student_per_day)
+  }
+  mockQuery
     .mockResolvedValueOnce(queryResult(overrides.availability ?? []))
     .mockResolvedValueOnce(queryResult(overrides.timeOff ?? []))
     .mockResolvedValueOnce(queryResult(overrides.lessons ?? []));
@@ -428,11 +564,16 @@ describe('findAvailableSlots - student dimension', () => {
   it('never offers a slot overlapping the student\'s own existing lesson', async () => {
     const { findAvailableSlots } = await import('../services/schedulingService');
 
+    // maxLessonsPerStudentPerDay: 2 - this test is specifically about the
+    // TIME-overlap exclusion mechanism (a separate rule from the daily
+    // limit); at the default cap of 1, the whole day would be skipped by
+    // the daily-limit check before overlap exclusion ever ran.
     mockSlotsSequence({
       availability: [
         { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
       ],
       studentLessons: [{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }],
+      maxLessonsPerStudentPerDay: 2,
     });
 
     const slots = await findAvailableSlots({
@@ -454,11 +595,14 @@ describe('findAvailableSlots - student dimension', () => {
   it('still offers a non-overlapping slot for the same student/day', async () => {
     const { findAvailableSlots } = await import('../services/schedulingService');
 
+    // maxLessonsPerStudentPerDay: 2, for the same reason as the test above -
+    // isolates the overlap-exclusion mechanism from the daily-limit check.
     mockSlotsSequence({
       availability: [
         { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
       ],
       studentLessons: [{ date: '2026-08-03', start_time: '09:00:00', end_time: '11:00:00' }],
+      maxLessonsPerStudentPerDay: 2,
     });
 
     const slots = await findAvailableSlots({
@@ -472,6 +616,88 @@ describe('findAvailableSlots - student dimension', () => {
 
     const slotStartHours = slots.map((s) => slotHour(s.startTime));
     expect(slotStartHours).toContain(11); // 11:30 local -> hour 11, still offered
+  });
+});
+
+// One lesson per student per day (tenant_settings.max_lessons_per_student_
+// per_day, default 1): slot search must exclude an entire day once the
+// student is already at the cap for it, regardless of whether the
+// theoretical slot's own time overlaps the existing lesson - a distinct,
+// stronger rule than the time-overlap exclusion tested above.
+describe('findAvailableSlots - student daily limit', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('omits a day entirely once the student already has a lesson that day (default cap of 1)', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+      // The student's existing lesson (2-4pm) does not overlap the
+      // morning slots at all - a pure time-overlap check would still
+      // offer 9-11am. The daily limit must exclude the whole day anyway.
+      studentLessons: [{ date: '2026-08-03', start_time: '14:00:00', end_time: '16:00:00' }],
+    });
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
+      duration: 120,
+      studentId: STUDENT_ID,
+    });
+
+    expect(slots).toEqual([]);
+  });
+
+  it('a tenant with the limit set to 2 still offers slots on a day the student already has one lesson', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+      studentLessons: [{ date: '2026-08-03', start_time: '14:00:00', end_time: '16:00:00' }],
+      maxLessonsPerStudentPerDay: 2,
+    });
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
+      duration: 120,
+      studentId: STUDENT_ID,
+    });
+
+    expect(slots.length).toBeGreaterThan(0);
+  });
+
+  it('does not apply the daily limit when no studentId is given (instructor-only/general search)', async () => {
+    const { findAvailableSlots } = await import('../services/schedulingService');
+
+    // hasStudentId: false (the default) - findAvailableSlots must not call
+    // getTenantSettings for the daily-limit check at all when there's no
+    // student to check it against.
+    mockSlotsSequence({
+      availability: [
+        { instructor_id: INSTRUCTOR_ID, day_of_week: 1, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 },
+      ],
+    });
+
+    const slots = await findAvailableSlots({
+      tenantId: TENANT_ID,
+      instructorId: INSTRUCTOR_ID,
+      startDate: new Date('2026-08-03T12:00:00Z'),
+      endDate: new Date('2026-08-03T12:00:00Z'),
+      duration: 120,
+    });
+
+    expect(slots.length).toBeGreaterThan(0);
   });
 });
 

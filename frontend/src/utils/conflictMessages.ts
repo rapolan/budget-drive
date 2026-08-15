@@ -14,6 +14,7 @@ export const CONFLICT_MESSAGES: Record<SchedulingConflict['type'], string> = {
   outside_working_hours: 'This time is outside the instructor\'s available hours. Please choose a different time slot.',
   vehicle_busy: 'The vehicle is already in use at this time. Please choose a different time slot.',
   time_off: 'The instructor has time off during this period. Please choose a different time slot.',
+  student_daily_limit: 'This student has reached their maximum number of lessons for this day. Please choose a different day.',
 };
 
 /**

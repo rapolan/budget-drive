@@ -10,6 +10,7 @@ const ALL_CONFLICT_TYPES: SchedulingConflict['type'][] = [
   'time_off',
   'buffer_violation',
   'capacity_reached',
+  'student_daily_limit',
 ];
 
 describe('CONFLICT_MESSAGES', () => {

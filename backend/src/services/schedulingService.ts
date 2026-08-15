@@ -77,6 +77,13 @@ export const findAvailableSlots = async (
   const startDateStr = formatDate(startDate, timezone);
   const endDateStr = formatDate(endDate, timezone);
 
+  // Student daily limit (tenant_settings.max_lessons_per_student_per_day,
+  // default 1) - only needed when a studentId is given; a day the student
+  // is already at the cap is skipped entirely below, regardless of time.
+  const maxLessonsPerStudentPerDay = studentId
+    ? (await getTenantSettings(tenantId))?.maxLessonsPerStudentPerDay ?? 1
+    : Infinity;
+
   // Get instructors to check (either specific one or all active instructors)
   let instructorsToCheck: string[] = [];
   if (instructorId) {
@@ -206,6 +213,15 @@ export const findAvailableSlots = async (
 
       const instructorLessons = lessonsByInstructorDate.get(`${instId}|${dateStr}`) || [];
       const studentLessonsToday = studentLessonsByDate.get(dateStr) || [];
+
+      // Student daily limit: once the student already has as many lessons
+      // this day as the tenant allows, skip the whole day for them -
+      // regardless of time, mirroring checkSchedulingConflicts's
+      // student_daily_limit check so slot search never offers what booking
+      // would immediately reject.
+      if (studentLessonsToday.length >= maxLessonsPerStudentPerDay) {
+        continue;
+      }
 
       // Combine instructor's lessons with the student's own lessons that day
       // (Student dimension) - findSlotsInBlock excludes any theoretical slot
@@ -594,6 +610,38 @@ export const checkSchedulingConflicts = async (
         type: 'student_busy',
         message: 'Student already has a lesson scheduled during this time',
         conflictingLessonId: studentLessonsResult.rows[0].id,
+      });
+    }
+
+    // 8. Check student daily limit: a student may only have so many lessons
+    // booked on the same calendar day (tenant_settings.max_lessons_per_student
+    // _per_day, default 1), regardless of whether this new time overlaps an
+    // existing one (check #7 already covers overlap) - this catches a second,
+    // non-overlapping lesson the same day. excludeLessonId honored so
+    // rescheduling one of the student's own lessons within its own day
+    // (moving its time but keeping the date) doesn't trip against itself.
+    const tenantSettings = await getTenantSettings(tenantId);
+    const maxLessonsPerStudentPerDay = tenantSettings?.maxLessonsPerStudentPerDay ?? 1;
+
+    let studentDailyCountQuery = `
+      SELECT COUNT(*) FROM lessons
+      WHERE student_id = $1 AND tenant_id = $2 AND date = $3
+      AND status NOT IN ('cancelled', 'no_show')
+    `;
+    const studentDailyCountParams: string[] = [studentId, tenantId, dateStr];
+
+    if (excludeLessonId) {
+      studentDailyCountQuery += ` AND id != $4`;
+      studentDailyCountParams.push(excludeLessonId);
+    }
+
+    const studentDailyCountResult = await query(studentDailyCountQuery, studentDailyCountParams);
+    const studentDailyCount = parseInt(studentDailyCountResult.rows[0].count, 10);
+
+    if (studentDailyCount >= maxLessonsPerStudentPerDay) {
+      conflicts.push({
+        type: 'student_daily_limit',
+        message: `Student has reached their maximum of ${maxLessonsPerStudentPerDay} lesson${maxLessonsPerStudentPerDay === 1 ? '' : 's'} for this day`,
       });
     }
   }

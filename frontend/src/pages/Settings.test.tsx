@@ -22,6 +22,7 @@ const MOCK_SETTINGS = {
   defaultHoursRequired: 6,
   standardLessonLengthMinutes: 120,
   defaultLessonCost: 150,
+  maxLessonsPerStudentPerDay: 1,
   timezone: 'America/New_York',
 };
 const MOCK_TENANT = { name: 'Test Driving School' };
@@ -147,6 +148,51 @@ describe('Settings - General tab default lesson cost', () => {
     expect(putCall).toBeDefined();
     const body = JSON.parse(putCall![1].body as string);
     expect(body.defaultLessonCost).toBe(175);
+  });
+});
+
+describe('Settings - General tab max lessons per student per day', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('renders the max lessons per student per day field defaulted to the tenant\'s current value', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/max lessons per student per day/i);
+    expect((input as HTMLInputElement).value).toBe('1');
+  });
+
+  it('submits the newly-entered max lessons per student per day through the existing save path', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/max lessons per student per day/i);
+    fireEvent.change(input, { target: { value: '2' } });
+    expect((input as HTMLInputElement).value).toBe('2');
+
+    fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/tenant/settings'),
+        expect.objectContaining({ method: 'PUT' })
+      );
+    });
+
+    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([, options]) => options?.method === 'PUT'
+    );
+    expect(putCall).toBeDefined();
+    const body = JSON.parse(putCall![1].body as string);
+    expect(body.maxLessonsPerStudentPerDay).toBe(2);
   });
 });
 

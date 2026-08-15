@@ -297,6 +297,10 @@ export const updateTenantSettings = async (
     fields.push(`default_lesson_cost = $${paramCount++}`);
     values.push(data.defaultLessonCost);
   }
+  if (data.maxLessonsPerStudentPerDay !== undefined) {
+    fields.push(`max_lessons_per_student_per_day = $${paramCount++}`);
+    values.push(data.maxLessonsPerStudentPerDay);
+  }
 
   // Localization
   if (data.timezone !== undefined) {

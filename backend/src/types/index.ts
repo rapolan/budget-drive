@@ -76,6 +76,7 @@ export interface TenantSettings {
   defaultHoursRequired: number;
   standardLessonLengthMinutes: number;
   defaultLessonCost: number;
+  maxLessonsPerStudentPerDay: number;
 
   // Localization
   // null only until an admin (or the create-tenant flow) explicitly sets
@@ -1128,7 +1129,7 @@ export interface RankedAvailabilityResult {
 
 // Conflict detection result
 export interface SchedulingConflict {
-  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached';
+  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached' | 'student_daily_limit';
   message: string;
   conflictingLessonId?: string;
   conflictingTimeOffId?: string;

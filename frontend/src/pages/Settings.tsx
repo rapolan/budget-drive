@@ -133,6 +133,7 @@ const GeneralSettings: React.FC = () => {
     defaultHoursRequired: settings?.defaultHoursRequired != null ? Number(settings.defaultHoursRequired) : 6,
     standardLessonLengthMinutes: settings?.standardLessonLengthMinutes != null ? Number(settings.standardLessonLengthMinutes) : 120,
     defaultLessonCost:   settings?.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
+    maxLessonsPerStudentPerDay: settings?.maxLessonsPerStudentPerDay != null ? Number(settings.maxLessonsPerStudentPerDay) : 1,
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
   });
 
@@ -152,6 +153,7 @@ const GeneralSettings: React.FC = () => {
       defaultHoursRequired: settings.defaultHoursRequired != null ? Number(settings.defaultHoursRequired) : 6,
       standardLessonLengthMinutes: settings.standardLessonLengthMinutes != null ? Number(settings.standardLessonLengthMinutes) : 120,
       defaultLessonCost:   settings.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
+      maxLessonsPerStudentPerDay: settings.maxLessonsPerStudentPerDay != null ? Number(settings.maxLessonsPerStudentPerDay) : 1,
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
     });
   }, [settings]);
@@ -495,6 +497,37 @@ const GeneralSettings: React.FC = () => {
                   }`}
                 >
                   ${c}{c === 150 ? ' ⭐' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-max-lessons-per-student-per-day" className="block text-sm font-medium text-tx-secondary mb-1">Max Lessons per Student per Day</label>
+          <p className="text-xs text-tx-muted mb-3">Limits how many lessons a single student can have booked on the same day. Applies to new bookings, edits, and reschedules.</p>
+          <div className="flex items-center gap-3">
+            <input
+              id="settings-max-lessons-per-student-per-day"
+              type="number"
+              value={form.maxLessonsPerStudentPerDay}
+              onChange={e => setForm(f => ({ ...f, maxLessonsPerStudentPerDay: parseInt(e.target.value, 10) || 1 }))}
+              min="1" max="10" step="1"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <span className="text-sm text-tx-secondary">lesson{form.maxLessonsPerStudentPerDay === 1 ? '' : 's'}</span>
+            <div className="flex gap-2">
+              {[1, 2, 3].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, maxLessonsPerStudentPerDay: n }))}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    form.maxLessonsPerStudentPerDay === n
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                  }`}
+                >
+                  {n}{n === 1 ? ' ⭐' : ''}
                 </button>
               ))}
             </div>

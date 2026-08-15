@@ -94,6 +94,7 @@ export interface TenantSettings {
   defaultHoursRequired: number;
   standardLessonLengthMinutes: number;
   defaultLessonCost: number;
+  maxLessonsPerStudentPerDay: number;
 
   // Feature flags
   enableBlockchain?: boolean;
@@ -585,7 +586,7 @@ export interface TimeSlot {
 }
 
 export interface SchedulingConflict {
-  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached';
+  type: 'instructor_busy' | 'vehicle_busy' | 'student_busy' | 'outside_working_hours' | 'time_off' | 'buffer_violation' | 'capacity_reached' | 'student_daily_limit';
   message: string;
   conflictingLessonId?: string;
   timeOffId?: string;

@@ -61,6 +61,7 @@ describe('findRankedAvailableSlots - single-instructor scope', () => {
     // 4. findAvailableSlots(instructor-1): settings (timezone already resolved
     //    above and passed straight through - no second tenant_settings query)
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     // 5. availability (all days at once)
     mockQuery.mockResolvedValueOnce(
       queryResult([
@@ -119,6 +120,7 @@ describe('findRankedAvailableSlots - explicit date range', () => {
     );
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW])); // findAvailableSlots settings
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
     );
@@ -157,6 +159,7 @@ describe('findRankedAvailableSlots - explicit date range', () => {
     );
     mockQuery.mockResolvedValueOnce(queryResult([]));
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
     );
@@ -250,6 +253,7 @@ describe('findRankedAvailableSlots - ranking order', () => {
 
     // findAvailableSlots for instructor-far
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-far', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
     );
@@ -259,6 +263,7 @@ describe('findRankedAvailableSlots - ranking order', () => {
 
     // findAvailableSlots for instructor-close
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-close', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
     );
@@ -302,6 +307,7 @@ describe('findRankedAvailableSlots - ranking order', () => {
 
     // findAvailableSlots for instructor-ok succeeds
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-ok', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
     );
@@ -378,6 +384,7 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
     // so every generated slot starts after both lessons above end), time
     // off, lessons (instructor-dimension conflict check), student's own
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
     );
@@ -435,6 +442,7 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
       ])
     );
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 3 }])
     );
@@ -501,6 +509,7 @@ describe('findRankedAvailableSlots - duration arrives as a numeric string', () =
     );
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW])); // findAvailableSlots settings
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
     mockQuery.mockResolvedValueOnce(
       // A single 9am-5pm block - with a genuine number duration this
       // produces multiple slots; with the string-concat bug it produces zero.
