@@ -399,12 +399,15 @@ describe('Students page - unified search', () => {
 });
 
 // Regression: Postgres numeric columns (lessons.duration) come back through
-// the API as strings ("60.00", not 60). handleBookAgain must coerce before
+// the API as strings ("60.00", not 60). handleBookLesson must coerce before
 // building bookAgainPrefill, or the wizard's duration state initializes as
 // that string, which schedulingService's slot-generation arithmetic then
 // silently string-concatenates instead of adding (540 + "60.00" =
 // "54060.00"), producing zero search results every time.
-describe('Students page - "Book Again" duration coercion', () => {
+//
+// There is no separate "Book Again" button - "Book Lesson" prefills from
+// the student's most recent lesson automatically when one exists.
+describe('Students page - "Book Lesson" duration coercion', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
@@ -435,8 +438,13 @@ describe('Students page - "Book Again" duration coercion', () => {
 
     await userEvent.click(screen.getByText('Pepper Pottsss'));
 
-    const bookAgainButton = await screen.findByRole('button', { name: /book again/i });
-    await userEvent.click(bookAgainButton);
+    // The modal's own header "Book Lesson" button, not the table row's
+    // icon-only "Book lesson" button underneath it (same accessible name
+    // pattern, case-insensitively) - scope by the modal's close button,
+    // the one unambiguous anchor for "inside the open modal."
+    const modalContainer = (await screen.findByLabelText('Close modal')).closest('div')!.parentElement!;
+    const bookButton = await within(modalContainer).findByRole('button', { name: /book lesson/i });
+    await userEvent.click(bookButton);
 
     const form = await screen.findByTestId('smart-booking-form');
     const prefilledDuration = JSON.parse(form.getAttribute('data-prefilled-duration')!);

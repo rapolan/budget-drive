@@ -213,12 +213,6 @@ export const StudentsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleBookLesson = (student: Student) => {
-    setStudentForBooking(student);
-    setBookAgainPrefill(undefined);
-    setIsSmartBookingOpen(true);
-  };
-
   // The wizard's Lesson Type <select> only offers these four values, but
   // the DB's real CHECK constraint (a separate, pre-existing mismatch, not
   // introduced here) allows 'road_test_prep' instead of 'road_test' - a
@@ -229,12 +223,21 @@ export const StudentsPage: React.FC = () => {
   const toKnownLessonType = (value: string): 'behind_wheel' | 'classroom' | 'observation' | 'road_test' =>
     KNOWN_LESSON_TYPES.has(value) ? (value as 'behind_wheel' | 'classroom' | 'observation' | 'road_test') : 'behind_wheel';
 
-  // Prefills the wizard's setup step from a student's most recent lesson -
-  // instructor stays a real, changeable selection (never locked), the
-  // date range is left at its own default ("Next 2 Weeks"), and the user
-  // still runs a fresh search rather than skipping ahead.
-  const handleBookAgain = (student: Student, mostRecentLesson: Lesson) => {
+  // Single booking entry point. When mostRecentLesson is provided (the
+  // student has prior lesson history), prefills the wizard's setup step
+  // from it - instructor stays a real, changeable selection (never
+  // locked), the date range is left at its own default ("Next 2 Weeks"),
+  // and the user still runs a fresh search rather than skipping ahead.
+  // With no history, opens a plain blank booking (bookAgainPrefill stays
+  // undefined). There is no separate "Book Again" entry point - prefill-
+  // or-not is decided by lesson history alone.
+  const handleBookLesson = (student: Student, mostRecentLesson: Lesson | null) => {
     setStudentForBooking(student);
+    if (!mostRecentLesson) {
+      setBookAgainPrefill(undefined);
+      setIsSmartBookingOpen(true);
+      return;
+    }
     setBookAgainPrefill({
       instructorId: mostRecentLesson.instructorId,
       // Postgres numeric columns come back through the API as strings
@@ -903,7 +906,7 @@ export const StudentsPage: React.FC = () => {
                   <div className="flex items-center gap-2 pt-3 border-t border-edge">
                     <button
                       type="button"
-                      onClick={() => handleBookLesson(student)}
+                      onClick={() => handleBookLesson(student, null)}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                     >
                       <Calendar className="h-4 w-4" />
@@ -1072,7 +1075,7 @@ export const StudentsPage: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleBookLesson(student);
+                              handleBookLesson(student, null);
                             }}
                             className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
                             title="Book lesson"
@@ -1167,7 +1170,6 @@ export const StudentsPage: React.FC = () => {
             setGuardianPrefill(undefined);
           }}
           onBookLesson={handleBookLesson}
-          onBookAgain={handleBookAgain}
           prefillFromGuardian={selectedStudent ? undefined : guardianPrefill}
         />
       )}

@@ -76,16 +76,16 @@ export interface GuardianPrefill {
 interface StudentModalProps {
   student: Student | null;
   onClose: () => void;
-  onBookLesson?: (student: Student) => void;
-  // Prefills the booking wizard from this student's most recent lesson
-  // (instructor/duration/lessonType/timePreference/pickupAddress) - only
-  // ever called with a real Lesson, since the button that triggers it is
-  // hidden when the student has no lesson history.
-  onBookAgain?: (student: Student, mostRecentLesson: Lesson) => void;
+  // Single booking entry point - prefills the wizard from the student's
+  // most recent lesson (instructor/duration/lessonType/timePreference/
+  // pickup) when one exists, or opens a plain blank booking otherwise.
+  // There is no separate "Book Again" affordance; prefill-or-not is
+  // decided by lesson history alone, not by which button was clicked.
+  onBookLesson?: (student: Student, mostRecentLesson: Lesson | null) => void;
   prefillFromGuardian?: GuardianPrefill;
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, onBookAgain, prefillFromGuardian }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
@@ -894,12 +894,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Book Lesson Button - prominent for existing students */}
+              {/* Book Lesson - single entry point. When this student has a
+                  prior lesson, the wizard's setup step is prefilled from it
+                  (instructor/duration/lessonType/timePreference/pickup),
+                  still freely changeable before searching; with no history
+                  it opens a plain blank booking. Not gated on mostRecentLesson
+                  - always shown once onBookLesson is provided. */}
               {isEditing && student && onBookLesson && (
                 <button
                   type="button"
                   onClick={() => {
-                    onBookLesson(student);
+                    onBookLesson(student, mostRecentLesson);
                     onClose();
                   }}
                   className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
@@ -907,23 +912,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Book Lesson</span>
                   <span className="sm:hidden">Book</span>
-                </button>
-              )}
-              {/* Book Again - only offered once this student has a prior
-                  lesson to prefill from; opens the wizard's setup step with
-                  instructor/duration/lessonType/timePreference/pickup
-                  prefilled from it (not a shortcut past the normal flow). */}
-              {isEditing && student && onBookAgain && mostRecentLesson && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onBookAgain(student, mostRecentLesson);
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 border-2 border-edge-strong text-tx-secondary text-sm font-medium rounded-lg hover:bg-surface2 transition-colors"
-                >
-                  <span className="hidden sm:inline">Book Again</span>
-                  <span className="sm:hidden">Again</span>
                 </button>
               )}
               <button
@@ -1752,7 +1740,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       <button
                         type="button"
                         onClick={() => {
-                          onBookLesson(createdStudent);
+                          onBookLesson(createdStudent, null);
                           onClose();
                         }}
                         className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"

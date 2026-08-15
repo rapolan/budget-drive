@@ -181,7 +181,7 @@ describe('StudentModal - create success offers an optional "Book Lesson" action'
     const bookButton = screen.getByRole('button', { name: /book lesson/i });
     fireEvent.click(bookButton);
 
-    expect(onBookLesson).toHaveBeenCalledWith(createdStudent);
+    expect(onBookLesson).toHaveBeenCalledWith(createdStudent, null);
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -347,9 +347,12 @@ describe('StudentModal - create-mode auto-scroll', () => {
   });
 });
 
-// "Book again" on an existing student's record - only offered once a most
-// recent lesson exists to prefill from (item 5).
-describe('StudentModal - "Book again" entry point', () => {
+// "Book Lesson" on an existing student's record is the single booking
+// entry point - there is no separate "Book Again" button. When a most
+// recent lesson exists, clicking it passes that lesson along so the
+// caller (Students.tsx) can prefill the wizard; with no history it's
+// still shown, just passing null.
+describe('StudentModal - "Book Lesson" entry point (edit mode)', () => {
   function mostRecentLesson(overrides: Partial<Lesson> = {}): Lesson {
     return {
       id: 'lesson-1',
@@ -376,39 +379,44 @@ describe('StudentModal - "Book again" entry point', () => {
     (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
   });
 
-  it('shows "Book Again" when the student has a most recent lesson, and clicking it calls onBookAgain with the student and lesson, then closes', async () => {
+  it('when the student has a most recent lesson, clicking "Book Lesson" calls onBookLesson with the student and that lesson, then closes', async () => {
     const lesson = mostRecentLesson();
     (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: lesson });
-    const onBookAgain = vi.fn();
+    const onBookLesson = vi.fn();
     const onClose = vi.fn();
     const student = editableStudent();
 
-    renderModal(student, { onBookAgain, onClose });
+    renderModal(student, { onBookLesson, onClose });
 
-    const bookAgainButton = await screen.findByRole('button', { name: /book again/i });
-    fireEvent.click(bookAgainButton);
+    await waitFor(() => expect(lessonsApi.getMostRecentByStudent).toHaveBeenCalled());
+    const bookButton = await screen.findByRole('button', { name: /book lesson/i });
+    fireEvent.click(bookButton);
 
-    expect(onBookAgain).toHaveBeenCalledWith(student, lesson);
+    expect(onBookLesson).toHaveBeenCalledWith(student, lesson);
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('does not show "Book Again" when the student has no lesson history', async () => {
+  it('when the student has no lesson history, "Book Lesson" is still shown and calls onBookLesson with null instead of a lesson', async () => {
     (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null });
-    const onBookAgain = vi.fn();
+    const onBookLesson = vi.fn();
+    const student = editableStudent();
 
-    renderModal(editableStudent(), { onBookAgain });
+    renderModal(student, { onBookLesson });
 
     await waitFor(() => expect(lessonsApi.getMostRecentByStudent).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: /book again/i })).not.toBeInTheDocument();
+    const bookButton = await screen.findByRole('button', { name: /book lesson/i });
+    fireEvent.click(bookButton);
+
+    expect(onBookLesson).toHaveBeenCalledWith(student, null);
   });
 
-  it('does not show "Book Again" when onBookAgain is not provided, even with lesson history', async () => {
+  it('does not show "Book Lesson" when onBookLesson is not provided, even with lesson history', async () => {
     (lessonsApi.getMostRecentByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mostRecentLesson() });
 
     renderModal(editableStudent(), {});
 
     await waitFor(() => expect(lessonsApi.getMostRecentByStudent).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: /book again/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /book lesson/i })).not.toBeInTheDocument();
   });
 });
 
