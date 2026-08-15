@@ -609,6 +609,17 @@ export interface CreateAvailabilityInput {
   isActive?: boolean;
 }
 
+// One entry per day of week (0-6), for the weekly availability grid's
+// bulk save. startTime/endTime/maxStudents are only meaningful (and only
+// sent) when isActive is true.
+export interface WeekDayAvailabilityInput {
+  dayOfWeek: number;
+  isActive: boolean;
+  startTime?: string;
+  endTime?: string;
+  maxStudents?: number | null;
+}
+
 export interface CreateTimeOffInput {
   instructorId: string;
   startDate: string;

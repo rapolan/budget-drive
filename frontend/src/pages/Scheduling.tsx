@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { instructorsApi } from '@/api';
 import {
   AvailabilityCalendar,
-  AvailabilityEditor,
+  WeeklyAvailabilityGrid,
   TimeOffManager,
   CalendarSync,
   RecurringPatterns,
@@ -96,7 +96,7 @@ export const SchedulingPage: React.FC = () => {
             <div className="space-y-6">
               {selectedInstructorId ? (
                 <>
-                  <AvailabilityEditor
+                  <WeeklyAvailabilityGrid
                     key={`editor-${refreshKey}`}
                     instructorId={selectedInstructorId}
                     onUpdate={handleRefresh}

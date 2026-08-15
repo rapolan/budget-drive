@@ -13,6 +13,7 @@ import {
   FindRankedSlotsResult,
   CheckConflictsRequest,
   DatePresetsResponse,
+  WeekDayAvailabilityInput,
   ApiResponse,
 } from '@/types';
 
@@ -77,6 +78,22 @@ export const schedulingApi = {
    */
   async deleteAvailability(id: string): Promise<void> {
     await apiClient.delete(`/availability/${id}`);
+  },
+
+  /**
+   * Save a whole week of availability in one request (the weekly grid
+   * editor). Upserts at most one row per day server-side; see
+   * availabilityService.setWeekAvailability for the exact semantics.
+   */
+  async setWeekAvailability(
+    instructorId: string,
+    days: WeekDayAvailabilityInput[]
+  ): Promise<InstructorAvailability[]> {
+    const response = await apiClient.put<ApiResponse<InstructorAvailability[]>>(
+      `/availability/instructor/${instructorId}/week`,
+      { days }
+    );
+    return response.data.data || [];
   },
 
   // ===================================================================

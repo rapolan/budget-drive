@@ -3,7 +3,7 @@
  * Manages instructor availability schedules and time off
  */
 
-import { query } from '../config/database';
+import { query, getClient } from '../config/database';
 import { InstructorAvailability, InstructorTimeOff, SchedulingSettings } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
@@ -322,6 +322,128 @@ export const setInstructorSchedule = async (
   });
 
   return availabilities;
+};
+
+export interface WeekDayInput {
+  dayOfWeek: number;
+  isActive: boolean;
+  startTime?: string;
+  endTime?: string;
+  maxStudents?: number | null;
+}
+
+/**
+ * Save a whole week of availability in one request, from the weekly grid
+ * editor. Upserts at most ONE row per day - the newest active row, if one
+ * exists - and never touches any additional active rows for that day
+ * (legacy/manual split-shift data the grid doesn't understand and must
+ * not silently destroy). Unchecking a day sets is_active = false without
+ * touching its stored times, so re-checking within the same edit session
+ * (before reload) can restore them from client state; the DB row itself
+ * simply survives, inactive, rather than being deleted.
+ *
+ * Transactional: every day is validated before BEGIN, so a bad payload
+ * never opens a transaction, and one invalid day rejects the whole
+ * request - there is no partial-week save.
+ */
+export const setWeekAvailability = async (
+  tenantId: string,
+  instructorId: string,
+  days: WeekDayInput[]
+): Promise<InstructorAvailability[]> => {
+  logger.info('Saving weekly availability', {
+    tenantId,
+    instructorId,
+    days: days.length,
+  });
+
+  const instructorCheck = await query(
+    'SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2',
+    [instructorId, tenantId]
+  );
+  if (instructorCheck.rows.length === 0) {
+    logger.error('Instructor not found for weekly availability save', undefined, {
+      tenantId,
+      instructorId,
+    });
+    throw new AppError('Instructor not found or does not belong to this organization', 404);
+  }
+
+  const seenDays = new Set<number>();
+  for (const day of days) {
+    if (day.dayOfWeek < 0 || day.dayOfWeek > 6) {
+      throw new AppError(`Day ${day.dayOfWeek}: dayOfWeek must be between 0 (Sunday) and 6 (Saturday)`, 400);
+    }
+    if (seenDays.has(day.dayOfWeek)) {
+      throw new AppError(`Day ${day.dayOfWeek}: duplicate entry for the same day of week`, 400);
+    }
+    seenDays.add(day.dayOfWeek);
+
+    if (day.isActive) {
+      if (!day.startTime || !day.endTime) {
+        throw new AppError(`Day ${day.dayOfWeek}: startTime and endTime are required when working`, 400);
+      }
+      if (day.startTime >= day.endTime) {
+        throw new AppError(`Day ${day.dayOfWeek}: startTime must be before endTime`, 400);
+      }
+    }
+  }
+  if (seenDays.size !== 7) {
+    throw new AppError('days must contain exactly one entry for every day of the week (0-6)', 400);
+  }
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    for (const day of days) {
+      const existing = await client.query(
+        `SELECT id FROM instructor_availability
+         WHERE instructor_id = $1 AND tenant_id = $2 AND day_of_week = $3 AND is_active = true
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [instructorId, tenantId, day.dayOfWeek]
+      );
+      const existingId: string | undefined = existing.rows[0]?.id;
+
+      if (day.isActive) {
+        if (existingId) {
+          await client.query(
+            `UPDATE instructor_availability
+             SET start_time = $1, end_time = $2, max_students = $3, updated_at = NOW()
+             WHERE id = $4`,
+            [day.startTime, day.endTime, day.maxStudents ?? null, existingId]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO instructor_availability
+              (tenant_id, instructor_id, day_of_week, start_time, end_time, max_students, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, true)`,
+            [tenantId, instructorId, day.dayOfWeek, day.startTime, day.endTime, day.maxStudents ?? null]
+          );
+        }
+      } else if (existingId) {
+        await client.query(
+          `UPDATE instructor_availability
+           SET is_active = false, updated_at = NOW()
+           WHERE id = $1`,
+          [existingId]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  logger.info('Successfully saved weekly availability', { tenantId, instructorId });
+
+  return getInstructorAvailability(instructorId, tenantId);
 };
 
 // =====================================================

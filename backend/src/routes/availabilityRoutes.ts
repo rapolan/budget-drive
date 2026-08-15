@@ -48,6 +48,16 @@ router.post(
   availabilityController.setInstructorSchedule
 );
 
+// Save a whole week of availability in one request (weekly grid editor) -
+// upserts at most one row per day, never deletes; see availabilityService's
+// setWeekAvailability for the day-by-day upsert semantics.
+router.put(
+  '/availability/instructor/:instructorId/week',
+  validateUUID('instructorId'),
+  validateRequired(['days']),
+  availabilityController.setWeekAvailability
+);
+
 // =====================================================
 // SCHEDULING SETTINGS ROUTES
 // (Must be BEFORE /:id routes to avoid "settings" being matched as an ID)

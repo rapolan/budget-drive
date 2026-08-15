@@ -127,6 +127,29 @@ export const setInstructorSchedule = asyncHandler(async (req: Request, res: Resp
   });
 });
 
+/**
+ * @route   PUT /api/v1/availability/instructor/:instructorId/week
+ * @desc    Save a whole week of availability in one request (weekly grid editor)
+ * @access  Private
+ */
+export const setWeekAvailability = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { instructorId } = req.params;
+  const { days } = req.body;
+
+  const availability = await availabilityService.setWeekAvailability(
+    tenantId,
+    instructorId,
+    days
+  );
+
+  res.json({
+    success: true,
+    data: availability,
+    message: 'Weekly availability saved successfully',
+  });
+});
+
 // =====================================================
 // TIME OFF
 // =====================================================
