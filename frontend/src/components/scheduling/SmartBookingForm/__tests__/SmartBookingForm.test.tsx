@@ -102,6 +102,27 @@ function renderForm(props: Partial<React.ComponentProps<typeof SmartBookingForm>
   return { ...utils, onBookingComplete, onCancel, queryClient };
 }
 
+// Matches the real modal wrapper both callers (Students.tsx, Lessons.tsx)
+// use: "w-full max-w-3xl max-h-[90vh] overflow-y-auto". The wizard itself
+// has no scroll container of its own - it scrolls this ancestor.
+function renderFormInScrollContainer(props: Partial<React.ComponentProps<typeof SmartBookingForm>> = {}) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const onBookingComplete = vi.fn();
+  const onCancel = vi.fn();
+
+  const utils = render(
+    <QueryClientProvider client={queryClient}>
+      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="scroll-container">
+        <SmartBookingForm onBookingComplete={onBookingComplete} onCancel={onCancel} {...props} />
+      </div>
+    </QueryClientProvider>
+  );
+
+  return { ...utils, onBookingComplete, onCancel, queryClient };
+}
+
 const DATE_PRESETS = {
   next2Weeks: { start: '2026-08-04', end: '2026-08-17' },
   thisMonth: { start: '2026-08-01', end: '2026-08-31' },
@@ -675,5 +696,75 @@ describe('SmartBookingForm - "Book Another" done button', () => {
     expect(onBookingComplete).toHaveBeenCalledWith('lesson-1');
     // Only the one search ran - "Done" never re-triggers a search.
     expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Bug fix: after selecting a time slot, the confirm step could render with
+// the modal's scroll container still positioned partway down (wherever the
+// slots list left it), hiding the top of the Booking Summary. The wizard
+// scrolls its nearest ".overflow-y-auto" ancestor back to top whenever the
+// confirm step becomes active.
+describe('SmartBookingForm - scrolls the summary to top on the confirm step', () => {
+  it('scrolls the modal container to top when the confirm step renders', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderFormInScrollContainer({ preselectedStudent: STUDENT });
+
+    const scrollContainer = screen.getByTestId('scroll-container');
+    const scrollToSpy = vi.spyOn(scrollContainer, 'scrollTo');
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(expect.objectContaining({ top: 0 })));
+  });
+
+  it('uses an instant jump instead of a smooth scroll when prefers-reduced-motion is set', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as unknown as MediaQueryList));
+
+    try {
+      renderFormInScrollContainer({ preselectedStudent: STUDENT });
+
+      const scrollContainer = screen.getByTestId('scroll-container');
+      const scrollToSpy = vi.spyOn(scrollContainer, 'scrollTo');
+
+      const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+      await waitFor(() => expect(findButton).not.toBeDisabled());
+      await user.click(findButton);
+
+      const instructorHeader = await screen.findByText('John Smith');
+      await user.click(instructorHeader);
+      const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+      await user.click(slotButton);
+
+      expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(scrollToSpy).toHaveBeenCalledWith(expect.objectContaining({ top: 0, behavior: 'auto' }))
+      );
+    } finally {
+      matchMediaSpy.mockRestore();
+    }
   });
 });

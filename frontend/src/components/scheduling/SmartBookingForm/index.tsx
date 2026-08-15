@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sparkles, X } from 'lucide-react';
 import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
@@ -472,8 +472,25 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // stepper (Setup/Select Slot/Confirm) is simply not shown there.
   const showStepper = step !== 'success';
 
+  // The wizard itself doesn't scroll - its callers (Students.tsx, Lessons.tsx)
+  // wrap it in a fixed-height "max-h-[90vh] overflow-y-auto" modal container,
+  // which retains whatever scroll position the slots list left it at. Without
+  // this, the confirm step can render partway down that container, showing
+  // the middle of the Booking Summary instead of its top. Scrolls the
+  // nearest scrollable ancestor to 0 whenever the confirm step becomes
+  // active - not on every render, so it doesn't fight a user scrolling
+  // within the confirm step itself.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (step !== 'confirm') return;
+    const scrollContainer = rootRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    if (!scrollContainer) return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    scrollContainer.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+  }, [step]);
+
   return (
-    <div className="max-w-4xl mx-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
+    <div ref={rootRef} className="max-w-4xl mx-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
       {/* Header */}
       <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
         <div className="flex justify-between items-center mb-6">
