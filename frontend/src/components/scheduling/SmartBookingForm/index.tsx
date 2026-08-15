@@ -5,7 +5,7 @@ import { schedulingApi, lessonsApi, studentsApi, instructorsApi } from '@/api';
 import { Student, Instructor, Lesson, CreateLessonInput, FindRankedSlotsResult } from '@/types';
 import { ProgressStepper } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
-import { formatShortDate, formatLocalDate } from '@/utils/timeFormat';
+import { formatShortDate, formatLocalDate, addCalendarDays, daysBetween } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
 import { getConflictMessage } from '@/utils/conflictMessages';
 import { SlotWithProximity } from './GroupedAvailabilityView';
@@ -397,14 +397,18 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     }
   };
 
-  // Constraint C: returns to SLOT SELECTION, never 'setup' - student,
-  // instructor choice, duration, lesson type, time preference, and date
-  // range are all left untouched. Only clears what's specific to the
-  // lesson just booked, then re-runs the same search handleFindSlots
-  // already uses for stale-slot recovery, so the just-booked slot is
-  // excluded and any newly-created conflict is reflected.
-  const [bookingAnother, setBookingAnother] = useState(false);
-  const handleBookAnother = async () => {
+  // Returns to SETUP (not slots) with student, instructor choice, duration,
+  // lesson type, and time preference all left untouched - only what's
+  // specific to the lesson just booked is cleared, plus the date range,
+  // which is pre-advanced to start the day after that lesson so the common
+  // case (booking the next one in a sequence) needs no editing before the
+  // user runs a fresh search. searchStartDate/searchEndDate/datePreset are
+  // otherwise never computed here (Constraint B - tenant-timezone date math
+  // is backend-only) - this is the one exception, and it's still just
+  // calendar-day arithmetic on an already-resolved YYYY-MM-DD date string
+  // (the just-booked slot's date), not a timezone interpretation.
+  const handleBookAnother = () => {
+    const bookedDate = selectedSlot?.date;
     setSelectedSlot(null);
     setCost(defaultLessonCost);
     setCostTouched(false);
@@ -412,13 +416,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     setLessonNumber(null);
     setStaleSlotNotice(null);
     setError(null);
-    setStep('slots');
-    setBookingAnother(true);
-    try {
-      await handleFindSlots();
-    } finally {
-      setBookingAnother(false);
+    if (bookedDate) {
+      const nextDayStart = addCalendarDays(bookedDate, 1);
+      const currentRangeLength = searchStartDate && searchEndDate
+        ? daysBetween(searchStartDate, searchEndDate)
+        : 13;
+      setDatePreset('custom');
+      setSearchStartDate(nextDayStart);
+      setSearchEndDate(addCalendarDays(nextDayStart, currentRangeLength));
     }
+    setStep('setup');
   };
 
   // The one place onBookingComplete fires for the normal (non-Reschedule)
@@ -428,7 +435,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     onBookingComplete?.(lastBookedLessonId || '');
   };
 
-  const loading = findSlotsMutation.isPending || confirmBookingMutation.isPending || bookingAnother;
+  const loading = findSlotsMutation.isPending || confirmBookingMutation.isPending;
 
   const formatTime = (time: string) => {
     let hour: number, minutes: string;

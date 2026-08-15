@@ -407,22 +407,17 @@ describe('SmartBookingForm - Reschedule flow (canSkipToConfirm) skips the succes
   });
 });
 
-// "Book Another" (Constraint C): returns to SLOT SELECTION with student,
-// instructor choice, duration, lesson type, time preference, and date
-// range intact - only the just-booked slot/cost/notes/lesson-number reset,
-// and the slot list is freshly re-fetched (excluding the just-booked slot,
-// reflecting any newly-created conflict).
-describe('SmartBookingForm - "Book Another" preserves preferences and returns to slots', () => {
-  it('lands on the slots step (not setup) with preferences intact, and the just-booked slot is absent from the refreshed list', async () => {
+// "Book Another": returns to SETUP (not slots) with student, instructor
+// choice, duration, lesson type, and time preference intact - only what's
+// specific to the lesson just booked (slot/cost/notes/lesson-number) is
+// reset, and the date range is pre-advanced to start the day after the
+// just-booked lesson so the common case (booking the next one in a
+// sequence) needs no editing before the user runs a fresh search.
+describe('SmartBookingForm - "Book Another" preserves preferences and returns to setup', () => {
+  it('lands on the setup step (not slots) with preferences intact, and pre-advances the date range to the day after the just-booked lesson', async () => {
     const user = userEvent.setup();
-    const SLOT_2 = { ...SLOT, startTime: '14:00', endTime: '16:00' };
 
-    findRankedAvailableSlots
-      .mockResolvedValueOnce({ slots: [SLOT], failedInstructors: [] })
-      // Refreshed list after "Book Another" - the just-booked 10-12 slot
-      // is gone, replaced by a genuinely different 2-4pm slot (simulating
-      // the server excluding it and reflecting the new conflict it created).
-      .mockResolvedValueOnce({ slots: [SLOT_2], failedInstructors: [] });
+    findRankedAvailableSlots.mockResolvedValueOnce({ slots: [SLOT], failedInstructors: [] });
     createLesson.mockResolvedValue({ data: { id: 'lesson-1' } });
 
     renderForm({ preselectedStudent: STUDENT });
@@ -443,25 +438,40 @@ describe('SmartBookingForm - "Book Another" preserves preferences and returns to
 
     await user.click(screen.getByRole('button', { name: /book another lesson/i }));
 
-    // Back on the slots step (not setup - Constraint C) with a freshly
-    // re-fetched list.
-    expect(await screen.findByText('Available Time Slots')).toBeInTheDocument();
-    expect(findRankedAvailableSlots).toHaveBeenCalledTimes(2);
+    // Back on the setup step (not slots) - no automatic re-search fires.
+    expect(await screen.findByText('Aisha Williams')).toBeInTheDocument();
+    expect(screen.queryByText('Available Time Slots')).not.toBeInTheDocument();
+    expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1);
 
-    // Same preferences sent both times - student/duration/timePreference/
-    // date range all preserved across the loop, not reset to blank.
+    // Date range pre-advanced: SLOT.date is '2026-08-03', so the new range
+    // starts '2026-08-04' - the day after - carrying forward the original
+    // 13-day span (next2Weeks: 08-04 to 08-17) rather than collapsing to a
+    // single day or resetting to a different preset.
+    const fromInput = screen.getByLabelText('From') as HTMLInputElement;
+    const toInput = screen.getByLabelText('To') as HTMLInputElement;
+    await waitFor(() => expect(fromInput.value).toBe('2026-08-04'));
+    expect(toInput.value).toBe('2026-08-17');
+
+    // Running a fresh search from here sends the pre-advanced range, and
+    // the same student/duration/timePreference preferences as before.
+    findRankedAvailableSlots.mockResolvedValueOnce({ slots: [SLOT], failedInstructors: [] });
+    const findButtonAgain = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButtonAgain).not.toBeDisabled());
+    await user.click(findButtonAgain);
+
+    await waitFor(() => expect(findRankedAvailableSlots).toHaveBeenCalledTimes(2));
     const [firstCallArgs] = findRankedAvailableSlots.mock.calls[0];
     const [secondCallArgs] = findRankedAvailableSlots.mock.calls[1];
-    expect(secondCallArgs).toEqual(firstCallArgs);
-
-    // The just-booked 10-12 slot is gone from the refreshed list; the new
-    // 2-4pm slot is offered instead.
-    const instructorHeaderAgain = await screen.findByText('John Smith');
-    await user.click(instructorHeaderAgain);
-    expect(screen.queryByText(/10:00 AM - 12:00 PM/i)).not.toBeInTheDocument();
-    expect(await screen.findByText(/2:00 PM - 4:00 PM/i)).toBeInTheDocument();
+    expect(secondCallArgs).toEqual(
+      expect.objectContaining({
+        studentId: firstCallArgs.studentId,
+        duration: firstCallArgs.duration,
+        timePreference: firstCallArgs.timePreference,
+        startDate: '2026-08-04',
+        endDate: '2026-08-17',
+      })
+    );
   });
-
 });
 
 // Proximity badge consistency (bug fix): GroupedAvailabilityView previously

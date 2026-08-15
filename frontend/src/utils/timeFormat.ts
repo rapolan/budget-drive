@@ -88,3 +88,32 @@ export const formatDateTime = (date: Date | string, time24: string): string => {
   const timeStr = format12Hour(time24);
   return `${dateStr} at ${timeStr}`;
 };
+
+/**
+ * Add N calendar days to a YYYY-MM-DD date string, returning a YYYY-MM-DD
+ * string. Pure calendar-day arithmetic on an already-resolved local date -
+ * not tenant-timezone interpretation of an instant, so this is safe to use
+ * client-side even where tenant-timezone date math itself must stay
+ * backend-only (see backend/src/utils/tenantTime.ts).
+ * @param dateStr - Date in YYYY-MM-DD format
+ * @param days - Number of days to add (may be negative)
+ * @returns Date string in YYYY-MM-DD format
+ */
+export const addCalendarDays = (dateStr: string, days: number): string => {
+  const date = parseLocalDate(dateStr);
+  date.setDate(date.getDate() + days);
+  return formatLocalDate(date);
+};
+
+/**
+ * Number of calendar days between two YYYY-MM-DD date strings (end - start).
+ * @param startDateStr - Date in YYYY-MM-DD format
+ * @param endDateStr - Date in YYYY-MM-DD format
+ * @returns Whole number of days between the two dates
+ */
+export const daysBetween = (startDateStr: string, endDateStr: string): number => {
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const start = parseLocalDate(startDateStr);
+  const end = parseLocalDate(endDateStr);
+  return Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
+};
