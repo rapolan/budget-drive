@@ -105,3 +105,28 @@ describe('LessonHistoryTimeline - caps the list to the 3 most recent by default'
     expect(screen.queryByRole('button', { name: /show all/i })).not.toBeInTheDocument();
   });
 });
+
+// Regression: lessons.date is a Postgres `date` column. The pg driver
+// returns it as a JS Date object, and Express's res.json() serializes it
+// via Date.prototype.toJSON() (toISOString()) - the real wire shape GET
+// /lessons actually returns is a full ISO datetime string like
+// "2026-08-17T00:00:00.000Z", not the bare YYYY-MM-DD every other fixture
+// in this file uses. formatShortDate(lesson.date) used to render this as
+// "Invalid Date" because parseLocalDate's naive dateStr.split('-') split
+// the trailing "T00:00:00.000Z" into the day component, producing NaN.
+// This fixture is the exact string captured from a live API response
+// during the bug investigation, not a hand-written YYYY-MM-DD ideal.
+describe('LessonHistoryTimeline - real lessons.date API shape (full ISO datetime)', () => {
+  it('renders a real date, not "Invalid Date", for a lesson.date shaped like the actual API response', () => {
+    const lessons = [
+      lesson({
+        id: 'lesson-real-shape',
+        date: '2026-08-17T00:00:00.000Z' as unknown as Date,
+      }),
+    ];
+    render(<LessonHistoryTimeline lessons={lessons} instructors={[INSTRUCTOR]} />);
+
+    expect(screen.getByText('Mon, Aug 17')).toBeInTheDocument();
+    expect(screen.queryByText(/invalid date/i)).not.toBeInTheDocument();
+  });
+});

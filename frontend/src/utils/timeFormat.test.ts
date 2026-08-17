@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { addCalendarDays, daysBetween } from './timeFormat';
+import { addCalendarDays, daysBetween, parseLocalDate, formatShortDate } from './timeFormat';
+
+// Regression: lessons.date is a Postgres `date` column. The `pg` driver
+// returns it as a JS Date object, and Express's res.json() then serializes
+// it via Date.prototype.toJSON() (toISOString()) - the real wire shape is
+// a full ISO datetime, e.g. "2026-08-17T00:00:00.000Z", never a bare
+// YYYY-MM-DD, even though callers often assume the latter. This exact
+// string is what GET /lessons actually returned for a live lesson during
+// this bug's investigation - not a hand-written "ideal" fixture.
+const REAL_LESSON_DATE_FROM_API = '2026-08-17T00:00:00.000Z';
+
+describe('parseLocalDate', () => {
+  it('parses a plain YYYY-MM-DD string (the documented, original contract)', () => {
+    const d = parseLocalDate('2026-08-17');
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(7); // 0-indexed
+    expect(d.getDate()).toBe(17);
+  });
+
+  it('parses a full ISO datetime string (the real shape lessons.date arrives as) without producing an Invalid Date', () => {
+    const d = parseLocalDate(REAL_LESSON_DATE_FROM_API);
+    expect(d.toString()).not.toBe('Invalid Date');
+    expect(Number.isNaN(d.getTime())).toBe(false);
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(7);
+    expect(d.getDate()).toBe(17);
+  });
+});
+
+describe('formatShortDate - regression for LessonHistoryTimeline "Invalid Date"', () => {
+  it('formats a real lessons.date API value (full ISO datetime) as a short date, not "Invalid Date"', () => {
+    expect(formatShortDate(REAL_LESSON_DATE_FROM_API)).not.toMatch(/invalid/i);
+    expect(formatShortDate(REAL_LESSON_DATE_FROM_API)).toBe('Mon, Aug 17');
+  });
+
+  it('still formats a plain YYYY-MM-DD string correctly (unchanged behavior)', () => {
+    expect(formatShortDate('2026-08-17')).toBe('Mon, Aug 17');
+  });
+});
 
 describe('addCalendarDays', () => {
   it('adds a single day within the same month', () => {

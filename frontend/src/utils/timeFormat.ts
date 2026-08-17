@@ -37,12 +37,21 @@ export const formatISOTo12Hour = (isoString: string): string => {
 };
 
 /**
- * Parse YYYY-MM-DD date string in local timezone (not UTC)
- * @param dateStr - Date in YYYY-MM-DD format
+ * Parse a YYYY-MM-DD date string in local timezone (not UTC). Also accepts
+ * a full ISO datetime string (e.g. "2026-08-17T00:00:00.000Z") by taking
+ * only its date portion - Postgres `date` columns come back through pg as
+ * JS Date objects, which Express's res.json() then serializes via
+ * Date.prototype.toJSON() (toISOString()), not as the plain YYYY-MM-DD
+ * this function was originally written for. Splitting an unstripped ISO
+ * string on '-' previously produced a NaN day component (the time-and-zone
+ * suffix riding along on the last segment) and silently returned an
+ * Invalid Date - this is what broke LessonHistoryTimeline's date display.
+ * @param dateStr - Date in YYYY-MM-DD format, or a full ISO datetime string
  * @returns Date object in local timezone
  */
 export const parseLocalDate = (dateStr: string): Date => {
-  const [year, month, day] = dateStr.split('-').map(Number);
+  const datePart = dateStr.split('T')[0];
+  const [year, month, day] = datePart.split('-').map(Number);
   return new Date(year, month - 1, day);
 };
 
