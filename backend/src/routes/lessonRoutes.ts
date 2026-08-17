@@ -82,6 +82,15 @@ router.post(
   lessonController.noShowLesson
 );
 
+// Cancel lesson, recording who reviewed it and when - the sole cancellation
+// path (replaces the old DELETE /lessons/:id, which had no audit trail and
+// no fee-window check).
+router.post(
+  '/lessons/:id/cancel',
+  validateUUID('id'),
+  lessonController.cancelLesson
+);
+
 // Get lesson by ID
 router.get(
   '/lessons/:id',
@@ -94,13 +103,6 @@ router.put(
   '/lessons/:id',
   validateUUID('id'),
   lessonController.updateLesson
-);
-
-// Cancel lesson (soft delete)
-router.delete(
-  '/lessons/:id',
-  validateUUID('id'),
-  lessonController.deleteLesson
 );
 
 export default router;

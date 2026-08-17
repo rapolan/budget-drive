@@ -29,8 +29,10 @@ export const lessonsApi = {
     return response.data;
   },
 
-  delete: async (id: string) => {
-    const response = await apiClient.delete<ApiResponse<void>>(`/lessons/${id}`);
+  // Cancels a lesson, recording who reviewed it and when. Replaces the old
+  // DELETE /lessons/:id (which had no audit trail and no fee-window check).
+  cancel: async (id: string) => {
+    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/cancel`);
     return response.data;
   },
 

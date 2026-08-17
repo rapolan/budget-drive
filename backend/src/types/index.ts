@@ -628,6 +628,8 @@ export interface Lesson {
   updatedBy: string | null; // User ID who last modified this record
   createdByName?: string | null; // Name of user who created this record
   updatedByName?: string | null; // Name of user who last modified this record
+  reviewedBy: string | null; // User ID who set the lesson's review status (completed/no_show/cancelled)
+  reviewedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -142,18 +142,20 @@ export const updateLesson = asyncHandler(async (req: Request, res: Response) => 
 });
 
 /**
- * @route   DELETE /api/v1/lessons/:id
- * @desc    Cancel lesson (soft delete)
+ * @route   POST /api/v1/lessons/:id/cancel
+ * @desc    Cancel lesson, recording who reviewed it and when
  * @access  Private
  */
-export const deleteLesson = asyncHandler(async (req: Request, res: Response) => {
+export const cancelLesson = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  await lessonService.deleteLesson(id, tenantId);
+  const lesson = await lessonService.cancelLesson(id, tenantId, userId);
 
   res.json({
     success: true,
+    data: lesson,
     message: 'Lesson cancelled successfully',
   });
 });
@@ -270,9 +272,10 @@ export const getLessonsByDateRange = asyncHandler(async (req: Request, res: Resp
  */
 export const completeLesson = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const lesson = await lessonService.completeLesson(id, tenantId);
+  const lesson = await lessonService.completeLesson(id, tenantId, userId);
 
   res.json({
     success: true,

@@ -45,6 +45,9 @@ describe('no-show notification creation', () => {
     const { noShowLesson } = await import('../services/lessonService');
 
     mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, status: 'scheduled' }])
+    ); // assertLessonReviewable's getLessonById
+    mockQuery.mockResolvedValueOnce(
       queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, status: 'no_show' }])
     ); // UPDATE lessons
     mockQuery.mockResolvedValueOnce(queryResult([{ full_name: 'Jane Doe' }])); // student name lookup

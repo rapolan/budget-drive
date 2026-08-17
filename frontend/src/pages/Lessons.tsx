@@ -187,7 +187,7 @@ export const LessonsPage: React.FC = () => {
   };
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => lessonsApi.delete(id),
+    mutationFn: (id: string) => lessonsApi.cancel(id),
     onSuccess: () => {
       invalidateAllLessonQueries();
     },

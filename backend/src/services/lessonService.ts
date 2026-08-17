@@ -882,112 +882,47 @@ export const updateLesson = async (
   }
 };
 
-export const deleteLesson = async (
-  id: string,
-  tenantId: string
-): Promise<void> => {
-  logger.info('Cancelling lesson', { tenantId, lessonId: id });
+// Statuses a lesson can never transition OUT of via the three review
+// actions below (complete/no-show/cancel) - once a lesson has a terminal
+// status, correcting it means an explicit new action, not silently
+// overwriting a previous reviewer's call. updateLesson's generic
+// PUT /lessons/:id is unaffected by this guard - it stays available for
+// correcting other fields (date/time/notes/etc) regardless of status.
+const TERMINAL_LESSON_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 
-  try {
-    const result = await query(
-      `UPDATE lessons SET status = 'cancelled'
-       WHERE id = $1 AND tenant_id = $2
-       RETURNING id, student_id, instructor_id`,
-      [id, tenantId]
-    );
-
-    if (result.rows.length === 0) {
-      logger.warn('Lesson not found for cancellation', { tenantId, lessonId: id });
-      throw new AppError('Lesson not found', 404);
-    }
-
-    const lesson = result.rows[0];
-
-  // BDP Phase 2A: Queue cancellation notifications
-  try {
-    // Get student and instructor emails
-    const studentResult = await query(
-      'SELECT email FROM students WHERE id = $1',
-      [lesson.student_id]
-    );
-    const instructorResult = await query(
-      'SELECT email FROM instructors WHERE id = $1',
-      [lesson.instructor_id]
-    );
-
-    const studentEmail = studentResult.rows[0]?.email;
-    const instructorEmail = instructorResult.rows[0]?.email;
-
-    // Queue cancellation notification for student
-    if (studentEmail) {
-      await query(
-        `INSERT INTO notification_queue (
-          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
-          scheduled_send_time, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
-        [tenantId, id, 'cancellation', studentEmail, 'student']
-      );
-    }
-
-    // Queue cancellation notification for instructor
-    if (instructorEmail) {
-      await query(
-        `INSERT INTO notification_queue (
-          tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
-          scheduled_send_time, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
-        [tenantId, id, 'cancellation', instructorEmail, 'instructor']
-      );
-    }
-
-    // Delete any pending reminder notifications for this lesson
-    await query(
-      `UPDATE notification_queue
-       SET status = 'cancelled'
-       WHERE lesson_id = $1
-       AND tenant_id = $2
-       AND status = 'pending'
-       AND notification_type IN ('reminder_24h', 'reminder_1h')`,
-      [id, tenantId]
-    );
-
-      logger.info('Cancellation notifications queued successfully', {
-        tenantId,
-        lessonId: id,
-      });
-    } catch (error) {
-      logger.warn('Cancellation notification queueing failed (non-blocking)', {
-        tenantId,
-        lessonId: id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      // Don't fail the lesson cancellation if notification queueing fails
-    }
-
-    logger.info('Lesson cancelled successfully', { tenantId, lessonId: id });
-  } catch (error) {
-    logger.error('Failed to cancel lesson', error as Error, {
-      tenantId,
-      lessonId: id,
-    });
-    throw error;
+async function assertLessonReviewable(id: string, tenantId: string): Promise<Lesson> {
+  const existing = await getLessonById(id, tenantId);
+  if (!existing) {
+    throw new AppError('Lesson not found', 404);
   }
-};
+  if (TERMINAL_LESSON_STATUSES.has(existing.status)) {
+    throw new AppError(
+      `Lesson is already ${existing.status.replace(/_/g, ' ')} and cannot be transitioned again`,
+      409
+    );
+  }
+  return existing;
+}
 
 export const completeLesson = async (
   id: string,
-  tenantId: string
+  tenantId: string,
+  userId?: string
 ): Promise<Lesson> => {
   logger.info('Completing lesson', { tenantId, lessonId: id });
 
   try {
+    await assertLessonReviewable(id, tenantId);
+
     const result = await query(
       `UPDATE lessons
        SET status = 'completed',
-           completion_verified = true
+           completion_verified = true,
+           reviewed_by = $3,
+           reviewed_at = NOW()
        WHERE id = $1 AND tenant_id = $2
        RETURNING *`,
-      [id, tenantId]
+      [id, tenantId, userId || null]
     );
 
     if (result.rows.length === 0) {
@@ -997,7 +932,14 @@ export const completeLesson = async (
 
     logger.info('Lesson completed successfully', { tenantId, lessonId: id });
 
-    return keysToCamel(result.rows[0]) as Lesson;
+    const lesson = keysToCamel(result.rows[0]) as Lesson;
+
+    // Fee-flag clearing hook: a later change wires in "clear all of this
+    // student's outstanding fee flags" here, as a non-blocking side-effect
+    // matching noShowLesson's notification side-effect below - completing
+    // a lesson must never fail because of that housekeeping.
+
+    return lesson;
   } catch (error) {
     logger.error('Failed to complete lesson', error as Error, {
       tenantId,
@@ -1015,12 +957,16 @@ export const noShowLesson = async (
   logger.info('Marking lesson as no-show', { tenantId, lessonId: id });
 
   try {
+    await assertLessonReviewable(id, tenantId);
+
     const result = await query(
       `UPDATE lessons
-       SET status = 'no_show'
+       SET status = 'no_show',
+           reviewed_by = $3,
+           reviewed_at = NOW()
        WHERE id = $1 AND tenant_id = $2
        RETURNING *`,
-      [id, tenantId]
+      [id, tenantId, userId || null]
     );
 
     if (result.rows.length === 0) {
@@ -1048,9 +994,120 @@ export const noShowLesson = async (
       }
     }
 
+    // Fee-flag hook: a later change wires in "set an outstanding fee flag
+    // for this student" here, as a non-blocking side-effect, same rationale
+    // as the notification side-effect above.
+
     return lesson;
   } catch (error) {
     logger.error('Failed to mark lesson as no-show', error as Error, {
+      tenantId,
+      lessonId: id,
+    });
+    throw error;
+  }
+};
+
+export const cancelLesson = async (
+  id: string,
+  tenantId: string,
+  userId?: string
+): Promise<Lesson> => {
+  logger.info('Cancelling lesson', { tenantId, lessonId: id });
+
+  try {
+    await assertLessonReviewable(id, tenantId);
+
+    const result = await query(
+      `UPDATE lessons
+       SET status = 'cancelled',
+           reviewed_by = $3,
+           reviewed_at = NOW()
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId, userId || null]
+    );
+
+    if (result.rows.length === 0) {
+      logger.warn('Lesson not found for cancellation', { tenantId, lessonId: id });
+      throw new AppError('Lesson not found', 404);
+    }
+
+    const lesson = keysToCamel(result.rows[0]) as Lesson;
+
+    // BDP Phase 2A: Queue cancellation notifications
+    try {
+      // Get student and instructor emails
+      const studentResult = await query(
+        'SELECT email FROM students WHERE id = $1',
+        [lesson.studentId]
+      );
+      const instructorResult = await query(
+        'SELECT email FROM instructors WHERE id = $1',
+        [lesson.instructorId]
+      );
+
+      const studentEmail = studentResult.rows[0]?.email;
+      const instructorEmail = instructorResult.rows[0]?.email;
+
+      // Queue cancellation notification for student
+      if (studentEmail) {
+        await query(
+          `INSERT INTO notification_queue (
+            tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+            scheduled_send_time, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
+          [tenantId, id, 'cancellation', studentEmail, 'student']
+        );
+      }
+
+      // Queue cancellation notification for instructor
+      if (instructorEmail) {
+        await query(
+          `INSERT INTO notification_queue (
+            tenant_id, lesson_id, notification_type, recipient_email, recipient_type,
+            scheduled_send_time, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, NOW(), 'pending', NOW(), NOW())`,
+          [tenantId, id, 'cancellation', instructorEmail, 'instructor']
+        );
+      }
+
+      // Delete any pending reminder notifications for this lesson
+      await query(
+        `UPDATE notification_queue
+         SET status = 'cancelled'
+         WHERE lesson_id = $1
+         AND tenant_id = $2
+         AND status = 'pending'
+         AND notification_type IN ('reminder_24h', 'reminder_1h')`,
+        [id, tenantId]
+      );
+
+      logger.info('Cancellation notifications queued successfully', {
+        tenantId,
+        lessonId: id,
+      });
+    } catch (error) {
+      logger.warn('Cancellation notification queueing failed (non-blocking)', {
+        tenantId,
+        lessonId: id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      // Don't fail the lesson cancellation if notification queueing fails
+    }
+
+    // Fee-window hook: a later change wires in the fee-window check here -
+    // only ever produces a flag when the lesson's start is still in the
+    // future and within tenant_settings.cancellation_fee_window_hours, so
+    // a queue correction on an already-past lesson naturally produces no
+    // flag ("hours until start" is negative). Non-blocking, same rationale
+    // as the notification side-effect above.
+
+    logger.info('Lesson cancelled successfully', { tenantId, lessonId: id });
+
+    return lesson;
+  } catch (error) {
+    logger.error('Failed to cancel lesson', error as Error, {
       tenantId,
       lessonId: id,
     });

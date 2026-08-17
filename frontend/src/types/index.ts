@@ -319,6 +319,8 @@ export interface Lesson {
   updatedBy?: string | null;
   createdByName?: string | null;
   updatedByName?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
