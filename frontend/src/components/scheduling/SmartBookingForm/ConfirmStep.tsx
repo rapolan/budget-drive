@@ -73,7 +73,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
             <div className="text-right">
               <div className="font-semibold text-tx-primary">{formatShortDate(selectedSlot.date)}</div>
               <div className="text-sm text-tx-secondary">
-                {formatTime(selectedSlot.startTime)} - {formatTime(selectedSlot.endTime)}
+                {formatTime(selectedSlot.startTimeLocal)} - {formatTime(selectedSlot.endTimeLocal)}
               </div>
             </div>
           </div>

@@ -20,23 +20,6 @@ export const format12Hour = (time24: string): string => {
 };
 
 /**
- * Format ISO datetime string to 12-hour format
- * @param isoString - ISO 8601 datetime string
- * @returns Formatted time (e.g., "2:30 PM")
- */
-export const formatISOTo12Hour = (isoString: string): string => {
-  const date = new Date(isoString);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const displayHour = hours % 12 || 12;
-  const minutesStr = minutes.toString().padStart(2, '0');
-
-  return `${displayHour}:${minutesStr} ${ampm}`;
-};
-
-/**
  * Parse a YYYY-MM-DD date string in local timezone (not UTC). Also accepts
  * a full ISO datetime string (e.g. "2026-08-17T00:00:00.000Z") by taking
  * only its date portion - Postgres `date` columns come back through pg as

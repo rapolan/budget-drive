@@ -333,30 +333,20 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
     setError(null);
 
-    // selectedSlot's start/end times come back either as bare HH:MM strings
-    // or as full ISO datetimes (ranked-slots vs. the preselected-slot-seed
-    // path) - extract just the LOCAL HH:MM:SS time portion either way (an
-    // ISO string's raw digits are UTC, not what formatTime displays to the
-    // user - must go through Date's local getters, same as formatTime does),
-    // and send date/startTime/endTime as separate fields (matching what
+    // selectedSlot.startTimeLocal/endTimeLocal are already tenant wall-clock
+    // "HH:MM" strings - read directly, never parse startTime/endTime's ISO
+    // instant via new Date().getHours() (that reads the BROWSER's own
+    // timezone offset, not the tenant's - see docs/ARCHITECTURE.md §7).
+    // Sent as separate date/startTime/endTime fields (matching what
     // lessonService.ts's else branch already parses with zero timezone
     // conversion) instead of hand-composing a timezone-naive datetime string.
-    const extractTime = (value: string): string => {
-      if (!value.includes('T')) return `${value}:00`;
-      const date = new Date(value);
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      const seconds = String(date.getSeconds()).padStart(2, '0');
-      return `${hours}:${minutes}:${seconds}`;
-    };
-
     const lessonData: CreateLessonInput = {
       studentId: selectedStudentId,
       instructorId: selectedSlot.instructorId,
       vehicleId: null,
       date: selectedSlot.date,
-      startTime: extractTime(selectedSlot.startTime),
-      endTime: extractTime(selectedSlot.endTime),
+      startTime: `${selectedSlot.startTimeLocal}:00`,
+      endTime: `${selectedSlot.endTimeLocal}:00`,
       duration,
       lessonType,
       cost,
@@ -442,17 +432,12 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   const loading = findSlotsMutation.isPending || confirmBookingMutation.isPending;
 
+  // Always receives a tenant wall-clock "HH:MM" string (startTimeLocal/
+  // endTimeLocal) - never a raw ISO instant. Plain string/number math, no
+  // Date object involved (see docs/ARCHITECTURE.md §7).
   const formatTime = (time: string) => {
-    let hour: number, minutes: string;
-    if (time.includes('T')) {
-      const date = new Date(time);
-      hour = date.getHours();
-      minutes = date.getMinutes().toString().padStart(2, '0');
-    } else {
-      const parts = time.split(':');
-      hour = parseInt(parts[0]);
-      minutes = parts[1];
-    }
+    const [hoursStr, minutes] = time.split(':');
+    const hour = parseInt(hoursStr, 10);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;

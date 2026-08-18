@@ -31,7 +31,7 @@ export const SuccessStep: React.FC<SuccessStepProps> = ({
         </div>
         <h3 className="text-lg font-semibold text-tx-primary">Lesson Booked!</h3>
         <p className="text-sm text-tx-secondary mt-1">
-          {selectedStudent?.fullName} on {formatShortDate(bookedSlot.date)} at {formatTime(bookedSlot.startTime)}
+          {selectedStudent?.fullName} on {formatShortDate(bookedSlot.date)} at {formatTime(bookedSlot.startTimeLocal)}
           {bookedSlot.instructorName ? ` with ${bookedSlot.instructorName}` : ''}
         </p>
       </div>

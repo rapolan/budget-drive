@@ -158,7 +158,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
                             >
                               <span className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm font-medium text-tx-primary">
-                                  {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                                  {formatTime(slot.startTimeLocal)} - {formatTime(slot.endTimeLocal)}
                                 </span>
                                 <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${slotBadge.class}`}>
                                   {slotBadge.label}
