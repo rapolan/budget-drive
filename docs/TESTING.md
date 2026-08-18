@@ -449,6 +449,36 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Pass looks like:** The 60-minute search returns exactly one slot, `09:00`–`10:00`, filling the window. The 120-minute search on the same day returns zero slots for that instructor — a lesson that can't fit inside the real, explicit end time is correctly rejected, not padded out past it. (If the student you're testing with already has another lesson booked that same day, you'll see zero slots for an unrelated reason — the one-lesson-per-student-per-day rule, not this feature; pick a student with no existing lesson on the test date.)
 
+### 2.29 Reviewing a day in the Review Queue
+
+**Do:** Ensure at least one `scheduled` lesson exists whose end time has already passed (seed data or a quick manual booking with a past date works). Go to `/`, find the **Lessons Need Review** alert, and click it.
+
+**Pass looks like:** The Review Queue page lists day groups, most overdue first, each row showing student/instructor/time and three buttons (**Completed**/**No-show**/**Cancelled**). A day more than 24 hours overdue shows a visible "Overdue >24h" badge/warning styling; a day within the last 24 hours does not. Click **Mark all completed** on one day group — every lesson in that group moves to `completed` (confirm on the Lessons page, filtered to Completed), and that day group disappears from the queue once empty.
+
+### 2.30 Marking a no-show and seeing the fee flag appear
+
+**Do:** On the Lessons page, click a `scheduled` lesson's status badge to open the inline menu, choose **No-show**.
+
+**Pass looks like:** A toast confirms the lesson was marked no-show, and the Status filter counts update (`Scheduled` count decreases by one, `No Show` increases by one). Open that student's record → **Progress** tab: an **Outstanding fee** banner appears listing the amount (matching `tenant_settings.cancellation_fee_amount`), reason ("No-show"), and date — never blocking anything else on the page.
+
+### 2.31 Seeing the fee at booking
+
+**Do:** With the student from §2.30 still carrying an outstanding fee, open the booking wizard and select that student on the setup step. Continue through to the Confirm step.
+
+**Pass looks like:** A banner reading "N outstanding fee(s) ($X.XX) - collected separately, does not affect this booking" appears right after the student info card on both the setup step and the Confirm step's Booking Summary. Neither **Find Available Instructors** nor **Confirm Booking** is ever disabled because of it — complete the booking normally and confirm it succeeds.
+
+### 2.32 Waiving a fee, and confirming it clears on the student's next completed lesson
+
+**Do:** On the student record's Progress tab, click **Waive** next to the outstanding fee, type a reason, click **Confirm Waive**.
+
+**Pass looks like:** The banner disappears immediately (or shows zero outstanding fees). Separately — with a *different*, still-outstanding fee flag on some student — mark that student's next lesson **Completed** (from the Lessons page or the Review Queue) and re-open their Progress tab: the outstanding fee banner is gone there too, cleared automatically by the completion, not by a manual waive.
+
+### 2.33 Confirming a fee never appears in revenue or payments reporting
+
+**Do:** Note the **Total Revenue** figure on `/payments` and the gross/net earnings for the fee flag's source lesson's instructor on `/instructor-earnings`, both *before* creating a fresh no-show fee flag (§2.30). Create the flag, then re-check both figures. Then go to `/settings` → **General** and confirm **Who Collects the Fee** is set to **Instructor** (the default) — with it set this way, open that student's record and confirm no "Record payment" action is offered next to the outstanding fee at all.
+
+**Pass looks like:** Both the Payments page's Total Revenue and the instructor's gross/net earnings are unchanged before and after the fee flag is created — a fee flag is never summed into either. With `cancellation_fee_payee = 'instructor'`, no "Record payment" button appears anywhere. If you switch the setting to **School** and reload the student record, a **Record payment** action does appear next to the outstanding fee; clicking it creates a real row on `/payments` (Total Revenue now increases by that amount) and the fee flag's own status changes to `paid` — this is the one deliberate exception, and only reachable this way.
+
 ---
 
 ## 3. Known issues to route around
