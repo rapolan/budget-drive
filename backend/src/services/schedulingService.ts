@@ -264,6 +264,12 @@ export const findAvailableSlots = async (
             date: dateStr,
             startTime: slotStart.toISOString(),
             endTime: slotEnd.toISOString(),
+            // Tenant wall-clock HH:MM - the frontend must read these
+            // directly for display/booking, never derive them by parsing
+            // startTime/endTime's ISO instant with the browser's own
+            // getHours()/getMinutes() (see docs/ARCHITECTURE.md §7).
+            startTimeLocal: startHHMM,
+            endTimeLocal: endHHMM,
             instructorId: instId,
             vehicleId: vehicleForLesson ?? null,
             duration,

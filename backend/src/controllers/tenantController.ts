@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as tenantService from '../services/tenantService';
 import { getTenantId } from '../middleware/tenantContext';
+import { resolveTenantTimezone } from '../utils/tenantTime';
 
 /**
  * @route   GET /api/v1/tenants/:id
@@ -161,9 +162,11 @@ export const getTenantSettings = asyncHandler(async (req: Request, res: Response
     return;
   }
 
+  const timezone = resolveTenantTimezone(settings.timezone);
+
   res.json({
     success: true,
-    data: settings,
+    data: { ...settings, tenantNow: tenantService.getTenantNow(timezone) },
   });
 });
 

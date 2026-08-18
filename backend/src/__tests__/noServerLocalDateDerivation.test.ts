@@ -50,6 +50,7 @@ const TARGET_FILES = [
   'src/services/studentProgressService.ts',
   'src/services/bookingPresetsService.ts',
   'src/services/dashboardService.ts',
+  'src/services/tenantService.ts',
   'src/utils/tenantTime.ts',
 ];
 
@@ -103,6 +104,13 @@ const ALLOWLIST: Record<string, string[]> = {
     // comparing a lesson's resolved end instant against the real current
     // moment is legitimate regardless of tenant zone.
     `const now = new Date();`,
+  ],
+  'src/services/tenantService.ts': [
+    // getTenantNow's own default-reference parameter, same allowlisted
+    // pattern as tenantTime.ts's own primitives below - this is the
+    // function every consumer (including the frontend, via GET
+    // /tenant/settings) calls instead of touching Date itself.
+    `reference: Date = new Date()`,
   ],
   'src/utils/tenantTime.ts': [
     // The module's own default-reference parameters - the ONE place real

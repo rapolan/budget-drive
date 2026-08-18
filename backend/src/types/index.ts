@@ -1085,8 +1085,10 @@ export interface NotificationQueue {
 // Available time slot for booking
 export interface TimeSlot {
   date: string; // Date string (YYYY-MM-DD format)
-  startTime: string; // ISO 8601 datetime
-  endTime: string; // ISO 8601 datetime
+  startTime: string; // ISO 8601 datetime (UTC instant)
+  endTime: string; // ISO 8601 datetime (UTC instant)
+  startTimeLocal: string; // Tenant wall-clock "HH:MM" - use directly, never derive from startTime's ISO instant
+  endTimeLocal: string; // Tenant wall-clock "HH:MM" - use directly, never derive from endTime's ISO instant
   instructorId: string;
   vehicleId: string | null;
   duration: number; // minutes

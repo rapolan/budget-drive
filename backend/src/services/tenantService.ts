@@ -7,6 +7,14 @@ import { query } from '../config/database';
 import { Tenant, TenantSettings, TenantFullInfo } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
+import {
+  tenantToday,
+  tenantTomorrow,
+  formatInTenantZone,
+  tenantDayOfWeek,
+  addTenantDays,
+  tenantMonthBoundaries,
+} from '../utils/tenantTime';
 
 /**
  * Get tenant by ID
@@ -187,6 +195,40 @@ export const getTenantSettings = async (tenantId: string): Promise<TenantSetting
   }
 
   return keysToCamel(result.rows[0]) as TenantSettings;
+};
+
+export interface TenantNow {
+  timezone: string;
+  today: string;            // YYYY-MM-DD
+  tomorrow: string;         // YYYY-MM-DD
+  currentTime: string;      // HH:MM
+  weekStart: string;        // YYYY-MM-DD, Sunday-start
+  weekEnd: string;          // YYYY-MM-DD, weekStart + 6
+  monthBoundaries: { start: string; end: string };
+}
+
+/**
+ * Resolves the tenant's "now" - today/tomorrow/current-time/week/month
+ * boundaries, all in the tenant's own timezone. This is the single value
+ * the frontend threads through TenantContext instead of ever deriving a
+ * date boundary from the browser's own clock (see docs/ARCHITECTURE.md §7).
+ */
+export const getTenantNow = (timezone: string, reference: Date = new Date()): TenantNow => {
+  const today = tenantToday(timezone, reference);
+  // Sunday-start is a convention, not a law - this may need to become a
+  // tenant setting later (mirroring cancellation_fee_window_hours etc.).
+  // Keeping it isolated to this one line is what makes that a one-function
+  // edit rather than an archaeology project across two codebases.
+  const weekStart = addTenantDays(today, -tenantDayOfWeek(today, timezone), timezone);
+  return {
+    timezone,
+    today,
+    tomorrow: tenantTomorrow(timezone, reference),
+    currentTime: formatInTenantZone(reference, timezone, 'HH:mm'),
+    weekStart,
+    weekEnd: addTenantDays(weekStart, 6, timezone),
+    monthBoundaries: tenantMonthBoundaries(timezone, reference),
+  };
 };
 
 /**
