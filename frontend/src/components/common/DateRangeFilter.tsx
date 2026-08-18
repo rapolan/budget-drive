@@ -1,6 +1,5 @@
 import React from 'react';
 import { Calendar, X } from 'lucide-react';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
 
 export type DateRangePreset = 'all' | 'today' | 'this_week' | 'this_month' | 'custom';
 
@@ -13,6 +12,15 @@ export interface DateRangeValue {
 interface DateRangeFilterProps {
   value: DateRangeValue;
   onChange: (range: DateRangeValue) => void;
+  // Tenant-timezone-resolved boundaries (YYYY-MM-DD) - this component stays
+  // presentational and never derives "today"/week/month itself, so it
+  // never needs date-fns's Date-based boundary helpers or the browser's
+  // own clock (see docs/ARCHITECTURE.md §7).
+  tenantToday: string;
+  tenantWeekStart: string;
+  tenantWeekEnd: string;
+  tenantMonthStart: string;
+  tenantMonthEnd: string;
 }
 
 const presetButtons: { label: string; value: DateRangePreset }[] = [
@@ -23,24 +31,31 @@ const presetButtons: { label: string; value: DateRangePreset }[] = [
   { label: 'Custom', value: 'custom' },
 ];
 
-export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChange }) => {
+export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
+  value,
+  onChange,
+  tenantToday,
+  tenantWeekStart,
+  tenantWeekEnd,
+  tenantMonthStart,
+  tenantMonthEnd,
+}) => {
   const handlePresetClick = (preset: DateRangePreset) => {
-    const now = new Date();
     let start = '';
     let end = '';
 
     switch (preset) {
       case 'today':
-        start = format(startOfDay(now), 'yyyy-MM-dd');
-        end = format(endOfDay(now), 'yyyy-MM-dd');
+        start = tenantToday;
+        end = tenantToday;
         break;
       case 'this_week':
-        start = format(startOfWeek(now, { weekStartsOn: 0 }), 'yyyy-MM-dd');
-        end = format(endOfWeek(now, { weekStartsOn: 0 }), 'yyyy-MM-dd');
+        start = tenantWeekStart;
+        end = tenantWeekEnd;
         break;
       case 'this_month':
-        start = format(startOfMonth(now), 'yyyy-MM-dd');
-        end = format(endOfMonth(now), 'yyyy-MM-dd');
+        start = tenantMonthStart;
+        end = tenantMonthEnd;
         break;
       case 'all':
       case 'custom':

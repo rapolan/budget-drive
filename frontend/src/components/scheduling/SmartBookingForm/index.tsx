@@ -248,6 +248,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       date: slotDate,
       startTime: preselectedTime.start,
       endTime: preselectedTime.end,
+      // preselectedTime.start/.end are already plain HH:MM (passed in from
+      // the parent calendar view, never a real ranked-slot ISO instant on
+      // this skip-to-confirm path) - the *Local fields are the same value.
+      startTimeLocal: preselectedTime.start,
+      endTimeLocal: preselectedTime.end,
       instructorId: preselectedInstructor.id,
       available: true,
       proximityScore: 0,

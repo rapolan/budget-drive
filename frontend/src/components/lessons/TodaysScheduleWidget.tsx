@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Clock, CheckCircle, Eye, Calendar } from 'lucide-react';
 import type { Lesson } from '@/types';
+import { useTenant } from '@/contexts/TenantContext';
+
+// Advances a tenant-resolved "HH:MM" wall-clock reading by the real
+// milliseconds elapsed since it was captured - never re-reads the
+// browser's own clock (see docs/ARCHITECTURE.md §7). This is what lets the
+// widget keep a smooth per-minute ticker between TenantContext's own
+// 5-minute refreshes without ever falling back to new Date().
+function advanceTime(hhmm: string, elapsedMs: number): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const totalMinutes = (h * 60 + m + Math.floor(elapsedMs / 60000)) % (24 * 60);
+  const wrapped = totalMinutes < 0 ? totalMinutes + 24 * 60 : totalMinutes;
+  const hours = Math.floor(wrapped / 60);
+  const minutes = wrapped % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
 
 interface TodaysScheduleWidgetProps {
   lessons: Lesson[];
@@ -22,19 +37,26 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
     return saved ? JSON.parse(saved) : false;
   });
 
-  const [currentTime, setCurrentTime] = useState(() => {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  });
+  const { tenantNow } = useTenant();
 
-  // Update current time every minute
+  // Re-anchors from tenantNow.currentTime (and the real elapsed ms since it
+  // was captured) rather than ever reading the browser's own clock - ticks
+  // every minute for display smoothness, but always re-anchors whenever
+  // TenantContext's own periodic refresh delivers a fresh tenantNow.
+  const [anchor, setAnchor] = useState(() => ({ time: tenantNow?.currentTime ?? '00:00', capturedAt: Date.now() }));
   useEffect(() => {
+    if (tenantNow) setAnchor({ time: tenantNow.currentTime, capturedAt: Date.now() });
+  }, [tenantNow]);
+
+  const [currentTime, setCurrentTime] = useState(() => advanceTime(anchor.time, Date.now() - anchor.capturedAt));
+
+  useEffect(() => {
+    setCurrentTime(advanceTime(anchor.time, Date.now() - anchor.capturedAt));
     const interval = setInterval(() => {
-      const now = new Date();
-      setCurrentTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+      setCurrentTime(advanceTime(anchor.time, Date.now() - anchor.capturedAt));
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [anchor]);
 
   // Save collapse state to localStorage
   useEffect(() => {

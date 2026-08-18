@@ -87,6 +87,24 @@ export const formatShortDate = (date: Date | string): string => {
 };
 
 /**
+ * Format a tenant-resolved YYYY-MM-DD date string as a full long-form label
+ * (e.g. "Monday, January 15, 2026") - for page headers that used to render
+ * `new Date()` directly. Always pass a value already resolved by the
+ * backend (e.g. TenantNow.today), never derive the date from the browser's
+ * own clock.
+ * @param dateStr - YYYY-MM-DD string
+ * @returns Formatted date string
+ */
+export const formatTenantDateLabel = (dateStr: string): string => {
+  return parseLocalDate(dateStr).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+/**
  * Format date and time together (e.g., "Mon, Jan 15 at 2:30 PM")
  * @param date - Date object or date string
  * @param time24 - Time in HH:MM format

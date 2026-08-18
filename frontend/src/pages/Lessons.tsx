@@ -14,12 +14,15 @@ import type { DateRangeValue } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useToast } from '@/hooks/useToast';
+import { useTenant } from '@/contexts/TenantContext';
+import { addCalendarDays } from '@/utils/timeFormat';
 
 type ViewMode = 'table' | 'cards' | 'calendar' | 'weekly';
 type StatusFilter = 'all' | 'today' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
 
 export const LessonsPage: React.FC = () => {
   const location = useLocation();
+  const { tenantNow } = useTenant();
 
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
@@ -312,21 +315,26 @@ export const LessonsPage: React.FC = () => {
   };
 
 
-  // Helper to check if lesson is within 24 hours
+  // Helper to check if lesson is within 24 hours, against the tenant's
+  // current wall-clock time - never the browser's.
   const isUpcoming = (lesson: Lesson) => {
-    const now = new Date();
-    const lessonDate = new Date(lesson.date);
-    const [hours, minutes] = lesson.startTime.split(':');
-    lessonDate.setHours(parseInt(hours), parseInt(minutes), 0);
-    const diff = lessonDate.getTime() - now.getTime();
-    return diff > 0 && diff <= 24 * 60 * 60 * 1000 && lesson.status === 'scheduled';
+    if (!tenantNow) return false;
+    const lessonDateStr = String(lesson.date).split('T')[0];
+    if (lessonDateStr !== tenantNow.today && lessonDateStr !== tenantNow.tomorrow) return false;
+    // Minutes-since-midnight on the lesson's own calendar day, compared
+    // against the tenant's current time similarly expressed - both are
+    // plain HH:MM strings, so this is timezone-safe string/number math,
+    // never a Date instant.
+    const [nowH, nowM] = tenantNow.currentTime.split(':').map(Number);
+    const [lessonH, lessonM] = lesson.startTime.split(':').map(Number);
+    const nowMinutes = nowH * 60 + nowM;
+    const lessonMinutes = lessonH * 60 + lessonM + (lessonDateStr === tenantNow.tomorrow ? 24 * 60 : 0);
+    const diffMinutes = lessonMinutes - nowMinutes;
+    return diffMinutes > 0 && diffMinutes <= 24 * 60 && lesson.status === 'scheduled';
   };
 
   // Calculate status counts for filter buttons
   const statusCounts = React.useMemo(() => {
-    const now = new Date();
-    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
     const counts = {
       all: data?.data?.length || 0,
       today: 0,
@@ -335,11 +343,11 @@ export const LessonsPage: React.FC = () => {
       cancelled: 0,
       no_show: 0,
     };
+    if (!tenantNow) return counts;
+
     data?.data?.forEach((lesson) => {
       // Count today's lessons (any status)
-      const lessonDate = new Date(lesson.date);
-      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
-      if (lessonDay.getTime() === todayDate.getTime()) {
+      if (String(lesson.date).split('T')[0] === tenantNow.today) {
         counts.today++;
       }
 
@@ -350,18 +358,12 @@ export const LessonsPage: React.FC = () => {
       else if (lesson.status === 'no_show') counts.no_show++;
     });
     return counts;
-  }, [data?.data]);
+  }, [data?.data, tenantNow]);
 
   // Calculate stats for dashboard cards
   const stats = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(today);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const empty = { todayLessons: 0, upcomingToday: 0, thisWeekLessons: 0, completedThisMonth: 0, totalHoursThisMonth: 0 };
+    if (!tenantNow) return empty;
 
     let todayLessons = 0;
     let upcomingToday = 0;
@@ -370,29 +372,27 @@ export const LessonsPage: React.FC = () => {
     let totalHoursThisMonth = 0;
 
     data?.data?.forEach((lesson) => {
-      const lessonDate = new Date(lesson.date);
-      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+      const lessonDateStr = String(lesson.date).split('T')[0];
 
       // Today's lessons
-      if (lessonDay.getTime() === today.getTime()) {
+      if (lessonDateStr === tenantNow.today) {
         todayLessons++;
-        if (lesson.status === 'scheduled') {
-          const [hours, minutes] = lesson.startTime.split(':');
-          const lessonTime = new Date(today);
-          lessonTime.setHours(parseInt(hours), parseInt(minutes), 0);
-          if (lessonTime > now) {
-            upcomingToday++;
-          }
+        if (lesson.status === 'scheduled' && lesson.startTime > tenantNow.currentTime) {
+          upcomingToday++;
         }
       }
 
       // This week's lessons (scheduled only)
-      if (lessonDay >= weekStart && lessonDay < weekEnd && lesson.status === 'scheduled') {
+      if (lessonDateStr >= tenantNow.weekStart && lessonDateStr <= tenantNow.weekEnd && lesson.status === 'scheduled') {
         thisWeekLessons++;
       }
 
       // Completed this month
-      if (lessonDay >= monthStart && lessonDay <= monthEnd && lesson.status === 'completed') {
+      if (
+        lessonDateStr >= tenantNow.monthBoundaries.start &&
+        lessonDateStr <= tenantNow.monthBoundaries.end &&
+        lesson.status === 'completed'
+      ) {
         completedThisMonth++;
         // Calculate hours from start and end time
         const [startH, startM] = lesson.startTime.split(':').map(Number);
@@ -409,30 +409,23 @@ export const LessonsPage: React.FC = () => {
       completedThisMonth,
       totalHoursThisMonth: Math.round(totalHoursThisMonth * 10) / 10,
     };
-  }, [data?.data]);
+  }, [data?.data, tenantNow]);
 
   // Get today's lessons for the TodaysScheduleWidget
   const todaysLessonsForWidget = useMemo(() => {
-    if (!data?.data) return [];
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    return data.data.filter((lesson) => {
-      const lessonDate = new Date(lesson.date);
-      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
-      return lessonDay.getTime() === today.getTime();
-    });
-  }, [data?.data]);
+    if (!data?.data || !tenantNow) return [];
+    return data.data.filter((lesson) => String(lesson.date).split('T')[0] === tenantNow.today);
+  }, [data?.data, tenantNow]);
 
   const filteredLessons = data?.data?.filter((lesson) => {
-    const now = new Date();
-    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const lessonDate = new Date(lesson.date);
-    const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+    // lesson.date is a DATE-only value (no wall-clock time) - compare it as
+    // a plain YYYY-MM-DD string directly rather than round-tripping through
+    // new Date().toISOString(), which UTC-shifts the calendar day for
+    // roughly half of every browser timezone.
+    const lessonDateStr = String(lesson.date).split('T')[0];
 
     // Date range filter
     if (dateRange.start || dateRange.end) {
-      const lessonDateStr = lessonDate.toISOString().split('T')[0];
       if (dateRange.start && lessonDateStr < dateRange.start) {
         return false;
       }
@@ -444,7 +437,7 @@ export const LessonsPage: React.FC = () => {
     // Status filter
     if (statusFilter === 'today') {
       // Today filter: show only today's lessons (any status)
-      if (lessonDay.getTime() !== todayDate.getTime()) {
+      if (!tenantNow || lessonDateStr !== tenantNow.today) {
         return false;
       }
     } else if (statusFilter !== 'all' && lesson.status !== statusFilter) {
@@ -504,15 +497,8 @@ export const LessonsPage: React.FC = () => {
     return a.startTime.localeCompare(b.startTime);
   };
 
-  // Group lessons by date category
-  const groupLessonsByDate = (lessons: Lesson[]) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
+  // Group lessons by date category, relative to the tenant's own today.
+  const groupLessonsByDate = (lessons: Lesson[], tenantToday: string, tenantTomorrowStr: string, nextWeekStr: string) => {
     const groups = {
       today: [] as Lesson[],
       tomorrow: [] as Lesson[],
@@ -522,16 +508,15 @@ export const LessonsPage: React.FC = () => {
     };
 
     lessons.forEach((lesson) => {
-      const lessonDate = new Date(lesson.date);
-      const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
+      const lessonDateStr = String(lesson.date).split('T')[0];
 
-      if (lessonDay.getTime() === today.getTime()) {
+      if (lessonDateStr === tenantToday) {
         groups.today.push(lesson);
-      } else if (lessonDay.getTime() === tomorrow.getTime()) {
+      } else if (lessonDateStr === tenantTomorrowStr) {
         groups.tomorrow.push(lesson);
-      } else if (lessonDay > tomorrow && lessonDay <= nextWeek) {
+      } else if (lessonDateStr > tenantTomorrowStr && lessonDateStr <= nextWeekStr) {
         groups.thisWeek.push(lesson);
-      } else if (lessonDay > nextWeek) {
+      } else if (lessonDateStr > nextWeekStr) {
         groups.later.push(lesson);
       } else {
         groups.past.push(lesson);
@@ -549,9 +534,10 @@ export const LessonsPage: React.FC = () => {
   };
 
   const groupedLessons = React.useMemo(() => {
-    if (!filteredLessons) return null;
-    return groupLessonsByDate(filteredLessons);
-  }, [filteredLessons]);
+    if (!filteredLessons || !tenantNow) return null;
+    const nextWeekStr = addCalendarDays(tenantNow.today, 7);
+    return groupLessonsByDate(filteredLessons, tenantNow.today, tenantNow.tomorrow, nextWeekStr);
+  }, [filteredLessons, tenantNow]);
 
   // Reusable function to render a lesson row
   const renderLessonRow = (lesson: Lesson) => {
@@ -931,7 +917,15 @@ export const LessonsPage: React.FC = () => {
       </div>
 
       {/* Date Range Filter */}
-      <DateRangeFilter value={dateRange} onChange={setDateRange} />
+      <DateRangeFilter
+        value={dateRange}
+        onChange={setDateRange}
+        tenantToday={tenantNow?.today ?? ''}
+        tenantWeekStart={tenantNow?.weekStart ?? ''}
+        tenantWeekEnd={tenantNow?.weekEnd ?? ''}
+        tenantMonthStart={tenantNow?.monthBoundaries.start ?? ''}
+        tenantMonthEnd={tenantNow?.monthBoundaries.end ?? ''}
+      />
 
       {/* Status Filter - Show in all views */}
       <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">

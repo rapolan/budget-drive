@@ -14,12 +14,35 @@ vi.mock('@/api', async () => {
     instructorsApi: { ...actual.instructorsApi, getAll: vi.fn() },
     lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
     paymentsApi: { ...actual.paymentsApi, getAll: vi.fn() },
-    dashboardApi: { ...actual.dashboardApi, getNoShowAlerts: vi.fn(), dismissAlert: vi.fn() },
+    dashboardApi: {
+      ...actual.dashboardApi,
+      getNoShowAlerts: vi.fn(),
+      dismissAlert: vi.fn(),
+      getReviewQueue: vi.fn().mockResolvedValue({ data: { days: [], totalCount: 0 } }),
+    },
   };
 });
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { role: 'admin' } }),
+}));
+
+// Fixed tenantNow so Dashboard's "today"-derived stats/bucketing are
+// deterministic in tests, matching the tenant-timezone-resolved shape
+// TenantContext now provides (see docs/ARCHITECTURE.md §7) - Dashboard.tsx
+// renders a loading skeleton until this resolves, so every test needs it.
+vi.mock('@/contexts/TenantContext', () => ({
+  useTenant: () => ({
+    tenantNow: {
+      timezone: 'America/Los_Angeles',
+      today: '2026-08-17',
+      tomorrow: '2026-08-18',
+      currentTime: '12:00',
+      weekStart: '2026-08-16',
+      weekEnd: '2026-08-22',
+      monthBoundaries: { start: '2026-08-01', end: '2026-08-31' },
+    },
+  }),
 }));
 
 afterEach(cleanup);

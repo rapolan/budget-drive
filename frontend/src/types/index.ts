@@ -55,9 +55,26 @@ export interface UserTenantMembership {
   primaryColor?: string;
 }
 
+// Tenant-timezone-resolved "now" - the ONLY source of "today"/current-time/
+// week/month boundaries anywhere in the frontend. Never derive any of these
+// from the browser's own Date/Intl; render this value instead (see
+// docs/ARCHITECTURE.md §7).
+export interface TenantNow {
+  timezone: string;
+  today: string;       // YYYY-MM-DD
+  tomorrow: string;     // YYYY-MM-DD
+  currentTime: string;  // HH:MM
+  weekStart: string;    // YYYY-MM-DD, Sunday-start
+  weekEnd: string;      // YYYY-MM-DD, weekStart + 6
+  monthBoundaries: { start: string; end: string };
+}
+
 export interface TenantSettings {
   id: string;
   tenantId: string;
+  // Present once TenantContext's first fetch of GET /tenant/settings
+  // resolves - null only during that brief pre-hydration window.
+  tenantNow?: TenantNow;
 
   // Business identity
   businessName?: string;
@@ -585,8 +602,10 @@ export interface SchedulingSettings {
 
 export interface TimeSlot {
   date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
+  startTime: string; // ISO 8601 datetime (UTC instant) - never parse this with new Date().getHours(), use startTimeLocal
+  endTime: string; // ISO 8601 datetime (UTC instant) - never parse this with new Date().getHours(), use endTimeLocal
+  startTimeLocal: string; // Tenant wall-clock "HH:MM" - use directly
+  endTimeLocal: string; // Tenant wall-clock "HH:MM" - use directly
   instructorId: string;
   vehicleId?: string;
   available: boolean;

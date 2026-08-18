@@ -22,14 +22,16 @@ import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } fr
 import { StudentModal } from '@/components/students/StudentModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
-import { format12Hour } from '@/utils/timeFormat';
+import { format12Hour, formatTenantDateLabel, parseLocalDate, addCalendarDays } from '@/utils/timeFormat';
 import { computeStudentStatus } from '@/utils/studentStatus';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { tenantNow } = useTenant();
   const isInstructor = user?.role === 'instructor';
 
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
@@ -82,11 +84,11 @@ export const DashboardPage: React.FC = () => {
   const noShowAlerts = noShowAlertsData?.data || [];
   const reviewQueueCount = reviewQueueData?.data?.totalCount || 0;
 
-  const isLoading = studentsLoading || instructorsLoading || lessonsLoading;
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const currentTime = now.toTimeString().slice(0, 5);
+  // tenantNow is null only during the brief pre-hydration window before
+  // TenantContext's first fetch resolves - the loading gate below renders
+  // the skeleton for that window rather than ever falling back to a
+  // browser-derived date (see docs/ARCHITECTURE.md §7).
+  const isLoading = studentsLoading || instructorsLoading || lessonsLoading || !tenantNow;
 
   // ============================================
   // DASHBOARD STATS
@@ -105,28 +107,31 @@ export const DashboardPage: React.FC = () => {
     return students.filter(s => computeStudentStatus(s, lessons).status === 'needs_attention');
   }, [students, lessons]);
 
-  // Permits expiring within 30 days
+  // Permits expiring within 30 days of the TENANT's today - lessonDate/
+  // learnerPermitExpiration arrive as DATE-only values (no wall-clock time),
+  // so this compares them as plain YYYY-MM-DD strings rather than round-
+  // tripping through a browser-local Date.
   const expiringPermits = useMemo(() => {
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    
+    if (!tenantNow) return [];
+    const thirtyDaysFromToday = addCalendarDays(tenantNow.today, 30);
+
     return students.filter(s => {
       if (!s.learnerPermitExpiration) return false;
-      const expDate = new Date(s.learnerPermitExpiration);
-      return expDate <= thirtyDaysFromNow && expDate >= today;
+      const expDateStr = String(s.learnerPermitExpiration).split('T')[0];
+      return expDateStr <= thirtyDaysFromToday && expDateStr >= tenantNow.today;
     });
-  }, [students, today]);
+  }, [students, tenantNow]);
 
-  // This month's revenue
+  // This month's revenue, in the tenant's own month boundaries.
   const monthlyRevenue = useMemo(() => {
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (!tenantNow) return 0;
     return payments
       .filter(p => {
-        const paymentDate = new Date(p.date);
-        return paymentDate >= startOfMonth && p.status === 'confirmed';
+        const paymentDateStr = String(p.date).split('T')[0];
+        return paymentDateStr >= tenantNow.monthBoundaries.start && p.status === 'confirmed';
       })
       .reduce((sum, p) => sum + (+p.amount || 0), 0);
-  }, [payments, now]);
+  }, [payments, tenantNow]);
 
   // Pending payments
   const pendingPayments = useMemo(() => {
@@ -138,29 +143,25 @@ export const DashboardPage: React.FC = () => {
     return students.filter(needsTurning18Alert);
   }, [students]);
 
-  // This week's lessons count
+  // This week's lessons count, in the tenant's own week boundaries.
   const weekLessonsCount = useMemo(() => {
-    const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + 7);
-    
+    if (!tenantNow) return 0;
     return lessons.filter(l => {
-      const lessonDate = new Date(l.date);
-      return lessonDate >= today && lessonDate < endOfWeek && l.status === 'scheduled';
+      const lessonDateStr = String(l.date).split('T')[0];
+      return lessonDateStr >= tenantNow.weekStart && lessonDateStr <= tenantNow.weekEnd && l.status === 'scheduled';
     }).length;
-  }, [lessons, today]);
+  }, [lessons, tenantNow]);
 
-  // Today's lessons
+  // Today's lessons, by the TENANT's calendar date.
   const todaysLessons = useMemo(() => {
+    if (!tenantNow) return [];
     return lessons
-      .filter((l) => {
-        const lessonDate = new Date(l.date);
-        const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
-        return lessonDay.getTime() === today.getTime() && l.status === 'scheduled';
-      })
+      .filter((l) => String(l.date).split('T')[0] === tenantNow.today && l.status === 'scheduled')
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  }, [lessons, today]);
+  }, [lessons, tenantNow]);
 
-  // Current and next lesson
+  // Current and next lesson, against the tenant's current wall-clock time.
+  const currentTime = tenantNow?.currentTime ?? '';
   const currentLesson = useMemo(() => {
     return todaysLessons.find(
       (l) => l.startTime <= currentTime && l.endTime > currentTime
@@ -179,41 +180,30 @@ export const DashboardPage: React.FC = () => {
     return todaysLessons.filter((l) => l.startTime > currentTime);
   }, [todaysLessons, currentTime]);
 
-  // Get next 7 days of lessons
+  // Get next 7 days of lessons, walking forward from the tenant's today.
   const weeklyLessons = useMemo(() => {
+    if (!tenantNow) return [];
     const days = [];
     for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      const dateStr = addCalendarDays(tenantNow.today, i);
 
       const dayLessons = lessons.filter((l) => {
-        const lessonDate = new Date(l.date);
-        const lessonDay = new Date(lessonDate.getFullYear(), lessonDate.getMonth(), lessonDate.getDate());
-        return lessonDay.getTime() === date.getTime() && l.status === 'scheduled';
+        return String(l.date).split('T')[0] === dateStr && l.status === 'scheduled';
       });
 
       days.push({
-        date,
+        date: parseLocalDate(dateStr),
         lessons: dayLessons,
         count: dayLessons.length,
         isToday: i === 0,
       });
     }
     return days;
-  }, [lessons, today]);
+  }, [lessons, tenantNow]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
   }
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
 
   const formatDayShort = (date: Date) => {
     return date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -231,7 +221,7 @@ export const DashboardPage: React.FC = () => {
         {/* ── Page title + quick actions ─────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-tx-primary">{formatDate(now)}</h1>
+            <h1 className="text-2xl font-bold text-tx-primary">{tenantNow ? formatTenantDateLabel(tenantNow.today) : ''}</h1>
             <p className="mt-1 text-sm text-tx-muted">
               {todaysLessons.length === 0
                 ? 'No lessons scheduled today'

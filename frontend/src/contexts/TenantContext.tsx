@@ -1,11 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { tenantsApi } from '@/api';
-import type { TenantSettings, Tenant, TenantType } from '@/types';
+import type { TenantSettings, Tenant, TenantType, TenantNow } from '@/types';
+
+// How often to re-fetch tenantNow so a long-open tab doesn't drift once
+// midnight (or any other boundary) passes in the tenant's own timezone.
+const TENANT_NOW_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 interface TenantContextType {
   tenant: Tenant | null;
   tenantType: TenantType;
   settings: TenantSettings | null;
+  tenantNow: TenantNow | null;
   loading: boolean;
   error: string | null;
   refreshSettings: () => Promise<void>;
@@ -40,6 +45,7 @@ function applyTheme(settings: TenantSettings, tenantName: string) {
 export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [settings, setSettings] = useState<TenantSettings | null>(null);
+  const [tenantNow, setTenantNow] = useState<TenantNow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +77,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       if (settingsResponse.success && settingsResponse.data) {
         setSettings(settingsResponse.data);
+        setTenantNow(settingsResponse.data.tenantNow ?? null);
         const name = resolvedTenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
         applyTheme(settingsResponse.data, name);
       }
@@ -85,8 +92,16 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     refreshSettings();
   }, []);
 
+  // Keeps tenantNow from drifting across a long-open tab - re-fetches the
+  // same GET /tenant/settings call refreshSettings already makes, so this
+  // rides the existing request rather than adding a second endpoint.
+  useEffect(() => {
+    const interval = setInterval(refreshSettings, TENANT_NOW_REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <TenantContext.Provider value={{ tenant, tenantType, settings, loading, error, refreshSettings, updateTheme }}>
+    <TenantContext.Provider value={{ tenant, tenantType, settings, tenantNow, loading, error, refreshSettings, updateTheme }}>
       {children}
     </TenantContext.Provider>
   );

@@ -78,6 +78,8 @@ const SLOT: RankedTimeSlot = {
   date: '2026-08-03',
   startTime: '10:00',
   endTime: '12:00',
+  startTimeLocal: '10:00',
+  endTimeLocal: '12:00',
   instructorId: 'instructor-1',
   available: true,
   proximityScore: 100,
@@ -226,7 +228,7 @@ describe('SmartBookingForm - stale-slot conflict recovery', () => {
     findRankedAvailableSlots
       .mockResolvedValueOnce({ slots: [SLOT], failedInstructors: [] })
       .mockResolvedValueOnce({
-        slots: [{ ...SLOT, startTime: '14:00', endTime: '16:00' }],
+        slots: [{ ...SLOT, startTime: '14:00', endTime: '16:00', startTimeLocal: '14:00', endTimeLocal: '16:00' }],
         failedInstructors: [],
       });
 
@@ -505,8 +507,8 @@ describe('SmartBookingForm - "Book Another" preserves preferences and returns to
 describe('SmartBookingForm - proximity badge consistency', () => {
   it("shows the selected slot's own badge on both the slot row and the confirm step, even when a different slot from the same instructor has a better score", async () => {
     const user = userEvent.setup();
-    const CLOSE_SLOT = { ...SLOT, startTime: '10:00', endTime: '12:00', proximityScore: 95 }; // "Very Close"
-    const FAR_SLOT = { ...SLOT, startTime: '14:00', endTime: '16:00', proximityScore: 40 }; // "Far"
+    const CLOSE_SLOT = { ...SLOT, startTime: '10:00', endTime: '12:00', startTimeLocal: '10:00', endTimeLocal: '12:00', proximityScore: 95 }; // "Very Close"
+    const FAR_SLOT = { ...SLOT, startTime: '14:00', endTime: '16:00', startTimeLocal: '14:00', endTimeLocal: '16:00', proximityScore: 40 }; // "Far"
     findRankedAvailableSlots.mockResolvedValue({ slots: [CLOSE_SLOT, FAR_SLOT], failedInstructors: [] });
 
     renderForm({ preselectedStudent: STUDENT });
