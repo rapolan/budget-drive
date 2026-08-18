@@ -49,6 +49,7 @@ const TARGET_FILES = [
   'src/services/recurringPatternService.ts',
   'src/services/studentProgressService.ts',
   'src/services/bookingPresetsService.ts',
+  'src/services/dashboardService.ts',
   'src/utils/tenantTime.ts',
 ];
 
@@ -95,6 +96,14 @@ const ALLOWLIST: Record<string, string[]> = {
   ],
   'src/services/studentProgressService.ts': [],
   'src/services/bookingPresetsService.ts': [],
+  'src/services/dashboardService.ts': [
+    // DATE-column extraction for the review queue's end-time-passed check.
+    `row.date.toISOString().split('T')[0]`,
+    // Instant-vs-"now" comparison - an instant has no timezone, so
+    // comparing a lesson's resolved end instant against the real current
+    // moment is legitimate regardless of tenant zone.
+    `const now = new Date();`,
+  ],
   'src/utils/tenantTime.ts': [
     // The module's own default-reference parameters - the ONE place real
     // "now" is legitimately read, so every other file can call these

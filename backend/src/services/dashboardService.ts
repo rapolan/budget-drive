@@ -122,10 +122,19 @@ export const getLessonsNeedingReview = async (
   const OVERDUE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
   const lessonsWithEndInstant = result.rows
-    .map(row => ({
-      lesson: row as ReviewQueueLesson,
-      endInstant: zonedWallClockToUtc(row.date, row.endTime, timezone),
-    }))
+    .map(row => {
+      // row.date comes back from pg as a native Date object (the `date`
+      // column type, no time component - UTC-midnight-safe) - same
+      // normalization lessonService.ts's cancelLesson fee-window check uses.
+      const dateStr = row.date instanceof Date
+        ? row.date.toISOString().split('T')[0]
+        : row.date;
+      const lesson: ReviewQueueLesson = { ...row, date: dateStr };
+      return {
+        lesson,
+        endInstant: zonedWallClockToUtc(dateStr, row.endTime, timezone),
+      };
+    })
     .filter(({ endInstant }) => endInstant < now);
 
   const byDate = new Map<string, { lessons: ReviewQueueLesson[]; earliestEndInstant: Date }>();
