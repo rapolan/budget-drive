@@ -2,6 +2,8 @@ import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react
 import { ChevronLeft, ChevronRight, Calendar, CalendarDays, Clock, CheckCircle, TrendingUp } from 'lucide-react';
 import type { Lesson, InstructorAvailability, Instructor } from '@/types';
 import { DayDetailModal } from './DayDetailModal';
+import { useTenant } from '@/contexts/TenantContext';
+import { parseLocalDate, formatLocalDate } from '@/utils/timeFormat';
 
 interface LessonsCalendarViewProps {
   lessons: Lesson[];
@@ -30,7 +32,21 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
   getInstructorName,
   searchTerm = '',
 }, ref) => {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const { tenantNow } = useTenant();
+  // Seeded from the tenant's own today once it's resolved; a fixed
+  // placeholder (never the browser's own new Date()) for the brief window
+  // before TenantContext's first fetch lands - this only affects which
+  // month initially renders, not any correctness-bearing comparison below.
+  const [currentDate, setCurrentDate] = useState(() =>
+    tenantNow ? parseLocalDate(tenantNow.today) : new Date(0)
+  );
+  React.useEffect(() => {
+    if (tenantNow) setCurrentDate(parseLocalDate(tenantNow.today));
+    // Only re-seed once, on the first resolution - deliberately excludes
+    // tenantNow from deps beyond this effect's initial run so navigating
+    // months isn't reset every 5 minutes by TenantContext's own refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!tenantNow]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [hoveredDay, setHoveredDay] = useState<{ date: Date; rect: DOMRect } | null>(null);
   const [hoverTimeout, setHoverTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -49,7 +65,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
+    if (tenantNow) setCurrentDate(parseLocalDate(tenantNow.today));
   };
 
   // Expose navigation methods via ref
@@ -72,10 +88,12 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
 
   // Calculate monthly stats
   const monthlyStats = useMemo(() => {
-    const monthLessons = lessons.filter(lesson => {
-      const lessonDate = new Date(lesson.date);
-      return lessonDate.getMonth() === currentMonth && lessonDate.getFullYear() === currentYear;
-    });
+    // lesson.date is a DATE-only value (no wall-clock time) - compare it as
+    // a plain YYYY-MM-DD string prefix rather than round-tripping through
+    // new Date().getMonth()/.getFullYear(), which UTC-shifts the calendar
+    // day for roughly half of every browser timezone.
+    const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    const monthLessons = lessons.filter(lesson => String(lesson.date).startsWith(monthPrefix));
     
     const scheduledLessons = monthLessons.filter(l => l.status === 'scheduled').length;
     const completedLessons = monthLessons.filter(l => l.status === 'completed').length;
@@ -110,16 +128,14 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
     };
   }, [lessons, availability, currentMonth, currentYear, daysInMonth]);
 
-  // Get lessons for a specific date
+  // Get lessons for a specific date. `date` is a calendar-grid cell built
+  // from local year/month/day numbers (never a browser-instant read), so
+  // formatLocalDate on it is category-(a)-safe - the comparison itself is
+  // then a plain string match against lesson.date's own DATE-only value,
+  // never a Date-object round-trip.
   const getLessonsForDate = (date: Date) => {
-    return lessons.filter((lesson) => {
-      const lessonDate = new Date(lesson.date);
-      return (
-        lessonDate.getDate() === date.getDate() &&
-        lessonDate.getMonth() === date.getMonth() &&
-        lessonDate.getFullYear() === date.getFullYear()
-      );
-    });
+    const dateStr = formatLocalDate(date);
+    return lessons.filter((lesson) => String(lesson.date).split('T')[0] === dateStr);
   };
 
   // Check if a lesson matches the search term
@@ -239,12 +255,8 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
   }
 
   const isToday = (date: Date) => {
-    const today = new Date();
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
+    if (!tenantNow) return false;
+    return formatLocalDate(date) === tenantNow.today;
   };
 
   // Hover handlers with delay
@@ -376,11 +388,14 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
         <div className="grid grid-cols-7 gap-px rounded-xl border border-edge bg-surface3 overflow-hidden">
           {/* Day headers */}
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
-            const today = new Date();
-            const isTodayColumn = today.getDay() === idx && 
-              today.getMonth() === currentMonth && 
-              today.getFullYear() === currentYear;
-            
+            // .getDay() here reads a Date built from tenantNow.today via
+            // parseLocalDate - calendar-day-of-week for an already
+            // tenant-resolved string, not a browser-instant read.
+            const tenantToday = tenantNow ? parseLocalDate(tenantNow.today) : null;
+            const isTodayColumn = !!tenantToday && tenantToday.getDay() === idx &&
+              tenantToday.getMonth() === currentMonth &&
+              tenantToday.getFullYear() === currentYear;
+
             return (
               <div
                 key={day}

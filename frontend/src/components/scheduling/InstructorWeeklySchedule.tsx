@@ -1,10 +1,11 @@
-import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useMemo, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Users, CheckCircle, CalendarDays, TrendingUp } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common';
 import { instructorsApi, lessonsApi, schedulingApi, studentsApi } from '@/api';
 import type { Instructor, Lesson, InstructorAvailability } from '@/types';
-import { format12Hour } from '@/utils/timeFormat';
+import { format12Hour, parseLocalDate, formatLocalDate, addCalendarDays } from '@/utils/timeFormat';
+import { useTenant } from '@/contexts/TenantContext';
 
 interface InstructorWeeklyScheduleProps {
   onBookSlot: (instructor: Instructor, date: Date, time: string) => void;
@@ -39,18 +40,22 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   onBookSlot,
   onViewLesson,
 }, ref) => {
+  const { tenantNow } = useTenant();
   const [selectedInstructor, setSelectedInstructor] = useState<string>('');
   const [compareMode, setCompareMode] = useState(false);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    const today = new Date();
-    const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const diff = day; // Days since last Sunday
-    const sunday = new Date(today);
-    sunday.setDate(today.getDate() - diff); // Go back to Sunday
-    sunday.setHours(0, 0, 0, 0);
-    return sunday;
-  });
+  // Seeded from the tenant's own week start once tenantNow resolves - a
+  // fixed placeholder (never the browser's own new Date()) for the brief
+  // pre-hydration window (see docs/ARCHITECTURE.md §7).
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() =>
+    tenantNow ? parseLocalDate(tenantNow.weekStart) : new Date(0)
+  );
+  useEffect(() => {
+    if (tenantNow) setCurrentWeekStart(parseLocalDate(tenantNow.weekStart));
+    // Only re-seed on first resolution - navigating weeks shouldn't reset
+    // every time TenantContext's own periodic refresh fires.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!tenantNow]);
 
   // Fetch instructors
   const { data: instructorsData, isLoading: loadingInstructors } = useQuery({
@@ -125,9 +130,17 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   const lessons = useMemo(() => {
     if (!lessonsData?.data || !selectedInstructor) return [];
 
+    // lesson.date is a DATE-only value - compare as a plain YYYY-MM-DD
+    // string against the week's own string boundaries, never by parsing it
+    // into a Date and comparing against currentWeekStart/weekEnd (a
+    // UTC-midnight vs. local-midnight mismatch risk for roughly half of
+    // every browser timezone).
+    const weekStartStr = formatLocalDate(currentWeekStart);
+    const weekEndStr = formatLocalDate(weekEnd);
+
     return lessonsData.data.filter((lesson) => {
-      const lessonDate = new Date(lesson.date);
-      const isInRange = lessonDate >= currentWeekStart && lessonDate <= weekEnd;
+      const lessonDateStr = String(lesson.date).split('T')[0];
+      const isInRange = lessonDateStr >= weekStartStr && lessonDateStr <= weekEndStr;
       const isInstructor = lesson.instructorId === selectedInstructor;
       const isActive = lesson.status === 'scheduled' || lesson.status === 'completed';
       return isInRange && isInstructor && isActive;
@@ -283,26 +296,29 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
     return Array.from(allSlots).sort();
   }, [availabilityData]);
 
-  // Check if a date is today
+  // Check if a date is today, against the tenant's own today.
   const isToday = (date: Date): boolean => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
+    if (!tenantNow) return false;
+    return formatLocalDate(date) === tenantNow.today;
   };
 
-  // Check if a date is in the past
+  // Check if a date is in the past, against the tenant's own today.
   const isPast = (date: Date): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+    if (!tenantNow) return false;
+    return formatLocalDate(date) < tenantNow.today;
   };
 
-  // Pre-index lessons by date and time for O(1) lookup instead of O(n) search per slot
+  // Pre-index lessons by date and time for O(1) lookup instead of O(n) search per slot.
+  // l.date is a DATE-only value (no wall-clock time) - keyed by its own
+  // plain YYYY-MM-DD string rather than round-tripping through
+  // new Date().toDateString(), which UTC-shifts the calendar day for
+  // roughly half of every browser timezone.
   const lessonsByDateTime = useMemo(() => {
     const index = new Map<string, typeof lessons[0]>();
     lessons.forEach((l) => {
-      const lessonDate = new Date(l.date);
+      const lessonDateStr = String(l.date).split('T')[0];
       const lessonTime = l.startTime.substring(0, 5); // Extract HH:MM from HH:MM:SS
-      const key = `${lessonDate.toDateString()}-${lessonTime}`;
+      const key = `${lessonDateStr}-${lessonTime}`;
       index.set(key, l);
     });
     return index;
@@ -313,22 +329,15 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
     const capacityMap = new Map<string, { booked: number; max: number }>();
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const date = new Date(currentWeekStart);
-      date.setDate(date.getDate() + dayOffset);
-      date.setHours(0, 0, 0, 0);
-
-      const dateKey = date.toDateString();
-      const dayOfWeek = date.getDay();
+      const dateStr = addCalendarDays(formatLocalDate(currentWeekStart), dayOffset);
+      const dayOfWeek = parseLocalDate(dateStr).getDay();
       const dayTimeSlots = generateTimeSlots(availabilityData ?? [], dayOfWeek);
       const maxSlots = dayTimeSlots.length;
 
       // Count booked lessons for this day
-      const bookedCount = lessons.filter((l) => {
-        const lessonDate = new Date(l.date);
-        return lessonDate.toDateString() === dateKey;
-      }).length;
+      const bookedCount = lessons.filter((l) => String(l.date).split('T')[0] === dateStr).length;
 
-      capacityMap.set(dateKey, { booked: bookedCount, max: maxSlots });
+      capacityMap.set(dateStr, { booked: bookedCount, max: maxSlots });
     }
 
     return capacityMap;
@@ -339,11 +348,11 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
     if (!instructor || !availabilityData || allTimeSlots.length === 0) return [];
 
     const schedule: DaySchedule[] = [];
+    const weekStartStr = formatLocalDate(currentWeekStart);
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const date = new Date(currentWeekStart);
-      date.setDate(date.getDate() + dayOffset);
-      date.setHours(0, 0, 0, 0);
+      const dateStr = addCalendarDays(weekStartStr, dayOffset);
+      const date = parseLocalDate(dateStr);
 
       const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
       const dayTimeSlots = generateTimeSlots(availabilityData ?? [], dayOfWeek);
@@ -354,20 +363,21 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
         dayName: DAYS_OF_WEEK[dayOfWeek],
         dayNumber: date.getDate(),
         slots: allTimeSlots.map((time) => {
+          // Pure HH:MM arithmetic - this never needed a Date object at all,
+          // since both the input and output are already plain time
+          // strings. Replaces the old new Date(date); setHours(...) /
+          // getHours() round trip (a browser-local-time construction).
           const [hours, minutes] = time.split(':').map(Number);
-          const slotDateTime = new Date(date);
-          slotDateTime.setHours(hours, minutes, 0, 0);
-
-          const endDateTime = new Date(slotDateTime);
-          endDateTime.setHours(endDateTime.getHours() + LESSON_DURATION_HOURS);
-
-          const endTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
+          const endTotalMinutes = hours * 60 + minutes + LESSON_DURATION_HOURS * 60;
+          const endHours = Math.floor(endTotalMinutes / 60) % 24;
+          const endMinutes = endTotalMinutes % 60;
+          const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
 
           // Check if this time slot is available for this day
           const isDayAvailable = dayTimeSlotsSet.has(time);
 
           // O(1) lesson lookup using pre-computed index
-          const lookupKey = `${date.toDateString()}-${time}`;
+          const lookupKey = `${dateStr}-${time}`;
           const lesson = lessonsByDateTime.get(lookupKey);
 
           return {
@@ -394,26 +404,20 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
     });
   };
 
+  // 4-weeks-ahead-of-the-tenant's-today booking horizon, shared by
+  // goToNextWeek and isNextWeekDisabled so the two can't drift.
+  const maxBookableDateStr = tenantNow ? addCalendarDays(tenantNow.today, 28) : null;
+
   const goToNextWeek = () => {
-    const maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + 28); // 4 weeks ahead limit
-
-    const nextWeek = new Date(currentWeekStart);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
-    if (nextWeek <= maxDate) {
-      setCurrentWeekStart(nextWeek);
+    if (!maxBookableDateStr) return;
+    const nextWeekStr = addCalendarDays(formatLocalDate(currentWeekStart), 7);
+    if (nextWeekStr <= maxBookableDateStr) {
+      setCurrentWeekStart(parseLocalDate(nextWeekStr));
     }
   };
 
   const goToToday = () => {
-    const today = new Date();
-    const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const diff = day; // Days since last Sunday
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - diff); // Go back to Sunday
-    weekStart.setHours(0, 0, 0, 0);
-    setCurrentWeekStart(weekStart);
+    if (tenantNow) setCurrentWeekStart(parseLocalDate(tenantNow.weekStart));
   };
 
   // Expose navigation methods via ref
@@ -441,12 +445,10 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   };
 
   const isNextWeekDisabled = useMemo(() => {
-    const maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + 28);
-    const nextWeek = new Date(currentWeekStart);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    return nextWeek > maxDate;
-  }, [currentWeekStart]);
+    if (!maxBookableDateStr) return true;
+    const nextWeekStr = addCalendarDays(formatLocalDate(currentWeekStart), 7);
+    return nextWeekStr > maxBookableDateStr;
+  }, [currentWeekStart, maxBookableDateStr]);
 
   if (loadingInstructors) {
     return (
@@ -737,11 +739,12 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                     const todayColumn = isToday(date);
                     const pastDay = isPast(date);
 
-                    // Count lessons for this instructor on this day
+                    // Count lessons for this instructor on this day - lesson.date
+                    // is a DATE-only value, compared as a plain string.
+                    const dateStr = formatLocalDate(date);
                     const dayLessons = (lessonsData?.data || []).filter(lesson => {
-                      const lessonDate = new Date(lesson.date);
                       return lesson.instructorId === instId &&
-                        lessonDate.toDateString() === date.toDateString() &&
+                        String(lesson.date).split('T')[0] === dateStr &&
                         (lesson.status === 'scheduled' || lesson.status === 'completed');
                     });
 
@@ -805,7 +808,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                   {weeklySchedule.map((day) => {
                     const todayColumn = isToday(day.date);
                     const pastDay = isPast(day.date);
-                    const capacity = dailyCapacity.get(day.date.toDateString());
+                    const capacity = dailyCapacity.get(formatLocalDate(day.date));
                     const hasCapacity = capacity && capacity.max > 0;
                     const isFull = capacity && capacity.booked >= capacity.max;
                     const capacityPercentage = hasCapacity ? Math.round((capacity.booked / capacity.max) * 100) : 0;
