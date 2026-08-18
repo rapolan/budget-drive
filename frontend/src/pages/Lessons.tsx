@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, X, CheckCircle, Calendar, RefreshCw, CalendarDays, MapPin, CalendarRange, Clock, TrendingUp, AlertCircle, Keyboard, LayoutGrid, LayoutList } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, schedulingApi } from '@/api';
 import type { Lesson, Instructor } from '@/types';
-import { LessonModal, LessonsCalendarView, TodaysScheduleWidget } from '@/components/lessons';
+import { LessonModal, LessonsCalendarView, TodaysScheduleWidget, StatusMenu } from '@/components/lessons';
 import type { LessonsCalendarViewRef } from '@/components/lessons';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
@@ -559,7 +559,7 @@ export const LessonsPage: React.FC = () => {
     return (
       <tr
         key={lesson.id}
-        className={`hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-status-warning-text bg-status-warning-bg' : ''}`}
+        className={`group hover:bg-surface2 transition-colors cursor-pointer ${upcoming ? 'border-l-4 border-l-status-warning-text bg-status-warning-bg' : ''}`}
         onClick={() => handleEdit(lesson)}
       >
         <td className="whitespace-nowrap px-6 py-4">
@@ -617,17 +617,31 @@ export const LessonsPage: React.FC = () => {
           </span>
         </td>
         <td className="whitespace-nowrap px-6 py-4">
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusColor(
-              lesson.status
-            )}`}
-          >
-            {lesson.status === 'scheduled' && <Clock className="h-3 w-3 mr-1" />}
-            {lesson.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
-            {lesson.status === 'cancelled' && <X className="h-3 w-3 mr-1" />}
-            {lesson.status === 'no_show' && <AlertCircle className="h-3 w-3 mr-1" />}
-            {lesson.status.replace(/_/g, ' ')}
-          </span>
+          {(() => {
+            const badge = (
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${getStatusColor(
+                  lesson.status
+                )}`}
+              >
+                {lesson.status === 'scheduled' && <Clock className="h-3 w-3 mr-1" />}
+                {lesson.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
+                {lesson.status === 'cancelled' && <X className="h-3 w-3 mr-1" />}
+                {lesson.status === 'no_show' && <AlertCircle className="h-3 w-3 mr-1" />}
+                {lesson.status.replace(/_/g, ' ')}
+              </span>
+            );
+            return lesson.status === 'scheduled' ? (
+              <StatusMenu
+                trigger={badge}
+                onComplete={() => handleComplete(lesson.id)}
+                onNoShow={() => handleNoShow(lesson.id)}
+                onCancel={() => handleCancel(lesson.id)}
+              />
+            ) : (
+              badge
+            );
+          })()}
         </td>
         {/* History - Hidden on mobile */}
         <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
@@ -638,7 +652,11 @@ export const LessonsPage: React.FC = () => {
             updatedAt={lesson.updatedAt}
           />
         </td>
-        <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+        <td
+          className={`whitespace-nowrap px-6 py-4 text-right text-sm font-medium sticky right-0 z-10 group-hover:bg-surface2 ${
+            upcoming ? 'bg-status-warning-bg' : 'bg-surface'
+          }`}
+        >
           <div className="flex justify-end space-x-1">
             {lesson.status === 'scheduled' && (
               <>
@@ -1063,15 +1081,29 @@ export const LessonsPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(lesson.status)}`}
-                        >
-                          {lesson.status === 'scheduled' && <Clock className="h-3 w-3 mr-1" />}
-                          {lesson.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
-                          {lesson.status === 'cancelled' && <X className="h-3 w-3 mr-1" />}
-                          {lesson.status === 'no_show' && <AlertCircle className="h-3 w-3 mr-1" />}
-                          {lesson.status.replace(/_/g, ' ')}
-                        </span>
+                        {(() => {
+                          const badge = (
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(lesson.status)}`}
+                            >
+                              {lesson.status === 'scheduled' && <Clock className="h-3 w-3 mr-1" />}
+                              {lesson.status === 'completed' && <CheckCircle className="h-3 w-3 mr-1" />}
+                              {lesson.status === 'cancelled' && <X className="h-3 w-3 mr-1" />}
+                              {lesson.status === 'no_show' && <AlertCircle className="h-3 w-3 mr-1" />}
+                              {lesson.status.replace(/_/g, ' ')}
+                            </span>
+                          );
+                          return lesson.status === 'scheduled' ? (
+                            <StatusMenu
+                              trigger={badge}
+                              onComplete={() => handleComplete(lesson.id)}
+                              onNoShow={() => handleNoShow(lesson.id)}
+                              onCancel={() => handleCancel(lesson.id)}
+                            />
+                          ) : (
+                            badge
+                          );
+                        })()}
                         {upcoming && (
                           <span className="inline-flex items-center rounded-full bg-status-warning-bg px-2 py-0.5 text-xs font-medium text-status-warning-text animate-pulse">
                             <AlertCircle className="h-3 w-3 mr-1" />
@@ -1211,7 +1243,7 @@ export const LessonsPage: React.FC = () => {
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                 History
               </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary">
+              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary sticky right-0 z-10 bg-surface2/80">
                 Actions
               </th>
             </tr>

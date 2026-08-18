@@ -3,3 +3,4 @@ export { LessonsCalendarView } from './LessonsCalendarView';
 export type { LessonsCalendarViewRef } from './LessonsCalendarView';
 export { DayDetailModal } from './DayDetailModal';
 export { TodaysScheduleWidget } from './TodaysScheduleWidget';
+export { StatusMenu } from './StatusMenu';
