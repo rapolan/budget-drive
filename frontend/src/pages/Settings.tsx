@@ -134,6 +134,10 @@ const GeneralSettings: React.FC = () => {
     standardLessonLengthMinutes: settings?.standardLessonLengthMinutes != null ? Number(settings.standardLessonLengthMinutes) : 120,
     defaultLessonCost:   settings?.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
     maxLessonsPerStudentPerDay: settings?.maxLessonsPerStudentPerDay != null ? Number(settings.maxLessonsPerStudentPerDay) : 1,
+    lessonCompletionMode: settings?.lessonCompletionMode || 'manual',
+    cancellationFeeAmount: settings?.cancellationFeeAmount != null ? Number(settings.cancellationFeeAmount) : 50,
+    cancellationFeeWindowHours: settings?.cancellationFeeWindowHours != null ? Number(settings.cancellationFeeWindowHours) : 24,
+    cancellationFeePayee: settings?.cancellationFeePayee || 'instructor',
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
   });
 
@@ -154,6 +158,10 @@ const GeneralSettings: React.FC = () => {
       standardLessonLengthMinutes: settings.standardLessonLengthMinutes != null ? Number(settings.standardLessonLengthMinutes) : 120,
       defaultLessonCost:   settings.defaultLessonCost != null ? Number(settings.defaultLessonCost) : 150,
       maxLessonsPerStudentPerDay: settings.maxLessonsPerStudentPerDay != null ? Number(settings.maxLessonsPerStudentPerDay) : 1,
+      lessonCompletionMode: settings.lessonCompletionMode || 'manual',
+      cancellationFeeAmount: settings.cancellationFeeAmount != null ? Number(settings.cancellationFeeAmount) : 50,
+      cancellationFeeWindowHours: settings.cancellationFeeWindowHours != null ? Number(settings.cancellationFeeWindowHours) : 24,
+      cancellationFeePayee: settings.cancellationFeePayee || 'instructor',
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
     });
   }, [settings]);
@@ -531,6 +539,118 @@ const GeneralSettings: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Lesson Review & Cancellation Policy */}
+      <div className="border border-edge rounded-lg p-6 space-y-4">
+        <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Lesson Review &amp; Cancellation Policy</h3>
+        <div>
+          <label className="block text-sm font-medium text-tx-secondary mb-1">Lesson Completion Mode</label>
+          <p className="text-xs text-tx-muted mb-3">
+            Manual: staff review and close out each past lesson from the Review Queue. Auto: reserved for a future automated job
+            &mdash; selecting it only saves the setting, nothing acts on it yet.
+          </p>
+          <div className="flex gap-2">
+            {(['manual', 'auto'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, lessonCompletionMode: mode }))}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors capitalize ${
+                  form.lessonCompletionMode === mode
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                }`}
+              >
+                {mode}{mode === 'manual' ? ' ⭐' : ''}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-cancellation-fee-amount" className="block text-sm font-medium text-tx-secondary mb-1">Cancellation / No-Show Fee</label>
+          <p className="text-xs text-tx-muted mb-3">Flagged on the student's record for a no-show or a cancellation inside the window below &mdash; never charged automatically or billed.</p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-tx-secondary">$</span>
+            <input
+              id="settings-cancellation-fee-amount"
+              type="number"
+              value={form.cancellationFeeAmount}
+              onChange={e => setForm(f => ({ ...f, cancellationFeeAmount: parseFloat(e.target.value) || 50 }))}
+              min="0" step="0.01"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <div className="flex gap-2">
+              {[25, 50, 75, 100].map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, cancellationFeeAmount: c }))}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    form.cancellationFeeAmount === c
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                  }`}
+                >
+                  ${c}{c === 50 ? ' ⭐' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-cancellation-fee-window-hours" className="block text-sm font-medium text-tx-secondary mb-1">Late Cancellation Window</label>
+          <p className="text-xs text-tx-muted mb-3">Cancelling within this many hours of the lesson's start flags the fee above. Cancelling earlier flags nothing.</p>
+          <div className="flex items-center gap-3">
+            <input
+              id="settings-cancellation-fee-window-hours"
+              type="number"
+              value={form.cancellationFeeWindowHours}
+              onChange={e => setForm(f => ({ ...f, cancellationFeeWindowHours: parseInt(e.target.value, 10) || 24 }))}
+              min="1" max="168" step="1"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <span className="text-sm text-tx-secondary">hours</span>
+            <div className="flex gap-2">
+              {[12, 24, 48].map(h => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, cancellationFeeWindowHours: h }))}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    form.cancellationFeeWindowHours === h
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                  }`}
+                >
+                  {h}h{h === 24 ? ' ⭐' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-tx-secondary mb-1">Who Collects the Fee</label>
+          <p className="text-xs text-tx-muted mb-3">
+            Instructor: collected in cash and never recorded as school revenue. School: can be converted into a real payment record from the student's fee flag.
+          </p>
+          <div className="flex gap-2">
+            {(['instructor', 'school'] as const).map(payee => (
+              <button
+                key={payee}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, cancellationFeePayee: payee }))}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors capitalize ${
+                  form.cancellationFeePayee === payee
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                }`}
+              >
+                {payee}{payee === 'instructor' ? ' ⭐' : ''}
+              </button>
+            ))}
           </div>
         </div>
       </div>

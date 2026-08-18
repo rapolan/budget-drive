@@ -78,6 +78,18 @@ export interface TenantSettings {
   defaultLessonCost: number;
   maxLessonsPerStudentPerDay: number;
 
+  // Lesson Review & Cancellation Policy
+  // 'auto' is stored but has no job behind it yet - only 'manual' review
+  // (the review queue) is implemented this session.
+  lessonCompletionMode: 'manual' | 'auto';
+  cancellationFeeAmount: number;
+  cancellationFeeWindowHours: number;
+  // 'instructor' (default): the instructor collects the fee in cash: it
+  // never reaches the business and must never appear in revenue/payments
+  // reporting. 'school': the fee can additionally be converted into a real
+  // payment record.
+  cancellationFeePayee: 'instructor' | 'school';
+
   // Localization
   // null only until an admin (or the create-tenant flow) explicitly sets
   // one - resolveTenantTimezone() (backend/src/utils/tenantTime.ts) is the

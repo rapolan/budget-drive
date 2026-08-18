@@ -96,6 +96,12 @@ export interface TenantSettings {
   defaultLessonCost: number;
   maxLessonsPerStudentPerDay: number;
 
+  // Lesson Review & Cancellation Policy
+  lessonCompletionMode: 'manual' | 'auto';
+  cancellationFeeAmount: number;
+  cancellationFeeWindowHours: number;
+  cancellationFeePayee: 'instructor' | 'school';
+
   // Feature flags
   enableBlockchain?: boolean;
   enableBlockchainPayments: boolean;

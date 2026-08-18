@@ -302,6 +302,30 @@ export const updateTenantSettings = async (
     values.push(data.maxLessonsPerStudentPerDay);
   }
 
+  // Lesson Review & Cancellation Policy
+  if (data.lessonCompletionMode !== undefined) {
+    if (!['manual', 'auto'].includes(data.lessonCompletionMode)) {
+      throw new AppError('Invalid lesson completion mode', 400);
+    }
+    fields.push(`lesson_completion_mode = $${paramCount++}`);
+    values.push(data.lessonCompletionMode);
+  }
+  if (data.cancellationFeeAmount !== undefined) {
+    fields.push(`cancellation_fee_amount = $${paramCount++}`);
+    values.push(data.cancellationFeeAmount);
+  }
+  if (data.cancellationFeeWindowHours !== undefined) {
+    fields.push(`cancellation_fee_window_hours = $${paramCount++}`);
+    values.push(data.cancellationFeeWindowHours);
+  }
+  if (data.cancellationFeePayee !== undefined) {
+    if (!['instructor', 'school'].includes(data.cancellationFeePayee)) {
+      throw new AppError('Invalid cancellation fee payee', 400);
+    }
+    fields.push(`cancellation_fee_payee = $${paramCount++}`);
+    values.push(data.cancellationFeePayee);
+  }
+
   // Localization
   if (data.timezone !== undefined) {
     // Validated against Node's own ICU/IANA tzdata (the same source of
