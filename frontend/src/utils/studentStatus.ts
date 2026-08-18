@@ -31,10 +31,15 @@ export interface StatusInfo {
  * 3. Needs Attention - issues requiring action
  * 4. Scheduled - has upcoming lessons
  * 5. Ready to Book - no upcoming lessons, needs scheduling
+ *
+ * `now` is REQUIRED, never defaulted - callers must pass a tenant-resolved
+ * instant (e.g. parseLocalDate(tenantNow.today) from TenantContext), never
+ * let this fall back to the browser's own clock (see docs/ARCHITECTURE.md
+ * §7). A missing `now` is a compile error, not a silent browser-time
+ * fallback.
  */
-export function computeStudentStatus(student: Student, lessons: Lesson[]): StatusInfo {
+export function computeStudentStatus(student: Student, lessons: Lesson[], now: Date): StatusInfo {
   const studentLessons = lessons.filter(l => l.studentId === student.id);
-  const now = new Date();
 
   // Get upcoming scheduled lessons
   const upcomingLessons = studentLessons.filter(lesson => {
@@ -88,11 +93,11 @@ export function computeStudentStatus(student: Student, lessons: Lesson[]): Statu
   }
 
   // 3. NEEDS ATTENTION: Issues requiring admin action
-  if (studentNeedsFollowup(student, studentLessons)) {
+  if (studentNeedsFollowup(student, studentLessons, now)) {
     return {
       status: 'needs_attention',
       displayStatus: 'Needs Attention',
-      reason: getFollowupReason(student, lessons),
+      reason: getFollowupReason(student, lessons, now),
       actionRequired: true,
     };
   }
@@ -135,13 +140,11 @@ export function computeStudentStatus(student: Student, lessons: Lesson[]): Statu
  *
  * Note: Students with no upcoming lessons but otherwise OK go to "Ready to Book"
  */
-export function studentNeedsFollowup(student: Student, studentLessons: Lesson[]): boolean {
+export function studentNeedsFollowup(student: Student, studentLessons: Lesson[], now: Date): boolean {
   // Don't flag completed, dropped, or suspended students
   if (['completed', 'dropped', 'suspended'].includes(student.status)) {
     return false;
   }
-
-  const now = new Date();
 
   // 1. URGENT: Permit expired
   const permitExpired = student.learnerPermitExpiration &&
@@ -205,9 +208,8 @@ export function studentNeedsFollowup(student: Student, studentLessons: Lesson[])
 /**
  * Get reason why student needs follow-up
  */
-export function getFollowupReason(student: Student, lessons: Lesson[]): string {
+export function getFollowupReason(student: Student, lessons: Lesson[], now: Date): string {
   const studentLessons = lessons.filter(l => l.studentId === student.id);
-  const now = new Date();
 
   // 1. Permit expired
   const permitExpired = student.learnerPermitExpiration &&

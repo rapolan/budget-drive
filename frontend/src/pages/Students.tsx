@@ -18,6 +18,8 @@ import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/componen
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useTenant } from '@/contexts/TenantContext';
+import { parseLocalDate } from '@/utils/timeFormat';
 
 type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup' | 'needs_guardian';
 type ViewMode = 'table' | 'cards';
@@ -26,6 +28,12 @@ type ActiveView = 'students' | 'guardians';
 
 export const StudentsPage: React.FC = () => {
   const location = useLocation();
+  const { tenantNow } = useTenant();
+  // computeStudentStatus/getFollowupReason require an explicit
+  // tenant-resolved "now" - falls back to a fixed placeholder only for the
+  // brief pre-hydration window before TenantContext's first fetch resolves
+  // (never the browser's own clock - see docs/ARCHITECTURE.md §7).
+  const statusNow = tenantNow ? parseLocalDate(tenantNow.today) : new Date(0);
 
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
@@ -267,7 +275,7 @@ export const StudentsPage: React.FC = () => {
   // Helper to get computed status for a student
   const getStudentStatus = (student: Student) => {
     const lessons = lessonsData?.data || [];
-    return computeStudentStatus(student, lessons);
+    return computeStudentStatus(student, lessons, statusNow);
   };
 
   // Calculate status counts for filter buttons
@@ -875,7 +883,7 @@ export const StudentsPage: React.FC = () => {
                         {statusInfo.reason && (
                           <p className="text-xs text-tx-muted mt-1 truncate">
                             {statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [])
+                              ? getFollowupReason(student, lessonsData?.data || [], statusNow)
                               : statusInfo.reason}
                           </p>
                         )}
@@ -1036,7 +1044,7 @@ export const StudentsPage: React.FC = () => {
                           <span
                             className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold cursor-help ${getStatusColor(statusInfo.status)}`}
                             title={statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [])
+                              ? getFollowupReason(student, lessonsData?.data || [], statusNow)
                               : statusInfo.reason}
                           >
                             {statusInfo.displayStatus}

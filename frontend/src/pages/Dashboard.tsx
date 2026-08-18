@@ -94,18 +94,24 @@ export const DashboardPage: React.FC = () => {
   // DASHBOARD STATS
   // ============================================
   
+  // computeStudentStatus requires an explicit tenant-resolved "now" - falls
+  // back to a fixed placeholder only for the brief pre-hydration window
+  // these memos also run through (the page itself renders its loading
+  // skeleton during that window, so this value is never actually shown).
+  const statusNow = tenantNow ? parseLocalDate(tenantNow.today) : new Date(0);
+
   // Active students count (scheduled + ready to book = students in the pipeline)
   const activeStudents = useMemo(() => {
     return students.filter(s => {
-      const statusInfo = computeStudentStatus(s, lessons);
+      const statusInfo = computeStudentStatus(s, lessons, statusNow);
       return statusInfo.status === 'scheduled' || statusInfo.status === 'ready_to_book';
     });
-  }, [students, lessons]);
+  }, [students, lessons, statusNow]);
 
   // Students needing attention
   const studentsNeedingAttention = useMemo(() => {
-    return students.filter(s => computeStudentStatus(s, lessons).status === 'needs_attention');
-  }, [students, lessons]);
+    return students.filter(s => computeStudentStatus(s, lessons, statusNow).status === 'needs_attention');
+  }, [students, lessons, statusNow]);
 
   // Permits expiring within 30 days of the TENANT's today - lessonDate/
   // learnerPermitExpiration arrive as DATE-only values (no wall-clock time),
