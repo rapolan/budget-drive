@@ -9,6 +9,8 @@
 
 import { query } from '../config/database';
 import { createLogger } from '../utils/logger';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 const logger = createLogger('DashboardService');
 
@@ -17,6 +19,23 @@ export interface NoShowAlert {
   studentName: string;
   noShowDate: string;
   notificationId: string;
+}
+
+export interface ReviewQueueLesson {
+  id: string;
+  studentId: string;
+  studentName: string;
+  instructorId: string;
+  instructorName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+export interface ReviewQueueDay {
+  date: string;
+  lessons: ReviewQueueLesson[];
+  overdue: boolean;
 }
 
 /**
@@ -47,4 +66,88 @@ export const getStudentsWithActiveNoShowAlert = async (tenantId: string): Promis
   );
 
   return result.rows;
+};
+
+/**
+ * Lessons still 'scheduled' whose end time has already passed, grouped by
+ * day, most-overdue-day-first. "Has this lesson ended" is inherently
+ * tenant-timezone-aware math (Constraint C) - resolved here via
+ * zonedWallClockToUtc, never client-side. Includes today's already-past
+ * lessons.
+ *
+ * A day group is `overdue: true` when its earliest still-scheduled lesson's
+ * end time is more than 24 hours in the past.
+ *
+ * Accepts an optional `instructorId` to scope to a single instructor's own
+ * lessons - nothing calls it with one yet, but the query is built to accept
+ * it from day one so wiring an instructor's own account into this view
+ * later is a controller-only change, mirroring
+ * lessonController.getAllLessons's existing instructor-scoping branch.
+ */
+export const getLessonsNeedingReview = async (
+  tenantId: string,
+  instructorId?: string
+): Promise<ReviewQueueDay[]> => {
+  logger.debug('Fetching lessons needing review', { tenantId, instructorId });
+
+  const settings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(settings?.timezone);
+
+  const params: string[] = [tenantId];
+  let instructorFilter = '';
+  if (instructorId) {
+    params.push(instructorId);
+    instructorFilter = `AND l.instructor_id = $${params.length}`;
+  }
+
+  const result = await query(
+    `SELECT
+       l.id,
+       l.student_id AS "studentId",
+       s.full_name AS "studentName",
+       l.instructor_id AS "instructorId",
+       i.full_name AS "instructorName",
+       l.date,
+       l.start_time AS "startTime",
+       l.end_time AS "endTime"
+     FROM lessons l
+     JOIN students s ON s.id = l.student_id AND s.tenant_id = l.tenant_id
+     JOIN instructors i ON i.id = l.instructor_id AND i.tenant_id = l.tenant_id
+     WHERE l.tenant_id = $1 AND l.status = 'scheduled' ${instructorFilter}
+     ORDER BY l.date ASC, l.start_time ASC`,
+    params
+  );
+
+  const now = new Date();
+  const OVERDUE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+  const lessonsWithEndInstant = result.rows
+    .map(row => ({
+      lesson: row as ReviewQueueLesson,
+      endInstant: zonedWallClockToUtc(row.date, row.endTime, timezone),
+    }))
+    .filter(({ endInstant }) => endInstant < now);
+
+  const byDate = new Map<string, { lessons: ReviewQueueLesson[]; earliestEndInstant: Date }>();
+  for (const { lesson, endInstant } of lessonsWithEndInstant) {
+    const existing = byDate.get(lesson.date);
+    if (existing) {
+      existing.lessons.push(lesson);
+      if (endInstant < existing.earliestEndInstant) {
+        existing.earliestEndInstant = endInstant;
+      }
+    } else {
+      byDate.set(lesson.date, { lessons: [lesson], earliestEndInstant: endInstant });
+    }
+  }
+
+  const days: ReviewQueueDay[] = Array.from(byDate.entries()).map(([date, { lessons, earliestEndInstant }]) => ({
+    date,
+    lessons,
+    overdue: now.getTime() - earliestEndInstant.getTime() > OVERDUE_THRESHOLD_MS,
+  }));
+
+  days.sort((a, b) => a.date.localeCompare(b.date));
+
+  return days;
 };

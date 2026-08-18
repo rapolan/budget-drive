@@ -23,4 +23,11 @@ router.post(
   dashboardController.dismissAlert
 );
 
+router.get('/dashboard/review-queue', dashboardController.getReviewQueue);
+
+router.post(
+  '/dashboard/review-queue/:date/complete-all',
+  dashboardController.completeAllInDay
+);
+
 export default router;

@@ -11,6 +11,7 @@ import { StudentsPage } from '@/pages/Students';
 import { InstructorsPage } from '@/pages/Instructors';
 import { VehiclesPage } from '@/pages/Vehicles';
 import { LessonsPage } from '@/pages/Lessons';
+import { ReviewQueuePage } from '@/pages/ReviewQueue';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
@@ -115,6 +116,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <AppLayout>
               <LessonsPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/review-queue"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <ReviewQueuePage />
             </AppLayout>
           </ProtectedRoute>
         }

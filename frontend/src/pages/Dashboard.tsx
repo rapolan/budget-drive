@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Cake,
   UserX,
+  ClipboardCheck,
   X
 } from 'lucide-react';
 import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } from '@/api';
@@ -61,6 +62,11 @@ export const DashboardPage: React.FC = () => {
     queryFn: () => dashboardApi.getNoShowAlerts(),
   });
 
+  const { data: reviewQueueData } = useQuery({
+    queryKey: ['dashboard', 'review-queue'],
+    queryFn: () => dashboardApi.getReviewQueue(),
+  });
+
   const queryClient = useQueryClient();
   const dismissAlertMutation = useMutation({
     mutationFn: (notificationId: string) => dashboardApi.dismissAlert(notificationId),
@@ -74,6 +80,7 @@ export const DashboardPage: React.FC = () => {
   const lessons = lessonsData?.data || [];
   const payments = paymentsData?.data || [];
   const noShowAlerts = noShowAlertsData?.data || [];
+  const reviewQueueCount = reviewQueueData?.data?.totalCount || 0;
 
   const isLoading = studentsLoading || instructorsLoading || lessonsLoading;
 
@@ -540,7 +547,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Alerts — only rendered when there's something to show */}
-            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0 || noShowAlerts.length > 0) && (
+            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0 || noShowAlerts.length > 0 || reviewQueueCount > 0) && (
               <div className="bg-surface rounded-xl border border-edge overflow-hidden">
                 <div className="px-5 py-4 border-b border-edge bg-surface2">
                   <h2 className="text-sm font-semibold text-tx-primary">Alerts</h2>
@@ -612,6 +619,29 @@ export const DashboardPage: React.FC = () => {
                       </div>
                       <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-warning-bg border border-status-warning-border text-status-warning-text">
                         {studentsTurning18.length}
+                      </span>
+                    </button>
+                  )}
+
+                  {reviewQueueCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/review-queue')}
+                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
+                    >
+                      <div className="p-1.5 bg-status-warning-bg border border-status-warning-border rounded-md flex-shrink-0">
+                        <ClipboardCheck className="h-4 w-4 text-status-warning-text" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-tx-primary">Lessons Need Review</p>
+                        <p className="text-xs text-tx-muted truncate">
+                          {reviewQueueCount === 1
+                            ? '1 past lesson needs a status'
+                            : `${reviewQueueCount} past lessons need a status`}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-warning-bg border border-status-warning-border text-status-warning-text">
+                        {reviewQueueCount}
                       </span>
                     </button>
                   )}
