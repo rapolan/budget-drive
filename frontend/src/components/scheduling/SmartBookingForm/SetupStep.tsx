@@ -1,8 +1,38 @@
 import React from 'react';
-import { Calendar, User, Clock, MapPin, CheckCircle, Filter, Sun, Sunset, Moon } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Calendar, User, Clock, MapPin, CheckCircle, Filter, Sun, Sunset, Moon, AlertTriangle } from 'lucide-react';
 import { Student, Instructor, DatePresetsResponse } from '@/types';
 import { extractZipCode } from '@/utils/zipCode';
 import { Button } from '@/components/common';
+import { feeFlagsApi } from '@/api';
+
+/**
+ * Pure display, never blocking - no disabled wiring touches any booking
+ * button because of this. Per Constraint A, a fee is a flag on the student,
+ * never something that stops a new booking.
+ */
+export const OutstandingFeeFlagsBanner: React.FC<{ studentId: string }> = ({ studentId }) => {
+  const { data } = useQuery({
+    queryKey: ['fee-flags', 'student', studentId],
+    queryFn: () => feeFlagsApi.getOutstandingForStudent(studentId),
+  });
+  const flags = data?.data || [];
+  if (flags.length === 0) return null;
+
+  const total = flags.reduce((sum, f) => sum + Number(f.amount), 0);
+
+  return (
+    <div className="flex items-start gap-2 p-3 bg-status-warning-bg border border-status-warning-border rounded-lg">
+      <AlertTriangle className="h-4 w-4 text-status-warning-text mt-0.5 flex-shrink-0" />
+      <div className="text-sm text-status-warning-text">
+        <span className="font-semibold">
+          {flags.length} outstanding fee{flags.length === 1 ? '' : 's'} (${total.toFixed(2)})
+        </span>
+        {' '}- collected separately, does not affect this booking.
+      </div>
+    </div>
+  );
+};
 
 export type TimePreference = 'any' | 'morning' | 'afternoon' | 'evening';
 export type LessonType = 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
@@ -132,37 +162,43 @@ export const SetupStep: React.FC<SetupStepProps> = ({
           </h3>
         </div>
         {preselectedStudent ? (
-          <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
-            <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
-              {getInitials(preselectedStudent.fullName)}
+          <>
+            <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
+              <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
+                {getInitials(preselectedStudent.fullName)}
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-tx-primary">{preselectedStudent.fullName}</div>
+                <div className="text-sm text-tx-secondary">{preselectedStudent.email}</div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="font-semibold text-tx-primary">{preselectedStudent.fullName}</div>
-              <div className="text-sm text-tx-secondary">{preselectedStudent.email}</div>
-            </div>
-          </div>
+            <OutstandingFeeFlagsBanner studentId={preselectedStudent.id} />
+          </>
         ) : selectedStudent ? (
-          <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
-            <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
-              {getInitials(selectedStudent.fullName)}
+          <>
+            <div className="flex items-center space-x-3 p-4 bg-status-info-bg border border-status-info-border rounded-lg">
+              <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold">
+                {getInitials(selectedStudent.fullName)}
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-tx-primary">{selectedStudent.fullName}</div>
+                <div className="text-sm text-tx-secondary">{selectedStudent.email}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStudentId('');
+                  setStudentSearch('');
+                  setPickupAddress('');
+                  setPickupZip(null);
+                }}
+                className="text-sm text-primary hover:brightness-75 font-medium"
+              >
+                Change
+              </button>
             </div>
-            <div className="flex-1">
-              <div className="font-semibold text-tx-primary">{selectedStudent.fullName}</div>
-              <div className="text-sm text-tx-secondary">{selectedStudent.email}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedStudentId('');
-                setStudentSearch('');
-                setPickupAddress('');
-                setPickupZip(null);
-              }}
-              className="text-sm text-primary hover:brightness-75 font-medium"
-            >
-              Change
-            </button>
-          </div>
+            <OutstandingFeeFlagsBanner studentId={selectedStudent.id} />
+          </>
         ) : (
           <div className="relative">
             <input

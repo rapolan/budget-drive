@@ -1,10 +1,28 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SetupStep } from '../SetupStep';
 import type { Student } from '@/types';
 
+vi.mock('@/api', () => ({
+  feeFlagsApi: {
+    getOutstandingForStudent: vi.fn().mockResolvedValue({ success: true, data: [] }),
+  },
+}));
+
 afterEach(cleanup);
+
+function renderSetupStep(props: React.ComponentProps<typeof SetupStep>) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <SetupStep {...props} />
+    </QueryClientProvider>
+  );
+}
 
 const STUDENT: Student = {
   id: 'student-1',
@@ -58,7 +76,7 @@ function baseProps(overrides: Partial<React.ComponentProps<typeof SetupStep>> = 
 
 describe('SetupStep - Search Dates control', () => {
   it('renders all three preset chips and the From/To inputs populated from props', () => {
-    render(<SetupStep {...baseProps()} />);
+    renderSetupStep(baseProps());
 
     expect(screen.getByRole('button', { name: 'Next 2 Weeks' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'This Month' })).toBeInTheDocument();
@@ -72,7 +90,7 @@ describe('SetupStep - Search Dates control', () => {
 
   it('clicking a preset chip calls setDatePreset with that preset key', () => {
     const setDatePreset = vi.fn();
-    render(<SetupStep {...baseProps({ setDatePreset })} />);
+    renderSetupStep(baseProps({ setDatePreset }));
 
     fireEvent.click(screen.getByRole('button', { name: 'This Month' }));
 
@@ -82,7 +100,7 @@ describe('SetupStep - Search Dates control', () => {
   it('editing the From input updates searchStartDate and flips the preset to custom', () => {
     const setSearchStartDate = vi.fn();
     const setDatePreset = vi.fn();
-    render(<SetupStep {...baseProps({ setSearchStartDate, setDatePreset })} />);
+    renderSetupStep(baseProps({ setSearchStartDate, setDatePreset }));
 
     const fromInput = screen.getByLabelText('From');
     fireEvent.change(fromInput, { target: { value: '2026-08-10' } });
@@ -94,7 +112,7 @@ describe('SetupStep - Search Dates control', () => {
   it('editing the To input updates searchEndDate and flips the preset to custom', () => {
     const setSearchEndDate = vi.fn();
     const setDatePreset = vi.fn();
-    render(<SetupStep {...baseProps({ setSearchEndDate, setDatePreset })} />);
+    renderSetupStep(baseProps({ setSearchEndDate, setDatePreset }));
 
     const toInput = screen.getByLabelText('To');
     fireEvent.change(toInput, { target: { value: '2026-08-20' } });
@@ -104,7 +122,7 @@ describe('SetupStep - Search Dates control', () => {
   });
 
   it('the active preset chip is visually distinguished from the others', () => {
-    render(<SetupStep {...baseProps({ datePreset: 'nextMonth' })} />);
+    renderSetupStep(baseProps({ datePreset: 'nextMonth' }));
 
     const nextMonthChip = screen.getByRole('button', { name: 'Next Month' });
     const thisMonthChip = screen.getByRole('button', { name: 'This Month' });
@@ -113,7 +131,7 @@ describe('SetupStep - Search Dates control', () => {
   });
 
   it('disables the preset chips while datePresets has not loaded yet', () => {
-    render(<SetupStep {...baseProps({ datePresets: undefined })} />);
+    renderSetupStep(baseProps({ datePresets: undefined }));
 
     expect(screen.getByRole('button', { name: 'Next 2 Weeks' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'This Month' })).toBeDisabled();

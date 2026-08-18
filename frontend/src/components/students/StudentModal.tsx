@@ -4,7 +4,7 @@ import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
   CheckCircle, AlertCircle, FileText, Users, Plus, Search
 } from 'lucide-react';
-import { studentsApi, lessonsApi, instructorsApi, guardiansApi } from '@/api';
+import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi } from '@/api';
 import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
@@ -547,6 +547,31 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       onClose();
     },
   });
+
+  const { data: feeFlagsData } = useQuery({
+    queryKey: ['fee-flags', 'student', student?.id],
+    queryFn: () => feeFlagsApi.getOutstandingForStudent(student!.id),
+    enabled: !!student?.id,
+  });
+  const outstandingFeeFlags = feeFlagsData?.data || [];
+
+  const waiveFeeFlagMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => feeFlagsApi.waive(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fee-flags', 'student', student?.id] });
+    },
+  });
+
+  const recordFeeFlagPaymentMutation = useMutation({
+    mutationFn: (id: string) => feeFlagsApi.recordPayment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fee-flags', 'student', student?.id] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    },
+  });
+
+  const [waivingFeeFlagId, setWaivingFeeFlagId] = useState<string | null>(null);
+  const [waiveReason, setWaiveReason] = useState('');
 
   const [validationError, setValidationError] = useState<string>('');
   const [completionReason, setCompletionReason] = useState('');
@@ -1824,6 +1849,95 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Outstanding fee flags - never a payment record, see
+                  Constraint A. Displays prominently but never blocks
+                  anything on the student record. */}
+              {outstandingFeeFlags.length > 0 && (
+                <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-semibold text-status-danger-text">
+                    Outstanding fee{outstandingFeeFlags.length === 1 ? '' : 's'}
+                  </p>
+                  <div className="space-y-2">
+                    {outstandingFeeFlags.map((flag) => (
+                      <div key={flag.id} className="bg-surface rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-tx-primary">
+                              ${Number(flag.amount).toFixed(2)} - {flag.reason}
+                            </p>
+                            <p className="text-xs text-tx-muted">
+                              {new Date(flag.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {settings?.cancellationFeePayee === 'school' && (
+                              <button
+                                type="button"
+                                onClick={() => recordFeeFlagPaymentMutation.mutate(flag.id)}
+                                disabled={recordFeeFlagPaymentMutation.isPending}
+                                className="px-3 py-1.5 text-xs font-medium bg-primary text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                              >
+                                Record payment
+                              </button>
+                            )}
+                            {waivingFeeFlagId !== flag.id && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setWaivingFeeFlagId(flag.id);
+                                  setWaiveReason('');
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium bg-surface2 text-tx-secondary rounded-lg hover:bg-surface3 transition-colors"
+                              >
+                                Waive
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {waivingFeeFlagId === flag.id && (
+                          <div className="space-y-2 pt-2 border-t border-edge">
+                            <label className="block text-xs font-medium text-tx-secondary">
+                              Reason for waiving
+                            </label>
+                            <input
+                              type="text"
+                              value={waiveReason}
+                              onChange={(e) => setWaiveReason(e.target.value)}
+                              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                              placeholder="e.g. first offense, goodwill"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setWaivingFeeFlagId(null)}
+                                className="px-3 py-1.5 text-xs font-medium bg-surface2 text-tx-secondary rounded-lg hover:bg-surface3 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  waiveFeeFlagMutation.mutate({ id: flag.id, reason: waiveReason });
+                                  setWaivingFeeFlagId(null);
+                                }}
+                                disabled={!waiveReason.trim() || waiveFeeFlagMutation.isPending}
+                                className="px-3 py-1.5 text-xs font-medium bg-status-danger-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                              >
+                                Confirm Waive
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

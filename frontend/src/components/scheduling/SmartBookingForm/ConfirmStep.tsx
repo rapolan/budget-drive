@@ -3,6 +3,7 @@ import { CheckCircle, FileText } from 'lucide-react';
 import { Student } from '@/types';
 import { SlotWithProximity } from './GroupedAvailabilityView';
 import { Button } from '@/components/common';
+import { OutstandingFeeFlagsBanner } from './SetupStep';
 
 interface ConfirmStepProps {
   selectedStudent: Student | undefined;
@@ -93,6 +94,8 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
           </div>
         </div>
       </div>
+
+      {selectedStudent && <OutstandingFeeFlagsBanner studentId={selectedStudent.id} />}
 
       {/* Editable fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

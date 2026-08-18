@@ -69,6 +69,8 @@ const ALLOWLIST: Record<string, string[]> = {
     // DATE-column extraction for the update/merge path's existing-date read.
     `existing.date.toISOString().split('T')[0]`,
     `rawMergedDate.toISOString().split('T')[0]`,
+    // DATE-column extraction for cancelLesson's fee-window check.
+    `lesson.date.toISOString().split('T')[0]`,
     // Instant-vs-"now" comparisons for reminder scheduling - an instant has
     // no timezone, so comparing it against the real current moment is
     // legitimate regardless of tenant zone.

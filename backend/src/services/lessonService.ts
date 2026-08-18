@@ -17,6 +17,7 @@ import { getTenantSettings } from './tenantService';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import * as notificationService from './notificationService';
+import * as feeFlagService from './feeFlagService';
 import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 const logger = createLogger('LessonService');
@@ -934,10 +935,18 @@ export const completeLesson = async (
 
     const lesson = keysToCamel(result.rows[0]) as Lesson;
 
-    // Fee-flag clearing hook: a later change wires in "clear all of this
-    // student's outstanding fee flags" here, as a non-blocking side-effect
-    // matching noShowLesson's notification side-effect below - completing
-    // a lesson must never fail because of that housekeeping.
+    // Clear all of this student's outstanding fee flags ("cash assumed
+    // settled" is one real-world event) - non-blocking, completing a lesson
+    // must never fail because of this housekeeping.
+    try {
+      await feeFlagService.clearOutstandingFlagsForStudent(tenantId, lesson.studentId);
+    } catch (feeFlagError) {
+      logger.warn('Clearing outstanding fee flags failed (non-blocking)', {
+        tenantId,
+        lessonId: id,
+        error: feeFlagError instanceof Error ? feeFlagError.message : 'Unknown error',
+      });
+    }
 
     return lesson;
   } catch (error) {
@@ -994,9 +1003,19 @@ export const noShowLesson = async (
       }
     }
 
-    // Fee-flag hook: a later change wires in "set an outstanding fee flag
-    // for this student" here, as a non-blocking side-effect, same rationale
-    // as the notification side-effect above.
+    // Set an outstanding fee flag for this student - non-blocking, same
+    // rationale as the notification side-effect above.
+    try {
+      const settings = await getTenantSettings(tenantId);
+      const amount = settings?.cancellationFeeAmount != null ? Number(settings.cancellationFeeAmount) : 0;
+      await feeFlagService.createFeeFlag(tenantId, lesson.studentId, lesson.id, amount, 'No-show');
+    } catch (feeFlagError) {
+      logger.warn('Fee flag creation failed (non-blocking)', {
+        tenantId,
+        lessonId: id,
+        error: feeFlagError instanceof Error ? feeFlagError.message : 'Unknown error',
+      });
+    }
 
     return lesson;
   } catch (error) {
@@ -1096,12 +1115,38 @@ export const cancelLesson = async (
       // Don't fail the lesson cancellation if notification queueing fails
     }
 
-    // Fee-window hook: a later change wires in the fee-window check here -
-    // only ever produces a flag when the lesson's start is still in the
-    // future and within tenant_settings.cancellation_fee_window_hours, so
-    // a queue correction on an already-past lesson naturally produces no
-    // flag ("hours until start" is negative). Non-blocking, same rationale
-    // as the notification side-effect above.
+    // Fee-window check: only ever produces a flag when the lesson's start
+    // is still in the future and within
+    // tenant_settings.cancellation_fee_window_hours - a queue correction on
+    // an already-past lesson naturally produces no flag ("hours until
+    // start" is negative). Non-blocking, same rationale as the
+    // notification side-effect above.
+    try {
+      const settings = await getTenantSettings(tenantId);
+      const timezone = resolveTenantTimezone(settings?.timezone);
+      const windowHours =
+        settings?.cancellationFeeWindowHours != null ? Number(settings.cancellationFeeWindowHours) : 0;
+      const amount = settings?.cancellationFeeAmount != null ? Number(settings.cancellationFeeAmount) : 0;
+
+      // lesson.date comes back from pg as a native Date object (the `date`
+      // column type, no time component - UTC-midnight-safe) - same
+      // normalization existing.date/rawMergedDate use above in updateLesson.
+      const lessonDateStr = lesson.date instanceof Date
+        ? lesson.date.toISOString().split('T')[0]
+        : (lesson.date as unknown as string);
+      const startInstant = zonedWallClockToUtc(lessonDateStr, lesson.startTime, timezone);
+      const hoursUntilStart = (startInstant.getTime() - Date.now()) / (60 * 60 * 1000);
+
+      if (hoursUntilStart > 0 && hoursUntilStart <= windowHours) {
+        await feeFlagService.createFeeFlag(tenantId, lesson.studentId, lesson.id, amount, 'Late cancellation');
+      }
+    } catch (feeFlagError) {
+      logger.warn('Fee-window check failed (non-blocking)', {
+        tenantId,
+        lessonId: id,
+        error: feeFlagError instanceof Error ? feeFlagError.message : 'Unknown error',
+      });
+    }
 
     logger.info('Lesson cancelled successfully', { tenantId, lessonId: id });
 

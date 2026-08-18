@@ -1,7 +1,40 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, TrendingUp, Calendar, Award } from 'lucide-react';
-import { instructorsApi } from '@/api';
+import { DollarSign, TrendingUp, Calendar, Award, AlertTriangle } from 'lucide-react';
+import { instructorsApi, feeFlagsApi } from '@/api';
+
+/**
+ * Read-only list of fee flags sourced from this instructor's lessons -
+ * "listed, not totalled" per Constraint A. No total line is ever rendered
+ * here, and this component never feeds into the earnings stat tiles above.
+ */
+const OutstandingFeesForInstructor: React.FC<{ instructorId: string }> = ({ instructorId }) => {
+  const { data } = useQuery({
+    queryKey: ['fee-flags', 'instructor', instructorId],
+    queryFn: () => feeFlagsApi.getForInstructor(instructorId),
+  });
+  const flags = (data?.data || []).filter(f => f.status === 'outstanding');
+
+  if (flags.length === 0) return null;
+
+  return (
+    <div className="mt-6 rounded-lg bg-surface2 p-6">
+      <h3 className="mb-3 font-semibold text-tx-primary flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-status-warning-text" />
+        Outstanding fees owed by students
+      </h3>
+      <div className="space-y-2">
+        {flags.map(flag => (
+          <div key={flag.id} className="flex items-center justify-between text-sm bg-surface rounded-lg px-4 py-2.5">
+            <span className="text-tx-primary font-medium">{flag.studentName}</span>
+            <span className="text-tx-secondary">{flag.reason}</span>
+            <span className="text-tx-primary font-semibold">${Number(flag.amount).toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export const InstructorEarningsPage: React.FC = () => {
   const [selectedInstructorId, setSelectedInstructorId] = useState<string>('');
@@ -210,6 +243,11 @@ export const InstructorEarningsPage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Outstanding fees owed by students - read-only, never summed.
+              Structurally outside the earnings stat tiles above (never
+              rendered as a total) per Constraint A. */}
+          {selectedInstructorId && <OutstandingFeesForInstructor instructorId={selectedInstructorId} />}
         </div>
       )}
 
