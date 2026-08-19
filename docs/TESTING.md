@@ -509,6 +509,30 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Pass looks like:** The closest instructor's slots still appear — they are never dropped just because they configured a service area — but grouped under an **"Outside their usual area"** heading, sorted below the in-area group even though their raw proximity score may be better than any in-area instructor's. This is the exact scenario a prior version of this feature got wrong: configuring a service area used to risk losing your own closest-match slots to unconfigured competitors. It no longer does — service area only affects which group a result appears under, never whether it appears at all.
 
+### 2.39 An approaching license expiry shows a warning on the Dashboard and the instructor record
+
+**Do:** Edit an instructor whose license is currently valid, and set their **License Expiration** to a date within the next 30 days (but not past). Save, then check the Dashboard and reopen that instructor's record.
+
+**Pass looks like:** The Dashboard shows an **Instructor Licenses** alert tile naming that instructor (or, with others also affected, a count) with a warning-styled badge. Reopening the instructor's record shows an "Expiring soon" pill next to the license section heading. The Instructors list shows the same status, in both card and table view.
+
+### 2.40 An expired license shows danger styling everywhere, and would escalate weekly
+
+**Do:** Set an instructor's **License Expiration** to a past date. Check the Dashboard, the instructor record, and the Instructors list.
+
+**Pass looks like:** All three surfaces show danger (not warning) styling — the Dashboard tile, the record's status pill ("Expired"), and the list badge. The actual escalating reminder is cron-driven (daily) and not something to wait a real day for during manual testing — to verify the notification side specifically, either wait for the next scheduled cron run with a test instructor whose expiration lands on a threshold boundary (180/90/30/14/7 days out, or a multiple of 7 days past expiry), or check the `instructor_license_notifications` table directly after one run to confirm a row was recorded and a matching row exists in `notifications` for each admin/owner user.
+
+### 2.41 Renewing a license clears the alert and status immediately
+
+**Do:** Take an instructor currently showing as expired or expiring (from 2.39/2.40) and edit their **License Expiration** to a comfortable future date (more than 180 days out). Save, then check the Dashboard, the instructor record, and the Instructors list again.
+
+**Pass looks like:** The Dashboard's Instructor Licenses tile no longer lists that instructor (or disappears entirely if they were the only one). The instructor record's status pill is gone. The Instructors list shows "Valid" (or no badge) for that instructor. All three update immediately on save — no separate "clear" action, no cron wait.
+
+### 2.42 An instructor with no expiration date recorded is flagged, not silently treated as compliant
+
+**Do:** Create a new instructor without filling in **License Expiration** (or edit an existing one and clear the field). Check the Dashboard, the instructor record, and the Instructors list.
+
+**Pass looks like:** That instructor does **not** appear on the Dashboard's Instructor Licenses tile (there's no date to compute a threshold from, so the cron never processes them) — but the instructor record shows a "Missing" pill and the Instructors list shows a "License Missing" badge, both styled with the same danger weight as "Expired." The instructor is never silently shown as if their license were valid.
+
 ---
 
 ## 3. Known issues to route around
