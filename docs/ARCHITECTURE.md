@@ -146,9 +146,33 @@ The server process runs with `TZ=UTC` (`.env.example`, `.env.test`, and the CI w
 
 `frontend/src/pages/Settings.tsx`'s General tab is the one place the frontend is allowed to call `Intl.DateTimeFormat().resolvedOptions().timeZone` — and even there, the result is never used for date math, only to pre-populate a suggestion an admin must explicitly accept and then explicitly save. The suggestion banner renders only while `tenant_settings.timezone` is `null` (never configured — see migration 011, which dropped the column's DB-level default so a new tenant starts unset instead of silently landing on the old Pacific default). Accepting the suggestion sets the ordinary form field; nothing is persisted or treated as authoritative until the existing `PUT /tenant/settings` save path runs, going through the same `Intl.supportedValuesOf('timeZone')` validation as any manually-typed zone. Existing tenants already sitting at the pre-migration default value are not backfilled to `null` and so never see the suggestion — there's no way to tell whether that value was an explicit choice.
 
-### Known gap: frontend browser-local time (deferred)
+### Frontend consumption: `tenantNow`, never the browser's own clock
 
-The frontend does **not** yet route its own "today"/"this week"/"this month" computations through this system. `Dashboard.tsx`, `Lessons.tsx`, `LessonsCalendarView.tsx`, `InstructorWeeklySchedule.tsx`, and `utils/studentStatus.ts` all derive date boundaries from the browser's local clock; `SmartBookingForm`'s `extractTime` reads a generated slot's ISO timestamp back via the browser's local `getHours()`. These are real Constraint-B violations, but fixing them compliantly means threading tenant-resolved boundaries from the backend into roughly ten frontend files — architecturally, the frontend must never reimplement timezone conversion itself (no `date-fns-tz` in the browser); it can only ever receive already-tenant-correct values from an API response. This is a deliberate, tracked follow-up, not an oversight — until it lands, these specific frontend surfaces are correct only when the browser and the tenant happen to share a timezone.
+The frontend never computes a timezone boundary itself — every "today"/"this week"/"this month" surface renders a value the backend already resolved. `GET /api/v1/tenant/settings` returns a `tenantNow` object (`tenantService.getTenantNow`, a thin composition of the primitives above) alongside the existing settings payload:
+
+```ts
+interface TenantNow {
+  timezone: string;
+  today: string;       // YYYY-MM-DD
+  tomorrow: string;     // YYYY-MM-DD
+  currentTime: string;  // HH:MM, tenant wall-clock
+  weekStart: string;    // YYYY-MM-DD, Sunday-start (see note below)
+  weekEnd: string;      // YYYY-MM-DD, weekStart + 6
+  monthBoundaries: { start: string; end: string };
+}
+```
+
+`frontend/src/contexts/TenantContext.tsx` exposes this via `useTenant().tenantNow`, refetched every 5 minutes alongside the rest of `TenantSettings` (no separate API call). Sunday week-start is a documented convention inside `getTenantNow`, not a hardcoded law — it may become a tenant setting later, mirroring `cancellation_fee_window_hours` and similar.
+
+Every previously browser-local surface now consumes `tenantNow` (or a value derived from it) instead of `new Date()`:
+- **`Dashboard.tsx`**: renders a loading state until `tenantNow` resolves — deliberately no browser-`Date` fallback, since a brief wrong-day flash is worse than a brief spinner. Today's-lessons count, the 30-day permit-expiry boundary, monthly revenue, and the "Next 7 Days" grid all key off `tenantNow`.
+- **`Lessons.tsx`**: status counts, stats, and `groupLessonsByDate`'s Today/Tomorrow/This Week/Later/Past buckets compare `lesson.date` (a plain `YYYY-MM-DD` string) directly against `tenantNow` fields — never `new Date(lesson.date).toISOString().split('T')[0]`, which UTC-shifts a date-only value.
+- **`LessonsCalendarView.tsx`** / **`InstructorWeeklySchedule.tsx`**: month/week navigation and the "today" highlight seed from `tenantNow.today`/`tenantNow.weekStart` via `parseLocalDate`; subsequent calendar-grid math (`.getDay()`, `.getDate()`, `setDate`) operates on that already-tenant-anchored `Date`, which is safe — it's pure calendar arithmetic on a resolved value, not a fresh read of the browser's instant (the same distinction `parseLocalDate`/`formatLocalDate`/`addCalendarDays` in `timeFormat.ts` document for themselves).
+- **`utils/studentStatus.ts`**: `computeStudentStatus`/`studentNeedsFollowup`/`getFollowupReason` all take a **required** `now: Date` parameter — no default — so a caller that forgets to pass tenant time is a compile error, not a silent browser-time fallback. Callers (`Dashboard.tsx`, `Students.tsx`) pass `parseLocalDate(tenantNow.today)`.
+- **`SmartBookingForm`**: `findAvailableSlots`'s response gained `startTimeLocal`/`endTimeLocal` (tenant wall-clock `HH:MM`, sibling fields to the existing ISO `startTime`/`endTime`) on `TimeSlot`/`RankedTimeSlot`. The wizard's booking payload and every displayed slot time now read these directly, eliminating the old `new Date(iso).getHours()` parse that was correct only when the browser's zone happened to match the instant's encoding.
+- **`DateRangeFilter.tsx`**: stays presentational — takes `tenantToday`/`tenantWeekStart`/`tenantWeekEnd`/`tenantMonthStart`/`tenantMonthEnd` as props rather than calling `useTenant()` or `date-fns`'s `new Date()`-based boundary helpers itself.
+
+**Enforcement**: `frontend/src/__tests__/noBrowserLocalDateDerivation.test.ts` mirrors `noServerLocalDateDerivation.test.ts`'s static-scan mechanism against these same files, with an explicit per-file allowlist for the legitimate calendar-grid-math cases described above. Hostile-clock test suites (`*.hostileClock.test.tsx`/`.ts`, one per surface above) reassign `process.env.TZ` at runtime to simulate a disagreeing browser timezone (verified to genuinely affect every `Date.prototype` getter and `Intl.DateTimeFormat`, including across DST transitions) while a separately mocked `tenantNow` simulates the backend-resolved value, asserting each surface renders the *tenant's* boundaries in both directions (tenant Pacific/browser Eastern and the reverse). **`date-fns-tz` must never be added to the frontend** — plain `date-fns` remains fine only for calendar-day arithmetic on an already-resolved string, never for converting an instant.
 
 ---
 

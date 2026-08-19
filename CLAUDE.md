@@ -40,7 +40,7 @@ BSV blockchain integration exists but is **currently disabled** behind a feature
 - New buttons use `common/Button`. Do not hand-roll button classes.
 - Guardian matching and duplicate detection live in the backend service layer only, never in React, so a future public signup form can reuse them. Matching (`findGuardianCandidates`/`findExactGuardianMatch`) never links — it surfaces candidates only; linking is always an explicit, separate call naming both a `studentId` and a `guardianId`.
 - `students.email` is nullable — required server-side for adults (18+ by `date_of_birth`), optional for minors. Don't assume it's always present.
-- All date and wall-clock interpretation resolves in the tenant's timezone via `backend/src/utils/tenantTime.ts` — never server or browser local time. See docs/ARCHITECTURE.md § Tenant Timezone Authority.
+- All date and wall-clock interpretation resolves in the tenant's timezone via `backend/src/utils/tenantTime.ts` — never server or browser local time. See docs/ARCHITECTURE.md § Tenant Timezone Authority. The frontend never computes a timezone boundary itself, only ever renders `tenantNow`/`startTimeLocal`/`endTimeLocal` values already resolved server-side and threaded through `GET /tenant/settings` and the ranked-slots endpoint; plain `date-fns` stays frontend-safe only for calendar-day arithmetic on an already-resolved string, never for converting an instant, and `date-fns-tz` must never be added to the frontend.
 - Postgres numeric columns serialize as JSON strings. Coerce numeric API fields to numbers at the API boundary before use in arithmetic, comparison, or formatting. Never assume a numeric column arrives as a number.
 
 ## Do not touch
