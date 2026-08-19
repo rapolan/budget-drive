@@ -128,6 +128,14 @@ export const updateInstructor = async (
       fields.push(`full_name = $${paramCount++}`);
       values.push(data.fullName);
     }
+    if (data.dateOfBirth !== undefined) {
+      fields.push(`date_of_birth = $${paramCount++}`);
+      values.push(data.dateOfBirth);
+    }
+    if (data.hireDate !== undefined) {
+      fields.push(`hire_date = $${paramCount++}`);
+      values.push(data.hireDate);
+    }
     if (data.email !== undefined) {
       fields.push(`email = $${paramCount++}`);
       values.push(data.email);

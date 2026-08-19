@@ -150,4 +150,97 @@ describe('PUT /api/v1/instructors/:id', () => {
     expect(res.body.data.instructorLicenseNumber).toBe('DSI-777');
     expect(res.body.data.instructorLicenseExpiration).toBe('2028-06-15');
   });
+
+  // Regression test: updateInstructor read dateOfBirth on CREATE but had no
+  // branch for it on UPDATE at all - the form's real, editable Date of Birth
+  // input silently did nothing when changed on an existing instructor (same
+  // bug class as employmentType/instructorLicenseNumber above).
+  it('persists a change to dateOfBirth', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        date_of_birth: '1990-05-15',
+      }])
+    );
+
+    const res = await request(app)
+      .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ dateOfBirth: '1990-05-15' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+    );
+    expect(updateCall).toBeDefined();
+    const [sql, params] = updateCall!;
+    expect(sql).toMatch(/date_of_birth/);
+    expect(params).toContain('1990-05-15');
+  });
+
+  // Regression test: same bug class as dateOfBirth above - hireDate was read
+  // on CREATE but had no UPDATE branch, so the form's real, editable Hire
+  // Date input silently did nothing when changed on an existing instructor.
+  it('persists a change to hireDate', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        hire_date: '2020-03-01',
+      }])
+    );
+
+    const res = await request(app)
+      .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hireDate: '2020-03-01' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+    );
+    expect(updateCall).toBeDefined();
+    const [sql, params] = updateCall!;
+    expect(sql).toMatch(/hire_date/);
+    expect(params).toContain('2020-03-01');
+  });
+
+  // A fresh read after the update round-trips both fields correctly through
+  // keysToCamel - proving the whole update/read loop persists them, not just
+  // the UPDATE statement in isolation.
+  it('returns dateOfBirth and hireDate on a fresh read after updating both', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        full_name: 'Test Instructor',
+        email: 'test@example.com',
+        status: 'active',
+        date_of_birth: '1985-11-20',
+        hire_date: '2019-07-04',
+      }])
+    );
+
+    const res = await request(app)
+      .get(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.dateOfBirth).toBe('1985-11-20');
+    expect(res.body.data.hireDate).toBe('2019-07-04');
+  });
 });
