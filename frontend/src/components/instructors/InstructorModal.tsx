@@ -7,6 +7,8 @@ import type { Instructor, CreateInstructorInput } from '@/types';
 import { CalendarFeedSettings } from './CalendarFeedSettings';
 import { InstructorServiceAreas } from './InstructorServiceAreas';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
+import { useTenant } from '@/contexts/TenantContext';
+import { computeLicenseStatus } from '@/utils/licenseExpiry';
 
 interface InstructorModalProps {
   instructor: Instructor | null;
@@ -16,6 +18,10 @@ interface InstructorModalProps {
 export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, onClose }) => {
   const queryClient = useQueryClient();
   const isEditing = Boolean(instructor);
+  const { tenantNow } = useTenant();
+  const licenseStatus = tenantNow
+    ? computeLicenseStatus(instructor?.instructorLicenseExpiration ? String(instructor.instructorLicenseExpiration).split('T')[0] : null, tenantNow.today)
+    : null;
 
   const [formData, setFormData] = useState<CreateInstructorInput>({
     fullName: '',
@@ -299,6 +305,15 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
             <div className="flex items-center gap-2 mb-1">
               <FileText className="h-4 w-4 text-purple-600" />
               <h3 className="text-sm font-semibold text-tx-primary">Driving School Instructor License</h3>
+              {isEditing && licenseStatus && licenseStatus !== 'valid' && (
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  licenseStatus === 'missing' || licenseStatus === 'expired'
+                    ? 'bg-status-danger-bg text-status-danger-text'
+                    : 'bg-status-warning-bg text-status-warning-text'
+                }`}>
+                  {licenseStatus === 'missing' ? 'Missing' : licenseStatus === 'expired' ? 'Expired' : 'Expiring soon'}
+                </span>
+              )}
             </div>
             <p className="text-xs text-tx-muted mb-4">
               The CA DMV credential to teach behind-the-wheel lessons - not a driver's license. Renews every 3 years.

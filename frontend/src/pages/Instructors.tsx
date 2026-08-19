@@ -6,6 +6,8 @@ import type { Instructor } from '@/types';
 import { InstructorModal } from '@/components/instructors/InstructorModal';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { useTenant } from '@/contexts/TenantContext';
+import { computeLicenseStatus, type LicenseStatus } from '@/utils/licenseExpiry';
 
 type StatusFilter = 'all' | 'active' | 'on_leave' | 'terminated';
 type ViewMode = 'table' | 'cards';
@@ -13,6 +15,7 @@ type ViewMode = 'table' | 'cards';
 export const InstructorsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
+  const { tenantNow } = useTenant();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -189,6 +192,41 @@ export const InstructorsPage: React.FC = () => {
       default:
         return 'bg-surface2 text-tx-secondary';
     }
+  };
+
+  // "Missing" gets the SAME danger weight as "Expired" - never silently
+  // treated as compliant just because there's no date to compare against.
+  const getLicenseStatusColor = (status: LicenseStatus) => {
+    switch (status) {
+      case 'missing':
+      case 'expired':
+        return 'bg-status-danger-bg text-status-danger-text';
+      case 'expiring':
+        return 'bg-status-warning-bg text-status-warning-text';
+      case 'valid':
+        return 'bg-status-success-bg text-status-success-text';
+    }
+  };
+
+  const getLicenseStatusLabel = (status: LicenseStatus) => {
+    switch (status) {
+      case 'missing':
+        return 'License Missing';
+      case 'expired':
+        return 'License Expired';
+      case 'expiring':
+        return 'License Expiring';
+      case 'valid':
+        return 'License Valid';
+    }
+  };
+
+  const getInstructorLicenseStatus = (instructor: Instructor): LicenseStatus | null => {
+    if (!tenantNow) return null;
+    const expiration = instructor.instructorLicenseExpiration
+      ? String(instructor.instructorLicenseExpiration).split('T')[0]
+      : null;
+    return computeLicenseStatus(expiration, tenantNow.today);
   };
 
   return (
@@ -425,7 +463,7 @@ export const InstructorsPage: React.FC = () => {
                 </div>
 
                 {/* Employment & Rate */}
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${getEmploymentTypeColor(instructor.employmentType)}`}>
                     <Briefcase className="h-3 w-3" />
                     {getEmploymentTypeLabel(instructor.employmentType)}
@@ -436,6 +474,15 @@ export const InstructorsPage: React.FC = () => {
                       {Number(instructor.hourlyRate).toFixed(2)}/hr
                     </span>
                   )}
+                  {(() => {
+                    const licenseStatus = getInstructorLicenseStatus(instructor);
+                    if (!licenseStatus || licenseStatus === 'valid') return null;
+                    return (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${getLicenseStatusColor(licenseStatus)}`}>
+                        {getLicenseStatusLabel(licenseStatus)}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 {/* Contact Info */}
@@ -507,6 +554,9 @@ export const InstructorsPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Status
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                  License
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Actions
                 </th>
@@ -515,13 +565,13 @@ export const InstructorsPage: React.FC = () => {
             <tbody className="divide-y divide-edge bg-surface">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-12">
+                  <td colSpan={7} className="py-12">
                     <LoadingSpinner />
                   </td>
                 </tr>
               ) : filteredInstructors?.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-2">
+                  <td colSpan={7} className="py-2">
                     <EmptyState
                       icon={<UserCheck className="h-12 w-12" />}
                       title="No instructors found"
@@ -596,6 +646,20 @@ export const InstructorsPage: React.FC = () => {
                       >
                         {instructor.status.replace('_', ' ')}
                       </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      {(() => {
+                        const licenseStatus = getInstructorLicenseStatus(instructor);
+                        if (!licenseStatus) return null;
+                        if (licenseStatus === 'valid') {
+                          return <span className="text-xs text-tx-muted">Valid</span>;
+                        }
+                        return (
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getLicenseStatusColor(licenseStatus)}`}>
+                            {getLicenseStatusLabel(licenseStatus)}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                       <div className="flex justify-end gap-1">

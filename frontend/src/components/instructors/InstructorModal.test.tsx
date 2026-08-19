@@ -20,6 +20,20 @@ vi.mock('@/api/users', () => ({
   usersApi: { invite: vi.fn() },
 }));
 
+vi.mock('@/contexts/TenantContext', () => ({
+  useTenant: () => ({
+    tenantNow: {
+      timezone: 'America/Los_Angeles',
+      today: '2026-03-01',
+      tomorrow: '2026-03-02',
+      currentTime: '12:00',
+      weekStart: '2026-02-22',
+      weekEnd: '2026-02-28',
+      monthBoundaries: { start: '2026-03-01', end: '2026-03-31' },
+    },
+  }),
+}));
+
 afterEach(cleanup);
 
 function renderModal() {
