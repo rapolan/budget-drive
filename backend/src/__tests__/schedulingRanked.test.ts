@@ -552,17 +552,29 @@ describe('findRankedAvailableSlots - duration arrives as a numeric string', () =
   });
 });
 
-// Constraints A/B/C from the instructor-service-areas feature: filtering
+// Constraints A/B/C from the instructor-service-areas feature: ranking
 // happens only inside this function (no second search path); an instructor
-// with no configured service-area rows always serves every zip; the search
-// never returns empty solely because of service-area configuration - it
-// falls back to every candidate instructor, flagged, instead. Proximity
-// score remains the only sort key throughout.
-describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
+// with no configured service-area rows always serves every zip; service
+// area is a RANKING signal, never a filter - every candidate instructor's
+// slots are always returned. In-area slots sort above out-of-area slots;
+// within each group, proximity-then-date ordering is unchanged.
+//
+// This block previously tested a filter-with-fallback design (in-area
+// slots only, falling back to everyone if that set was completely empty).
+// That design was broken: Constraint B means an unconfigured instructor
+// always counts as in-area, so a single unconfigured candidate kept the
+// filtered set non-empty forever - the fallback branch essentially never
+// fired, and any instructor who DID configure a service area could be
+// silently excluded from every search, even as the closest match.
+// Confirmed live: the nearest instructor to a student disappeared from
+// results entirely while unconfigured instructors ranked above him.
+describe('findRankedAvailableSlots - service area ranking (never filters)', () => {
   beforeEach(() => {
     resetMockQuery();
   });
 
+  // Unchanged assertion shape from the old block - this was always testing
+  // Constraint B's flag value, never the (now-removed) filtering behavior.
   it('an instructor with no configured service area always appears, unflagged (Constraint B)', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
@@ -605,7 +617,13 @@ describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
     expect(instructorIds.has('instructor-b')).toBe(true);
   });
 
-  it('prefers the in-area instructor over a configured-but-out-of-area one', async () => {
+  // CHANGED: the old assertion here was
+  // `result.slots.every((s) => s.instructorId === 'instructor-in')` -
+  // asserting the out-of-area instructor's slots were EXCLUDED. That was
+  // exactly the bug: out-of-area slots must never be dropped, only ranked
+  // lower. Rewritten to assert both instructors' slots are present, with
+  // the in-area instructor's slots sorting first.
+  it('ranks the in-area instructor above a configured-but-out-of-area one, without excluding either', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
     const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
@@ -646,11 +664,19 @@ describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
     });
 
     expect(result.slots.length).toBeGreaterThan(0);
-    expect(result.slots.every((s) => s.instructorId === 'instructor-in')).toBe(true);
-    expect(result.slots.every((s) => s.outsideServiceArea === false)).toBe(true);
+    const instructorIds = new Set(result.slots.map((s) => s.instructorId));
+    expect(instructorIds.has('instructor-in')).toBe(true);
+    expect(instructorIds.has('instructor-out')).toBe(true); // no longer excluded
+    expect(result.slots[0].instructorId).toBe('instructor-in');
+    expect(result.slots[0].outsideServiceArea).toBe(false);
   });
 
-  it('falls back to the out-of-area instructor rather than returning empty when no in-area slots exist', async () => {
+  // CHANGED: this test's entire premise (a "fallback" that "triggers" only
+  // when the in-area set is empty) no longer exists as a distinct code
+  // path - there is only one path now. Rewritten to assert the general
+  // case: an out-of-area instructor's slots are still returned and sorted
+  // correctly, since there's nothing left to "fall back" to.
+  it('still returns the out-of-area instructor\'s slots when every candidate is out of area', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
     const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
@@ -681,12 +707,15 @@ describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
       endDate: tenantTomorrow(TEST_TIMEZONE),
     });
 
-    // Zero in-area slots exist, but the search must not come back empty.
     expect(result.slots.length).toBeGreaterThan(0);
     expect(result.slots.every((s) => s.outsideServiceArea === true)).toBe(true);
   });
 
-  it('falls back to an out-of-area instructor with openings when the in-area instructor is fully booked', async () => {
+  // CHANGED: same reasoning as above - rewritten to assert the out-of-area
+  // instructor's open slots are returned (there being no in-area slots at
+  // all in this scenario, since the in-area instructor is fully booked),
+  // not "the search returns non-empty because a fallback kicked in."
+  it('returns an out-of-area instructor\'s open slots when the only in-area instructor is fully booked', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
     const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
@@ -744,7 +773,11 @@ describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
     expect(result.slots.every((s) => s.outsideServiceArea === true)).toBe(true);
   });
 
-  it('never lets area membership override the proximity sort within a fallback result', async () => {
+  // Reframed from "never lets area membership override the proximity sort
+  // within a fallback result" - there's no more "fallback result," just
+  // "the out-of-area group." Assertion logic is otherwise unchanged: within
+  // a group of out-of-area slots, proximity ordering still applies.
+  it('preserves proximity ordering within the out-of-area group', async () => {
     const { findRankedAvailableSlots } = await import('../services/schedulingService');
 
     const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
@@ -756,8 +789,8 @@ describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
         { id: 'instructor-far', full_name: 'Far But Also Out Of Area', zip_code: '10001' }, // unrelated zip -> lower score
       ])
     );
-    // Both configured, but neither covers the pickup zip - forces a full
-    // fallback where area membership must NOT reorder the result.
+    // Both configured, but neither covers the pickup zip - both land in the
+    // out-of-area group, so this isolates the within-group ordering.
     mockQuery.mockResolvedValueOnce(
       queryResult([
         { instructor_id: 'instructor-close', zip_code: '99999' },
@@ -788,13 +821,114 @@ describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
 
     expect(result.slots.length).toBeGreaterThan(0);
     expect(result.slots.every((s) => s.outsideServiceArea === true)).toBe(true);
-    // The higher-proximity instructor's slot must still sort first, proving
-    // area membership never overrides the proximity key once a slot set
-    // (here, the fallback set) is chosen.
     expect(result.slots[0].instructorId).toBe('instructor-close');
     expect(result.slots[0].proximityScore).toBe(100);
     for (let i = 1; i < result.slots.length; i++) {
       expect(result.slots[i].proximityScore).toBeLessThanOrEqual(result.slots[i - 1].proximityScore);
     }
+  });
+
+  // NEW: the exact regression this fix targets, reproducing the live
+  // "Roberto Polan" report - a configured, in-area instructor who is ALSO
+  // the closest match must not lose to an unconfigured competitor with a
+  // worse proximity score. Under the old filter-with-fallback design, the
+  // unconfigured instructor's mere presence kept inAreaSlots non-empty,
+  // which silently excluded the configured instructor's slots entirely.
+  it('never loses the closest configured in-area instructor to an unconfigured competitor', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'instructor-configured-close', full_name: 'Configured And Closest', zip_code: '90210' }, // same zip as pickup -> 100 score
+        { id: 'instructor-unconfigured-far', full_name: 'Unconfigured And Farther', zip_code: '10001' }, // unrelated zip -> lower score
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(
+      // Only instructor-configured-close has any rows - it covers the
+      // pickup zip. instructor-unconfigured-far has none (Constraint B:
+      // still in-area), but with a worse proximity score.
+      queryResult([{ instructor_id: 'instructor-configured-close', zip_code: '90210' }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+
+    for (const instId of ['instructor-configured-close', 'instructor-unconfigured-far']) {
+      mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ instructor_id: instId, day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+      );
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+    }
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    const instructorIds = new Set(result.slots.map((s) => s.instructorId));
+    expect(instructorIds.has('instructor-configured-close')).toBe(true); // never excluded
+    expect(instructorIds.has('instructor-unconfigured-far')).toBe(true);
+    expect(result.slots[0].instructorId).toBe('instructor-configured-close');
+    expect(result.slots[0].outsideServiceArea).toBe(false);
+    expect(result.slots[0].proximityScore).toBe(100);
+  });
+
+  // NEW: area partition is the PRIMARY sort key, proximity is secondary -
+  // an in-area instructor with a worse raw proximity score must still rank
+  // above an out-of-area instructor with a better one.
+  it('ranks an in-area instructor above an out-of-area one even with a lower proximity score', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'instructor-in-far', full_name: 'In Area But Far', zip_code: '10001' }, // unrelated zip -> lower score
+        { id: 'instructor-out-close', full_name: 'Out Of Area But Close', zip_code: '90210' }, // same zip as pickup -> 100 score
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { instructor_id: 'instructor-in-far', zip_code: '90210' }, // configured, covers the pickup zip
+        { instructor_id: 'instructor-out-close', zip_code: '99999' }, // configured, does not
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+
+    for (const instId of ['instructor-in-far', 'instructor-out-close']) {
+      mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ instructor_id: instId, day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+      );
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+    }
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.slots[0].instructorId).toBe('instructor-in-far');
+    expect(result.slots[0].outsideServiceArea).toBe(false);
+    expect(result.slots[0].proximityScore).toBeLessThan(100); // lower score, still ranks first
   });
 });

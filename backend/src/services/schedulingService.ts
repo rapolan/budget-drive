@@ -879,21 +879,25 @@ export const findRankedAvailableSlots = async (
     }
   }
 
-  // Service-area filter-with-fallback (Constraint A: this is the only place
-  // area membership affects the result - no second search path). Every
-  // candidate instructor's slots are already computed and scored above,
-  // regardless of area - this only decides which of them to return.
-  // Area membership is never a sort key; it only affects inclusion and the
-  // outsideServiceArea flag each slot already carries.
-  const inAreaSlots = rankedSlots.filter((s) => !s.outsideServiceArea);
-  const finalSlots = inAreaSlots.length > 0 ? inAreaSlots : rankedSlots;
-
-  finalSlots.sort((a, b) => {
+  // Service area is a ranking signal, never a filter (Constraint A: this is
+  // the only place area membership affects the result - no second search
+  // path). A previous version filtered to in-area slots and fell back to
+  // everyone only when that set was completely empty - but an unconfigured
+  // instructor always counts as in-area (Constraint B), so a single
+  // unconfigured candidate kept the filtered set non-empty forever, and any
+  // instructor who DID configure a service area could be silently excluded
+  // from every search, even as the closest match. All slots are always
+  // returned now; in-area slots simply sort above out-of-area ones, and
+  // proximity-then-date ordering is preserved within each group.
+  rankedSlots.sort((a, b) => {
+    if (a.outsideServiceArea !== b.outsideServiceArea) {
+      return a.outsideServiceArea ? 1 : -1;
+    }
     if (b.proximityScore !== a.proximityScore) {
       return b.proximityScore - a.proximityScore;
     }
     return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
   });
 
-  return { slots: finalSlots, failedInstructors };
+  return { slots: rankedSlots, failedInstructors };
 };
