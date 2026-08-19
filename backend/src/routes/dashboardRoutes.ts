@@ -17,6 +17,8 @@ router.use(requireTenantContext);
 
 router.get('/dashboard/no-show-alerts', dashboardController.getNoShowAlerts);
 
+router.get('/dashboard/license-expiry-alerts', dashboardController.getLicenseExpiryAlerts);
+
 router.post(
   '/dashboard/alerts/:notificationId/dismiss',
   validateUUID('notificationId'),

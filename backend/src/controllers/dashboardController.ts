@@ -43,6 +43,23 @@ export const dismissAlert = asyncHandler(async (req: Request, res: Response) => 
 });
 
 /**
+ * @route   GET /api/v1/dashboard/license-expiry-alerts
+ * @desc    Active instructors with a license expiring within 180 days or
+ *          already expired
+ * @access  Private
+ */
+export const getLicenseExpiryAlerts = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const alerts = await dashboardService.getInstructorsWithExpiringLicenses(tenantId);
+
+  res.json({
+    success: true,
+    data: alerts,
+  });
+});
+
+/**
  * @route   GET /api/v1/dashboard/review-queue
  * @desc    Past-due 'scheduled' lessons grouped by day, most overdue first
  * @access  Private

@@ -8,6 +8,14 @@ export interface NoShowAlert {
   notificationId: string;
 }
 
+export interface LicenseExpiryAlert {
+  instructorId: string;
+  instructorName: string;
+  expirationDate: string;
+  daysUntilExpiry: number;
+  severity: 'warning' | 'danger';
+}
+
 export interface ReviewQueueLesson {
   id: string;
   studentId: string;
@@ -38,6 +46,11 @@ export const dashboardApi = {
 
   dismissAlert: async (notificationId: string) => {
     const response = await apiClient.post<ApiResponse<void>>(`/dashboard/alerts/${notificationId}/dismiss`, {});
+    return response.data;
+  },
+
+  getLicenseExpiryAlerts: async () => {
+    const response = await apiClient.get<ApiResponse<LicenseExpiryAlert[]>>('/dashboard/license-expiry-alerts');
     return response.data;
   },
 

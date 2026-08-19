@@ -19,6 +19,7 @@ vi.mock('@/api', async () => {
       getNoShowAlerts: vi.fn(),
       dismissAlert: vi.fn(),
       getReviewQueue: vi.fn().mockResolvedValue({ data: { days: [], totalCount: 0 } }),
+      getLicenseExpiryAlerts: vi.fn().mockResolvedValue({ data: [] }),
     },
   };
 });

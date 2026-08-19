@@ -51,6 +51,7 @@ const TARGET_FILES = [
   'src/services/bookingPresetsService.ts',
   'src/services/dashboardService.ts',
   'src/services/tenantService.ts',
+  'src/services/instructorLicenseNotificationService.ts',
   'src/utils/tenantTime.ts',
 ];
 
@@ -100,6 +101,11 @@ const ALLOWLIST: Record<string, string[]> = {
   'src/services/dashboardService.ts': [
     // DATE-column extraction for the review queue's end-time-passed check.
     `row.date.toISOString().split('T')[0]`,
+    // Same DATE-column extraction, for instructor_license_expiration -
+    // both are plain `date` columns with no time component, so this is
+    // UTC-midnight-safe (see the identical reasoning in
+    // getLessonsNeedingReview a few lines above).
+    `? row.instructor_license_expiration.toISOString().split('T')[0]`,
     // Instant-vs-"now" comparison - an instant has no timezone, so
     // comparing a lesson's resolved end instant against the real current
     // moment is legitimate regardless of tenant zone.
@@ -111,6 +117,12 @@ const ALLOWLIST: Record<string, string[]> = {
     // function every consumer (including the frontend, via GET
     // /tenant/settings) calls instead of touching Date itself.
     `reference: Date = new Date()`,
+  ],
+  'src/services/instructorLicenseNotificationService.ts': [
+    // Same DATE-column extraction reasoning as dashboardService.ts above -
+    // instructor_license_expiration is a plain `date` column, no time
+    // component, UTC-midnight-safe.
+    `? row.instructor_license_expiration.toISOString().split('T')[0]`,
   ],
   'src/utils/tenantTime.ts': [
     // The module's own default-reference parameters - the ONE place real

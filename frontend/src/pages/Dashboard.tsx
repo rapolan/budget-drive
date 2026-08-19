@@ -16,6 +16,7 @@ import {
   Cake,
   UserX,
   ClipboardCheck,
+  FileWarning,
   X
 } from 'lucide-react';
 import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } from '@/api';
@@ -69,6 +70,11 @@ export const DashboardPage: React.FC = () => {
     queryFn: () => dashboardApi.getReviewQueue(),
   });
 
+  const { data: licenseExpiryAlertsData } = useQuery({
+    queryKey: ['dashboard', 'license-expiry-alerts'],
+    queryFn: () => dashboardApi.getLicenseExpiryAlerts(),
+  });
+
   const queryClient = useQueryClient();
   const dismissAlertMutation = useMutation({
     mutationFn: (notificationId: string) => dashboardApi.dismissAlert(notificationId),
@@ -83,6 +89,7 @@ export const DashboardPage: React.FC = () => {
   const payments = paymentsData?.data || [];
   const noShowAlerts = noShowAlertsData?.data || [];
   const reviewQueueCount = reviewQueueData?.data?.totalCount || 0;
+  const licenseExpiryAlerts = licenseExpiryAlertsData?.data || [];
 
   // tenantNow is null only during the brief pre-hydration window before
   // TenantContext's first fetch resolves - the loading gate below renders
@@ -543,7 +550,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Alerts — only rendered when there's something to show */}
-            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0 || noShowAlerts.length > 0 || reviewQueueCount > 0) && (
+            {(studentsNeedingAttention.length > 0 || expiringPermits.length > 0 || pendingPayments.length > 0 || studentsTurning18.length > 0 || noShowAlerts.length > 0 || reviewQueueCount > 0 || licenseExpiryAlerts.length > 0) && (
               <div className="bg-surface rounded-xl border border-edge overflow-hidden">
                 <div className="px-5 py-4 border-b border-edge bg-surface2">
                   <h2 className="text-sm font-semibold text-tx-primary">Alerts</h2>
@@ -593,6 +600,38 @@ export const DashboardPage: React.FC = () => {
                       <span className="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-status-danger-bg border border-status-danger-border text-status-danger-text">
                         {expiringPermits.length}
                       </span>
+                    </button>
+                  )}
+
+                  {licenseExpiryAlerts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/instructors')}
+                      className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface2 transition-colors text-left group"
+                    >
+                      {(() => {
+                        const hasDanger = licenseExpiryAlerts.some((a) => a.severity === 'danger');
+                        const bgClass = hasDanger ? 'bg-status-danger-bg border-status-danger-border' : 'bg-status-warning-bg border-status-warning-border';
+                        const textClass = hasDanger ? 'text-status-danger-text' : 'text-status-warning-text';
+                        return (
+                          <>
+                            <div className={`p-1.5 ${bgClass} border rounded-md flex-shrink-0`}>
+                              <FileWarning className={`h-4 w-4 ${textClass}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-tx-primary">Instructor Licenses</p>
+                              <p className="text-xs text-tx-muted truncate">
+                                {licenseExpiryAlerts.length === 1
+                                  ? `${licenseExpiryAlerts[0].instructorName} - ${licenseExpiryAlerts[0].daysUntilExpiry < 0 ? 'expired' : `expires in ${licenseExpiryAlerts[0].daysUntilExpiry} days`}`
+                                  : `${licenseExpiryAlerts.length} instructors - licenses expiring`}
+                              </p>
+                            </div>
+                            <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${bgClass} border ${textClass}`}>
+                              {licenseExpiryAlerts.length}
+                            </span>
+                          </>
+                        );
+                      })()}
                     </button>
                   )}
 

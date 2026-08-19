@@ -10,7 +10,7 @@
 import { query } from '../config/database';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
-import { resolveTenantTimezone, zonedWallClockToUtc } from '../utils/tenantTime';
+import { resolveTenantTimezone, zonedWallClockToUtc, tenantToday, daysBetweenTenantDates } from '../utils/tenantTime';
 
 const logger = createLogger('DashboardService');
 
@@ -19,6 +19,14 @@ export interface NoShowAlert {
   studentName: string;
   noShowDate: string;
   notificationId: string;
+}
+
+export interface LicenseExpiryAlert {
+  instructorId: string;
+  instructorName: string;
+  expirationDate: string;
+  daysUntilExpiry: number; // negative if already expired
+  severity: 'warning' | 'danger';
 }
 
 export interface ReviewQueueLesson {
@@ -159,4 +167,60 @@ export const getLessonsNeedingReview = async (
   days.sort((a, b) => a.date.localeCompare(b.date));
 
   return days;
+}
+
+// Matches instructorLicenseNotificationService's furthest pre-expiry
+// reminder (180 days) - no point surfacing something further out than the
+// escalation schedule itself would ever remind about.
+const LICENSE_ALERT_WINDOW_DAYS = 180;
+// Matches the existing "Permits Expiring" dashboard tile's own 30-day
+// danger cutoff - the established convention for "urgent" on this dashboard.
+const LICENSE_DANGER_WINDOW_DAYS = 30;
+
+/**
+ * Active instructors with a non-null license expiration inside the alert
+ * window (already expired, or expiring within 180 days) - live-computed
+ * from instructors.instructor_license_expiration + tenant "today" on every
+ * call, the same pattern getLessonsNeedingReview uses (not a join against
+ * persisted notification/dismissal state like the no-show alert - there is
+ * no "dismiss" concept here, the alert simply stops appearing once the
+ * expiration is updated to a comfortable future date).
+ */
+export const getInstructorsWithExpiringLicenses = async (tenantId: string): Promise<LicenseExpiryAlert[]> => {
+  logger.debug('Fetching instructors with expiring licenses', { tenantId });
+
+  const settings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(settings?.timezone);
+  const todayStr = tenantToday(timezone);
+
+  const result = await query(
+    `SELECT id, full_name, instructor_license_expiration
+     FROM instructors
+     WHERE tenant_id = $1 AND status = 'active' AND instructor_license_expiration IS NOT NULL`,
+    [tenantId]
+  );
+
+  const alerts: LicenseExpiryAlert[] = result.rows
+    .map((row) => {
+      // Same DATE-column normalization as getLessonsNeedingReview above -
+      // pg returns a native Date object for a `date`-typed column, no time
+      // component, UTC-midnight-safe.
+      const expirationDate = row.instructor_license_expiration instanceof Date
+        ? row.instructor_license_expiration.toISOString().split('T')[0]
+        : String(row.instructor_license_expiration).split('T')[0];
+
+      const daysUntilExpiry = daysBetweenTenantDates(todayStr, expirationDate);
+
+      return {
+        instructorId: row.id,
+        instructorName: row.full_name,
+        expirationDate,
+        daysUntilExpiry,
+        severity: (daysUntilExpiry <= LICENSE_DANGER_WINDOW_DAYS ? 'danger' : 'warning') as 'warning' | 'danger',
+      };
+    })
+    .filter((alert) => alert.daysUntilExpiry <= LICENSE_ALERT_WINDOW_DAYS)
+    .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+
+  return alerts;
 };
