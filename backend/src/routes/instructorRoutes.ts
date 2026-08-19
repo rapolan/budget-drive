@@ -56,4 +56,18 @@ router.get(
   instructorController.getInstructorEarnings
 );
 
+// Get the ZIP codes an instructor serves
+router.get(
+  '/instructors/:id/service-areas',
+  validateUUID('id'),
+  instructorController.getServiceAreas
+);
+
+// Replace the full list of ZIP codes an instructor serves
+router.put(
+  '/instructors/:id/service-areas',
+  validateUUID('id'),
+  instructorController.setServiceAreas
+);
+
 export default router;

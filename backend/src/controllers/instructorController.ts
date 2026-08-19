@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as instructorService from '../services/instructorService';
+import * as instructorServiceAreaService from '../services/instructorServiceAreaService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -124,5 +125,39 @@ export const getInstructorEarnings = asyncHandler(async (req: Request, res: Resp
   res.json({
     success: true,
     data: earnings,
+  });
+});
+
+/**
+ * @route   GET /api/v1/instructors/:id/service-areas
+ * @desc    Get the ZIP codes an instructor serves (empty = serves everywhere)
+ * @access  Private
+ */
+export const getServiceAreas = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const zipCodes = await instructorServiceAreaService.getServiceAreas(id, tenantId);
+
+  res.json({
+    success: true,
+    data: zipCodes,
+  });
+});
+
+/**
+ * @route   PUT /api/v1/instructors/:id/service-areas
+ * @desc    Replace the full list of ZIP codes an instructor serves
+ * @access  Private
+ */
+export const setServiceAreas = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const zipCodes = await instructorServiceAreaService.setServiceAreas(id, tenantId, req.body.zipCodes);
+
+  res.json({
+    success: true,
+    data: zipCodes,
   });
 });

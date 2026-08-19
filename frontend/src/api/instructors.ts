@@ -49,4 +49,14 @@ export const instructorsApi = {
     }>>(`/instructors/${id}/earnings?${params.toString()}`);
     return response.data;
   },
+
+  getServiceAreas: async (id: string) => {
+    const response = await apiClient.get<ApiResponse<string[]>>(`/instructors/${id}/service-areas`);
+    return response.data;
+  },
+
+  setServiceAreas: async (id: string, zipCodes: string[]) => {
+    const response = await apiClient.put<ApiResponse<string[]>>(`/instructors/${id}/service-areas`, { zipCodes });
+    return response.data;
+  },
 };

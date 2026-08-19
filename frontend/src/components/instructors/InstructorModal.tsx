@@ -5,6 +5,7 @@ import { instructorsApi } from '@/api';
 import { usersApi } from '@/api/users';
 import type { Instructor, CreateInstructorInput } from '@/types';
 import { CalendarFeedSettings } from './CalendarFeedSettings';
+import { InstructorServiceAreas } from './InstructorServiceAreas';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
 
 interface InstructorModalProps {
@@ -487,6 +488,21 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                 />
               </div>
             </div>
+          </div>
+
+          {/* Service Area - only manageable once the instructor exists */}
+          <div className="border-t border-edge pt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <MapPin className="h-4 w-4 text-purple-600" />
+              <h3 className="text-sm font-semibold text-tx-primary">Service Area</h3>
+            </div>
+            {isEditing && instructor ? (
+              <InstructorServiceAreas instructorId={instructor.id} />
+            ) : (
+              <p className="text-sm text-tx-muted">
+                Service areas can be added once this instructor has been created.
+              </p>
+            )}
           </div>
 
           {/* Calendar Feed Settings - only show when editing */}

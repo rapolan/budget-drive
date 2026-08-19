@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added - Instructor Service Areas (supersedes `[0.5.7]` below)
+
+**Note:** the `[0.5.7]` entry below describes `home_zip_code`/`service_zip_codes` columns and a migration (`039_add_instructor_location_fields.sql`) that were never actually applied to this codebase - that work was aspirational and disconnected (frontend-only free-text fields with no backing migration or column; the service silently discarded them on every save). This release replaces it with an actual, migration-backed `instructor_service_areas` table and a **filter-with-fallback** design, which is the opposite of that entry's described hard-filter behavior ("instructors who don't serve the area are filtered out") - an instructor with no configured service area now always appears in search, never disappears.
+
+- New `instructor_service_areas` table (`backend/database/migrations/016_add_instructor_service_areas.sql`): one row per (instructor, ZIP), 5-digit-format enforced.
+- `GET`/`PUT /instructors/:id/service-areas` and a new "Service Area" section on the instructor form to manage the list.
+- The ranked slot search (`findRankedAvailableSlots`) prefers instructors whose service area includes the pickup ZIP; if that yields zero results, it falls back to every candidate instructor, flagged `outsideServiceArea`.
+- Also fixes instructor license persistence: `instructor_license_number`/`instructor_license_expiration` already existed as columns but were never inserted or updated - the form is now labeled "Driving School Instructor License" (the verified CA DMV term) and both fields persist correctly.
+
+---
+
 ## [0.5.7] - 2026-02-02
 
 ### Added - Instructor-Student Pairing Enhancements
