@@ -60,39 +60,51 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
-// Forces the filter-with-fallback path to trigger for real (not mocked):
-// every active instructor's service area is set, via the same API the UI
-// itself calls, to a zip that excludes Marcus Lee's LA pickup zip - so
-// whichever instructor the ranked search picks, none of them are in-area
-// and the search must fall back to all of them, flagged.
-test.describe('booking wizard - outside service area fallback', () => {
+// Service area now ranks, never filters (see schedulingService's
+// findRankedAvailableSlots) - both groups appearing together is the common
+// case, not a rare fallback. This scenario mixes a genuinely configured,
+// out-of-area instructor (Roberto - his real seeded service areas are all
+// San Diego-area zips, which already exclude Marcus Lee's LA pickup zip)
+// with the unconfigured instructors (always in-area, Constraint B), so a
+// single search naturally produces both groups at once. Roberto needs real
+// availability rows to have any bookable slots at all - none are seeded for
+// him by default - added here via the same API the availability grid uses.
+test.describe('booking wizard - both in-area and out-of-area groups present', () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext({ storageState: 'e2e-screenshots/.auth/admin.json' });
     const page = await context.newPage();
     await page.goto('/instructors');
-
     const token = await page.evaluate(() => localStorage.getItem('auth_token'));
 
     const instructorsRes = await page.request.get('http://localhost:4000/api/v1/instructors', {
       headers: { Authorization: `Bearer ${token}` },
     });
     const { data: instructors } = await instructorsRes.json();
+    const roberto = (instructors as Array<{ id: string; fullName: string }>).find((i) => i.fullName === INSTRUCTOR_NAME);
+    if (!roberto) throw new Error(`Seed data missing expected instructor: ${INSTRUCTOR_NAME}`);
 
-    for (const instructor of instructors as Array<{ id: string; status: string }>) {
-      if (instructor.status !== 'active') continue;
-      await page.request.put(`http://localhost:4000/api/v1/instructors/${instructor.id}/service-areas`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { zipCodes: [OUT_OF_AREA_ZIP] },
-      });
-    }
+    // Same whole-week-replace endpoint the availability grid editor uses -
+    // one row per day of week, all working days.
+    await page.request.put(`http://localhost:4000/api/v1/availability/instructor/${roberto.id}/week`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        days: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+          dayOfWeek,
+          isActive: true,
+          startTime: '09:00',
+          endTime: '17:00',
+          maxStudents: 3,
+        })),
+      },
+    });
 
     await context.close();
   });
 
   test.afterAll(async ({ browser }) => {
-    // Restore every instructor to "serves everywhere" so this spec doesn't
-    // leave the seed data in a state that breaks other screenshot specs
-    // (booking-workflow.spec.ts books against these same seeded instructors).
+    // Deactivate every day so this spec doesn't leave seed data in a state
+    // that affects other screenshot specs - same "uncheck the day" shape
+    // the real availability grid uses (never a hard delete of the row).
     const context = await browser.newContext({ storageState: 'e2e-screenshots/.auth/admin.json' });
     const page = await context.newPage();
     await page.goto('/instructors');
@@ -102,32 +114,50 @@ test.describe('booking wizard - outside service area fallback', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     const { data: instructors } = await instructorsRes.json();
-
-    for (const instructor of instructors as Array<{ id: string; status: string }>) {
-      if (instructor.status !== 'active') continue;
-      await page.request.put(`http://localhost:4000/api/v1/instructors/${instructor.id}/service-areas`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { zipCodes: [] },
-      });
+    const roberto = (instructors as Array<{ id: string; fullName: string }>).find((i) => i.fullName === INSTRUCTOR_NAME);
+    if (!roberto) {
+      await context.close();
+      return;
     }
+
+    await page.request.put(`http://localhost:4000/api/v1/availability/instructor/${roberto.id}/week`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        days: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, isActive: false })),
+      },
+    });
 
     await context.close();
   });
 
   for (const theme of ['light', 'dark'] as const) {
-    test(`shows the "Outside their usual area" fallback group (${theme})`, async ({ page }) => {
+    test(`shows both the usual-area and "Outside their usual area" groups in one result set (${theme})`, async ({ page }) => {
       await page.goto('/students');
       await setTheme(page, theme);
       await page.getByText(STUDENT_NAME, { exact: false }).first().click();
       await page.getByRole('button', { name: 'Book Lesson', exact: true }).click();
 
+      // Marcus Lee has a prior lesson, so "Book Lesson" prefills the setup
+      // step with that instructor preselected (the "Book again" continuity
+      // default) - clear it back to "Any available instructor" so the
+      // search actually spans every candidate, not just the one instructor.
+      const instructorSelect = page.locator('#booking-instructor-select');
+      if (await instructorSelect.isVisible().catch(() => false)) {
+        await instructorSelect.selectOption('');
+      }
+
       await page.getByRole('button', { name: /find available/i }).click();
       await page.getByText(/available time slots/i).waitFor();
 
+      // Roberto's real service areas (San Diego zips) exclude Marcus Lee's
+      // LA pickup zip, so he lands in the out-of-area group; the other,
+      // unconfigured instructors land in the (unheaded) in-area group above
+      // it - both present together in the one ranked list.
       await expect(page.getByText('Outside their usual area')).toBeVisible();
+      await expect(page.getByText(INSTRUCTOR_NAME, { exact: false })).toBeVisible();
 
       await page.screenshot({
-        path: `e2e-screenshots/__screenshots__/booking-outside-service-area-${theme}.png`,
+        path: `e2e-screenshots/__screenshots__/booking-both-groups-${theme}.png`,
         fullPage: true,
       });
     });
