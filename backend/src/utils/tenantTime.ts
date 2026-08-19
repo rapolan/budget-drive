@@ -37,7 +37,7 @@
  * this module exists to replace).
  */
 
-import { addDays, endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
+import { addDays, differenceInDays, endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
 import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 /**
@@ -167,4 +167,18 @@ export function tenantDayOfWeek(dateStr: string, timezone: string): number {
  */
 export function parseTenantDateOnly(dateStr: string): Date {
   return parseISO(dateStr);
+}
+
+/**
+ * Whole days between two YYYY-MM-DD date strings (both already resolved in
+ * the tenant's timezone by the caller - this function does no timezone work
+ * itself, it's pure calendar-day arithmetic on two already-unambiguous
+ * strings, the same category as addTenantDays). Positive when `toDateStr`
+ * is after `fromDateStr`, negative when before. Used for "days until
+ * expiry" style comparisons (e.g. instructor license expiry) - never
+ * subtract two `new Date(...)` instants for this, which reintroduces
+ * process-local-time ambiguity for the exact reason this module exists.
+ */
+export function daysBetweenTenantDates(fromDateStr: string, toDateStr: string): number {
+  return differenceInDays(parseTenantDateOnly(toDateStr), parseTenantDateOnly(fromDateStr));
 }

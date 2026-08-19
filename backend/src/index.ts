@@ -6,6 +6,7 @@
 import app from './app';
 import { config } from './config/env';
 import pool from './config/database';
+import { startInstructorLicenseCron, stopInstructorLicenseCron } from './jobs/instructorLicenseCron';
 
 const PORT = config.PORT;
 
@@ -19,11 +20,15 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`API Base URL: http://localhost:${PORT}/api/${config.API_VERSION}`);
   console.log(`Health Check: http://localhost:${PORT}/health`);
   console.log('==============================================');
+
+  startInstructorLicenseCron();
 });
 
 // Graceful shutdown
 const gracefulShutdown = async () => {
   console.log('\n🛑 Shutting down gracefully...');
+
+  stopInstructorLicenseCron();
 
   server.close(async () => {
     console.log('✅ HTTP server closed');
