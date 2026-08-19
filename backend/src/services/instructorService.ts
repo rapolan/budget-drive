@@ -64,8 +64,10 @@ export const createInstructor = async (
       `INSERT INTO instructors (
         tenant_id, full_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
-        employment_type, hire_date, status, hourly_rate, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $15)
+        employment_type, hire_date, status, hourly_rate,
+        instructor_license_number, instructor_license_expiration,
+        created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $17)
       RETURNING *`,
       [
         tenantId,
@@ -82,6 +84,8 @@ export const createInstructor = async (
         data.employmentType || 'w2_employee',
         data.hireDate || new Date(),
         data.hourlyRate || null,
+        data.instructorLicenseNumber || null,
+        data.instructorLicenseExpiration || null,
         userId || null,
       ]
     );
@@ -167,6 +171,14 @@ export const updateInstructor = async (
     if (data.zipCode !== undefined) {
       fields.push(`zip_code = $${paramCount++}`);
       values.push(data.zipCode);
+    }
+    if (data.instructorLicenseNumber !== undefined) {
+      fields.push(`instructor_license_number = $${paramCount++}`);
+      values.push(data.instructorLicenseNumber);
+    }
+    if (data.instructorLicenseExpiration !== undefined) {
+      fields.push(`instructor_license_expiration = $${paramCount++}`);
+      values.push(data.instructorLicenseExpiration);
     }
     if (userId) {
       fields.push(`updated_by = $${paramCount++}`);

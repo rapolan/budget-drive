@@ -87,4 +87,67 @@ describe('PUT /api/v1/instructors/:id', () => {
     expect(sql).toMatch(/employment_type/);
     expect(params).toContain('independent_contractor');
   });
+
+  // Regression test: updateInstructor had no branches for either license
+  // field, so editing them via the API silently did nothing (same bug class
+  // as employmentType above).
+  it('persists a change to instructorLicenseNumber and instructorLicenseExpiration', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        instructor_license_number: 'DSI-999',
+        instructor_license_expiration: '2030-01-01',
+      }])
+    );
+
+    const res = await request(app)
+      .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ instructorLicenseNumber: 'DSI-999', instructorLicenseExpiration: '2030-01-01' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+    );
+    expect(updateCall).toBeDefined();
+    const [sql, params] = updateCall!;
+    expect(sql).toMatch(/instructor_license_number/);
+    expect(sql).toMatch(/instructor_license_expiration/);
+    expect(params).toContain('DSI-999');
+    expect(params).toContain('2030-01-01');
+  });
+
+  // A fresh read after the update round-trips both fields correctly through
+  // keysToCamel - proving the whole create/update/read loop persists the
+  // license, not just the UPDATE statement in isolation.
+  it('returns instructorLicenseNumber and instructorLicenseExpiration on a fresh read', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        full_name: 'Test Instructor',
+        email: 'test@example.com',
+        status: 'active',
+        instructor_license_number: 'DSI-777',
+        instructor_license_expiration: '2028-06-15',
+      }])
+    );
+
+    const res = await request(app)
+      .get(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.instructorLicenseNumber).toBe('DSI-777');
+    expect(res.body.data.instructorLicenseExpiration).toBe('2028-06-15');
+  });
 });

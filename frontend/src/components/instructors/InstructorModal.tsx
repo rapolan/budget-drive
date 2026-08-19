@@ -29,10 +29,8 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
     city: '',
     state: '',
     zipCode: '',
-    homeZipCode: '',
-    serviceZipCodes: '',
-    licenseNumber: '',
-    licenseExpiration: '',
+    instructorLicenseNumber: '',
+    instructorLicenseExpiration: '',
     employmentType: 'w2_employee',
     hireDate: new Date().toISOString().split('T')[0],
     hourlyRate: 0,
@@ -62,11 +60,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
         city: instructor.city || '',
         state: instructor.state || '',
         zipCode: instructor.zipCode || '',
-        homeZipCode: instructor.homeZipCode || '',
-        serviceZipCodes: instructor.serviceZipCodes || '',
-        licenseNumber: instructor.licenseNumber || '',
-        licenseExpiration: instructor.licenseExpiration
-          ? new Date(instructor.licenseExpiration).toISOString().split('T')[0]
+        instructorLicenseNumber: instructor.instructorLicenseNumber || '',
+        instructorLicenseExpiration: instructor.instructorLicenseExpiration
+          ? new Date(instructor.instructorLicenseExpiration).toISOString().split('T')[0]
           : '',
         employmentType: instructor.employmentType,
         hireDate: new Date(instructor.hireDate).toISOString().split('T')[0],
@@ -297,38 +293,41 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
             </div>
           </div>
 
-          {/* License Information Section */}
+          {/* Driving School Instructor License Section */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-1">
               <FileText className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-tx-primary">License Information</h3>
+              <h3 className="text-sm font-semibold text-tx-primary">Driving School Instructor License</h3>
             </div>
+            <p className="text-xs text-tx-muted mb-4">
+              The CA DMV credential to teach behind-the-wheel lessons - not a driver's license. Renews every 3 years.
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* License Number */}
+              {/* Instructor License Number */}
               <div>
                 <label className="block text-sm font-medium text-tx-secondary">
                   License Number
                 </label>
                 <input
                   type="text"
-                  name="licenseNumber"
-                  value={formData.licenseNumber}
+                  name="instructorLicenseNumber"
+                  value={formData.instructorLicenseNumber}
                   onChange={handleChange}
                   autoComplete="nope"
-                  placeholder="DL123456789"
+                  placeholder="DSI-123456"
                   className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
               </div>
 
-              {/* License Expiration */}
+              {/* Instructor License Expiration */}
               <div>
                 <label className="block text-sm font-medium text-tx-secondary">
                   License Expiration
                 </label>
                 <input
                   type="date"
-                  name="licenseExpiration"
-                  value={formData.licenseExpiration}
+                  name="instructorLicenseExpiration"
+                  value={formData.instructorLicenseExpiration}
                   onChange={handleChange}
                   autoComplete="nope"
                   className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
@@ -486,55 +485,6 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   placeholder="92101"
                   className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
                 />
-              </div>
-            </div>
-          </div>
-
-          {/* Service Area Section */}
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <MapPin className="h-4 w-4 text-purple-600" />
-              <h3 className="text-sm font-semibold text-tx-primary">Service Area</h3>
-              <span className="text-xs text-tx-muted">(for proximity matching)</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Home ZIP Code */}
-              <div>
-                <label className="block text-sm font-medium text-tx-secondary">
-                  Home Base ZIP Code
-                </label>
-                <input
-                  type="text"
-                  name="homeZipCode"
-                  value={formData.homeZipCode}
-                  onChange={handleChange}
-                  autoComplete="nope"
-                  placeholder="92101"
-                  maxLength={10}
-                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
-                />
-                <p className="mt-1 text-xs text-tx-muted">
-                  Starting location for calculating proximity to students
-                </p>
-              </div>
-
-              {/* Service ZIP Codes */}
-              <div>
-                <label className="block text-sm font-medium text-tx-secondary">
-                  Service ZIP Codes
-                </label>
-                <input
-                  type="text"
-                  name="serviceZipCodes"
-                  value={formData.serviceZipCodes}
-                  onChange={handleChange}
-                  autoComplete="nope"
-                  placeholder="92101,92102,921"
-                  className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
-                />
-                <p className="mt-1 text-xs text-tx-muted">
-                  Comma-separated ZIP codes or prefixes (e.g., "92101,92102" or "920,921")
-                </p>
               </div>
             </div>
           </div>

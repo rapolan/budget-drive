@@ -208,4 +208,10 @@ Guardians are tenant-scoped records, independent of students, linked via a many-
 
 ---
 
+## 10. Instructor Licensing and Service Areas
+
+- **`instructors.instructor_license_number` / `instructor_license_expiration`** (plain nullable columns, present since `001_baseline.sql`): the instructor's **Driving School Instructor License** (California DMV) — the credential to *teach*, distinct from the Driving School Operator License that licenses whoever manages the school. Renews every 3 years, via exam or an 18-hour DMV-approved continuing-education program. `createInstructor`/`updateInstructor` (`backend/src/services/instructorService.ts`) now read and persist both fields — previously the form collected a license number and the service silently discarded it (same bug class as the earlier `employmentType` fix). `instructors.drivers_license_number`/`drivers_license_expiration` also exist on the row but are intentionally left unwired in the UI — see BLUEPRINTS.md for why.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

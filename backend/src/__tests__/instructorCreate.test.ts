@@ -30,10 +30,8 @@ const formPayload = {
   city: '',
   state: '',
   zipCode: '',
-  homeZipCode: '',
-  serviceZipCodes: '',
-  licenseNumber: '',
-  licenseExpiration: '',
+  instructorLicenseNumber: '',
+  instructorLicenseExpiration: '',
   employmentType: 'w2_employee',
   hireDate: '2026-08-04',
   hourlyRate: 0,
@@ -76,5 +74,46 @@ describe('POST /api/v1/instructors', () => {
     expect(sql).toMatch(/updated_by/);
     // Both audit columns are set to the authenticated caller's id.
     expect(params).toContain('staff-1');
+  });
+
+  // Regression test: instructor_license_number/instructor_license_expiration
+  // already existed as columns on the instructors table, but createInstructor
+  // never inserted either one - the form collected a license number and the
+  // backend silently discarded it (same bug class as employmentType, fixed
+  // in 4eb4258).
+  it('persists instructorLicenseNumber and instructorLicenseExpiration', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: 'instructor-1',
+        tenant_id: TENANT_ID,
+        full_name: formPayload.fullName,
+        email: formPayload.email,
+        status: 'active',
+      }])
+    );
+
+    const res = await request(app)
+      .post('/api/v1/instructors')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        ...formPayload,
+        instructorLicenseNumber: 'DSI-123456',
+        instructorLicenseExpiration: '2029-08-04',
+      });
+
+    expect(res.status).toBe(201);
+
+    const insertCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO instructors')
+    );
+    expect(insertCall).toBeDefined();
+    const [sql, params] = insertCall!;
+    expect(sql).toMatch(/instructor_license_number/);
+    expect(sql).toMatch(/instructor_license_expiration/);
+    expect(params).toContain('DSI-123456');
+    expect(params).toContain('2029-08-04');
   });
 });

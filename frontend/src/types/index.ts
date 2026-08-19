@@ -278,10 +278,12 @@ export interface Instructor {
   city?: string;
   state?: string;
   zipCode?: string;
-  homeZipCode?: string; // Instructor's home base ZIP code (used for proximity matching)
-  serviceZipCodes?: string; // Comma-separated ZIP codes or prefixes instructor serves (e.g., "90001,90002" or "920,921")
-  licenseNumber?: string;
-  licenseExpiration?: Date;
+  // Driving School Instructor License (CA DMV) - the instructing credential,
+  // not a driver's license. drivers_license_number/Expiration also exist on
+  // the DB row but are intentionally not exposed here yet (see
+  // docs/BLUEPRINTS.md).
+  instructorLicenseNumber?: string;
+  instructorLicenseExpiration?: Date;
   certifications?: string[];
   employmentType: 'w2_employee' | 'independent_contractor';
   hireDate: Date;
@@ -499,10 +501,8 @@ export interface CreateInstructorInput {
   city?: string;
   state?: string;
   zipCode?: string;
-  homeZipCode?: string; // Instructor's home base ZIP code
-  serviceZipCodes?: string; // Comma-separated ZIP codes or prefixes
-  licenseNumber?: string;
-  licenseExpiration?: string;
+  instructorLicenseNumber?: string;
+  instructorLicenseExpiration?: string;
   certifications?: string[];
   employmentType?: 'w2_employee' | 'independent_contractor';
   hireDate?: string;
