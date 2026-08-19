@@ -493,9 +493,9 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 ### 2.36 Booking inside an instructor's configured service area
 
-**Do:** Configure a service area for one instructor that includes a specific ZIP (e.g. `90210`). Open the booking wizard for a student whose pickup ZIP is that same ZIP, and search for slots.
+**Do:** Configure a service area for one instructor that includes a specific ZIP (e.g. `90210`). Open the booking wizard for a student whose pickup ZIP is that same ZIP, and search for slots. Also give a second instructor a service area that deliberately excludes that ZIP (or leave a third instructor unconfigured) so more than one group can appear.
 
-**Pass looks like:** That instructor's slots appear in the normal results, with no "Outside their usual area" heading anywhere on the page (assuming no other instructor is genuinely out of area for this search).
+**Pass looks like:** The configured, in-area instructor's slots appear at the top of the results, above any out-of-area instructor's slots. Any unconfigured instructor's slots also appear, ungrouped alongside the in-area instructor's (never excluded — an unconfigured instructor is always in-area). The "Outside their usual area" heading appears whenever any candidate instructor's configured area excludes the pickup ZIP — this is the routine case now, not a rare one, since service areas only rank results, never remove anyone from them.
 
 ### 2.37 Booking where only an unconfigured instructor is available
 
@@ -503,11 +503,11 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Pass looks like:** Results appear normally, with no "Outside their usual area" section — every instructor with no configured service area is always treated as in-area, regardless of the pickup ZIP.
 
-### 2.38 Booking where every service-area-configured instructor excludes the pickup ZIP
+### 2.38 Booking where the closest instructor's configured area excludes the pickup ZIP
 
-**Do:** Configure at least one instructor's service area to a ZIP that deliberately does *not* include the pickup ZIP you're about to search with (e.g. their service area is `10001`, you search with pickup ZIP `90210`). Search for slots.
+**Do:** Configure the instructor who would otherwise rank closest (best proximity to the pickup ZIP) with a service area that deliberately excludes it (e.g. their service area is `10001`, you search with pickup ZIP `90210`). Make sure at least one other, unconfigured or genuinely in-area instructor also has availability for the same search.
 
-**Pass looks like:** The search does not come back empty. Results still appear, grouped under an **"Outside their usual area"** heading beneath any in-area results (or as the only group, if every candidate instructor is out of area) — each showing an "Outside usual area" badge. The instructors are still sorted by proximity within that group, same as any other result.
+**Pass looks like:** The closest instructor's slots still appear — they are never dropped just because they configured a service area — but grouped under an **"Outside their usual area"** heading, sorted below the in-area group even though their raw proximity score may be better than any in-area instructor's. This is the exact scenario a prior version of this feature got wrong: configuring a service area used to risk losing your own closest-match slots to unconfigured competitors. It no longer does — service area only affects which group a result appears under, never whether it appears at all.
 
 ---
 
