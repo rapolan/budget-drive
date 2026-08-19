@@ -259,6 +259,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       instructorName: preselectedInstructor.fullName,
       instructorZip: preselectedInstructor.zipCode || null,
       comingFrom: 'home',
+      outsideServiceArea: false,
     });
     setStep('confirm');
   }, [canSkipToConfirm, preselectedInstructor, preselectedDate, preselectedTime]);

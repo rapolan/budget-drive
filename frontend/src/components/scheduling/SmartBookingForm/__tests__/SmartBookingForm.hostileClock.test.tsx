@@ -82,6 +82,7 @@ const SLOT: RankedTimeSlot = {
   instructorName: 'John Smith',
   instructorZip: '90008',
   comingFrom: 'home',
+  outsideServiceArea: false,
 };
 
 const DATE_PRESETS = {

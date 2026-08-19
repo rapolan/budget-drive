@@ -56,7 +56,9 @@ describe('findRankedAvailableSlots - single-instructor scope', () => {
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
-    // 3. Lessons for candidate instructors in the search window (for "coming from" lookup)
+    // 3. Service areas batch (empty - no rows configured, so everyone is in-area)
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    // 4. Lessons for candidate instructors in the search window (for "coming from" lookup)
     mockQuery.mockResolvedValueOnce(queryResult([]));
     // 4. findAvailableSlots(instructor-1): settings (timezone already resolved
     //    above and passed straight through - no second tenant_settings query)
@@ -118,6 +120,7 @@ describe('findRankedAvailableSlots - explicit date range', () => {
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // service areas batch (empty)
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW])); // findAvailableSlots settings
     mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
@@ -136,11 +139,12 @@ describe('findRankedAvailableSlots - explicit date range', () => {
       instructorId: 'instructor-1',
     });
 
-    // Call 3 (0-indexed: 2) is the lessons-for-"coming from" lookup, which
+    // Call 4 (0-indexed: 3) is the lessons-for-"coming from" lookup, which
     // is passed the resolved window as its date-range params - confirms the
     // default actually landed on expectedStart/expectedEnd, not some other
-    // fallback. (Call order: getTenantSettings, instructor lookup, this one.)
-    const [lessonsSql, lessonsParams] = mockQuery.mock.calls[2];
+    // fallback. (Call order: getTenantSettings, instructor lookup, service
+    // areas batch, this one.)
+    const [lessonsSql, lessonsParams] = mockQuery.mock.calls[3];
     expect(lessonsSql).toContain('FROM lessons');
     expect(lessonsParams).toContain(expectedStart);
     expect(lessonsParams).toContain(expectedEnd);
@@ -157,6 +161,7 @@ describe('findRankedAvailableSlots - explicit date range', () => {
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // service areas batch (empty)
     mockQuery.mockResolvedValueOnce(queryResult([]));
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
     mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
@@ -248,7 +253,9 @@ describe('findRankedAvailableSlots - ranking order', () => {
         { id: 'instructor-close', full_name: 'Close By', zip_code: '90210' }, // same zip as pickup -> 100 score
       ])
     );
-    // 2. Lessons for candidate instructors in the search window (empty - both start from home)
+    // 2. Service areas batch (empty - no rows configured, so everyone is in-area)
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    // 3. Lessons for candidate instructors in the search window (empty - both start from home)
     mockQuery.mockResolvedValueOnce(queryResult([]));
 
     // findAvailableSlots for instructor-far
@@ -303,6 +310,7 @@ describe('findRankedAvailableSlots - ranking order', () => {
         { id: 'instructor-broken', full_name: 'Broken', zip_code: '90210' },
       ])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // service areas batch (empty)
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
 
     // findAvailableSlots for instructor-ok succeeds
@@ -356,6 +364,8 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
+    // Service areas batch (empty)
+    mockQuery.mockResolvedValueOnce(queryResult([]));
     // Lessons for "coming from" lookup: two lessons for instructor-1 on the
     // same day the search will generate slots for, both ending before the
     // instructor's 09:00 availability window opens for later slots - the
@@ -423,6 +433,7 @@ describe('findRankedAvailableSlots - getInstructorStartingPoint (no sort, no mut
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // service areas batch (empty)
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {
@@ -507,6 +518,7 @@ describe('findRankedAvailableSlots - duration arrives as a numeric string', () =
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'instructor-1', full_name: 'Priya Patel', zip_code: '90210' }])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // service areas batch (empty)
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
     mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW])); // findAvailableSlots settings
     mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings (max_lessons_per_student_per_day)
@@ -536,6 +548,253 @@ describe('findRankedAvailableSlots - duration arrives as a numeric string', () =
     // whatever `duration` it was given directly onto each TimeSlot.
     for (const slot of result.slots) {
       expect(slot.duration).toBe(60);
+    }
+  });
+});
+
+// Constraints A/B/C from the instructor-service-areas feature: filtering
+// happens only inside this function (no second search path); an instructor
+// with no configured service-area rows always serves every zip; the search
+// never returns empty solely because of service-area configuration - it
+// falls back to every candidate instructor, flagged, instead. Proximity
+// score remains the only sort key throughout.
+describe('findRankedAvailableSlots - service area filter-with-fallback', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('an instructor with no configured service area always appears, unflagged (Constraint B)', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW])); // getTenantSettings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'instructor-a', full_name: 'Instructor A', zip_code: '90210' },
+        { id: 'instructor-b', full_name: 'Instructor B', zip_code: '90210' },
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // service areas batch: neither instructor has any rows
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+
+    for (const instId of ['instructor-a', 'instructor-b']) {
+      mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ instructor_id: instId, day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+      );
+      mockQuery.mockResolvedValueOnce(queryResult([])); // time off
+      mockQuery.mockResolvedValueOnce(queryResult([])); // lessons
+      mockQuery.mockResolvedValueOnce(queryResult([])); // student's own lessons
+    }
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.slots.every((s) => s.outsideServiceArea === false)).toBe(true);
+    const instructorIds = new Set(result.slots.map((s) => s.instructorId));
+    expect(instructorIds.has('instructor-a')).toBe(true);
+    expect(instructorIds.has('instructor-b')).toBe(true);
+  });
+
+  it('prefers the in-area instructor over a configured-but-out-of-area one', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'instructor-in', full_name: 'In Area', zip_code: '90210' },
+        { id: 'instructor-out', full_name: 'Out Of Area', zip_code: '90210' },
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { instructor_id: 'instructor-in', zip_code: '90210' }, // covers the pickup zip
+        { instructor_id: 'instructor-out', zip_code: '10001' }, // does not
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+
+    for (const instId of ['instructor-in', 'instructor-out']) {
+      mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ instructor_id: instId, day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+      );
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+    }
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.slots.every((s) => s.instructorId === 'instructor-in')).toBe(true);
+    expect(result.slots.every((s) => s.outsideServiceArea === false)).toBe(true);
+  });
+
+  it('falls back to the out-of-area instructor rather than returning empty when no in-area slots exist', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'instructor-1', full_name: 'Solo Instructor', zip_code: '90210' }])
+    );
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-1', zip_code: '10001' }]) // configured, but excludes the pickup zip
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-1', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
+    });
+
+    // Zero in-area slots exist, but the search must not come back empty.
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.slots.every((s) => s.outsideServiceArea === true)).toBe(true);
+  });
+
+  it('falls back to an out-of-area instructor with openings when the in-area instructor is fully booked', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+    const tomorrowStr = tenantTomorrow(TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'instructor-in', full_name: 'In Area But Booked', zip_code: '90210' },
+        { id: 'instructor-out', full_name: 'Out Of Area', zip_code: '90210' },
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { instructor_id: 'instructor-in', zip_code: '90210' },
+        { instructor_id: 'instructor-out', zip_code: '10001' },
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+
+    // instructor-in: available window, but max_students: 1 and a single
+    // existing lesson already fills the only slot the block could offer.
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-in', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '11:00:00', max_students: 1 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // time off
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-in', date: tomorrowStr, start_time: '09:00:00', end_time: '11:00:00', status: 'scheduled' }])
+    ); // lessons: the block's only slot is already booked
+    mockQuery.mockResolvedValueOnce(queryResult([])); // student's own lessons
+
+    // instructor-out: available and open.
+    mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ instructor_id: 'instructor-out', day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tomorrowStr,
+      endDate: tomorrowStr,
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.slots.every((s) => s.instructorId === 'instructor-out')).toBe(true);
+    expect(result.slots.every((s) => s.outsideServiceArea === true)).toBe(true);
+  });
+
+  it('never lets area membership override the proximity sort within a fallback result', async () => {
+    const { findRankedAvailableSlots } = await import('../services/schedulingService');
+
+    const dayOfWeek = tenantDayOfWeek(tenantTomorrow(TEST_TIMEZONE), TEST_TIMEZONE);
+
+    mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'instructor-close', full_name: 'Close But Out Of Area', zip_code: '90210' }, // same zip as pickup -> 100 score
+        { id: 'instructor-far', full_name: 'Far But Also Out Of Area', zip_code: '10001' }, // unrelated zip -> lower score
+      ])
+    );
+    // Both configured, but neither covers the pickup zip - forces a full
+    // fallback where area membership must NOT reorder the result.
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { instructor_id: 'instructor-close', zip_code: '99999' },
+        { instructor_id: 'instructor-far', zip_code: '99998' },
+      ])
+    );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for "coming from" lookup
+
+    for (const instId of ['instructor-close', 'instructor-far']) {
+      mockQuery.mockResolvedValueOnce(queryResult([SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(queryResult([TENANT_SETTINGS_ROW]));
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ instructor_id: instId, day_of_week: dayOfWeek, start_time: '09:00:00', end_time: '17:00:00', max_students: 1 }])
+      );
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+      mockQuery.mockResolvedValueOnce(queryResult([]));
+    }
+
+    const result = await findRankedAvailableSlots({
+      tenantId: TENANT_ID,
+      studentId: STUDENT_ID,
+      pickupZip: '90210',
+      duration: 120,
+      startDate: tenantTomorrow(TEST_TIMEZONE),
+      endDate: tenantTomorrow(TEST_TIMEZONE),
+    });
+
+    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.slots.every((s) => s.outsideServiceArea === true)).toBe(true);
+    // The higher-proximity instructor's slot must still sort first, proving
+    // area membership never overrides the proximity key once a slot set
+    // (here, the fallback set) is chosen.
+    expect(result.slots[0].instructorId).toBe('instructor-close');
+    expect(result.slots[0].proximityScore).toBe(100);
+    for (let i = 1; i < result.slots.length; i++) {
+      expect(result.slots[i].proximityScore).toBeLessThanOrEqual(result.slots[i - 1].proximityScore);
     }
   });
 });

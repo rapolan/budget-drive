@@ -1119,6 +1119,11 @@ export interface RankedTimeSlot extends TimeSlot {
   instructorName: string;
   instructorZip: string | null;
   comingFrom: 'home' | 'lesson';
+  // true when this slot is included only because the filter-with-fallback
+  // in findRankedAvailableSlots found zero in-service-area results and
+  // fell back to every candidate instructor - never affects sort order,
+  // only inclusion/labeling (see docs/BLUEPRINTS.md).
+  outsideServiceArea: boolean;
 }
 
 // Request to find available slots ranked by proximity to a pickup zip

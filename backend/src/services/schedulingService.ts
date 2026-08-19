@@ -14,6 +14,7 @@ import {
 } from '../types';
 import { getSchedulingSettings } from './availabilityService';
 import { getTenantSettings } from './tenantService';
+import { getServiceAreasForInstructorsBatch } from './instructorServiceAreaService';
 import { extractZipCode, calculateProximityScore } from '../utils/zipCode';
 import { AppError } from '../middleware/errorHandler';
 import {
@@ -750,9 +751,21 @@ export const findRankedAvailableSlots = async (
     return { slots: [], failedInstructors: [] };
   }
 
+  const candidateIds = candidateInstructors.map((i) => i.id);
+
+  // Each candidate's configured service-area zips, batched in one query. An
+  // instructor absent from this map has no rows configured, which means
+  // "serves everywhere" (Constraint B) - see inArea() below.
+  const serviceAreasByInstructor = await getServiceAreasForInstructorsBatch(candidateIds, tenantId);
+
+  const inArea = (instId: string): boolean => {
+    const zips = serviceAreasByInstructor.get(instId);
+    if (!zips || zips.length === 0) return true;
+    return zips.includes(pickupZip);
+  };
+
   // Lessons for all candidate instructors in the search window, used to work
   // out each instructor's "coming from" location for a given slot.
-  const candidateIds = candidateInstructors.map((i) => i.id);
   const lessonsResult = await query(
     `SELECT instructor_id, date, start_time, end_time, pickup_address
      FROM lessons
@@ -858,6 +871,7 @@ export const findRankedAvailableSlots = async (
           instructorName: instructor.full_name,
           instructorZip: zip,
           comingFrom,
+          outsideServiceArea: !inArea(instructor.id),
         });
       }
     } catch (err) {
@@ -865,12 +879,21 @@ export const findRankedAvailableSlots = async (
     }
   }
 
-  rankedSlots.sort((a, b) => {
+  // Service-area filter-with-fallback (Constraint A: this is the only place
+  // area membership affects the result - no second search path). Every
+  // candidate instructor's slots are already computed and scored above,
+  // regardless of area - this only decides which of them to return.
+  // Area membership is never a sort key; it only affects inclusion and the
+  // outsideServiceArea flag each slot already carries.
+  const inAreaSlots = rankedSlots.filter((s) => !s.outsideServiceArea);
+  const finalSlots = inAreaSlots.length > 0 ? inAreaSlots : rankedSlots;
+
+  finalSlots.sort((a, b) => {
     if (b.proximityScore !== a.proximityScore) {
       return b.proximityScore - a.proximityScore;
     }
     return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
   });
 
-  return { slots: rankedSlots, failedInstructors };
+  return { slots: finalSlots, failedInstructors };
 };

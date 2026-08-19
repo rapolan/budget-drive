@@ -624,6 +624,10 @@ export interface RankedTimeSlot extends TimeSlot {
   instructorName: string;
   instructorZip: string | null;
   comingFrom: 'home' | 'lesson';
+  // true when this slot only appears because the search found zero
+  // in-service-area results and fell back to every candidate instructor -
+  // never affects sort order, only which group it renders under.
+  outsideServiceArea: boolean;
 }
 
 // Form Input Types for Phase 4A

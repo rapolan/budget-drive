@@ -86,6 +86,7 @@ const SLOT: RankedTimeSlot = {
   instructorName: 'John Smith',
   instructorZip: '90008',
   comingFrom: 'home',
+  outsideServiceArea: false,
 };
 
 function renderForm(props: Partial<React.ComponentProps<typeof SmartBookingForm>> = {}) {
