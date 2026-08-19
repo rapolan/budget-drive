@@ -12,6 +12,7 @@ interface SlotsStepProps {
   formatSlotDate: (dateStr: string) => string;
   formatTime: (time: string) => string;
   getProximityBadge: (score: number) => { label: string; class: string };
+  getServiceAreaBadge: (outsideServiceArea: boolean) => { label: string; class: string } | null;
   onChangeFilters: () => void;
 }
 
@@ -24,6 +25,7 @@ export const SlotsStep: React.FC<SlotsStepProps> = ({
   formatSlotDate,
   formatTime,
   getProximityBadge,
+  getServiceAreaBadge,
   onChangeFilters,
 }) => {
   return (
@@ -81,6 +83,7 @@ export const SlotsStep: React.FC<SlotsStepProps> = ({
           formatSlotDate={formatSlotDate}
           formatTime={formatTime}
           getProximityBadge={getProximityBadge}
+          getServiceAreaBadge={getServiceAreaBadge}
         />
       )}
 

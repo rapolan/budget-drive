@@ -479,6 +479,36 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Pass looks like:** Both the Payments page's Total Revenue and the instructor's gross/net earnings are unchanged before and after the fee flag is created — a fee flag is never summed into either. With `cancellation_fee_payee = 'instructor'`, no "Record payment" button appears anywhere. If you switch the setting to **School** and reload the student record, a **Record payment** action does appear next to the outstanding fee; clicking it creates a real row on `/payments` (Total Revenue now increases by that amount) and the fee flag's own status changes to `paid` — this is the one deliberate exception, and only reachable this way.
 
+### 2.34 Saving an instructor's Driving School Instructor License
+
+**Do:** Open an existing instructor's record and edit it. Under **Driving School Instructor License**, enter a license number and an expiration date, then save. Reload the page (or reopen the instructor from the list) and edit again.
+
+**Pass looks like:** Both the license number and expiration date you entered are still there on reopen — they persisted, not silently discarded. The section is labeled "Driving School Instructor License" with a caption noting it's not a driver's license.
+
+### 2.35 Adding and removing instructor service-area ZIP codes
+
+**Do:** On the same instructor's edit form, scroll to **Service Area**. Type a 5-digit ZIP and click **Add**; repeat for a second ZIP. Click **Save Service Area**. Then remove one of the ZIPs (the × on its chip) and save again. Try adding an invalid entry (e.g. `921` or `abcde`).
+
+**Pass looks like:** Each valid ZIP appears as a chip after adding; after saving and reloading, the saved list matches what you added. Removing a ZIP and re-saving persists the removal. The invalid entry is rejected with an inline message before it's ever added to the list.
+
+### 2.36 Booking inside an instructor's configured service area
+
+**Do:** Configure a service area for one instructor that includes a specific ZIP (e.g. `90210`). Open the booking wizard for a student whose pickup ZIP is that same ZIP, and search for slots.
+
+**Pass looks like:** That instructor's slots appear in the normal results, with no "Outside their usual area" heading anywhere on the page (assuming no other instructor is genuinely out of area for this search).
+
+### 2.37 Booking where only an unconfigured instructor is available
+
+**Do:** Pick a pickup ZIP that no instructor has explicitly configured as part of their service area (i.e. every instructor in the tenant still has an empty service-area list, the default). Search for slots.
+
+**Pass looks like:** Results appear normally, with no "Outside their usual area" section — every instructor with no configured service area is always treated as in-area, regardless of the pickup ZIP.
+
+### 2.38 Booking where every service-area-configured instructor excludes the pickup ZIP
+
+**Do:** Configure at least one instructor's service area to a ZIP that deliberately does *not* include the pickup ZIP you're about to search with (e.g. their service area is `10001`, you search with pickup ZIP `90210`). Search for slots.
+
+**Pass looks like:** The search does not come back empty. Results still appear, grouped under an **"Outside their usual area"** heading beneath any in-area results (or as the only group, if every candidate instructor is out of area) — each showing an "Outside usual area" badge. The instructors are still sorted by proximity within that group, same as any other result.
+
 ---
 
 ## 3. Known issues to route around

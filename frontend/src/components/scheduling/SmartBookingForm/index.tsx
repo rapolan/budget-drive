@@ -451,6 +451,13 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return { label: '🗺️ Far', class: 'bg-surface2 text-tx-secondary' };
   };
 
+  // Orthogonal to proximity - null on the common (in-area) case so callers
+  // render nothing extra, per docs/BLUEPRINTS.md's filter-with-fallback rule.
+  const getServiceAreaBadge = (outsideServiceArea: boolean) =>
+    outsideServiceArea
+      ? { label: 'Outside usual area', class: 'bg-status-warning-bg text-status-warning-text' }
+      : null;
+
   const bookingSteps = [
     { number: 1, label: 'Setup' },
     { number: 2, label: 'Select Slot' },
@@ -562,6 +569,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           formatSlotDate={formatShortDate}
           formatTime={formatTime}
           getProximityBadge={getProximityBadge}
+          getServiceAreaBadge={getServiceAreaBadge}
           onChangeFilters={() => setStep('setup')}
         />
       )}
