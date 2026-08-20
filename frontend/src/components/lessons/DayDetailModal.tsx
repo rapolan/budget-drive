@@ -185,26 +185,31 @@ export const DayDetailModal: React.FC<DayDetailModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-lg bg-surface shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-surface border-b border-edge px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-tx-primary flex items-center gap-2">
+        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 bg-status-info-bg rounded-lg flex-shrink-0">
                 <CalendarIcon className="h-5 w-5 text-primary" />
-                {formatDate(date)}
-              </h2>
-              <p className="mt-1 text-sm text-tx-muted">
-                {lessons.length} lesson{lessons.length !== 1 ? 's' : ''} • {availability.length} available slot{availability.length !== 1 ? 's' : ''}
-              </p>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold text-tx-primary truncate">
+                  {formatDate(date)}
+                </h2>
+                <p className="text-sm text-tx-muted">
+                  {lessons.length} lesson{lessons.length !== 1 ? 's' : ''} • {availability.length} available slot{availability.length !== 1 ? 's' : ''}
+                </p>
+              </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="text-tx-muted hover:text-tx-secondary transition-colors"
+              className="p-2 text-tx-muted hover:text-tx-secondary hover:bg-surface2 rounded-lg transition-all flex-shrink-0"
+              aria-label="Close modal"
             >
-              <X className="h-6 w-6" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         </div>
