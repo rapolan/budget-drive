@@ -15,7 +15,7 @@ import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useToast } from '@/hooks/useToast';
 import { useTenant } from '@/contexts/TenantContext';
-import { addCalendarDays } from '@/utils/timeFormat';
+import { addCalendarDays, parseLocalDate } from '@/utils/timeFormat';
 
 type ViewMode = 'table' | 'cards' | 'calendar' | 'weekly';
 type StatusFilter = 'all' | 'today' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
@@ -471,8 +471,15 @@ export const LessonsPage: React.FC = () => {
     }
   };
 
+  // lesson.date is a DATE-only value (no wall-clock time), typed as `Date`
+  // but transmitted as an ISO string ("2026-08-20T00:00:00.000Z") - passing
+  // it straight to `new Date(...).toLocaleDateString()` renders the UTC
+  // instant in the BROWSER's local zone, which rolls the calendar day back
+  // one for any zone west of UTC (e.g. shows "Aug 19" for a lesson stored
+  // as Aug 20). parseLocalDate strips to the date-only string first, same
+  // as every other date derivation in this file.
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    return parseLocalDate(String(date)).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',

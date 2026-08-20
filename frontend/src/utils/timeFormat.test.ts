@@ -61,6 +61,26 @@ describe('addCalendarDays', () => {
   });
 });
 
+describe('cross-view calendar-date consistency (Lessons table vs weekly vs monthly)', () => {
+  // Regression: Lessons.tsx's table/card formatDate() used to do
+  // `new Date(lesson.date).toLocaleDateString()`, a UTC-instant-to-browser-
+  // local-zone round trip that rolls the calendar day back one for roughly
+  // half of all timezones - while the weekly view (InstructorWeeklySchedule)
+  // and monthly view (LessonsCalendarView) both already matched lessons via
+  // `String(lesson.date).split('T')[0]`, a plain string extraction. This
+  // asserts all three derivation strategies agree on the same calendar date
+  // for the same raw API value, so a future regression in any one of them
+  // shows up here rather than only as a visual mismatch between views.
+  it('derives the same YYYY-MM-DD calendar date from the same lesson.date value via the string-extraction path (weekly/monthly) and the parseLocalDate path (table/card formatDate)', () => {
+    const stringExtraction = REAL_LESSON_DATE_FROM_API.split('T')[0];
+    const tableFormatterDate = parseLocalDate(REAL_LESSON_DATE_FROM_API);
+    const tableFormatterDateStr = `${tableFormatterDate.getFullYear()}-${String(tableFormatterDate.getMonth() + 1).padStart(2, '0')}-${String(tableFormatterDate.getDate()).padStart(2, '0')}`;
+
+    expect(tableFormatterDateStr).toBe(stringExtraction);
+    expect(tableFormatterDateStr).toBe('2026-08-17');
+  });
+});
+
 describe('daysBetween', () => {
   it('returns the number of calendar days between two dates', () => {
     expect(daysBetween('2026-08-04', '2026-08-17')).toBe(13);

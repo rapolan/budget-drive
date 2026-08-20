@@ -131,4 +131,25 @@ describe('Lessons - hostile clock (tenant America/Los_Angeles, browser America/N
     });
     expect(screen.queryByRole('heading', { name: 'Today', level: 3 })).not.toBeInTheDocument();
   });
+
+  // Regression: formatDate() used to do `new Date(lesson.date).toLocaleDateString()`,
+  // which parses the ISO string as a UTC instant and renders it in the
+  // BROWSER's zone - rolling the calendar day back one for any zone west of
+  // UTC. Under this suite's browser=America/New_York vs tenant=America/Los_Angeles
+  // setup, a lesson stored as TENANT_NOW.tomorrow ("2026-03-02") used to
+  // render as "Mar 1" in the table row instead of "Mar 2". Reproduced live
+  // against the real dev DB before fixing - see commit message.
+  it('renders the table row date as the tenant calendar date, not a UTC-shifted browser-local one', async () => {
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'tomorrow-lesson', date: TENANT_NOW.tomorrow as unknown as Date })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderLessons();
+
+    await waitFor(() => {
+      expect(screen.getByText('Mar 2, 2026')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Mar 1, 2026')).not.toBeInTheDocument();
+  });
 });
