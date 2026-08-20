@@ -40,7 +40,7 @@ export const studentsApi = {
     return response.data;
   },
 
-  update: async (id: string, data: Partial<CreateStudentInput> & { trackOverride?: 'hours' | 'lessons' | null }) => {
+  update: async (id: string, data: Partial<CreateStudentInput>) => {
     const response = await apiClient.put<ApiResponse<Student>>(`/students/${id}`, data);
     return response.data;
   },
@@ -52,16 +52,6 @@ export const studentsApi = {
 
   getByStatus: async (status: 'active' | 'completed' | 'dropped' | 'suspended') => {
     const response = await apiClient.get<ApiResponse<Student[]>>(`/students/status/${status}`);
-    return response.data;
-  },
-
-  complete: async (id: string, completionReason?: string) => {
-    const response = await apiClient.post<ApiResponse<Student>>(`/students/${id}/complete`, { completionReason });
-    return response.data;
-  },
-
-  reopen: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Student>>(`/students/${id}/reopen`, {});
     return response.data;
   },
 };

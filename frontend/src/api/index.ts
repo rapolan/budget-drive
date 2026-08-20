@@ -13,3 +13,4 @@ export { dashboardApi } from './dashboard';
 export { guardiansApi } from './guardians';
 export { searchApi } from './search';
 export { feeFlagsApi } from './feeFlags';
+export { enrollmentsApi } from './enrollments';

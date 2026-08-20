@@ -4,7 +4,7 @@ import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
   CheckCircle, AlertCircle, FileText, Users, Plus, Search
 } from 'lucide-react';
-import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi } from '@/api';
+import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi } from '@/api';
 import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
@@ -139,6 +139,20 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     queryFn: () => instructorsApi.getAll(),
     enabled: isEditing && activeTab === 'history',
   });
+
+  // The list-response `student` prop only carries activeEnrollment (a
+  // narrow summary for studentStatus.ts) - the external DE prerequisite
+  // fields live on the full enrollment record, only attached by the
+  // detail endpoint. Fetched lazily, same pattern as lessons/instructors
+  // above.
+  const { data: enrollmentsData } = useQuery({
+    queryKey: ['students', student?.id, 'enrollments'],
+    queryFn: () => enrollmentsApi.getForStudent(student!.id),
+    enabled: isEditing && activeTab === 'progress' && !!student,
+  });
+  const driverTrainingEnrollment = enrollmentsData?.data?.find(
+    e => e.programType === 'driver_training' && e.status === 'active'
+  );
 
   const studentLessons = lessonsData?.data?.filter(l => l.studentId === student?.id) || [];
   const instructors = instructorsData?.data || [];
@@ -532,17 +546,21 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   });
 
   // Turning-18 admin actions: keep on hours track / switch to lessons track /
-  // mark complete. Track override and completion both refetch the student
+  // mark complete. trackOverride/completion moved to the enrollment
+  // (Constraint A/D) - both act on the student's active driver_training
+  // enrollment, not the student record itself. Both refetch the student
   // list so the alert clears immediately once resolved.
   const trackOverrideMutation = useMutation({
-    mutationFn: (trackOverride: 'hours' | 'lessons') => studentsApi.update(student!.id, { trackOverride }),
+    mutationFn: (trackOverride: 'hours' | 'lessons') =>
+      enrollmentsApi.update(student!.activeEnrollment!.id, { trackOverride }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
     },
   });
 
   const completeMutation = useMutation({
-    mutationFn: (completionReason: string) => studentsApi.complete(student!.id, completionReason),
+    mutationFn: (completionReason: string) =>
+      enrollmentsApi.complete(student!.activeEnrollment!.id, completionReason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
@@ -577,6 +595,39 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const [validationError, setValidationError] = useState<string>('');
   const [completionReason, setCompletionReason] = useState('');
   const [showCompletionPrompt, setShowCompletionPrompt] = useState(false);
+
+  // External driver_education prerequisite (Item 3) - display + edit on the
+  // driver_training enrollment, no booking gate. Local edit state mirrors
+  // the fee-flag waive form's pattern: a toggle plus draft fields, nothing
+  // sent until explicit save.
+  const [isEditingExternalDe, setIsEditingExternalDe] = useState(false);
+  const [externalDeCompleted, setExternalDeCompleted] = useState(false);
+  const [externalDeCompletedDate, setExternalDeCompletedDate] = useState('');
+  const [externalDeProvider, setExternalDeProvider] = useState('');
+
+  const externalDeMutation = useMutation({
+    mutationFn: () =>
+      enrollmentsApi.update(driverTrainingEnrollment!.id, {
+        externalDeCompleted,
+        externalDeCompletedDate: externalDeCompleted ? (externalDeCompletedDate || null) : null,
+        externalDeProvider: externalDeCompleted ? (externalDeProvider.trim() || null) : null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students', student?.id, 'enrollments'] });
+      setIsEditingExternalDe(false);
+    },
+  });
+
+  const startEditingExternalDe = () => {
+    setExternalDeCompleted(driverTrainingEnrollment?.externalDeCompleted ?? false);
+    setExternalDeCompletedDate(
+      driverTrainingEnrollment?.externalDeCompletedDate
+        ? new Date(driverTrainingEnrollment.externalDeCompletedDate).toISOString().split('T')[0]
+        : ''
+    );
+    setExternalDeProvider(driverTrainingEnrollment?.externalDeProvider ?? '');
+    setIsEditingExternalDe(true);
+  };
 
   // Get error message from mutation
   const errorMessage = validationError ||
@@ -1846,6 +1897,99 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                           className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                         >
                           {completeMutation.isPending ? 'Saving...' : 'Confirm Complete'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* External driver_education prerequisite (Item 3) - display
+                  only, no booking gate. Lives on the driver_training
+                  enrollment since that's the program DE is a prerequisite
+                  for. */}
+              {driverTrainingEnrollment && (
+                <div className="bg-surface border border-edge rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-tx-primary">Driver Education (external)</p>
+                    {!isEditingExternalDe && (
+                      <button
+                        type="button"
+                        onClick={startEditingExternalDe}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+
+                  {!isEditingExternalDe ? (
+                    <p className="text-sm text-tx-secondary">
+                      {driverTrainingEnrollment.externalDeCompleted ? (
+                        <>
+                          Completed
+                          {driverTrainingEnrollment.externalDeCompletedDate && (
+                            <> on {new Date(driverTrainingEnrollment.externalDeCompletedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>
+                          )}
+                          {driverTrainingEnrollment.externalDeProvider && (
+                            <> - {driverTrainingEnrollment.externalDeProvider}</>
+                          )}
+                        </>
+                      ) : (
+                        'Not recorded as completed elsewhere'
+                      )}
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 text-sm text-tx-primary">
+                        <input
+                          type="checkbox"
+                          checked={externalDeCompleted}
+                          onChange={(e) => setExternalDeCompleted(e.target.checked)}
+                          className="rounded border-edge-strong"
+                        />
+                        Completed driver education elsewhere
+                      </label>
+                      {externalDeCompleted && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor="external-de-completed-date" className="block text-xs font-medium text-tx-secondary mb-1">Completion date</label>
+                            <input
+                              id="external-de-completed-date"
+                              type="date"
+                              value={externalDeCompletedDate}
+                              onChange={(e) => setExternalDeCompletedDate(e.target.value)}
+                              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="external-de-provider" className="block text-xs font-medium text-tx-secondary mb-1">Provider (optional)</label>
+                            <input
+                              id="external-de-provider"
+                              type="text"
+                              value={externalDeProvider}
+                              onChange={(e) => setExternalDeProvider(e.target.value)}
+                              placeholder="e.g. Acme Driving School"
+                              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingExternalDe(false)}
+                          className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => externalDeMutation.mutate()}
+                          disabled={externalDeMutation.isPending}
+                          className="px-3 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                        >
+                          {externalDeMutation.isPending ? 'Saving...' : 'Save'}
                         </button>
                       </div>
                     </div>

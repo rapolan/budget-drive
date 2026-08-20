@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
-import { studentsApi, guardiansApi, lessonsApi } from '@/api';
-import type { Student, GuardianCandidate, Lesson } from '@/types';
+import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi } from '@/api';
+import type { Student, GuardianCandidate, Lesson, Enrollment } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -32,6 +32,17 @@ vi.mock('@/api', async () => {
       getMostRecentByStudent: vi.fn().mockResolvedValue({ data: null }),
     },
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
+    enrollmentsApi: {
+      getForStudent: vi.fn().mockResolvedValue({ data: [] }),
+      update: vi.fn().mockResolvedValue({ data: {} }),
+      complete: vi.fn().mockResolvedValue({ data: {} }),
+      reopen: vi.fn().mockResolvedValue({ data: {} }),
+    },
+    feeFlagsApi: {
+      getOutstandingForStudent: vi.fn().mockResolvedValue({ data: [] }),
+      waive: vi.fn(),
+      recordPayment: vi.fn(),
+    },
   };
 });
 
@@ -1387,5 +1398,151 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
     expect(emailInput.value).toBe('some.person@example.com');
     expect(guardiansApi.linkToStudent).not.toHaveBeenCalled();
     expect(guardiansApi.create).not.toHaveBeenCalled();
+  });
+});
+
+// Regression coverage: the turning-18 admin actions (keep on hours track /
+// switch to lessons track / mark complete) call studentsApi.update /
+// studentsApi.complete, both of which target the now-deleted
+// /students/:id trackOverride field and the removed /students/:id/complete
+// route. These moved to enrollmentsApi.update/complete against the
+// student's active driver_training enrollment (Constraint A/D) - this
+// suite pins that the modal calls the enrollment endpoints with the
+// enrollment's id, not the student's id.
+describe('StudentModal turning-18 admin actions - target the enrollment, not the student', () => {
+  function enrollmentFixture(overrides: Partial<Enrollment> = {}): Enrollment {
+    return {
+      id: 'enrollment-1',
+      tenantId: 'tenant-1',
+      studentId: 'student-1',
+      programType: 'driver_training',
+      status: 'active',
+      enrollmentDate: new Date('2026-01-01'),
+      hoursRequired: 6,
+      trackOverride: null,
+      assignedInstructorId: null,
+      licenseType: 'car',
+      totalCost: null,
+      completed: false,
+      completedAt: null,
+      completedBy: null,
+      completionReason: null,
+      reopenedAt: null,
+      reopenedBy: null,
+      reopenedReason: null,
+      externalDeCompleted: false,
+      externalDeCompletedDate: null,
+      externalDeProvider: null,
+      manualCompletedHours: null,
+      completionHash: null,
+      ledgerTxid: null,
+      createdBy: null,
+      updatedBy: null,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      ...overrides,
+    };
+  }
+
+  function turningEighteenStudent(overrides: Partial<Student> = {}): Student {
+    const adultBirthYear = new Date().getFullYear() - 19;
+    return editableStudent({
+      dateOfBirth: new Date(`${adultBirthYear}-01-01`),
+      activeEnrollment: {
+        id: 'enrollment-1',
+        programType: 'driver_training',
+        status: 'active',
+        enrollmentDate: new Date('2026-01-01'),
+        completed: false,
+        completionReason: null,
+      },
+      progress: {
+        track: 'hours',
+        hoursCompleted: 1,
+        hoursRequired: 6,
+        hoursScheduled: 0,
+        needsDateOfBirth: false,
+        displayLabel: '1 / 6 hrs',
+        percentComplete: 17,
+      },
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollmentFixture()],
+    });
+  });
+
+  it('trackOverrideMutation calls enrollmentsApi.update with the enrollment id, not studentsApi.update', async () => {
+    renderModal(turningEighteenStudent());
+
+    fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
+
+    const keepOnHoursButton = await screen.findByRole('button', { name: /keep on hours track/i });
+    fireEvent.click(keepOnHoursButton);
+
+    await waitFor(() =>
+      expect(enrollmentsApi.update).toHaveBeenCalledWith('enrollment-1', { trackOverride: 'hours' })
+    );
+  });
+
+  it('completeMutation calls enrollmentsApi.complete with the enrollment id, not studentsApi.complete', async () => {
+    renderModal(turningEighteenStudent());
+
+    fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
+
+    const markCompleteButton = await screen.findByRole('button', { name: /mark program complete/i });
+    fireEvent.click(markCompleteButton);
+
+    const reasonInput = screen.getByPlaceholderText(/completion reason/i);
+    fireEvent.change(reasonInput, { target: { value: 'Passed road test' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirm complete/i }));
+
+    await waitFor(() =>
+      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-1', 'Passed road test')
+    );
+  });
+
+  // Item 3: external driver_education prerequisite - display + edit on the
+  // driver_training enrollment, display-only (no booking gate).
+  it('displays "Not recorded" by default, and saves externalDeCompleted/date/provider via enrollmentsApi.update on the enrollment id', async () => {
+    renderModal(turningEighteenStudent());
+
+    fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
+
+    expect(await screen.findByText(/not recorded as completed elsewhere/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    fireEvent.click(screen.getByLabelText(/completed driver education elsewhere/i));
+    fireEvent.change(screen.getByLabelText(/completion date/i), { target: { value: '2026-03-01' } });
+    fireEvent.change(screen.getByLabelText(/provider/i), { target: { value: 'Acme Driving School' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() =>
+      expect(enrollmentsApi.update).toHaveBeenCalledWith('enrollment-1', {
+        externalDeCompleted: true,
+        externalDeCompletedDate: '2026-03-01',
+        externalDeProvider: 'Acme Driving School',
+      })
+    );
+  });
+
+  it('displays the completed date and provider once recorded', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        enrollmentFixture({
+          externalDeCompleted: true,
+          externalDeCompletedDate: new Date('2026-02-15'),
+          externalDeProvider: 'Acme Driving School',
+        }),
+      ],
+    });
+
+    renderModal(turningEighteenStudent());
+    fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
+
+    expect(await screen.findByText(/acme driving school/i)).toBeInTheDocument();
   });
 });
