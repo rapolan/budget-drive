@@ -259,7 +259,12 @@ describe('getDatePresets under a forced UTC process clock', () => {
 
     const expectedNext2WeeksStart = tenantTomorrow('America/New_York');
     const expectedNext2WeeksEnd = addTenantDays(expectedNext2WeeksStart, 13, 'America/New_York');
-    const expectedThisMonth = tenantMonthBoundaries('America/New_York');
+    // "This Month" is a bookable range starting from today, not the 1st of
+    // the calendar month - see bookingPresetsService.ts.
+    const expectedThisMonth = {
+      start: tenantToday('America/New_York'),
+      end: tenantMonthBoundaries('America/New_York').end,
+    };
     const expectedNextMonth = tenantNextMonthBoundaries('America/New_York');
 
     expect(presets.next2Weeks).toEqual({ start: expectedNext2WeeksStart, end: expectedNext2WeeksEnd });

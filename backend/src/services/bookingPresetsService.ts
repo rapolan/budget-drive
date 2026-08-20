@@ -9,6 +9,7 @@
 
 import { resolveTimezone } from './schedulingService';
 import {
+  tenantToday,
   tenantTomorrow,
   addTenantDays,
   tenantMonthBoundaries,
@@ -32,9 +33,15 @@ export const getDatePresets = async (tenantId: string): Promise<DatePresets> => 
   const next2WeeksStart = tenantTomorrow(timezone);
   const next2WeeksEnd = addTenantDays(next2WeeksStart, 13, timezone);
 
+  // "This Month" is a bookable range, not a calendar-month report window -
+  // it must never include days that have already passed. Start from the
+  // tenant's own today, not the 1st of the month (tenantMonthBoundaries'
+  // start), and keep that month's own last day as the end.
+  const thisMonthEnd = tenantMonthBoundaries(timezone).end;
+
   return {
     next2Weeks: { start: next2WeeksStart, end: next2WeeksEnd },
-    thisMonth: tenantMonthBoundaries(timezone),
+    thisMonth: { start: tenantToday(timezone), end: thisMonthEnd },
     nextMonth: tenantNextMonthBoundaries(timezone),
   };
 };
