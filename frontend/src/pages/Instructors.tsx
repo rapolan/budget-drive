@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, X, Mail, Phone, DollarSign, Clock, Briefcase, LayoutGrid, LayoutList } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, UserCheck, Calendar, TrendingUp, X, Mail, Phone, DollarSign, FileWarning, Clock, Briefcase, LayoutGrid, LayoutList } from 'lucide-react';
 import { instructorsApi, lessonsApi } from '@/api';
 import type { Instructor } from '@/types';
 import { InstructorModal } from '@/components/instructors/InstructorModal';
@@ -21,6 +21,10 @@ export const InstructorsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   const [viewMode, setViewMode] = useSessionState<ViewMode>('instructors-view-mode', 'table', isViewMode);
+  // Toggled by the "Licenses Expiring Soon" stat card - independent of
+  // statusFilter, since a license issue can co-occur with any employment
+  // status.
+  const [licenseFilterActive, setLicenseFilterActive] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null);
   const queryClient = useQueryClient();
@@ -40,6 +44,19 @@ export const InstructorsPage: React.FC = () => {
   // Handle stat card click
   const handleStatCardClick = (filter: StatusFilter) => {
     setStatusFilter(filter);
+    setLicenseFilterActive(false);
+    setTimeout(scrollToTable, 100);
+  };
+
+  // The "Licenses Expiring Soon" card toggles its own filter dimension
+  // rather than setting statusFilter - a license issue can occur on an
+  // instructor with any employment status, so it composes with (not
+  // replaces) the status filter, clearing status back to "all" so a filter
+  // that was scoped to e.g. "on_leave" doesn't hide a needing-attention
+  // active instructor.
+  const handleLicenseCardClick = () => {
+    setStatusFilter('all');
+    setLicenseFilterActive(true);
     setTimeout(scrollToTable, 100);
   };
 
@@ -132,25 +149,62 @@ export const InstructorsPage: React.FC = () => {
 
     const topInstructor = data?.data?.find(i => i.id === topInstructorId);
 
-    // Calculate average hourly rate
-    const activeInstructors = data?.data?.filter(i => i.status === 'active' && i.hourlyRate) || [];
-    const avgHourlyRate = activeInstructors.length > 0
-      ? activeInstructors.reduce((sum, i) => sum + Number(i.hourlyRate || 0), 0) / activeInstructors.length
-      : 0;
+    // Licenses needing attention among active instructors - expiring,
+    // expired, or missing entirely. "Missing" counts here too: per this
+    // page's own badge rule (see getLicenseStatusColor below), an
+    // instructor with no expiration recorded is never silently treated as
+    // compliant.
+    const activeInstructorsList = data?.data?.filter(i => i.status === 'active') || [];
+    const licensesNeedingAttention = tenantNow
+      ? activeInstructorsList.filter((i) => {
+          const expiration = i.instructorLicenseExpiration
+            ? String(i.instructorLicenseExpiration).split('T')[0]
+            : null;
+          const status = computeLicenseStatus(expiration, tenantNow.today);
+          return status === 'expiring' || status === 'expired' || status === 'missing';
+        })
+      : [];
+    const licensesNeedingAttentionHasDanger = licensesNeedingAttention.some((i) => {
+      const expiration = i.instructorLicenseExpiration
+        ? String(i.instructorLicenseExpiration).split('T')[0]
+        : null;
+      const status = tenantNow ? computeLicenseStatus(expiration, tenantNow.today) : null;
+      return status === 'expired' || status === 'missing';
+    });
 
     return {
       totalLessonsThisMonth,
       totalHoursThisMonth: Math.round(totalHoursThisMonth * 10) / 10,
       topInstructor: topInstructor?.fullName || 'N/A',
       topLessonCount,
-      avgHourlyRate: avgHourlyRate.toFixed(2),
+      licensesNeedingAttentionCount: licensesNeedingAttention.length,
+      licensesNeedingAttentionHasDanger,
     };
-  }, [data?.data, lessonsData?.data]);
+  }, [data?.data, lessonsData?.data, tenantNow]);
+
+  // instructor.instructorLicenseExpiration is a DATE-only value (no
+  // wall-clock time) - compared as a plain YYYY-MM-DD string against
+  // tenantNow.today, never a Date-object round-trip.
+  const getInstructorLicenseStatus = (instructor: Instructor): LicenseStatus | null => {
+    if (!tenantNow) return null;
+    const expiration = instructor.instructorLicenseExpiration
+      ? String(instructor.instructorLicenseExpiration).split('T')[0]
+      : null;
+    return computeLicenseStatus(expiration, tenantNow.today);
+  };
 
   const filteredInstructors = data?.data?.filter((instructor) => {
     // Status filter
     if (statusFilter !== 'all' && instructor.status !== statusFilter) {
       return false;
+    }
+
+    // License filter - toggled by the "Licenses Expiring Soon" stat card.
+    if (licenseFilterActive) {
+      const licenseStatus = getInstructorLicenseStatus(instructor);
+      if (licenseStatus !== 'expiring' && licenseStatus !== 'expired' && licenseStatus !== 'missing') {
+        return false;
+      }
     }
 
     // Search filter
@@ -221,14 +275,6 @@ export const InstructorsPage: React.FC = () => {
       case 'valid':
         return 'License Valid';
     }
-  };
-
-  const getInstructorLicenseStatus = (instructor: Instructor): LicenseStatus | null => {
-    if (!tenantNow) return null;
-    const expiration = instructor.instructorLicenseExpiration
-      ? String(instructor.instructorLicenseExpiration).split('T')[0]
-      : null;
-    return computeLicenseStatus(expiration, tenantNow.today);
   };
 
   return (
@@ -331,19 +377,29 @@ export const InstructorsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Average Rate */}
-        <div 
+        {/* Licenses Expiring Soon - replaces the old Avg Hourly Rate card,
+            which wasn't actionable. Danger tokens once any instructor is
+            expired/missing, warning tokens when everything needing
+            attention is still just approaching expiry. Clicking filters
+            the list to those instructors (see handleLicenseCardClick). */}
+        <div
           className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
-          onClick={() => handleStatCardClick('all')}
+          onClick={handleLicenseCardClick}
         >
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
-              <DollarSign className="h-5 w-5 text-purple-600" />
+            <div className={`p-2 rounded-lg transition-colors ${
+              stats.licensesNeedingAttentionHasDanger
+                ? 'bg-status-danger-bg group-hover:brightness-95'
+                : 'bg-status-warning-bg group-hover:brightness-95'
+            }`}>
+              <FileWarning className={`h-5 w-5 ${
+                stats.licensesNeedingAttentionHasDanger ? 'text-status-danger-text' : 'text-status-warning-text'
+              }`} />
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-tx-primary">${stats.avgHourlyRate}</p>
-            <p className="text-sm text-tx-muted">Avg Hourly Rate</p>
+            <p className="text-2xl font-bold text-tx-primary">{stats.licensesNeedingAttentionCount}</p>
+            <p className="text-sm text-tx-muted">Licenses Expiring Soon</p>
           </div>
         </div>
       </div>
