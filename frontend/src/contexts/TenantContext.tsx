@@ -100,6 +100,17 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => clearInterval(interval);
   }, []);
 
+  // A tab can sit backgrounded past a tenant-day boundary (e.g. left open
+  // overnight) and only resolve the next day on the 5-minute interval's
+  // next tick, or not at all if the tab was suspended - refresh immediately
+  // whenever the tab regains focus so the tenant day is never stale for the
+  // gap between resolving that and the next interval tick.
+  useEffect(() => {
+    const handleFocus = () => refreshSettings();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   return (
     <TenantContext.Provider value={{ tenant, tenantType, settings, tenantNow, loading, error, refreshSettings, updateTheme }}>
       {children}
