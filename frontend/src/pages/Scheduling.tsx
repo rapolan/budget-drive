@@ -5,10 +5,9 @@ import {
   WeeklyAvailabilityGrid,
   TimeOffManager,
   CalendarSync,
-  RecurringPatterns,
 } from '@/components/scheduling';
 
-type Tab = 'availability' | 'timeoff' | 'calendar' | 'patterns';
+type Tab = 'availability' | 'timeoff' | 'calendar';
 
 export const SchedulingPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('availability');
@@ -31,7 +30,6 @@ export const SchedulingPage: React.FC = () => {
     { id: 'availability' as Tab, label: 'Availability', icon: '📅' },
     { id: 'timeoff' as Tab, label: 'Time Off', icon: '🏖️' },
     { id: 'calendar' as Tab, label: 'Calendar Sync', icon: '🔄' },
-    { id: 'patterns' as Tab, label: 'Recurring Patterns', icon: '🔁' },
   ];
 
   return (
@@ -41,7 +39,7 @@ export const SchedulingPage: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-tx-primary">Scheduling Configuration</h1>
           <p className="text-tx-secondary mt-1">
-            Manage instructor availability, time off, calendar sync, and recurring patterns
+            Manage instructor availability, time off, and calendar sync
           </p>
         </div>
       </div>
@@ -146,13 +144,6 @@ export const SchedulingPage: React.FC = () => {
                   Please select an instructor above to manage calendar sync
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Recurring Patterns Tab */}
-          {activeTab === 'patterns' && (
-            <div>
-              <RecurringPatterns key={`patterns-${refreshKey}`} />
             </div>
           )}
         </div>

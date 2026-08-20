@@ -30,8 +30,7 @@ import { resolve } from 'node:path';
 //      value (no time component - a Date from `pg` for such a column is
 //      always UTC midnight of that calendar date, so toISOString().split
 //      is safe specifically here) - schedulingService.ts, lessonService.ts,
-//      lessonInviteService.ts, calendarFeedService.ts,
-//      recurringPatternService.ts.
+//      lessonInviteService.ts, calendarFeedService.ts.
 //   4. tenantTime.ts's own `reference: Date = new Date()` default
 //      parameters (the primitive that legitimately reads real "now" so
 //      every OTHER file never has to).
@@ -46,7 +45,6 @@ const TARGET_FILES = [
   'src/services/lessonService.ts',
   'src/services/lessonInviteService.ts',
   'src/services/calendarFeedService.ts',
-  'src/services/recurringPatternService.ts',
   'src/services/studentProgressService.ts',
   'src/services/bookingPresetsService.ts',
   'src/services/dashboardService.ts',
@@ -91,10 +89,6 @@ const ALLOWLIST: Record<string, string[]> = {
     `lesson.date.toISOString().split('T')[0]`,
     // RFC 5545 DTSTAMP.
     'DTSTAMP:${formatICSDate(new Date())}',
-  ],
-  'src/services/recurringPatternService.ts': [
-    // start_date/end_date/currentDate all come from plain DATE columns.
-    `currentDate.toISOString().split('T')[0]`,
   ],
   'src/services/studentProgressService.ts': [],
   'src/services/bookingPresetsService.ts': [],
