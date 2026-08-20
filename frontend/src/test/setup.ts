@@ -1,4 +1,15 @@
 import '@testing-library/jest-dom/vitest';
+import { afterEach } from 'vitest';
+
+// jsdom's sessionStorage persists across tests within the same file (it's
+// not reset between renders the way component state is) - useSessionState
+// (Lessons/Instructors/Payments/Students/Vehicles view-mode toggles) writes
+// through to it, so one test switching to a non-default view leaked into
+// every later test in the file, which then failed looking for
+// default-view-only content. Clearing after each test isolates them again.
+afterEach(() => {
+  window.sessionStorage.clear();
+});
 
 // jsdom implements neither of these - several components call
 // window.matchMedia('(prefers-reduced-motion: reduce)') and

@@ -6,15 +6,17 @@ import { PaymentModal, PaymentHistoryModal } from '@/components/payments';
 import type { Student } from '@/types';
 import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { useSessionState } from '@/hooks/useSessionState';
 
 type ViewMode = 'table' | 'cards';
+const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 
 export const PaymentsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useSessionState<ViewMode>('payments-view-mode', 'table', isViewMode);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);

@@ -14,10 +14,13 @@ import type { DateRangeValue } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useToast } from '@/hooks/useToast';
+import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
 import { addCalendarDays, parseLocalDate } from '@/utils/timeFormat';
 
 type ViewMode = 'table' | 'cards' | 'calendar' | 'weekly';
+const isViewMode = (v: string): v is ViewMode =>
+  v === 'table' || v === 'cards' || v === 'calendar' || v === 'weekly';
 type StatusFilter = 'all' | 'today' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
 
 export const LessonsPage: React.FC = () => {
@@ -35,7 +38,7 @@ export const LessonsPage: React.FC = () => {
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useSessionState<ViewMode>('lessons-view-mode', 'table', isViewMode);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('scheduled');
   const [preselectedInstructorId, setPreselectedInstructorId] = useState<string | null>(null);
   const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
@@ -95,7 +98,13 @@ export const LessonsPage: React.FC = () => {
       // Clear the state after handling
       window.history.replaceState({}, document.title);
     }
-  }, [location]);
+    // scrollToTable is intentionally omitted - it's a plain closure
+    // recreated every render, and this effect should only re-run when
+    // `location` itself changes, not on every render. setViewMode is
+    // useSessionState's own stable setter (like useState's), safe to
+    // include.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location, setViewMode]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -154,7 +163,7 @@ export const LessonsPage: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode, isModalOpen, isSmartBookingOpen]);
+  }, [viewMode, isModalOpen, isSmartBookingOpen, setViewMode]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['lessons', currentPage],

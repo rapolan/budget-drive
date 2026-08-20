@@ -6,11 +6,13 @@ import type { Instructor } from '@/types';
 import { InstructorModal } from '@/components/instructors/InstructorModal';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
 import { computeLicenseStatus, type LicenseStatus } from '@/utils/licenseExpiry';
 
 type StatusFilter = 'all' | 'active' | 'on_leave' | 'terminated';
 type ViewMode = 'table' | 'cards';
+const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 
 export const InstructorsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
@@ -18,7 +20,7 @@ export const InstructorsPage: React.FC = () => {
   const { tenantNow } = useTenant();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useSessionState<ViewMode>('instructors-view-mode', 'table', isViewMode);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInstructor, setSelectedInstructor] = useState<Instructor | null>(null);
   const queryClient = useQueryClient();

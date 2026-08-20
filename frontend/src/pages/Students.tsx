@@ -18,6 +18,7 @@ import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/componen
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
 import { parseLocalDate } from '@/utils/timeFormat';
 
@@ -25,6 +26,8 @@ type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | '
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
 type ActiveView = 'students' | 'guardians';
+const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
+const isActiveView = (v: string): v is ActiveView => v === 'students' || v === 'guardians';
 
 export const StudentsPage: React.FC = () => {
   const location = useLocation();
@@ -37,10 +40,10 @@ export const StudentsPage: React.FC = () => {
 
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
-  const [activeView, setActiveView] = useState<ActiveView>('students');
+  const [activeView, setActiveView] = useSessionState<ActiveView>('students-active-view', 'students', isActiveView);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useSessionState<ViewMode>('students-view-mode', 'table', isViewMode);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);

@@ -6,14 +6,16 @@ import type { Vehicle } from '@/types';
 import { VehicleModal } from '@/components/vehicles/VehicleModal';
 import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
+import { useSessionState } from '@/hooks/useSessionState';
 
 type ViewMode = 'table' | 'cards';
+const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 
 export const VehiclesPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useSessionState<ViewMode>('vehicles-view-mode', 'table', isViewMode);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const queryClient = useQueryClient();
