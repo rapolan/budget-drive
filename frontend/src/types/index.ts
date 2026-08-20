@@ -10,14 +10,6 @@ export interface Tenant {
   planTier: 'basic' | 'pro' | 'enterprise';
   status: 'active' | 'suspended' | 'trial';
   trialEndsAt?: Date;
-  // Public profile settings
-  publicProfileEnabled: boolean;
-  publicSlug?: string;
-  publicDescription?: string;
-  publicPhotoUrl?: string;
-  publicBookingEnabled: boolean;
-  publicShowRates: boolean;
-  publicRequirePaymentUpfront: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

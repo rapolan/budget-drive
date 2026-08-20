@@ -14,7 +14,6 @@ import {
   DollarSign,
   Bell,
   History,
-  Globe,
   X,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -60,9 +59,6 @@ const allNavigation: NavItem[] = [
   { name: 'Instructor Earnings', href: '/instructor-earnings', icon: DollarSign, tenantTypes: ['school'], roles: ['owner', 'admin'], group: 'financial' },
   { name: 'Payments', href: '/payments', icon: CreditCard, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'financial' },
   { name: 'Treasury', href: '/treasury', icon: Coins, featureFlag: 'enableBlockchainPayments', roles: ['owner', 'admin'], group: 'financial' },
-  
-  // Public Profile - Both types (but more important for independent)
-  { name: 'Public Profile', href: '/public-profile', icon: Globe, roles: ['owner', 'admin'], group: 'operations' },
   
   // Communication
   { name: 'Notifications', href: '/notifications', icon: Bell, group: 'communication' },

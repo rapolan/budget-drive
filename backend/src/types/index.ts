@@ -22,14 +22,6 @@ export interface Tenant {
   trialEndsAt: Date | null;
   subscriptionStartsAt: Date | null;
   subscriptionEndsAt: Date | null;
-  // Public profile fields
-  publicProfileEnabled: boolean;
-  publicSlug: string | null;
-  publicDescription: string | null;
-  publicPhotoUrl: string | null;
-  publicBookingEnabled: boolean;
-  publicShowRates: boolean;
-  publicRequirePaymentUpfront: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
