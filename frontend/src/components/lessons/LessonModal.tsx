@@ -85,7 +85,10 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     (!isEditing || l.id !== lesson?.id)
   ) || [];
   const suggestedLessonNumber = studentLessons.length + 1;
-  const totalHoursRequired = selectedStudent?.hoursRequired || 6;
+  // hoursRequired moved off the student onto their driver_training
+  // enrollment - read it via the already-attached progress object rather
+  // than a field that no longer exists on Student.
+  const totalHoursRequired = selectedStudent?.progress?.hoursRequired || 6;
   // Estimate total lessons based on 2-hour lessons (can be adjusted) - this
   // is a lesson-count *estimate* for the numbering UI below, not the
   // student's real progress. See studentProgressService.computeStudentProgress
@@ -364,7 +367,9 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
               >
                 <option value="">Select Student</option>
                 {studentsData?.data
-                  ?.filter((s) => s.status === 'active')
+                  // "Active" means "has an active driver_training enrollment
+                  // right now" - lessons can only be booked against one.
+                  ?.filter((s) => s.activeEnrollment?.status === 'active')
                   .map((student) => (
                     <option key={student.id} value={student.id}>
                       {student.fullName}

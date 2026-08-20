@@ -66,7 +66,22 @@ describe('POST /api/v1/students - date of birth required', () => {
     mockQuery.mockResolvedValueOnce({
       rows: [{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }],
       rowCount: 1,
-    }); // INSERT
+    }); // INSERT INTO students
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'student-1' }], rowCount: 1 }); // createEnrollment's student-existence check
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // createEnrollment's getActiveDriverTrainingEnrollment pre-check - none yet
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'tenant-1', default_hours_required: 6 }], rowCount: 1 }); // createEnrollment's getTenantSettings
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'enrollment-1', student_id: 'student-1', program_type: 'driver_training' }], rowCount: 1 }); // INSERT INTO enrollments
+    // getStudentById re-fetch at the end of createStudent
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }], rowCount: 1 }); // student row
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // tenant settings
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // guardian counts (minor)
+    mockQuery.mockResolvedValueOnce({
+      rows: [{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }],
+      rowCount: 1,
+    }); // enrollments for student
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // tenant settings (attachProgressAndPayments)
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // lessons for enrollment
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // payments for enrollment
 
     const res = await request(app)
       .post('/api/v1/students')

@@ -309,35 +309,34 @@ export interface Student {
   emergencyContact2LastName: string | null; // Secondary contact last name
   emergencyContact2Phone: string | null; // Secondary contact phone
 
-  // Program
-  licenseType: 'car' | 'motorcycle' | 'commercial';
-  enrollmentDate: Date;
-  status: 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'permit_expired';
   learnerPermitNumber: string | null;
   learnerPermitIssueDate: Date | null;
   learnerPermitExpiration: Date | null;
 
-  // Progress
-  totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
-  hoursRequired: number;
-  progress?: StudentProgress; // Attached by studentService's read paths - the single source of truth for display
-  needsGuardian?: boolean; // Attached by studentService's read paths - true only for minors with zero linked guardians
-  assignedInstructorId: string | null;
-  trackOverride: 'hours' | 'lessons' | null;
-
-  // Completion
-  completed: boolean;
-  completedAt: Date | null;
-  completedBy: string | null;
-  completionReason: string | null;
-
-  // Financial
-  paymentStatus: 'paid' | 'partial' | 'unpaid' | 'overdue';
-  totalPaid: number;
-  outstandingBalance: number;
+  // Program state (hours_required/status/completed*/track_override/license_type/
+  // enrollment_date/assigned_instructor_id/total_hours_completed/payment fields)
+  // moved to Enrollment - a person may have more than one program, so none of
+  // that belongs here. progress/needsGuardian/enrollments are attached by
+  // studentService's read paths, not stored columns.
+  progress?: StudentProgress; // Derived from this student's active driver_training enrollment
+  needsGuardian?: boolean; // True only for minors with zero linked guardians
+  enrollments?: Enrollment[]; // Attached on getStudentById - all of this person's enrollments
+  // A small, explicit view of the active driver_training enrollment's
+  // lifecycle fields, attached on every list/detail read alongside
+  // `progress`. Deliberately NOT flattened onto the student (that would
+  // recreate the exact person-vs-program ambiguity this refactor removes)
+  // and deliberately separate from `progress` (a computed hours/lessons
+  // view, not a grab-bag - see progressCalculationOwnership.test.ts).
+  // null means no active driver_training enrollment exists right now -
+  // callers must handle that explicitly, not read through to `undefined`.
+  activeEnrollment?: ActiveEnrollmentSummary | null;
+  // Derived (not stored) payment summary for the active driver_training
+  // enrollment - mirrors `progress`'s shape/rationale, computed fresh from
+  // payments.amount each read. Undefined (not null) when there's no active
+  // enrollment to derive it from, matching `progress`'s own convention.
+  paymentSummary?: EnrollmentPaymentSummary;
 
   // Blockchain
-  bsvCertificateHash: string | null;
   codaRowId: string | null;
 
   // Follow-up tracking
@@ -350,6 +349,74 @@ export interface Student {
   updatedBy: string | null; // User ID who last modified this record
   createdByName?: string | null; // Name of user who created this record
   updatedByName?: string | null; // Name of user who last modified this record
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// =====================================================
+// ENROLLMENT TYPES
+// =====================================================
+
+export type ProgramType = 'driver_education' | 'driver_training';
+
+export interface EnrollmentPaymentSummary {
+  totalPaid: number;
+  outstandingBalance: number | null; // null when totalCost is not computable (no override, no lessons yet)
+  paymentStatus: 'paid' | 'partial' | 'unpaid' | 'overdue' | 'unknown';
+}
+
+// Small, explicit lifecycle view attached to Student.activeEnrollment - just
+// the fields frontend/src/utils/studentStatus.ts needs to compute a
+// workflow status, not the full Enrollment shape.
+export interface ActiveEnrollmentSummary {
+  id: string;
+  programType: ProgramType;
+  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  enrollmentDate: Date;
+  completed: boolean;
+  completionReason: string | null;
+}
+
+export interface Enrollment {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  programType: ProgramType;
+  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  enrollmentDate: Date;
+  hoursRequired: number;
+  trackOverride: 'hours' | 'lessons' | null;
+  assignedInstructorId: string | null;
+  licenseType: 'car' | 'motorcycle' | 'commercial';
+  totalCost: number | null; // Explicit override; when null, derived from this enrollment's lessons.cost
+
+  completed: boolean;
+  completedAt: Date | null;
+  completedBy: string | null;
+  completionReason: string | null;
+
+  reopenedAt: Date | null;
+  reopenedBy: string | null;
+  reopenedReason: string | null;
+
+  // driver_training only: external driver_education prerequisite (display only)
+  externalDeCompleted: boolean;
+  externalDeCompletedDate: Date | null;
+  externalDeProvider: string | null;
+
+  // driver_education only: manually entered, no lesson tracking this session
+  manualCompletedHours: number | null;
+
+  // BSV forward-compatibility - no anchoring code, ledgerTxid always null this session
+  completionHash: string | null;
+  ledgerTxid: string | null;
+
+  progress?: StudentProgress; // Attached by enrollment read paths
+  paymentSummary?: EnrollmentPaymentSummary; // Derived from payments, attached by enrollment read paths
+  certificateExists?: boolean; // Attached only on the reopen response - person-scoped today, see TODO in enrollmentService
+
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -598,6 +665,7 @@ export interface Lesson {
   id: string;
   tenantId: string;
   studentId: string;
+  enrollmentId: string; // The student's active driver_training enrollment at booking time
   instructorId: string;
   vehicleId: string | null;
 
@@ -646,6 +714,7 @@ export interface Payment {
   id: string;
   tenantId: string;
   studentId: string;
+  enrollmentId: string; // The student's active driver_training enrollment at payment time
 
   date: Date;
   amount: number;

@@ -40,6 +40,27 @@ function adultPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// Full mock sequence for a successful createStudent call: INSERT INTO
+// students, then createEnrollment's student-check/active-check/
+// tenant-settings/INSERT, then the getStudentById re-fetch at the end.
+function mockCreateStudentSequence(studentId: string) {
+  mockQuery
+    .mockResolvedValueOnce(queryResult([{ id: studentId, tenant_id: TENANT_ID, date_of_birth: MINOR_DOB, email: null }])) // INSERT INTO students
+    .mockResolvedValueOnce(queryResult([{ id: studentId }])) // createEnrollment's student-existence check
+    .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check
+    .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
+    .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: studentId, tenant_id: TENANT_ID, program_type: 'driver_training' }])) // INSERT INTO enrollments
+    .mockResolvedValueOnce(queryResult([{ id: studentId, tenant_id: TENANT_ID, date_of_birth: MINOR_DOB, email: null }])) // getStudentById: student row
+    .mockResolvedValueOnce(queryResult([])) // tenant settings
+    .mockResolvedValueOnce(queryResult([])) // guardian counts
+    .mockResolvedValueOnce(
+      queryResult([{ id: 'enrollment-1', student_id: studentId, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }])
+    ) // enrollments for student
+    .mockResolvedValueOnce(queryResult([])) // tenant settings (attachProgressAndPayments)
+    .mockResolvedValueOnce(queryResult([])) // lessons for enrollment
+    .mockResolvedValueOnce(queryResult([])); // payments for enrollment
+}
+
 describe('student email optional for minors, required for adults', () => {
   beforeEach(() => {
     resetMockQuery();
@@ -49,13 +70,9 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    // No duplicate-email check runs since email is absent - just the
-    // hoursRequired tenant-settings lookup, then the INSERT.
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings - no row, falls back to default
-      .mockResolvedValueOnce(
-        queryResult([{ id: 'student-1', tenant_id: TENANT_ID, full_name: 'Minor Sibling', email: null }])
-      );
+    // No duplicate-email check runs since email is absent.
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings - no row, falls back to default
+    mockCreateStudentSequence('student-1');
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -73,17 +90,17 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
-      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID, email: null }])) // INSERT
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
-      .mockResolvedValueOnce(queryResult([{ id: 'student-2', tenant_id: TENANT_ID, email: null }])); // INSERT
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
+    mockCreateStudentSequence('student-1');
 
     const res1 = await request(app)
       .post('/api/v1/students')
       .set('Authorization', `Bearer ${token}`)
       .send(minorPayload({ fullName: 'Sibling One' }));
     expect(res1.status).toBe(201);
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
+    mockCreateStudentSequence('student-2');
 
     const res2 = await request(app)
       .post('/api/v1/students')
@@ -141,16 +158,18 @@ describe('student email optional for minors, required for adults', () => {
   it('updating an adult student email to empty is rejected', async () => {
     const studentService = await import('../services/studentService');
 
-    // getStudentById's fetch-before-write pre-check: 1. the student row
-    // 2. attachProgress's batched lessons lookup 3. attachProgress's tenant
-    // settings lookup 4. the age-check's own tenant settings lookup
+    // getStudentById's fetch-before-write pre-check (adult - no guardian-
+    // count query): 1. the student row 2. tenant settings (age calc)
+    // 3. enrollments for student 4. tenant settings (attachProgressAndPayments)
+    // 5. lessons for enrollment 6. payments for enrollment. Then
+    // updateStudent's own age-check tenant-settings lookup.
     mockQuery
       .mockResolvedValueOnce(
         queryResult([{ id: 'student-3', tenant_id: TENANT_ID, date_of_birth: ADULT_DOB, email: 'adult@example.com' }])
       )
       .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }]))
-      .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([]));
+      .mockResolvedValueOnce(queryResult([])) // enrollments for student - none
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // updateStudent's own age-check tenant-settings lookup
 
     await expect(
       studentService.updateStudent('student-3', TENANT_ID, { email: '' })

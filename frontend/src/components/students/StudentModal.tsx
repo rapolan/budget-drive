@@ -419,8 +419,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
         emergencyContact2FirstName: student.emergencyContact2FirstName || '',
         emergencyContact2LastName: student.emergencyContact2LastName || '',
         emergencyContact2Phone: student.emergencyContact2Phone || '',
-        hoursRequired: student.hoursRequired || defaultHoursRequired,
-        assignedInstructorId: student.assignedInstructorId,
+        // hoursRequired moved off the student onto their driver_training
+        // enrollment - read it via the already-attached progress object.
+        hoursRequired: student.progress?.hoursRequired || defaultHoursRequired,
         learnerPermitNumber: student.learnerPermitNumber || '',
         learnerPermitIssueDate: student.learnerPermitIssueDate
           ? new Date(student.learnerPermitIssueDate).toISOString().split('T')[0]

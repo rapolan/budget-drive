@@ -278,7 +278,7 @@ export const StudentsPage: React.FC = () => {
   // Helper to get computed status for a student
   const getStudentStatus = (student: Student) => {
     const lessons = lessonsData?.data || [];
-    return computeStudentStatus(student, lessons, statusNow);
+    return computeStudentStatus(student, lessons, statusNow, student.activeEnrollment ?? null);
   };
 
   // Calculate status counts for filter buttons
@@ -886,7 +886,7 @@ export const StudentsPage: React.FC = () => {
                         {statusInfo.reason && (
                           <p className="text-xs text-tx-muted mt-1 truncate">
                             {statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [], statusNow)
+                              ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
                               : statusInfo.reason}
                           </p>
                         )}
@@ -1047,7 +1047,7 @@ export const StudentsPage: React.FC = () => {
                           <span
                             className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold cursor-help ${getStatusColor(statusInfo.status)}`}
                             title={statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [], statusNow)
+                              ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
                               : statusInfo.reason}
                           >
                             {statusInfo.displayStatus}

@@ -110,14 +110,14 @@ export const DashboardPage: React.FC = () => {
   // Active students count (scheduled + ready to book = students in the pipeline)
   const activeStudents = useMemo(() => {
     return students.filter(s => {
-      const statusInfo = computeStudentStatus(s, lessons, statusNow);
+      const statusInfo = computeStudentStatus(s, lessons, statusNow, s.activeEnrollment ?? null);
       return statusInfo.status === 'scheduled' || statusInfo.status === 'ready_to_book';
     });
   }, [students, lessons, statusNow]);
 
   // Students needing attention
   const studentsNeedingAttention = useMemo(() => {
-    return students.filter(s => computeStudentStatus(s, lessons, statusNow).status === 'needs_attention');
+    return students.filter(s => computeStudentStatus(s, lessons, statusNow, s.activeEnrollment ?? null).status === 'needs_attention');
   }, [students, lessons, statusNow]);
 
   // Permits expiring within 30 days of the TENANT's today - lessonDate/

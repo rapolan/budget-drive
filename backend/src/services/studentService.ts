@@ -14,6 +14,12 @@ import { resolveTenantTimezone } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { countGuardiansForStudentsBatch, StudentGuardianLink } from './studentGuardianService';
 import { findExactGuardianMatch } from './guardianService';
+import {
+  getActiveDriverTrainingEnrollmentsBatch,
+  getEnrollmentsForStudent,
+  createEnrollment as createEnrollmentRecord,
+  computePaymentSummary,
+} from './enrollmentService';
 
 const logger = createLogger('StudentService');
 
@@ -26,7 +32,14 @@ const emptyToNull = (value: any): any => {
 
 /**
  * Attach computed progress to a batch of students in a single extra query
- * (not N+1) - the single source of truth for progress, per computeStudentProgress.
+ * (not N+1) - the single source of truth for progress, per computeStudentProgress,
+ * now derived from each student's ACTIVE driver_training enrollment rather
+ * than columns on the student row (Constraint B: the calculation itself is
+ * unchanged, only its source moved). A student with no active
+ * driver_training enrollment (their prior one completed, no new one
+ * started) gets progress: undefined - a new, legitimate reachable state;
+ * StudentProgressBar renders "No active enrollment" for it.
+ *
  * Also attaches needsGuardian (true only for minors with zero linked
  * guardians) via a second batched query, skipped entirely if no student in
  * the batch is a minor - adults never pay for the guardian-count query.
@@ -39,16 +52,39 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
   const standardLessonLengthMinutes = tenantSettings?.standardLessonLengthMinutes ?? 120;
 
   const studentIds = students.map(s => s.id);
-  const lessonsResult = await query(
-    `SELECT student_id, status, duration FROM lessons WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
-    [tenantId, studentIds]
-  );
+  const activeEnrollments = await getActiveDriverTrainingEnrollmentsBatch(studentIds, tenantId);
+  const enrollmentIds = Array.from(activeEnrollments.values()).map(e => e.id);
 
-  const lessonsByStudent = new Map<string, { status: Lesson['status']; duration: number }[]>();
+  const lessonsResult = enrollmentIds.length > 0
+    ? await query(
+        `SELECT enrollment_id, status, duration, cost FROM lessons WHERE tenant_id = $1 AND enrollment_id = ANY($2::uuid[])`,
+        [tenantId, enrollmentIds]
+      )
+    : { rows: [] as any[] };
+
+  const lessonsByEnrollment = new Map<string, { status: Lesson['status']; duration: number; cost: number }[]>();
   for (const row of lessonsResult.rows) {
-    const list = lessonsByStudent.get(row.student_id) ?? [];
-    list.push({ status: row.status as Lesson['status'], duration: parseFloat(row.duration) });
-    lessonsByStudent.set(row.student_id, list);
+    const list = lessonsByEnrollment.get(row.enrollment_id) ?? [];
+    list.push({ status: row.status as Lesson['status'], duration: parseFloat(row.duration), cost: parseFloat(row.cost) });
+    lessonsByEnrollment.set(row.enrollment_id, list);
+  }
+
+  // Batched payment totals per enrollment, for the derived paymentSummary
+  // attached below (mirrors enrollmentService's own derive-don't-cache
+  // computation, reused here so Payments.tsx's list view doesn't need a
+  // per-student detail fetch).
+  const paymentsResult = enrollmentIds.length > 0
+    ? await query(
+        `SELECT enrollment_id, COALESCE(SUM(amount), 0) AS total_paid
+         FROM payments
+         WHERE tenant_id = $1 AND enrollment_id = ANY($2::uuid[]) AND status = 'confirmed'
+         GROUP BY enrollment_id`,
+        [tenantId, enrollmentIds]
+      )
+    : { rows: [] as any[] };
+  const paidByEnrollment = new Map<string, number>();
+  for (const row of paymentsResult.rows) {
+    paidByEnrollment.set(row.enrollment_id, parseFloat(row.total_paid));
   }
 
   const minorIds = students
@@ -65,15 +101,51 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
     const isMinor = age === null || age < 18;
     const needsGuardian = isMinor && (guardianCounts.get(student.id) ?? 0) === 0;
 
+    const enrollment = activeEnrollments.get(student.id);
+    const progress = enrollment
+      ? computeStudentProgress(
+          {
+            dateOfBirth: student.dateOfBirth,
+            hoursRequired: enrollment.hoursRequired,
+            completed: enrollment.completed,
+            completedAt: enrollment.completedAt,
+            completionReason: enrollment.completionReason,
+            trackOverride: enrollment.trackOverride,
+          },
+          lessonsByEnrollment.get(enrollment.id) ?? [],
+          standardLessonLengthMinutes,
+          timezone
+        )
+      : undefined;
+
+    const activeEnrollment = enrollment
+      ? {
+          id: enrollment.id,
+          programType: enrollment.programType,
+          status: enrollment.status,
+          enrollmentDate: enrollment.enrollmentDate,
+          completed: enrollment.completed,
+          completionReason: enrollment.completionReason,
+        }
+      : null;
+
+    // Derived, not stored (Payments.tsx's list view) - mirrors `progress`:
+    // a top-level field sourced from the active driver_training enrollment,
+    // computed fresh from payments.amount each read rather than cached.
+    const paymentSummary = enrollment
+      ? computePaymentSummary(
+          enrollment,
+          lessonsByEnrollment.get(enrollment.id) ?? [],
+          paidByEnrollment.get(enrollment.id) ?? 0
+        )
+      : undefined;
+
     return {
       ...student,
-      progress: computeStudentProgress(
-        student,
-        lessonsByStudent.get(student.id) ?? [],
-        standardLessonLengthMinutes,
-        timezone
-      ),
+      progress,
       needsGuardian,
+      activeEnrollment,
+      paymentSummary,
     };
   });
 }
@@ -153,8 +225,38 @@ export const getStudentById = async (
     return null;
   }
 
-  const [student] = await attachProgress([keysToCamel(result.rows[0]) as Student], tenantId);
-  return student;
+  // Single-student read: compute needsGuardian directly (attachProgress's
+  // batched form would issue its own separate enrollment/lesson queries,
+  // duplicating what getEnrollmentsForStudent below already fetches) and
+  // derive student.progress from the active driver_training enrollment
+  // inside that same enrollments list, rather than querying it twice.
+  const student = keysToCamel(result.rows[0]) as Student;
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const age = calculateAge(student.dateOfBirth, timezone);
+  const isMinor = age === null || age < 18;
+  const guardianCounts = isMinor ? await countGuardiansForStudentsBatch([student.id], tenantId) : new Map<string, number>();
+  const needsGuardian = isMinor && (guardianCounts.get(student.id) ?? 0) === 0;
+
+  const enrollments = await getEnrollmentsForStudent(id, tenantId, student);
+  const activeDriverTraining = enrollments.find(e => e.programType === 'driver_training' && e.status === 'active');
+
+  return {
+    ...student,
+    progress: activeDriverTraining?.progress,
+    needsGuardian,
+    enrollments,
+    activeEnrollment: activeDriverTraining
+      ? {
+          id: activeDriverTraining.id,
+          programType: activeDriverTraining.programType,
+          status: activeDriverTraining.status,
+          enrollmentDate: activeDriverTraining.enrollmentDate,
+          completed: activeDriverTraining.completed,
+          completionReason: activeDriverTraining.completionReason,
+        }
+      : null,
+  };
 };
 
 /**
@@ -245,24 +347,15 @@ export const createStudent = async (
       }
     }
 
-    // Set defaults for optional fields
-    let hoursRequired = data.hoursRequired;
-    if (hoursRequired === undefined) {
-      hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
-    }
-    const licenseType = data.licenseType ?? 'car';
-
     const result = await query(
       `INSERT INTO students (
         tenant_id, full_name, first_name, last_name, middle_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
         emergency_contact_first_name, emergency_contact_last_name, emergency_contact_phone,
         emergency_contact_2_first_name, emergency_contact_2_last_name, emergency_contact_2_phone,
-        enrollment_date, hours_required, license_type,
-        assigned_instructor_id,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
-        notes, status, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), $21, $22, $23, $24, $25, $26, $27, 'active', $28, $28)
+        notes, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $25)
       RETURNING *`,
       [
         tenantId,
@@ -285,9 +378,6 @@ export const createStudent = async (
         data.emergencyContact2FirstName || null,
         data.emergencyContact2LastName || null,
         data.emergencyContact2Phone || null,
-        hoursRequired,
-        licenseType,
-        data.assignedInstructorId || null,
         data.learnerPermitNumber || null,
         data.learnerPermitIssueDate || null,
         data.learnerPermitExpiration || null,
@@ -297,13 +387,28 @@ export const createStudent = async (
     );
 
     const newStudent = keysToCamel(result.rows[0]) as Student;
+
+    // Every new student starts with exactly one driver_training enrollment,
+    // matching Constraint A/D's invariant for existing (backfilled) students.
+    await createEnrollmentRecord(
+      newStudent.id,
+      tenantId,
+      {
+        programType: 'driver_training',
+        hoursRequired: data.hoursRequired,
+        licenseType: data.licenseType,
+        assignedInstructorId: data.assignedInstructorId,
+      },
+      userId
+    );
+
     logger.info('Successfully created student', {
       tenantId,
       studentId: newStudent.id,
       fullName: newStudent.fullName,
     });
 
-    return newStudent;
+    return (await getStudentById(newStudent.id, tenantId)) as Student;
   } catch (error) {
     logger.error('Failed to create student', error as Error, {
       tenantId,
@@ -457,23 +562,15 @@ export const createStudentWithGuardian = async (
       }
     }
 
-    let hoursRequired = data.hoursRequired;
-    if (hoursRequired === undefined) {
-      hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
-    }
-    const licenseType = data.licenseType ?? 'car';
-
     const studentResult = await client.query(
       `INSERT INTO students (
         tenant_id, full_name, first_name, last_name, middle_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
         emergency_contact_first_name, emergency_contact_last_name, emergency_contact_phone,
         emergency_contact_2_first_name, emergency_contact_2_last_name, emergency_contact_2_phone,
-        enrollment_date, hours_required, license_type,
-        assigned_instructor_id,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
-        notes, status, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW(), $21, $22, $23, $24, $25, $26, $27, 'active', $28, $28)
+        notes, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $25)
       RETURNING *`,
       [
         tenantId,
@@ -496,9 +593,6 @@ export const createStudentWithGuardian = async (
         data.emergencyContact2FirstName || null,
         data.emergencyContact2LastName || null,
         data.emergencyContact2Phone || null,
-        hoursRequired,
-        licenseType,
-        data.assignedInstructorId || null,
         data.learnerPermitNumber || null,
         data.learnerPermitIssueDate || null,
         data.learnerPermitExpiration || null,
@@ -507,6 +601,21 @@ export const createStudentWithGuardian = async (
       ]
     );
     const newStudent = keysToCamel(studentResult.rows[0]) as Student;
+
+    // Initial driver_training enrollment, on the same client/transaction -
+    // a failure here rolls back the student insert too (Constraint A: no
+    // student may exist without its enrollment).
+    let hoursRequired = data.hoursRequired;
+    if (hoursRequired === undefined) {
+      hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
+    }
+    const licenseType = data.licenseType ?? 'car';
+    await client.query(
+      `INSERT INTO enrollments (
+         tenant_id, student_id, program_type, hours_required, license_type, assigned_instructor_id, created_by, updated_by
+       ) VALUES ($1, $2, 'driver_training', $3, $4, $5, $6, $6)`,
+      [tenantId, newStudent.id, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
+    );
 
     // Every guardian's insert-or-lookup and link INSERT runs on this same
     // client, inside this same transaction - a loop over one BEGIN/COMMIT,
@@ -680,34 +789,6 @@ export const updateStudent = async (
     fields.push(`learner_permit_expiration = $${paramCount++}`);
     values.push(emptyToNull(data.learnerPermitExpiration));
   }
-  if (data.hoursRequired !== undefined) {
-    fields.push(`hours_required = $${paramCount++}`);
-    values.push(data.hoursRequired);
-  }
-  if (data.status !== undefined) {
-    fields.push(`status = $${paramCount++}`);
-    values.push(data.status);
-  }
-  if (data.assignedInstructorId !== undefined) {
-    fields.push(`assigned_instructor_id = $${paramCount++}`);
-    values.push(data.assignedInstructorId);
-  }
-  if (data.totalHoursCompleted !== undefined) {
-    fields.push(`total_hours_completed = $${paramCount++}`);
-    values.push(data.totalHoursCompleted);
-  }
-  if (data.paymentStatus !== undefined) {
-    fields.push(`payment_status = $${paramCount++}`);
-    values.push(data.paymentStatus);
-  }
-  if (data.totalPaid !== undefined) {
-    fields.push(`total_paid = $${paramCount++}`);
-    values.push(data.totalPaid);
-  }
-  if (data.outstandingBalance !== undefined) {
-    fields.push(`outstanding_balance = $${paramCount++}`);
-    values.push(data.outstandingBalance);
-  }
   if (data.notes !== undefined) {
     fields.push(`notes = $${paramCount++}`);
     values.push(data.notes);
@@ -715,10 +796,6 @@ export const updateStudent = async (
   if (data.lastContactedAt !== undefined) {
     fields.push(`last_contacted_at = $${paramCount++}`);
     values.push(emptyToNull(data.lastContactedAt));
-  }
-  if (data.trackOverride !== undefined) {
-    fields.push(`track_override = $${paramCount++}`);
-    values.push(data.trackOverride);
   }
   if (userId) {
     fields.push(`updated_by = $${paramCount++}`);
@@ -797,88 +874,12 @@ export const deleteStudent = async (
 };
 
 /**
- * Mark a student's program complete. Sole source of truth for completion -
- * overrides any track (hours/lessons) math in computeStudentProgress.
- */
-export const markStudentCompleted = async (
-  id: string,
-  tenantId: string,
-  data: { completionReason?: string },
-  userId?: string
-): Promise<Student> => {
-  logger.info('Marking student program complete', { tenantId, studentId: id });
-
-  try {
-    const existing = await getStudentById(id, tenantId);
-    if (!existing) {
-      throw new AppError('Student not found', 404);
-    }
-    if (existing.needsGuardian) {
-      throw new AppError(
-        'Cannot mark program complete: this minor student has no linked guardian',
-        400
-      );
-    }
-
-    const result = await query(
-      `UPDATE students
-       SET completed = true,
-           completed_at = NOW(),
-           completed_by = $1,
-           completion_reason = $2,
-           status = 'completed'
-       WHERE id = $3 AND tenant_id = $4
-       RETURNING *`,
-      [userId || null, data.completionReason || null, id, tenantId]
-    );
-
-    if (result.rows.length === 0) {
-      throw new AppError('Student not found', 404);
-    }
-
-    logger.info('Successfully marked student complete', { tenantId, studentId: id });
-    return keysToCamel(result.rows[0]) as Student;
-  } catch (error) {
-    logger.error('Failed to mark student complete', error as Error, { tenantId, studentId: id });
-    throw error;
-  }
-};
-
-/**
- * Reverse an accidental program completion.
- */
-export const unmarkStudentCompleted = async (
-  id: string,
-  tenantId: string
-): Promise<Student> => {
-  logger.info('Reopening student program', { tenantId, studentId: id });
-
-  try {
-    const result = await query(
-      `UPDATE students
-       SET completed = false,
-           completed_at = NULL,
-           completed_by = NULL,
-           status = 'active'
-       WHERE id = $1 AND tenant_id = $2
-       RETURNING *`,
-      [id, tenantId]
-    );
-
-    if (result.rows.length === 0) {
-      throw new AppError('Student not found', 404);
-    }
-
-    logger.info('Successfully reopened student program', { tenantId, studentId: id });
-    return keysToCamel(result.rows[0]) as Student;
-  } catch (error) {
-    logger.error('Failed to reopen student program', error as Error, { tenantId, studentId: id });
-    throw error;
-  }
-};
-
-/**
- * Get students by status
+ * Get students whose active driver_training enrollment has this status.
+ * `status` used to live on students directly; it's now an enrollment
+ * concept (Constraint A/D), so this filters via a join rather than a
+ * column read. No frontend caller reaches this endpoint today (verified:
+ * frontend/src/api/students.ts defines getByStatus but no component calls
+ * it - same dead-but-present precedent as the old reopen endpoint).
  */
 export const getStudentsByStatus = async (
   tenantId: string,
@@ -887,7 +888,8 @@ export const getStudentsByStatus = async (
   const result = await query(
     `SELECT s.*
      FROM students s
-     WHERE s.tenant_id = $1 AND s.status = $2
+     JOIN enrollments e ON e.student_id = s.id AND e.program_type = 'driver_training'
+     WHERE s.tenant_id = $1 AND e.tenant_id = $1 AND e.status = $2
      ORDER BY s.created_at DESC`,
     [tenantId, status]
   );
@@ -896,7 +898,8 @@ export const getStudentsByStatus = async (
 };
 
 /**
- * Get students by assigned instructor
+ * Get students assigned (via their active driver_training enrollment) to an
+ * instructor. assigned_instructor_id moved to enrollments (Constraint A/D).
  */
 export const getStudentsByInstructor = async (
   tenantId: string,
@@ -905,7 +908,8 @@ export const getStudentsByInstructor = async (
   const result = await query(
     `SELECT s.*
      FROM students s
-     WHERE s.tenant_id = $1 AND s.assigned_instructor_id = $2
+     JOIN enrollments e ON e.student_id = s.id AND e.program_type = 'driver_training' AND e.status = 'active'
+     WHERE s.tenant_id = $1 AND e.tenant_id = $1 AND e.assigned_instructor_id = $2
      ORDER BY s.created_at DESC`,
     [tenantId, instructorId]
   );

@@ -18,6 +18,7 @@ vi.mock('../services/lessonInviteService', () => ({
 
 const TENANT_ID = 'tenant-abc';
 const STUDENT_ID = 'student-1';
+const ENROLLMENT_ID = 'enrollment-1';
 const LESSON_ID = 'lesson-1';
 const USER_ID = 'user-admin-1';
 
@@ -26,6 +27,7 @@ function feeFlagRow(overrides: Partial<Record<string, unknown>> = {}) {
     id: 'flag-1',
     tenant_id: TENANT_ID,
     student_id: STUDENT_ID,
+    enrollment_id: ENROLLMENT_ID,
     lesson_id: LESSON_ID,
     amount: '50.00',
     reason: 'No-show',
@@ -51,7 +53,7 @@ describe('feeFlagService', () => {
 
     mockQuery.mockResolvedValueOnce(queryResult([feeFlagRow()]));
 
-    const flag = await createFeeFlag(TENANT_ID, STUDENT_ID, LESSON_ID, 50, 'No-show');
+    const flag = await createFeeFlag(TENANT_ID, STUDENT_ID, ENROLLMENT_ID, LESSON_ID, 50, 'No-show');
 
     expect(flag.status).toBe('outstanding');
     expect(flag.amount).toBe('50.00');
@@ -60,7 +62,7 @@ describe('feeFlagService', () => {
 
     const [sql, params] = mockQuery.mock.calls[0];
     expect(sql).toMatch(/INSERT INTO fee_flags/);
-    expect(params).toEqual([TENANT_ID, STUDENT_ID, LESSON_ID, 50, 'No-show']);
+    expect(params).toEqual([TENANT_ID, STUDENT_ID, ENROLLMENT_ID, LESSON_ID, 50, 'No-show']);
   });
 
   it('getOutstandingFlagsForStudent returns only outstanding flags, oldest first', async () => {
@@ -140,6 +142,7 @@ describe('feeFlagService', () => {
         .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_payee: 'school' }])) // getTenantSettings
         .mockResolvedValueOnce(queryResult([feeFlagRow()])) // outstanding flag lookup
         .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // paymentService.createPayment's student check
+        .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])) // paymentService.createPayment's active driver_training enrollment lookup
         .mockResolvedValueOnce(queryResult([{ id: LESSON_ID }])) // paymentService.createPayment's lesson check
         .mockResolvedValueOnce(
           queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, student_id: STUDENT_ID, amount: 50, payment_type: 'cancellation_fee', status: 'confirmed' }])
@@ -168,8 +171,8 @@ describe('lessonService fee-flag side effects', () => {
     const { noShowLesson } = await import('../services/lessonService');
 
     mockQuery
-      .mockResolvedValueOnce(queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, status: 'scheduled' }])) // assertLessonReviewable
-      .mockResolvedValueOnce(queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, status: 'no_show' }])) // UPDATE lessons
+      .mockResolvedValueOnce(queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, enrollment_id: ENROLLMENT_ID, status: 'scheduled' }])) // assertLessonReviewable
+      .mockResolvedValueOnce(queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, enrollment_id: ENROLLMENT_ID, status: 'no_show' }])) // UPDATE lessons
       .mockResolvedValueOnce(queryResult([{ full_name: 'Jane Doe' }])) // student name lookup for notification
       .mockResolvedValueOnce(queryResult([{ id: 'notif-1' }])) // notification INSERT
       .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_amount: '75.00' }])) // getTenantSettings for fee flag
@@ -182,7 +185,7 @@ describe('lessonService fee-flag side effects', () => {
     );
     expect(feeFlagInsertCall).toBeDefined();
     const [, params] = feeFlagInsertCall!;
-    expect(params).toEqual([TENANT_ID, STUDENT_ID, LESSON_ID, 75, 'No-show']);
+    expect(params).toEqual([TENANT_ID, STUDENT_ID, ENROLLMENT_ID, LESSON_ID, 75, 'No-show']);
   });
 
   it('completeLesson clears all outstanding fee flags for the student', async () => {
@@ -206,8 +209,8 @@ describe('lessonService fee-flag side effects', () => {
   describe('cancelLesson fee-window check', () => {
     function cancelMockSequence(lessonRow: Record<string, unknown>, settingsRow: Record<string, unknown>) {
       mockQuery
-        .mockResolvedValueOnce(queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, status: 'scheduled' }])) // assertLessonReviewable
-        .mockResolvedValueOnce(queryResult([lessonRow])) // UPDATE lessons
+        .mockResolvedValueOnce(queryResult([{ id: LESSON_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, enrollment_id: ENROLLMENT_ID, status: 'scheduled' }])) // assertLessonReviewable
+        .mockResolvedValueOnce(queryResult([{ enrollment_id: ENROLLMENT_ID, ...lessonRow }])) // UPDATE lessons
         .mockResolvedValueOnce(queryResult([{ email: 'student@example.com' }])) // student email
         .mockResolvedValueOnce(queryResult([{ email: 'instructor@example.com' }])) // instructor email
         .mockResolvedValueOnce(queryResult([])) // notification_queue insert (student)
@@ -241,7 +244,7 @@ describe('lessonService fee-flag side effects', () => {
       );
       expect(feeFlagInsertCall).toBeDefined();
       const [, params] = feeFlagInsertCall!;
-      expect(params).toEqual([TENANT_ID, STUDENT_ID, LESSON_ID, 50, 'Late cancellation']);
+      expect(params).toEqual([TENANT_ID, STUDENT_ID, ENROLLMENT_ID, LESSON_ID, 50, 'Late cancellation']);
     });
 
     it('a cancellation outside the fee window sets no flag', async () => {

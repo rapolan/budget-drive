@@ -23,6 +23,22 @@ const basePayload = {
   dateOfBirth: '2010-01-01',
 };
 
+// The getStudentById re-fetch at the end of createStudent - identical
+// across both tests below, factored out to keep each test's own mock
+// sequence focused on what it's actually asserting.
+function mockGetStudentByIdRefetch(hoursRequired: number) {
+  mockQuery
+    .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: basePayload.dateOfBirth }])) // student row
+    .mockResolvedValueOnce(queryResult([])) // tenant settings
+    .mockResolvedValueOnce(queryResult([])) // guardian counts (minor)
+    .mockResolvedValueOnce(
+      queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: hoursRequired, completed: false }])
+    ) // enrollments for student
+    .mockResolvedValueOnce(queryResult([])) // tenant settings (attachProgressAndPayments)
+    .mockResolvedValueOnce(queryResult([])) // lessons for enrollment
+    .mockResolvedValueOnce(queryResult([])); // payments for enrollment
+}
+
 describe('POST /api/v1/students - tenant default hours', () => {
   beforeEach(() => {
     resetMockQuery();
@@ -34,14 +50,16 @@ describe('POST /api/v1/students - tenant default hours', () => {
 
     // getTenantSettings now runs unconditionally (the age check resolves the
     // tenant's timezone first) and its result is reused for the
-    // hoursRequired default - only one tenant_settings lookup total.
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{ tenant_id: TENANT_ID, default_hours_required: 8 }])
-    ); // getTenantSettings
-    mockQuery.mockResolvedValueOnce(queryResult([])); // duplicate-email check
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: 'student-1', tenant_id: TENANT_ID, hours_required: 8 }])
-    ); // INSERT
+    // hoursRequired default - only one tenant_settings lookup for createStudent.
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, default_hours_required: 8 }])) // getTenantSettings (createStudent)
+      .mockResolvedValueOnce(queryResult([])) // duplicate-email check
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // INSERT INTO students
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1' }])) // createEnrollment's student-existence check
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check - none yet
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, default_hours_required: 8 }])) // createEnrollment's getTenantSettings
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, hours_required: 8 }])); // INSERT INTO enrollments
+    mockGetStudentByIdRefetch(8);
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -51,7 +69,7 @@ describe('POST /api/v1/students - tenant default hours', () => {
     expect(res.status).toBe(201);
 
     const insertCall = mockQuery.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
     );
     expect(insertCall).toBeDefined();
     const [, params] = insertCall!;
@@ -64,11 +82,15 @@ describe('POST /api/v1/students - tenant default hours', () => {
 
     // getTenantSettings still runs (for the age check) even though the
     // explicit hoursRequired means its result is never used for hours.
-    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
-    mockQuery.mockResolvedValueOnce(queryResult([])); // duplicate-email check
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: 'student-1', tenant_id: TENANT_ID, hours_required: 12 }])
-    ); // INSERT
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings (createStudent)
+      .mockResolvedValueOnce(queryResult([])) // duplicate-email check
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // INSERT INTO students
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1' }])) // createEnrollment's student-existence check
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check - none yet
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings - unused, explicit hoursRequired wins
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, hours_required: 12 }])); // INSERT INTO enrollments
+    mockGetStudentByIdRefetch(12);
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -76,11 +98,11 @@ describe('POST /api/v1/students - tenant default hours', () => {
       .send({ ...basePayload, hoursRequired: 12 });
 
     expect(res.status).toBe(201);
-    expect(mockQuery).toHaveBeenCalledTimes(3); // getTenantSettings + duplicate-email check + INSERT
 
     const insertCall = mockQuery.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
     );
+    expect(insertCall).toBeDefined();
     const [, params] = insertCall!;
     expect(params).toContain(12);
   });

@@ -105,13 +105,13 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                 <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Total Paid</p>
                   <p className="mt-1 text-2xl font-bold text-status-success-text">
-                    ${(Number(student.totalPaid) || 0).toFixed(2)}
+                    ${(student.paymentSummary?.totalPaid ?? 0).toFixed(2)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
                   <p className="mt-1 text-2xl font-bold text-status-danger-text">
-                    ${(Number(student.outstandingBalance) || 0).toFixed(2)}
+                    ${(student.paymentSummary?.outstandingBalance ?? 0).toFixed(2)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-status-info-bg p-4">

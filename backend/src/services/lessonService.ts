@@ -18,6 +18,7 @@ import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import * as notificationService from './notificationService';
 import * as feeFlagService from './feeFlagService';
+import { getActiveDriverTrainingEnrollment } from './enrollmentService';
 import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 const logger = createLogger('LessonService');
@@ -257,6 +258,16 @@ export const createLesson = async (
     }
     logger.debug('Student validated', { tenantId, studentId: data.studentId });
 
+    // Lessons attach to the student's ACTIVE driver_training enrollment
+    // (Constraint A/D - at most one exists, enforced by a partial unique
+    // index). A student whose enrollment completed and hasn't started a new
+    // one has none - creation fails cleanly here instead of an opaque
+    // NOT NULL constraint violation on the INSERT below.
+    const activeEnrollment = await getActiveDriverTrainingEnrollment(data.studentId, tenantId);
+    if (!activeEnrollment) {
+      throw new AppError('Student has no active driver_training enrollment', 400);
+    }
+
     const instructorCheck = await query(
       'SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2',
       [data.instructorId, tenantId]
@@ -422,14 +433,15 @@ export const createLesson = async (
     logger.debug('Inserting lesson into database', { tenantId });
     const result = await query(
       `INSERT INTO lessons (
-        tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time,
+        tenant_id, student_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time,
         duration, lesson_number, lesson_type, cost, status, pickup_address, notes,
         created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'scheduled', $12, $13, $14, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled', $13, $14, $15, $15)
       RETURNING *`,
       [
         tenantId,
         data.studentId,
+        activeEnrollment.id,
         data.instructorId,
         data.vehicleId,
         lessonDate,
@@ -1008,7 +1020,7 @@ export const noShowLesson = async (
     try {
       const settings = await getTenantSettings(tenantId);
       const amount = settings?.cancellationFeeAmount != null ? Number(settings.cancellationFeeAmount) : 0;
-      await feeFlagService.createFeeFlag(tenantId, lesson.studentId, lesson.id, amount, 'No-show');
+      await feeFlagService.createFeeFlag(tenantId, lesson.studentId, lesson.enrollmentId, lesson.id, amount, 'No-show');
     } catch (feeFlagError) {
       logger.warn('Fee flag creation failed (non-blocking)', {
         tenantId,
@@ -1138,7 +1150,7 @@ export const cancelLesson = async (
       const hoursUntilStart = (startInstant.getTime() - Date.now()) / (60 * 60 * 1000);
 
       if (hoursUntilStart > 0 && hoursUntilStart <= windowHours) {
-        await feeFlagService.createFeeFlag(tenantId, lesson.studentId, lesson.id, amount, 'Late cancellation');
+        await feeFlagService.createFeeFlag(tenantId, lesson.studentId, lesson.enrollmentId, lesson.id, amount, 'Late cancellation');
       }
     } catch (feeFlagError) {
       logger.warn('Fee-window check failed (non-blocking)', {

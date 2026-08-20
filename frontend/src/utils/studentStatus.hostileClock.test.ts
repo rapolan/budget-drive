@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { computeStudentStatus, studentNeedsFollowup, getFollowupReason } from './studentStatus';
-import type { Student, Lesson } from '@/types';
+import type { Student, Lesson, ActiveEnrollmentSummary } from '@/types';
 
 // Hostile-clock regression suite for studentStatus.ts. Unlike the
 // component-level suites, this one doesn't mock tenantNow - it calls the
@@ -35,13 +35,24 @@ function student(overrides: Partial<Student> = {}): Student {
     tenantId: 'tenant-1',
     fullName: 'Test Student',
     email: 'test@example.com',
-    status: 'active',
-    enrollmentDate: new Date('2026-01-01'),
-    totalHoursCompleted: 0,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     ...overrides,
   } as Student;
+}
+
+// status/completed/completionReason/enrollmentDate moved from students to
+// enrollments per the person/enrollment refactor.
+function enrollment(overrides: Partial<ActiveEnrollmentSummary> = {}): ActiveEnrollmentSummary {
+  return {
+    id: 'enrollment-1',
+    programType: 'driver_training',
+    status: 'active',
+    enrollmentDate: new Date('2026-01-01'),
+    completed: false,
+    completionReason: null,
+    ...overrides,
+  };
 }
 
 function lesson(overrides: Partial<Lesson> = {}): Lesson {
@@ -75,7 +86,8 @@ function runUnderBothZones<T>(fn: () => T): { newYork: T; losAngeles: T } {
 describe('studentStatus - hostile clock (explicit now, browser TZ varied)', () => {
   it('computeStudentStatus: a permit-expired student is flagged identically under both browser zones', () => {
     const s = student({ learnerPermitExpiration: new Date('2026-02-01') });
-    const { newYork, losAngeles } = runUnderBothZones(() => computeStudentStatus(s, [], NOW));
+    const e = enrollment();
+    const { newYork, losAngeles } = runUnderBothZones(() => computeStudentStatus(s, [], NOW, e));
 
     expect(newYork.status).toBe('needs_attention');
     expect(newYork).toEqual(losAngeles);
@@ -83,8 +95,9 @@ describe('studentStatus - hostile clock (explicit now, browser TZ varied)', () =
 
   it('computeStudentStatus: an upcoming-lesson student is marked "scheduled" identically under both browser zones', () => {
     const s = student();
+    const e = enrollment();
     const lessons = [lesson({ date: new Date('2026-03-05'), status: 'scheduled' })];
-    const { newYork, losAngeles } = runUnderBothZones(() => computeStudentStatus(s, lessons, NOW));
+    const { newYork, losAngeles } = runUnderBothZones(() => computeStudentStatus(s, lessons, NOW, e));
 
     expect(newYork.status).toBe('scheduled');
     expect(newYork).toEqual(losAngeles);
@@ -92,8 +105,9 @@ describe('studentStatus - hostile clock (explicit now, browser TZ varied)', () =
 
   it('studentNeedsFollowup: a 20-day gap since the last completed lesson is flagged identically under both browser zones', () => {
     const s = student();
+    const e = enrollment();
     const lessons = [lesson({ date: new Date('2026-02-08'), status: 'completed' })];
-    const { newYork, losAngeles } = runUnderBothZones(() => studentNeedsFollowup(s, lessons, NOW));
+    const { newYork, losAngeles } = runUnderBothZones(() => studentNeedsFollowup(s, lessons, NOW, e));
 
     expect(newYork).toBe(true);
     expect(newYork).toBe(losAngeles);
@@ -101,8 +115,9 @@ describe('studentStatus - hostile clock (explicit now, browser TZ varied)', () =
 
   it('getFollowupReason: the reported day count since last lesson is identical under both browser zones', () => {
     const s = student();
+    const e = enrollment();
     const lessons = [lesson({ date: new Date('2026-02-08'), status: 'completed' })];
-    const { newYork, losAngeles } = runUnderBothZones(() => getFollowupReason(s, lessons, NOW));
+    const { newYork, losAngeles } = runUnderBothZones(() => getFollowupReason(s, lessons, NOW, e));
 
     expect(newYork).toEqual(losAngeles);
   });

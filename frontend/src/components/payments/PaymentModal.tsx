@@ -167,7 +167,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <div className="text-right">
                     <p className="text-sm font-medium text-tx-secondary">Current Balance</p>
                     <p className="mt-1 text-lg font-semibold text-status-danger-text">
-                      ${(Number(student.outstandingBalance) || 0).toFixed(2)}
+                      ${(student.paymentSummary?.outstandingBalance ?? 0).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -202,7 +202,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <div className="mt-2 rounded-md bg-status-info-bg p-3">
                     <p className="text-sm font-medium text-tx-secondary">Current Balance</p>
                     <p className="mt-1 text-lg font-semibold text-status-danger-text">
-                      ${(Number(selectedStudentData.outstandingBalance) || 0).toFixed(2)}
+                      ${(selectedStudentData.paymentSummary?.outstandingBalance ?? 0).toFixed(2)}
                     </p>
                   </div>
                 )}

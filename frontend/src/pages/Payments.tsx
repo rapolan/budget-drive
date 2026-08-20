@@ -94,9 +94,15 @@ export const PaymentsPage: React.FC = () => {
     );
   }
 
-  // Calculate payment info from student data
+  // Payment info is derived server-side (Student.paymentSummary, from the
+  // active driver_training enrollment's payments - never stored/cached),
+  // mirroring how computeStudentProgress derives Student.progress. No
+  // active enrollment means nothing to compute - status: 'unpaid' with
+  // zeroes is the same "nothing owed, nothing paid" default a brand-new
+  // student would show, not a special case.
   const getPaymentInfo = (student: typeof students[0]) => {
-    if (!student) {
+    const summary = student?.paymentSummary;
+    if (!summary) {
       return {
         totalDue: 0,
         paid: 0,
@@ -105,24 +111,15 @@ export const PaymentsPage: React.FC = () => {
       };
     }
 
-    const totalPaid = Number(student.totalPaid) || 0;
-    const outstandingBalance = Number(student.outstandingBalance) || 0;
+    const totalPaid = summary.totalPaid;
+    const outstandingBalance = summary.outstandingBalance ?? 0;
     const totalDue = totalPaid + outstandingBalance;
-
-    let status: 'paid' | 'partial' | 'unpaid' | 'overdue' = 'unpaid';
-    if (outstandingBalance === 0 && totalPaid > 0) {
-      status = 'paid';
-    } else if (totalPaid > 0 && outstandingBalance > 0) {
-      status = 'partial';
-    } else if (student.paymentStatus === 'overdue') {
-      status = 'overdue';
-    }
 
     return {
       totalDue,
       paid: totalPaid,
       balance: outstandingBalance,
-      status,
+      status: summary.paymentStatus === 'unknown' ? ('unpaid' as const) : summary.paymentStatus,
     };
   };
 

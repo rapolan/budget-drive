@@ -29,8 +29,21 @@ describe('emergency contact split first/last name fields', () => {
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // getTenantSettings
       .mockResolvedValueOnce(
-        queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, full_name: 'Minor Student' }])
-      ); // INSERT
+        queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, full_name: 'Minor Student', date_of_birth: '2015-01-01' }])
+      ) // INSERT INTO students
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // createEnrollment's student-existence check
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training' }])) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2015-01-01' }])) // getStudentById: student row
+      .mockResolvedValueOnce(queryResult([])) // tenant settings
+      .mockResolvedValueOnce(queryResult([])) // guardian counts
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }])
+      ) // enrollments for student
+      .mockResolvedValueOnce(queryResult([])) // tenant settings (attachProgressAndPayments)
+      .mockResolvedValueOnce(queryResult([])) // lessons for enrollment
+      .mockResolvedValueOnce(queryResult([])); // payments for enrollment
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -85,7 +98,20 @@ describe('emergency contact split first/last name fields', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // getTenantSettings
-      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID }]));
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2015-01-01' }])) // INSERT INTO students
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // createEnrollment's student-existence check
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check
+      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training' }])) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2015-01-01' }])) // getStudentById: student row
+      .mockResolvedValueOnce(queryResult([])) // tenant settings
+      .mockResolvedValueOnce(queryResult([])) // guardian counts
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }])
+      ) // enrollments for student
+      .mockResolvedValueOnce(queryResult([])) // tenant settings (attachProgressAndPayments)
+      .mockResolvedValueOnce(queryResult([])) // lessons for enrollment
+      .mockResolvedValueOnce(queryResult([])); // payments for enrollment
 
     await request(app)
       .post('/api/v1/students')

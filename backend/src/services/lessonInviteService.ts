@@ -335,12 +335,13 @@ export async function sendLessonInviteForLesson(
         l.notes,
         s.full_name as student_name,
         s.phone as student_phone,
-        s.hours_required,
+        e.hours_required,
         i.full_name as instructor_name,
         i.email as instructor_email,
         t.name as tenant_name
        FROM lessons l
-       JOIN students s ON l.student_id = s.id
+       JOIN enrollments e ON l.enrollment_id = e.id
+       JOIN students s ON e.student_id = s.id
        JOIN instructors i ON l.instructor_id = i.id
        LEFT JOIN tenants t ON l.tenant_id = t.id
        WHERE l.id = $1 AND l.tenant_id = $2`,

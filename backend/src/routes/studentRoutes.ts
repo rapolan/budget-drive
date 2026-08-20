@@ -78,18 +78,19 @@ router.delete(
   studentController.deleteStudent
 );
 
-// Mark a student's program complete
-router.post(
-  '/students/:id/complete',
+// Get every program enrollment for a student
+router.get(
+  '/students/:id/enrollments',
   validateUUID('id'),
-  studentController.completeStudentProgram
+  studentController.getEnrollmentsForStudent
 );
 
-// Reverse an accidental program completion
+// Create a new program enrollment for a student
 router.post(
-  '/students/:id/reopen',
+  '/students/:id/enrollments',
   validateUUID('id'),
-  studentController.reopenStudentProgram
+  validateRequired(['programType']),
+  studentController.createEnrollmentForStudent
 );
 
 // Get guardians linked to a student

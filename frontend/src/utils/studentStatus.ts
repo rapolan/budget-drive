@@ -10,7 +10,7 @@
  * - inactive: Dropped, suspended, or 60+ days no activity
  */
 
-import type { Student, Lesson } from '@/types';
+import type { Student, Lesson, ActiveEnrollmentSummary } from '@/types';
 
 export type ComputedStatus = 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
 
@@ -37,8 +37,21 @@ export interface StatusInfo {
  * let this fall back to the browser's own clock (see docs/ARCHITECTURE.md
  * §7). A missing `now` is a compile error, not a silent browser-time
  * fallback.
+ *
+ * `activeEnrollment` is REQUIRED (not read from student.activeEnrollment
+ * internally) so a future caller can't silently pass a student whose
+ * enrollment data wasn't loaded - status/completed/completionReason/
+ * enrollmentDate all moved from students to enrollments in the
+ * person/enrollment refactor. `null` means the student currently has no
+ * active driver_training enrollment (their prior one completed and no new
+ * one has started) - a real, distinct state, not missing data.
  */
-export function computeStudentStatus(student: Student, lessons: Lesson[], now: Date): StatusInfo {
+export function computeStudentStatus(
+  student: Student,
+  lessons: Lesson[],
+  now: Date,
+  activeEnrollment: ActiveEnrollmentSummary | null
+): StatusInfo {
   const studentLessons = lessons.filter(l => l.studentId === student.id);
 
   // Get upcoming scheduled lessons
@@ -47,8 +60,8 @@ export function computeStudentStatus(student: Student, lessons: Lesson[], now: D
     return lesson.status === 'scheduled' && lessonDate >= now;
   });
 
-  // 1. INACTIVE: Dropped, suspended, or 60+ days no activity
-  if (student.status === 'suspended') {
+  // 1. INACTIVE: Dropped (inactive), suspended, or 60+ days no activity
+  if (activeEnrollment?.status === 'suspended') {
     return {
       status: 'inactive',
       displayStatus: 'Suspended',
@@ -56,11 +69,21 @@ export function computeStudentStatus(student: Student, lessons: Lesson[], now: D
     };
   }
 
-  if (student.status === 'dropped') {
+  if (activeEnrollment?.status === 'inactive') {
     return {
       status: 'inactive',
       displayStatus: 'Dropped',
       reason: 'Student withdrew',
+    };
+  }
+
+  // No active driver_training enrollment at all (prior one completed, no
+  // new one started) - distinct from "dropped": the person may return.
+  if (!activeEnrollment) {
+    return {
+      status: 'inactive',
+      displayStatus: 'No Active Enrollment',
+      reason: 'No active driver_training enrollment',
     };
   }
 
@@ -84,20 +107,20 @@ export function computeStudentStatus(student: Student, lessons: Lesson[], now: D
 
   // 2. COMPLETED: Explicit admin-verified program completion (see item 6) -
   // this is the sole source of truth, not an hours-threshold auto-derivation.
-  if (student.completed) {
+  if (activeEnrollment.completed) {
     return {
       status: 'completed',
       displayStatus: 'Completed',
-      reason: student.completionReason || 'Program marked complete',
+      reason: activeEnrollment.completionReason || 'Program marked complete',
     };
   }
 
   // 3. NEEDS ATTENTION: Issues requiring admin action
-  if (studentNeedsFollowup(student, studentLessons, now)) {
+  if (studentNeedsFollowup(student, studentLessons, now, activeEnrollment)) {
     return {
       status: 'needs_attention',
       displayStatus: 'Needs Attention',
-      reason: getFollowupReason(student, lessons, now),
+      reason: getFollowupReason(student, lessons, now, activeEnrollment),
       actionRequired: true,
     };
   }
@@ -140,9 +163,14 @@ export function computeStudentStatus(student: Student, lessons: Lesson[], now: D
  *
  * Note: Students with no upcoming lessons but otherwise OK go to "Ready to Book"
  */
-export function studentNeedsFollowup(student: Student, studentLessons: Lesson[], now: Date): boolean {
+export function studentNeedsFollowup(
+  student: Student,
+  studentLessons: Lesson[],
+  now: Date,
+  activeEnrollment: ActiveEnrollmentSummary | null
+): boolean {
   // Don't flag completed, dropped, or suspended students
-  if (['completed', 'dropped', 'suspended'].includes(student.status)) {
+  if (!activeEnrollment || activeEnrollment.completed || ['inactive', 'suspended'].includes(activeEnrollment.status)) {
     return false;
   }
 
@@ -164,7 +192,7 @@ export function studentNeedsFollowup(student: Student, studentLessons: Lesson[],
 
   // 2. New student with no lessons for 7+ days
   if (studentLessons.length === 0) {
-    const daysSinceEnrollment = (now.getTime() - new Date(student.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceEnrollment = (now.getTime() - new Date(activeEnrollment.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceEnrollment > 7;
   }
 
@@ -208,7 +236,12 @@ export function studentNeedsFollowup(student: Student, studentLessons: Lesson[],
 /**
  * Get reason why student needs follow-up
  */
-export function getFollowupReason(student: Student, lessons: Lesson[], now: Date): string {
+export function getFollowupReason(
+  student: Student,
+  lessons: Lesson[],
+  now: Date,
+  activeEnrollment: ActiveEnrollmentSummary | null
+): string {
   const studentLessons = lessons.filter(l => l.studentId === student.id);
 
   // 1. Permit expired
@@ -220,9 +253,9 @@ export function getFollowupReason(student: Student, lessons: Lesson[], now: Date
   }
 
   // 2. New student with no lessons
-  if (studentLessons.length === 0) {
+  if (studentLessons.length === 0 && activeEnrollment) {
     const daysSinceEnrollment = Math.floor(
-      (now.getTime() - new Date(student.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - new Date(activeEnrollment.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24)
     );
     return `Enrolled ${daysSinceEnrollment} days ago, no lessons booked`;
   }

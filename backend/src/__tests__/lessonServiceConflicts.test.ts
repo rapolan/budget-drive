@@ -38,6 +38,7 @@ describe('lessonService.createLesson - structured conflict propagation', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])) // active driver_training enrollment lookup
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
       .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: VEHICLE_ID }])); // explicit vehicle check
@@ -73,6 +74,7 @@ describe('lessonService.createLesson - structured conflict propagation', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student check
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])) // active driver_training enrollment lookup
       .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
       .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([])) // no instructor-owned vehicle

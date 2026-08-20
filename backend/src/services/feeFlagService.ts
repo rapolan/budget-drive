@@ -14,6 +14,19 @@
  * cancel paths as a side effect of a status transition, never a public
  * write endpoint of its own.
  *
+ * fee_flags deliberately carries BOTH student_id and enrollment_id, and
+ * they are not redundant - unlike lessons.student_id/payments.student_id
+ * (dropped in migration 019 as pure duplication, since an enrollment
+ * already identifies its student), the two IDs here mean different things:
+ * enrollment_id is PROVENANCE (which program's lesson generated this fee -
+ * relevant for CVC §11108's cost-of-instruction record) and student_id is
+ * WHO OWES IT (the person). A fee clears when the student's NEXT lesson
+ * completes, which may be booked under a different (later) enrollment than
+ * the one that generated the fee - so every student-scoped query below
+ * (getOutstandingFlagsForStudent, clearOutstandingFlagsForStudent,
+ * recordPaymentForFeeFlag) is intentionally person-scoped, not a shortcut
+ * that should be "cleaned up" to use enrollment_id instead.
+ *
  * CRITICAL: All queries filtered by tenant_id for multi-tenant security.
  */
 
@@ -30,6 +43,7 @@ export interface FeeFlag {
   id: string;
   tenantId: string;
   studentId: string;
+  enrollmentId: string;
   lessonId: string;
   amount: number;
   reason: string;
@@ -55,17 +69,18 @@ export interface FeeFlagForInstructor extends FeeFlag {
 export const createFeeFlag = async (
   tenantId: string,
   studentId: string,
+  enrollmentId: string,
   lessonId: string,
   amount: number,
   reason: string
 ): Promise<FeeFlag> => {
-  logger.info('Creating fee flag', { tenantId, studentId, lessonId, amount, reason });
+  logger.info('Creating fee flag', { tenantId, studentId, enrollmentId, lessonId, amount, reason });
 
   const result = await query(
-    `INSERT INTO fee_flags (tenant_id, student_id, lesson_id, amount, reason, status)
-     VALUES ($1, $2, $3, $4, $5, 'outstanding')
+    `INSERT INTO fee_flags (tenant_id, student_id, enrollment_id, lesson_id, amount, reason, status)
+     VALUES ($1, $2, $3, $4, $5, $6, 'outstanding')
      RETURNING *`,
-    [tenantId, studentId, lessonId, amount, reason]
+    [tenantId, studentId, enrollmentId, lessonId, amount, reason]
   );
 
   return keysToCamel(result.rows[0]) as FeeFlag;

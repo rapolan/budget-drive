@@ -56,6 +56,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID, full_name: 'Minor Student' }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID, first_name: 'Jane', last_name: 'Doe' }])) // guardian INSERT
       .mockResolvedValueOnce(queryResult([{ id: 'link-1', tenant_id: TENANT_ID, student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link INSERT
       .mockResolvedValueOnce(queryResult([])); // COMMIT
@@ -75,9 +76,10 @@ describe('POST /api/v1/students/with-guardian', () => {
     const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
     expect(clientCalls[0]).toBe('BEGIN');
     expect(clientCalls[1]).toMatch(/INSERT INTO students/);
-    expect(clientCalls[2]).toMatch(/INSERT INTO guardians/);
-    expect(clientCalls[3]).toMatch(/INSERT INTO student_guardians/);
-    expect(clientCalls[4]).toBe('COMMIT');
+    expect(clientCalls[2]).toMatch(/INSERT INTO enrollments/);
+    expect(clientCalls[3]).toMatch(/INSERT INTO guardians/);
+    expect(clientCalls[4]).toMatch(/INSERT INTO student_guardians/);
+    expect(clientCalls[5]).toBe('COMMIT');
 
     // The writes must never go through the pooled query - only the
     // read-only exact-match check and getTenantSettings lookup do.
@@ -96,6 +98,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian existence SELECT
       .mockResolvedValueOnce(queryResult([{ id: 'link-1', student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link INSERT
       .mockResolvedValueOnce(queryResult([])); // COMMIT
@@ -112,9 +115,10 @@ describe('POST /api/v1/students/with-guardian', () => {
     const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
     expect(clientCalls[0]).toBe('BEGIN');
     expect(clientCalls[1]).toMatch(/INSERT INTO students/);
-    expect(clientCalls[2]).toMatch(/SELECT \* FROM guardians/);
-    expect(clientCalls[3]).toMatch(/INSERT INTO student_guardians/);
-    expect(clientCalls[4]).toBe('COMMIT');
+    expect(clientCalls[2]).toMatch(/INSERT INTO enrollments/);
+    expect(clientCalls[3]).toMatch(/SELECT \* FROM guardians/);
+    expect(clientCalls[4]).toMatch(/INSERT INTO student_guardians/);
+    expect(clientCalls[5]).toBe('COMMIT');
   });
 
   it('two guardians linked atomically: first defaults primary, second does not', async () => {
@@ -126,6 +130,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian #1 existence SELECT
       .mockResolvedValueOnce(queryResult([{ id: 'link-1', student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link #1 INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_2, tenant_id: TENANT_ID }])) // guardian #2 existence SELECT
@@ -149,11 +154,12 @@ describe('POST /api/v1/students/with-guardian', () => {
     const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
     expect(clientCalls[0]).toBe('BEGIN');
     expect(clientCalls[1]).toMatch(/INSERT INTO students/);
-    expect(clientCalls[2]).toMatch(/SELECT \* FROM guardians/); // guardian #1
-    expect(clientCalls[3]).toMatch(/INSERT INTO student_guardians/); // link #1
-    expect(clientCalls[4]).toMatch(/SELECT \* FROM guardians/); // guardian #2
-    expect(clientCalls[5]).toMatch(/INSERT INTO student_guardians/); // link #2
-    expect(clientCalls[6]).toBe('COMMIT');
+    expect(clientCalls[2]).toMatch(/INSERT INTO enrollments/);
+    expect(clientCalls[3]).toMatch(/SELECT \* FROM guardians/); // guardian #1
+    expect(clientCalls[4]).toMatch(/INSERT INTO student_guardians/); // link #1
+    expect(clientCalls[5]).toMatch(/SELECT \* FROM guardians/); // guardian #2
+    expect(clientCalls[6]).toMatch(/INSERT INTO student_guardians/); // link #2
+    expect(clientCalls[7]).toBe('COMMIT');
 
     // link #1 params: is_primary = true (default, since neither guardian
     // explicitly set isPrimary); link #2 params: is_primary = false.
@@ -173,6 +179,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian #1
       .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])) // link #1
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_2, tenant_id: TENANT_ID }])) // guardian #2
@@ -208,6 +215,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT succeeds
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT succeeds
       .mockRejectedValueOnce(new Error('guardians_email_or_phone_check violation')) // guardian INSERT fails
       .mockResolvedValueOnce(queryResult([])); // ROLLBACK
 
@@ -240,6 +248,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT succeeds
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT succeeds
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian #1 lookup succeeds
       .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])) // link #1 INSERT succeeds
       .mockRejectedValueOnce(new Error('guardian #2 lookup failed')) // guardian #2 step fails
@@ -276,6 +285,7 @@ describe('POST /api/v1/students/with-guardian', () => {
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([])) // guardian existence SELECT - not found
       .mockResolvedValueOnce(queryResult([])); // ROLLBACK
 
@@ -442,6 +452,7 @@ describe('POST /api/v1/students/with-guardian - Constraint A structural test', (
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian #1 existence SELECT
       .mockResolvedValueOnce(queryResult([{ id: 'link-1', student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link #1 INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_2, tenant_id: TENANT_ID }])) // guardian #2 existence SELECT
@@ -490,6 +501,7 @@ describe('POST /api/v1/students/with-guardian - Constraint A structural test', (
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }]))
       .mockResolvedValueOnce(queryResult([{ id: 'link-1' }]))
       .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID_2, tenant_id: TENANT_ID }]))

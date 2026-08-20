@@ -162,10 +162,11 @@ export const generateICSFeed = async (
       s.full_name as student_name,
       s.phone as student_phone,
       s.emergency_contact_phone as parent_phone,
-      s.hours_required
+      e.hours_required
      FROM lessons l
-     JOIN students s ON l.student_id = s.id
-     WHERE l.instructor_id = $1 
+     JOIN enrollments e ON l.enrollment_id = e.id
+     JOIN students s ON e.student_id = s.id
+     WHERE l.instructor_id = $1
      AND l.tenant_id = $2
      AND l.status IN ('scheduled', 'completed')
      AND l.date >= CURRENT_DATE - INTERVAL '7 days'

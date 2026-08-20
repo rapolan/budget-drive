@@ -173,28 +173,97 @@ export interface Student {
   learnerPermitNumber?: string;
   learnerPermitIssueDate?: Date;
   learnerPermitExpiration?: Date;
-  status: 'enrolled' | 'active' | 'completed' | 'dropped' | 'suspended' | 'permit_expired';
-  enrollmentDate: Date;
-  completionDate?: Date;
-  totalHoursCompleted: number; // Legacy/cache column - do not read for display, see Student.progress
-  hoursRequired?: number; // Default: 6 (hidden in form)
-  progress?: StudentProgress; // Attached by the backend - the single source of truth for display
+  // Program state (hoursRequired/status/completed*/trackOverride/
+  // licenseType/enrollmentDate/assignedInstructorId/payment fields) moved
+  // to Enrollment - a person may have more than one program. progress/
+  // needsGuardian/enrollments are attached by the backend's read paths,
+  // not stored columns.
+  progress?: StudentProgress; // Derived from this student's active driver_training enrollment
   needsGuardian?: boolean; // Attached by the backend - true only for minors with zero linked guardians
-  assignedInstructorId?: string;
-  trackOverride?: 'hours' | 'lessons' | null;
-  completed?: boolean;
-  completedAt?: Date | null;
-  completedBy?: string | null;
-  completionReason?: string | null;
-  paymentStatus?: 'paid' | 'partial' | 'unpaid' | 'overdue';
-  totalPaid?: number;
-  outstandingBalance?: number;
+  enrollments?: Enrollment[]; // Attached on the student detail response - all of this person's enrollments
+  // Small, explicit lifecycle view of the active driver_training
+  // enrollment, attached on every list/detail read alongside `progress`.
+  // Deliberately not flattened onto Student (recreates the person-vs-program
+  // ambiguity this refactor removes) and deliberately separate from
+  // `progress` (a computed hours/lessons view, not a grab-bag). null means
+  // no active driver_training enrollment right now - handle it explicitly.
+  activeEnrollment?: ActiveEnrollmentSummary | null;
+  // Derived (not stored) payment summary for the active driver_training
+  // enrollment - mirrors `progress`'s shape/rationale, computed fresh from
+  // payments.amount each read. Undefined (not null) when there's no active
+  // enrollment to derive it from, matching `progress`'s own convention.
+  paymentSummary?: EnrollmentPaymentSummary;
   lastContactedAt?: Date;  // Timestamp of last contact attempt for follow-up
   notes?: string;
   createdBy?: string | null;
   updatedBy?: string | null;
   createdByName?: string | null;
   updatedByName?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// =====================================================
+// ENROLLMENT TYPES
+// =====================================================
+
+export type ProgramType = 'driver_education' | 'driver_training';
+
+export interface EnrollmentPaymentSummary {
+  totalPaid: number;
+  outstandingBalance: number | null; // null when totalCost is not computable (no override, no lessons yet)
+  paymentStatus: 'paid' | 'partial' | 'unpaid' | 'overdue' | 'unknown';
+}
+
+// Small, explicit lifecycle view attached to Student.activeEnrollment - just
+// the fields studentStatus.ts needs to compute a workflow status, not the
+// full Enrollment shape.
+export interface ActiveEnrollmentSummary {
+  id: string;
+  programType: ProgramType;
+  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  enrollmentDate: Date;
+  completed: boolean;
+  completionReason: string | null;
+}
+
+export interface Enrollment {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  programType: ProgramType;
+  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  enrollmentDate: Date;
+  hoursRequired: number;
+  trackOverride: 'hours' | 'lessons' | null;
+  assignedInstructorId: string | null;
+  licenseType: 'car' | 'motorcycle' | 'commercial';
+  totalCost: number | null;
+
+  completed: boolean;
+  completedAt: Date | null;
+  completedBy: string | null;
+  completionReason: string | null;
+
+  reopenedAt: Date | null;
+  reopenedBy: string | null;
+  reopenedReason: string | null;
+
+  externalDeCompleted: boolean;
+  externalDeCompletedDate: Date | null;
+  externalDeProvider: string | null;
+
+  manualCompletedHours: number | null;
+
+  completionHash: string | null;
+  ledgerTxid: string | null;
+
+  progress?: StudentProgress;
+  paymentSummary?: EnrollmentPaymentSummary;
+  certificateExists?: boolean;
+
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -7,7 +7,7 @@ vi.mock('../config/database', () => ({ query: mockQuery }));
 
 const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 const TENANT_ID = 'tenant-abc-123';
-const STUDENT_ID = '33333333-3333-3333-3333-333333333333';
+const ENROLLMENT_ID = '33333333-3333-3333-3333-333333333333';
 
 function signToken(userId: string, role = 'staff') {
   return jwt.sign(
@@ -18,10 +18,12 @@ function signToken(userId: string, role = 'staff') {
 }
 
 // Regression coverage for the admin "keep on hours track" / "switch to
-// lessons track" actions from the turning-18 alert: PUT /students/:id with
-// trackOverride must persist to track_override, and null (explicit clear)
-// must behave differently from omitting the field entirely.
-describe('PUT /api/v1/students/:id trackOverride', () => {
+// lessons track" actions from the turning-18 alert: track_override moved
+// from students to enrollments per the person/enrollment refactor, so
+// PATCH /enrollments/:id with trackOverride must persist to
+// enrollments.track_override, and null (explicit clear) must behave
+// differently from omitting the field entirely.
+describe('PATCH /api/v1/enrollments/:id trackOverride', () => {
   beforeEach(() => {
     resetMockQuery();
   });
@@ -31,18 +33,18 @@ describe('PUT /api/v1/students/:id trackOverride', () => {
     const token = signToken('staff-1');
 
     mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, track_override: 'hours' }])
+      queryResult([{ id: ENROLLMENT_ID, tenant_id: TENANT_ID, track_override: 'hours' }])
     );
 
     const res = await request(app)
-      .put(`/api/v1/students/${STUDENT_ID}`)
+      .patch(`/api/v1/enrollments/${ENROLLMENT_ID}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ trackOverride: 'hours' });
 
     expect(res.status).toBe(200);
 
     const updateCall = mockQuery.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE students')
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE enrollments')
     );
     expect(updateCall).toBeDefined();
     const [sql, params] = updateCall!;
@@ -55,18 +57,18 @@ describe('PUT /api/v1/students/:id trackOverride', () => {
     const token = signToken('staff-1');
 
     mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, track_override: null }])
+      queryResult([{ id: ENROLLMENT_ID, tenant_id: TENANT_ID, track_override: null }])
     );
 
     const res = await request(app)
-      .put(`/api/v1/students/${STUDENT_ID}`)
+      .patch(`/api/v1/enrollments/${ENROLLMENT_ID}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ trackOverride: null });
 
     expect(res.status).toBe(200);
 
     const updateCall = mockQuery.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE students')
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE enrollments')
     );
     expect(updateCall).toBeDefined();
     const [sql, params] = updateCall!;
@@ -79,18 +81,18 @@ describe('PUT /api/v1/students/:id trackOverride', () => {
     const token = signToken('staff-1');
 
     mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, full_name: 'Renamed' }])
+      queryResult([{ id: ENROLLMENT_ID, tenant_id: TENANT_ID, hours_required: 8 }])
     );
 
     const res = await request(app)
-      .put(`/api/v1/students/${STUDENT_ID}`)
+      .patch(`/api/v1/enrollments/${ENROLLMENT_ID}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ fullName: 'Renamed' });
+      .send({ hoursRequired: 8 });
 
     expect(res.status).toBe(200);
 
     const updateCall = mockQuery.mock.calls.find(
-      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE students')
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE enrollments')
     );
     expect(updateCall).toBeDefined();
     const [sql] = updateCall!;

@@ -9,6 +9,7 @@ import { Payment } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
 import { ledger } from './Ledger';
+import { getActiveDriverTrainingEnrollment } from './enrollmentService';
 
 const logger = createLogger('PaymentService');
 
@@ -186,6 +187,13 @@ export const createPayment = async (
       throw new AppError('Student not found or does not belong to this organization', 404);
     }
 
+    // Payments attach to the student's ACTIVE driver_training enrollment
+    // (Constraint A/D - at most one exists).
+    const activeEnrollment = await getActiveDriverTrainingEnrollment(data.studentId, tenantId);
+    if (!activeEnrollment) {
+      throw new AppError('Student has no active driver_training enrollment', 400);
+    }
+
     // If lesson_id provided, validate it belongs to tenant and student
     if (data.lessonId) {
       const lessonCheck = await query(
@@ -202,15 +210,19 @@ export const createPayment = async (
       }
     }
 
+    // student_id is kept alongside enrollment_id (see migration 019's
+    // deferral note - dropping it requires more read-site rewriting than
+    // fits safely in this commit). Written here so the two never drift.
     const result = await query(
       `INSERT INTO payments (
-        tenant_id, student_id, amount, payment_method, payment_type,
+        tenant_id, student_id, enrollment_id, amount, payment_method, payment_type,
         date, status, bsv_transaction_id, notes, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
       RETURNING *`,
       [
         tenantId,
         data.studentId,
+        activeEnrollment.id,
         data.amount,
         data.paymentMethod || 'cash',
         data.paymentType || 'lesson_payment',

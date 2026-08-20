@@ -20,6 +20,7 @@ import {
 import authRoutes from './routes/authRoutes';
 import tenantRoutes from './routes/tenantRoutes';
 import studentRoutes from './routes/studentRoutes';
+import enrollmentRoutes from './routes/enrollmentRoutes';
 import guardianRoutes from './routes/guardianRoutes';
 import searchRoutes from './routes/searchRoutes';
 import instructorRoutes from './routes/instructorRoutes';
@@ -143,6 +144,7 @@ app.get(`${API_PREFIX}/calendar-feed/:token.ics`, async (req: Request, res: Resp
 app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (authLimiter applied per-route in authRoutes.ts, credential endpoints only)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
+app.use(API_PREFIX, enrollmentRoutes);
 app.use(API_PREFIX, guardianRoutes);
 app.use(API_PREFIX, searchRoutes);
 app.use(API_PREFIX, instructorRoutes);

@@ -29,9 +29,6 @@ const STUDENT: Student = {
   tenantId: 'tenant-1',
   fullName: 'Aisha Williams',
   email: 'aisha@example.com',
-  status: 'active',
-  enrollmentDate: new Date('2026-01-01'),
-  totalHoursCompleted: 10,
 } as Student;
 
 const DATE_PRESETS = {

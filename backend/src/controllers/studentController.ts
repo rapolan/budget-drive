@@ -7,7 +7,9 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as studentService from '../services/studentService';
 import * as studentGuardianService from '../services/studentGuardianService';
+import * as enrollmentService from '../services/enrollmentService';
 import { getTenantId } from '../middleware/tenantContext';
+import { AppError } from '../middleware/errorHandler';
 
 /**
  * @route   GET /api/v1/students
@@ -68,8 +70,13 @@ export const getStudent = asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  // Enforce access control: instructors can only view their own students
-  if (req.user?.role === 'instructor' && student.assignedInstructorId !== req.user?.instructorId) {
+  // Enforce access control: instructors can only view students with at
+  // least one enrollment assigned to them (assignedInstructorId moved from
+  // students to enrollments - Constraint A/D, a program attribute).
+  const isAssignedToInstructor = student.enrollments?.some(
+    e => e.assignedInstructorId === req.user?.instructorId
+  ) ?? false;
+  if (req.user?.role === 'instructor' && !isAssignedToInstructor) {
     res.status(403).json({
       success: false,
       error: 'Access denied: You can only view your own assigned students',
@@ -155,43 +162,6 @@ export const deleteStudent = asyncHandler(async (req: Request, res: Response) =>
   res.json({
     success: true,
     message: 'Student deleted successfully',
-  });
-});
-
-/**
- * @route   POST /api/v1/students/:id/complete
- * @desc    Mark a student's program complete
- * @access  Private
- */
-export const completeStudentProgram = asyncHandler(async (req: Request, res: Response) => {
-  const tenantId = getTenantId(req);
-  const userId = req.user?.userId;
-  const { id } = req.params;
-
-  const student = await studentService.markStudentCompleted(id, tenantId, req.body, userId);
-
-  res.json({
-    success: true,
-    data: student,
-    message: 'Student program marked complete',
-  });
-});
-
-/**
- * @route   POST /api/v1/students/:id/reopen
- * @desc    Reverse an accidental program completion
- * @access  Private
- */
-export const reopenStudentProgram = asyncHandler(async (req: Request, res: Response) => {
-  const tenantId = getTenantId(req);
-  const { id } = req.params;
-
-  const student = await studentService.unmarkStudentCompleted(id, tenantId);
-
-  res.json({
-    success: true,
-    data: student,
-    message: 'Student program reopened',
   });
 });
 
@@ -327,5 +297,46 @@ export const updateGuardianRelationship = asyncHandler(async (req: Request, res:
     success: true,
     data: link,
     message: 'Guardian relationship updated',
+  });
+});
+
+/**
+ * @route   GET /api/v1/students/:id/enrollments
+ * @desc    Get every program enrollment for a student
+ * @access  Private
+ */
+export const getEnrollmentsForStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const student = await studentService.getStudentById(id, tenantId);
+  if (!student) {
+    throw new AppError('Student not found', 404);
+  }
+
+  const enrollments = await enrollmentService.getEnrollmentsForStudent(id, tenantId, student);
+
+  res.json({
+    success: true,
+    data: enrollments,
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/enrollments
+ * @desc    Create a new program enrollment for a student
+ * @access  Private
+ */
+export const createEnrollmentForStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+
+  const enrollment = await enrollmentService.createEnrollment(id, tenantId, req.body, userId);
+
+  res.status(201).json({
+    success: true,
+    data: enrollment,
+    message: 'Enrollment created successfully',
   });
 });

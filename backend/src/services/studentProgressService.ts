@@ -3,25 +3,27 @@
  *
  * Single source of truth for student progress. Every read path that
  * reports progress must go through computeStudentProgress - no display
- * surface may recompute this independently, and nothing may read
- * students.total_hours_completed for display (that column is a legacy
- * cache at most).
+ * surface may recompute this independently. Operates on an enrollment's
+ * program fields (hoursRequired, completed, completedAt, completionReason,
+ * trackOverride, all from enrollments) plus the person's dateOfBirth (from
+ * students) - Constraint B/C: the calculation itself is unchanged, only its
+ * source moved from student columns to an enrollment.
  *
  * Track selection: minors (under 18, derived live from date_of_birth,
  * never stored) progress against a configurable hours_required total.
  * Adults (18+) have no mandated hours and progress against lessons
- * actually booked. A completed program (item 6) short-circuits both.
+ * actually booked. A completed enrollment short-circuits both.
  */
 
-import { Student, Lesson, StudentProgress } from '../types';
+import { Student, Enrollment, Lesson, StudentProgress } from '../types';
 import { DEFAULT_TENANT_TIMEZONE, tenantToday, parseTenantDateOnly } from '../utils/tenantTime';
 
 export type { ProgressTrack, StudentProgress } from '../types';
 
-type ProgressStudentInput = Pick<
-  Student,
-  'dateOfBirth' | 'hoursRequired' | 'completed' | 'completedAt' | 'completionReason' | 'trackOverride'
->;
+// dateOfBirth is person-level (Constraint C/B) - passed alongside an
+// enrollment's program fields, not read from the enrollment itself.
+type ProgressStudentInput = Pick<Student, 'dateOfBirth'> &
+  Pick<Enrollment, 'hoursRequired' | 'completed' | 'completedAt' | 'completionReason' | 'trackOverride'>;
 
 type ProgressLessonInput = Pick<Lesson, 'status' | 'duration'>;
 
@@ -84,7 +86,7 @@ export function computeStudentProgress(
       : 'lessons';
 
   if (track === 'hours') {
-    // Postgres numeric columns (lessons.duration, students.hours_required)
+    // Postgres numeric columns (lessons.duration, enrollments.hours_required)
     // arrive as strings over the API/DB driver boundary - coerce before any
     // arithmetic, or `+` silently string-concatenates instead of adding.
     const hoursCompleted = round2(
