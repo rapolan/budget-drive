@@ -33,7 +33,19 @@ export const getTenantById = async (id: string): Promise<TenantFullInfo | null> 
 };
 
 /**
- * Get tenant by slug
+ * Get tenant by slug - internal use only (currently: createTenant's
+ * slug-collision check). This used to also back an unauthenticated public
+ * route (GET /tenants/slug/:slug) that returned the FULL tenant_full_info
+ * view - not just branding (name/slug/logo/theme), but contact details
+ * (email, phone, support_email, support_phone, city, state),
+ * subscription/plan status and dates, and every feature-flag/
+ * dashboard_widgets setting, all to any caller who knew or guessed a slug,
+ * with zero frontend consumer. The route and its controller were removed
+ * (audited, no other code referenced them). If a public tenant-lookup
+ * endpoint is built in the future (e.g. for white-label sites or a public
+ * booking page), it must select only public-safe branding columns
+ * explicitly - never `SELECT *` / return this function's result directly
+ * to an unauthenticated caller.
  */
 export const getTenantBySlug = async (slug: string): Promise<TenantFullInfo | null> => {
   const result = await query(

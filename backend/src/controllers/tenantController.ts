@@ -34,30 +34,6 @@ export const getTenant = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
- * @route   GET /api/v1/tenants/slug/:slug
- * @desc    Get tenant by slug
- * @access  Public
- */
-export const getTenantBySlug = asyncHandler(async (req: Request, res: Response) => {
-  const { slug } = req.params;
-
-  const tenant = await tenantService.getTenantBySlug(slug);
-
-  if (!tenant) {
-    res.status(404).json({
-      success: false,
-      error: 'Tenant not found',
-    });
-    return;
-  }
-
-  res.json({
-    success: true,
-    data: tenant,
-  });
-});
-
-/**
  * @route   GET /api/v1/tenants
  * @desc    Get all tenants (admin only)
  * @access  Private (Admin)
