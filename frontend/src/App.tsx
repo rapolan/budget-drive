@@ -40,7 +40,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-base flex items-center justify-center">
+      <div className="min-h-screen bg-appbg flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
       </div>
     );

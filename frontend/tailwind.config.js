@@ -14,7 +14,21 @@ export default {
         // var() reference is opaque to Tailwind and silently drops the class.
         primary:   'rgb(var(--color-primary-rgb) / <alpha-value>)',
         // Semantic surfaces — flip automatically with .dark on <html>
-        base:      'rgb(var(--bg-base-rgb) / <alpha-value>)',
+        //
+        // Named `appbg`, not `base` - Tailwind's default theme already
+        // defines a font-size step literally named `base` (text-xs, text-sm,
+        // text-base, text-lg...). A custom color also named `base` makes
+        // Tailwind generate a SECOND `.text-base` rule (color: this token)
+        // alongside the built-in one (font-size: 1rem) - both compile to the
+        // same class name, and whichever lands later in the stylesheet wins
+        // the cascade for every element using `text-base`/`md:text-base` for
+        // sizing, silently overriding its actual text-color class. This is
+        // exactly what made the SmartBookingForm ranking badges (and every
+        // other `md:text-base`-sized element) render invisible/illegible -
+        // reproduced live, confirmed via CDP CSS.getMatchedStylesForNode.
+        // Never give a custom color a name that collides with a Tailwind
+        // font-size/spacing/breakpoint keyword.
+        appbg:     'rgb(var(--bg-base-rgb) / <alpha-value>)',
         surface:   'rgb(var(--bg-surface-rgb) / <alpha-value>)',
         surface2:  'rgb(var(--bg-surface-2-rgb) / <alpha-value>)',
         surface3:  'rgb(var(--bg-surface-3-rgb) / <alpha-value>)',
