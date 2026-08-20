@@ -157,39 +157,6 @@ export const SchedulingPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-tx-secondary">Active Instructors</p>
-              <p className="text-2xl font-bold text-tx-primary mt-1">—</p>
-            </div>
-            <div className="text-4xl">👨‍🏫</div>
-          </div>
-        </div>
-
-        <div className="bg-surface rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-tx-secondary">Pending Time Off</p>
-              <p className="text-2xl font-bold text-tx-primary mt-1">—</p>
-            </div>
-            <div className="text-4xl">⏳</div>
-          </div>
-        </div>
-
-        <div className="bg-surface rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-tx-secondary">This Week's Lessons</p>
-              <p className="text-2xl font-bold text-tx-primary mt-1">—</p>
-            </div>
-            <div className="text-4xl">📚</div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
