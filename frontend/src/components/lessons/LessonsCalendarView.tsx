@@ -1,9 +1,12 @@
 import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, Clock, CheckCircle, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, Clock, CheckCircle, TrendingUp, Users } from 'lucide-react';
 import type { Lesson, InstructorAvailability, Instructor } from '@/types';
 import { DayDetailModal } from './DayDetailModal';
 import { useTenant } from '@/contexts/TenantContext';
+import { useSessionState } from '@/hooks/useSessionState';
 import { parseLocalDate, formatLocalDate } from '@/utils/timeFormat';
+
+const ALL_INSTRUCTORS = 'all';
 
 interface LessonsCalendarViewProps {
   lessons: Lesson[];
@@ -50,6 +53,13 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [hoveredDay, setHoveredDay] = useState<{ date: Date; rect: DOMRect } | null>(null);
   const [hoverTimeout, setHoverTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  // Which instructor's schedule to show, or ALL_INSTRUCTORS - matches the
+  // weekly view's existing instructor filter. Persisted for the session so
+  // it survives navigating away and back (see useSessionState).
+  const [selectedInstructorId, setSelectedInstructorId] = useSessionState<string>(
+    'lessons-calendar-instructor-filter',
+    ALL_INSTRUCTORS
+  );
 
   // Get current month/year for navigation
   const currentMonth = currentDate.getMonth();
@@ -75,6 +85,25 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
     goToToday,
   }));
 
+  // Instructor-filtered lessons/availability, used everywhere below instead
+  // of the raw props - the raw props are still used for the filter picker
+  // itself, which always lists every instructor regardless of the current
+  // selection.
+  const filteredLessons = useMemo(() => {
+    if (selectedInstructorId === ALL_INSTRUCTORS) return lessons;
+    return lessons.filter((lesson) => lesson.instructorId === selectedInstructorId);
+  }, [lessons, selectedInstructorId]);
+
+  const filteredAvailability = useMemo(() => {
+    if (selectedInstructorId === ALL_INSTRUCTORS) return availability;
+    if (Array.isArray(availability)) {
+      return availability.filter((slot) => slot.instructorId === selectedInstructorId);
+    }
+    return Object.fromEntries(
+      Object.entries(availability).filter(([instructorId]) => instructorId === selectedInstructorId)
+    );
+  }, [availability, selectedInstructorId]);
+
   // Get first day of month and number of days
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -93,15 +122,15 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
     // new Date().getMonth()/.getFullYear(), which UTC-shifts the calendar
     // day for roughly half of every browser timezone.
     const monthPrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
-    const monthLessons = lessons.filter(lesson => String(lesson.date).startsWith(monthPrefix));
-    
+    const monthLessons = filteredLessons.filter(lesson => String(lesson.date).startsWith(monthPrefix));
+
     const scheduledLessons = monthLessons.filter(l => l.status === 'scheduled').length;
     const completedLessons = monthLessons.filter(l => l.status === 'completed').length;
     const totalLessons = monthLessons.length;
-    
+
     // Calculate total available slots for the month
     let totalAvailableSlots = 0;
-    const availabilityArray = Array.isArray(availability) ? availability : Object.values(availability).flat();
+    const availabilityArray = Array.isArray(filteredAvailability) ? filteredAvailability : Object.values(filteredAvailability).flat();
     
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentYear, currentMonth, day);
@@ -126,7 +155,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
       openSlots,
       utilizationRate
     };
-  }, [lessons, availability, currentMonth, currentYear, daysInMonth]);
+  }, [filteredLessons, filteredAvailability, currentMonth, currentYear, daysInMonth]);
 
   // Get lessons for a specific date. `date` is a calendar-grid cell built
   // from local year/month/day numbers (never a browser-instant read), so
@@ -135,7 +164,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
   // never a Date-object round-trip.
   const getLessonsForDate = (date: Date) => {
     const dateStr = formatLocalDate(date);
-    return lessons.filter((lesson) => String(lesson.date).split('T')[0] === dateStr);
+    return filteredLessons.filter((lesson) => String(lesson.date).split('T')[0] === dateStr);
   };
 
   // Check if a lesson matches the search term
@@ -165,9 +194,9 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
     const availabilitySlots: Array<{ instructorId: string; instructorName: string; startTime: string; endTime: string }> = [];
 
     // Handle both array and object formats
-    if (Array.isArray(availability)) {
+    if (Array.isArray(filteredAvailability)) {
       // Backend returns flat array format
-      availability.forEach((slot) => {
+      filteredAvailability.forEach((slot) => {
         if (slot.dayOfWeek === dayOfWeek && slot.isActive) {
           const instructor = instructors.find(i => i.id === slot.instructorId);
           if (instructor) {
@@ -182,7 +211,7 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
       });
     } else {
       // Object format (instructorId -> slots[])
-      Object.entries(availability).forEach(([instructorId, slots]) => {
+      Object.entries(filteredAvailability).forEach(([instructorId, slots]) => {
         const instructor = instructors.find(i => i.id === instructorId);
         if (!instructor) return;
 
@@ -352,6 +381,54 @@ export const LessonsCalendarView = forwardRef<LessonsCalendarViewRef, LessonsCal
           </div>
         </div>
       </div>
+
+      {/* Instructor Filter - matches the weekly view's existing filter, so
+          an admin can see one instructor's schedule at a time here too. */}
+      {instructors.length > 0 && (
+        <div className="flex items-center gap-2 bg-surface rounded-xl p-4 border border-edge shadow-sm flex-wrap">
+          <Users className="h-4 w-4 text-tx-muted flex-shrink-0" />
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSelectedInstructorId(ALL_INSTRUCTORS)}
+              className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                selectedInstructorId === ALL_INSTRUCTORS
+                  ? 'bg-primary text-white shadow-md'
+                  : 'bg-surface2 text-tx-secondary hover:bg-surface3'
+              }`}
+            >
+              All Instructors
+            </button>
+            {instructors.map((inst) => {
+              const instId = inst.id.toString();
+              const isSelected = instId === selectedInstructorId;
+              const initials = inst.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+              const firstName = inst.fullName.split(' ')[0];
+
+              return (
+                <button
+                  key={inst.id}
+                  type="button"
+                  onClick={() => setSelectedInstructorId(instId)}
+                  title={inst.fullName}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-primary text-white shadow-md'
+                      : 'bg-surface2 text-tx-secondary hover:bg-surface3'
+                  }`}
+                >
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-surface3 text-tx-secondary'
+                  }`}>
+                    {initials}
+                  </div>
+                  <span className="text-xs font-medium">{firstName}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl bg-surface p-6 shadow-sm border border-edge">
         {/* Calendar Header */}
