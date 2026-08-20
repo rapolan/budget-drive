@@ -1,4 +1,4 @@
-import React, { useState, useMemo, forwardRef, useImperativeHandle, useEffect } from 'react';
+import React, { useState, useMemo, useRef, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Calendar, Clock, Users, CheckCircle, CalendarDays, TrendingUp } from 'lucide-react';
 import { LoadingSpinner } from '@/components/common';
@@ -44,6 +44,12 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
   const [selectedInstructor, setSelectedInstructor] = useState<string>('');
   const [compareMode, setCompareMode] = useState(false);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
+  // Today's <th> in the single-mode grid - scrollIntoView on this element
+  // scrolls its nearest scrollable ancestor (the grid's overflow-x-auto
+  // container) so today's column (plus the remainder of the week) is
+  // visible on open, instead of defaulting to the far-left (Sunday) column
+  // with today scrolled out of view.
+  const todayColumnRef = useRef<HTMLTableCellElement>(null);
   // Seeded from the tenant's own week start once tenantNow resolves - a
   // fixed placeholder (never the browser's own new Date()) for the brief
   // pre-hydration window (see docs/ARCHITECTURE.md §7).
@@ -394,6 +400,22 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
 
     return schedule;
   }, [instructor, availabilityData, allTimeSlots, currentWeekStart, lessonsByDateTime]);
+
+  // Scroll the single-mode grid so today's column (and the remainder of the
+  // week) is visible on open, rather than defaulting to the far-left
+  // (Sunday) column with today scrolled out of view. Re-runs whenever the
+  // rendered week changes - a no-op via todayColumnRef being null on weeks
+  // that don't contain today, since only today's <th> attaches the ref.
+  useEffect(() => {
+    const column = todayColumnRef.current;
+    if (!column) return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    column.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'nearest',
+      inline: 'start',
+    });
+  }, [weeklySchedule]);
 
   // Navigation handlers
   const goToPreviousWeek = () => {
@@ -816,6 +838,7 @@ export const InstructorWeeklySchedule = forwardRef<InstructorWeeklyScheduleRef, 
                     return (
                       <th
                         key={day.date.toISOString()}
+                        ref={todayColumn ? todayColumnRef : undefined}
                         className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider min-w-[140px] relative ${
                           todayColumn
                             ? 'bg-status-info-bg text-status-info-text'
