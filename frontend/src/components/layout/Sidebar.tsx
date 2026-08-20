@@ -14,7 +14,6 @@ import {
   DollarSign,
   Bell,
   History,
-  Share2,
   Globe,
   X,
 } from 'lucide-react';
@@ -61,9 +60,6 @@ const allNavigation: NavItem[] = [
   { name: 'Instructor Earnings', href: '/instructor-earnings', icon: DollarSign, tenantTypes: ['school'], roles: ['owner', 'admin'], group: 'financial' },
   { name: 'Payments', href: '/payments', icon: CreditCard, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'financial' },
   { name: 'Treasury', href: '/treasury', icon: Coins, featureFlag: 'enableBlockchainPayments', roles: ['owner', 'admin'], group: 'financial' },
-  
-  // Referrals - Both types
-  { name: 'Referrals', href: '/referrals', icon: Share2, group: 'operations' },
   
   // Public Profile - Both types (but more important for independent)
   { name: 'Public Profile', href: '/public-profile', icon: Globe, roles: ['owner', 'admin'], group: 'operations' },
