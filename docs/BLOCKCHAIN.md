@@ -98,4 +98,13 @@ ORDER BY created_at DESC;
 - **PII Privacy:** Never put names, emails, or addresses on-chain. Store hashes only.
 - **Rate Limiting:** Protect Lookup Services from query spam.
 
+### Enrollment Completion as the Anchorable Attestation Unit
+
+A student's program **enrollment** — not the student record itself — is the natural unit for future on-chain anchoring, per the Decision-Makers' Framework in [MISSION.md](MISSION.md): completion is a discrete, infrequent, high-value event (not a chokepoint, not a micro-fee action), and it's the fact a certificate would rest on. The groundwork for this is in place today with **no blockchain code written**:
+
+- `enrollments.completion_hash` (nullable) is computed and stored by ordinary application code at completion time, via Node's built-in `crypto` module — no `@bsv/sdk`, no wallet, no network call. The hashed payload is exactly `{enrollmentId, programType, hoursCompleted, completedAt}` — internal IDs and non-PII scalars only, restating the "store hashes only" rule above concretely: no student name, email, phone, or address ever enters the hash or the row it's stored on.
+- `enrollments.ledger_txid` (nullable) exists as a column but is written **nowhere** in the current codebase and stays permanently `NULL`. Populating it — the actual on-chain anchor — is deferred to a future session.
+- **No PII on the enrollment row, ever.** `enrollments` carries only IDs, program-lifecycle enums/flags, numbers, and dates — no denormalized student name/email/address. A future anchor payload can reference an enrollment by its opaque `uuid` alone, with the person's identity resolvable only by an authorized lookup in PostgreSQL, never by the on-chain data itself.
+- **The `LedgerService` interface needs zero changes** to support this in the future. `LedgerActionType` already reserves `'BDP_PROGRESS'` ("student progress update", 2 sats) with zero current callers — the natural landing spot for an enrollment-completion anchor call, whenever that's built. Until then, `enrollmentService.ts` (which owns completion) never imports `walletService`, `treasuryService`, or the `Ledger` seam directly — enforced by a static structural test, the same technique used elsewhere in this codebase to keep `fee_flags` isolated from revenue reporting.
+
 **For full technical specs, see [ARCHITECTURE.md](ARCHITECTURE.md).**

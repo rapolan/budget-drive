@@ -533,6 +533,24 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Pass looks like:** That instructor does **not** appear on the Dashboard's Instructor Licenses tile (there's no date to compute a threshold from, so the cron never processes them) — but the instructor record shows a "Missing" pill and the Instructors list shows a "License Missing" badge, both styled with the same danger weight as "Expired." The instructor is never silently shown as if their license were valid.
 
+### 2.43 Viewing a student with exactly one (driver_training) enrollment
+
+**Do:** Open any existing student's record and go to the **Enrollments** tab.
+
+**Pass looks like:** Exactly one enrollment card is listed, labeled "Driver Training," showing an `active` (or `completed`, depending on the student) status badge and the same progress figure the **Progress** tab already shows for this student — the two tabs never disagree. Only an **Add driver education enrollment** action is offered (not "add driver training" — this student already has an active one).
+
+### 2.44 Adding a second enrollment (driver education) and confirming both display independently
+
+**Do:** On the same student's **Enrollments** tab, click **Add driver education enrollment**, enter a completion date and hours (e.g. 30), and confirm.
+
+**Pass looks like:** A second card appears labeled "Driver Education," independently showing its own completion date/hours — the driver_training card above it is unchanged. Reload the student record: both enrollments are still there, in the same state. The **Progress** tab and the Students list are both unaffected — they still reflect only the driver_training enrollment's progress, since that's the program lessons/scheduling attach to.
+
+### 2.45 Completing a driver_training enrollment, then adding a new one (the returning-student case)
+
+**Do:** On a student with an active driver_training enrollment, go to **Enrollments**, click **Mark complete** on it, enter a reason, and confirm. Then go to the **Students** list and find that student.
+
+**Pass looks like:** On the Students list, that student's progress bar reads **"No active enrollment"** (muted styling) — not blank, not a zero-percent bar, not an error. Booking a new lesson for that student is refused (a clear 400, not a crash) until a new enrollment exists. Back on the student's **Enrollments** tab, an **Add driver training enrollment** action now appears (it didn't before, while the first one was still active) — click it, fill in hours required, and confirm. The Students list now shows normal progress again for this student, resolving against the new enrollment; the completed enrollment's card is still listed above the new one, still showing `completed` and its recorded reason.
+
 ---
 
 ## 3. Known issues to route around
