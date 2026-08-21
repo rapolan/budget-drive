@@ -56,20 +56,21 @@ export const getStudentsWithActiveNoShowAlert = async (tenantId: string): Promis
   logger.debug('Fetching students with active no-show alerts', { tenantId });
 
   const result = await query(
-    `SELECT DISTINCT ON (l.student_id)
-       l.student_id AS "studentId",
+    `SELECT DISTINCT ON (e.student_id)
+       e.student_id AS "studentId",
        s.full_name AS "studentName",
        l.date AS "noShowDate",
        n.id AS "notificationId"
      FROM lessons l
-     JOIN students s ON s.id = l.student_id AND s.tenant_id = l.tenant_id
+     JOIN enrollments e ON e.id = l.enrollment_id
+     JOIN students s ON s.id = e.student_id AND s.tenant_id = l.tenant_id
      JOIN notifications n ON n.tenant_id = l.tenant_id
        AND n.related_entity_type = 'student'
-       AND n.related_entity_id = l.student_id
+       AND n.related_entity_id = e.student_id
        AND n.type = 'follow_up_due'
        AND n.is_read = false
      WHERE l.tenant_id = $1 AND l.status = 'no_show'
-     ORDER BY l.student_id, l.date DESC`,
+     ORDER BY e.student_id, l.date DESC`,
     [tenantId]
   );
 
@@ -111,7 +112,7 @@ export const getLessonsNeedingReview = async (
   const result = await query(
     `SELECT
        l.id,
-       l.student_id AS "studentId",
+       e.student_id AS "studentId",
        s.full_name AS "studentName",
        l.instructor_id AS "instructorId",
        i.full_name AS "instructorName",
@@ -119,7 +120,8 @@ export const getLessonsNeedingReview = async (
        l.start_time AS "startTime",
        l.end_time AS "endTime"
      FROM lessons l
-     JOIN students s ON s.id = l.student_id AND s.tenant_id = l.tenant_id
+     JOIN enrollments e ON e.id = l.enrollment_id
+     JOIN students s ON s.id = e.student_id AND s.tenant_id = l.tenant_id
      JOIN instructors i ON i.id = l.instructor_id AND i.tenant_id = l.tenant_id
      WHERE l.tenant_id = $1 AND l.status = 'scheduled' ${instructorFilter}
      ORDER BY l.date ASC, l.start_time ASC`,

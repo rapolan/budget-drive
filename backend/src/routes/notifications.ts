@@ -29,7 +29,8 @@ router.get('/queue', async (req, res) => {
         i.full_name as instructor_name
       FROM notification_queue nq
       JOIN lessons l ON nq.lesson_id = l.id
-      JOIN students s ON l.student_id = s.id
+      JOIN enrollments e ON e.id = l.enrollment_id
+      JOIN students s ON e.student_id = s.id
       JOIN instructors i ON l.instructor_id = i.id
       WHERE nq.tenant_id = $1
     `;
@@ -121,7 +122,8 @@ router.get('/history', async (req, res) => {
         i.email as instructor_email
       FROM notification_queue nq
       JOIN lessons l ON nq.lesson_id = l.id
-      JOIN students s ON l.student_id = s.id
+      JOIN enrollments e ON e.id = l.enrollment_id
+      JOIN students s ON e.student_id = s.id
       JOIN instructors i ON l.instructor_id = i.id
       WHERE nq.tenant_id = $1
       AND nq.status IN ('sent', 'failed')

@@ -54,8 +54,9 @@ export const getAllLessons = async (
 
     // Get paginated lessons with creator/editor names
     const result = await query(
-      `SELECT l.*
+      `SELECT l.*, e.student_id AS student_id
        FROM lessons l
+       JOIN enrollments e ON e.id = l.enrollment_id
        WHERE l.tenant_id = $1
        ORDER BY l.date DESC, l.start_time DESC
        LIMIT $2 OFFSET $3`,
@@ -90,8 +91,9 @@ export const getLessonById = async (
   logger.debug('Fetching lesson by ID', { tenantId, lessonId: id });
 
   const result = await query(
-    `SELECT l.*
+    `SELECT l.*, e.student_id AS student_id
      FROM lessons l
+     JOIN enrollments e ON e.id = l.enrollment_id
      WHERE l.id = $1 AND l.tenant_id = $2`,
     [id, tenantId]
   );
@@ -110,10 +112,13 @@ export const getLessonsByStudent = async (
 ): Promise<Lesson[]> => {
   logger.debug('Fetching lessons for student', { tenantId, studentId });
 
+  // A person's lesson history spans every enrollment they've ever had, not
+  // just their current active one.
   const result = await query(
-    `SELECT l.*
+    `SELECT l.*, e.student_id AS student_id
      FROM lessons l
-     WHERE l.tenant_id = $1 AND l.student_id = $2
+     JOIN enrollments e ON e.id = l.enrollment_id
+     WHERE l.tenant_id = $1 AND e.student_id = $2
      ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, studentId]
   );
@@ -139,9 +144,10 @@ export const getMostRecentLessonForStudent = async (
   studentId: string
 ): Promise<Lesson | null> => {
   const result = await query(
-    `SELECT l.*
+    `SELECT l.*, e.student_id AS student_id
      FROM lessons l
-     WHERE l.tenant_id = $1 AND l.student_id = $2
+     JOIN enrollments e ON e.id = l.enrollment_id
+     WHERE l.tenant_id = $1 AND e.student_id = $2
      ORDER BY l.date DESC, l.start_time DESC
      LIMIT 1`,
     [tenantId, studentId]
@@ -161,8 +167,9 @@ export const getLessonsByInstructor = async (
   logger.debug('Fetching lessons for instructor', { tenantId, instructorId });
 
   const result = await query(
-    `SELECT l.*
+    `SELECT l.*, e.student_id AS student_id
      FROM lessons l
+     JOIN enrollments e ON e.id = l.enrollment_id
      WHERE l.tenant_id = $1 AND l.instructor_id = $2
      ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, instructorId]
@@ -184,8 +191,9 @@ export const getLessonsByStatus = async (
   logger.debug('Fetching lessons by status', { tenantId, status });
 
   const result = await query(
-    `SELECT l.*
+    `SELECT l.*, e.student_id AS student_id
      FROM lessons l
+     JOIN enrollments e ON e.id = l.enrollment_id
      WHERE l.tenant_id = $1 AND l.status = $2
      ORDER BY l.date DESC, l.start_time DESC`,
     [tenantId, status]
@@ -208,8 +216,9 @@ export const getLessonsByDateRange = async (
   logger.debug('Fetching lessons by date range', { tenantId, startDate, endDate });
 
   const result = await query(
-    `SELECT l.*
+    `SELECT l.*, e.student_id AS student_id
      FROM lessons l
+     JOIN enrollments e ON e.id = l.enrollment_id
      WHERE l.tenant_id = $1
      AND l.date >= $2
      AND l.date <= $3
@@ -433,14 +442,13 @@ export const createLesson = async (
     logger.debug('Inserting lesson into database', { tenantId });
     const result = await query(
       `INSERT INTO lessons (
-        tenant_id, student_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time,
+        tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time,
         duration, lesson_number, lesson_type, cost, status, pickup_address, notes,
         created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled', $13, $14, $15, $15)
-      RETURNING *`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'scheduled', $12, $13, $14, $14)
+      RETURNING *, $15 AS student_id`,
       [
         tenantId,
-        data.studentId,
         activeEnrollment.id,
         data.instructorId,
         data.vehicleId,
@@ -454,6 +462,7 @@ export const createLesson = async (
         data.pickupAddress || null,
         data.notes || null,
         userId || null,
+        data.studentId,
       ]
     );
 
@@ -689,7 +698,10 @@ export const updateLesson = async (
 
   try {
     const existingResult = await query(
-      'SELECT * FROM lessons WHERE id = $1 AND tenant_id = $2',
+      `SELECT l.*, e.student_id AS student_id
+       FROM lessons l
+       JOIN enrollments e ON e.id = l.enrollment_id
+       WHERE l.id = $1 AND l.tenant_id = $2`,
       [id, tenantId]
     );
     if (existingResult.rows.length === 0) {
@@ -884,7 +896,7 @@ export const updateLesson = async (
     const result = await query(
       `UPDATE lessons SET ${fields.join(', ')}
        WHERE id = $${paramCount} AND tenant_id = $${paramCount + 1}
-       RETURNING *`,
+       RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = lessons.enrollment_id) AS student_id`,
       values
     );
 
@@ -948,7 +960,7 @@ export const completeLesson = async (
            reviewed_by = $3,
            reviewed_at = NOW()
        WHERE id = $1 AND tenant_id = $2
-       RETURNING *`,
+       RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = lessons.enrollment_id) AS student_id`,
       [id, tenantId, userId || null]
     );
 
@@ -1000,7 +1012,7 @@ export const noShowLesson = async (
            reviewed_by = $3,
            reviewed_at = NOW()
        WHERE id = $1 AND tenant_id = $2
-       RETURNING *`,
+       RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = lessons.enrollment_id) AS student_id`,
       [id, tenantId, userId || null]
     );
 
@@ -1069,7 +1081,7 @@ export const cancelLesson = async (
            reviewed_by = $3,
            reviewed_at = NOW()
        WHERE id = $1 AND tenant_id = $2
-       RETURNING *`,
+       RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = lessons.enrollment_id) AS student_id`,
       [id, tenantId, userId || null]
     );
 

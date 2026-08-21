@@ -173,7 +173,7 @@ export class NotificationProcessor {
       const result = await client.query(
         `SELECT
           l.id,
-          l.student_id,
+          e.student_id,
           s.full_name as student_name,
           s.email as student_email,
           l.instructor_id,
@@ -190,7 +190,8 @@ export class NotificationProcessor {
           l.cost,
           l.status
         FROM lessons l
-        JOIN students s ON l.student_id = s.id
+        JOIN enrollments e ON e.id = l.enrollment_id
+        JOIN students s ON e.student_id = s.id
         JOIN instructors i ON l.instructor_id = i.id
         LEFT JOIN vehicles v ON l.vehicle_id = v.id
         WHERE l.id = $1 AND l.tenant_id = $2`,

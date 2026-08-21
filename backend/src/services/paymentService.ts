@@ -32,9 +32,11 @@ export const getAllPayments = async (
 
   // Get paginated payments
   const result = await query(
-    `SELECT * FROM payments
-     WHERE tenant_id = $1
-     ORDER BY date DESC
+    `SELECT p.*, e.student_id AS student_id
+     FROM payments p
+     JOIN enrollments e ON e.id = p.enrollment_id
+     WHERE p.tenant_id = $1
+     ORDER BY p.date DESC
      LIMIT $2 OFFSET $3`,
     [tenantId, limit, offset]
   );
@@ -61,7 +63,10 @@ export const getPaymentById = async (
   logger.debug('Fetching payment by ID', { tenantId, paymentId: id });
 
   const result = await query(
-    'SELECT * FROM payments WHERE id = $1 AND tenant_id = $2',
+    `SELECT p.*, e.student_id AS student_id
+     FROM payments p
+     JOIN enrollments e ON e.id = p.enrollment_id
+     WHERE p.id = $1 AND p.tenant_id = $2`,
     [id, tenantId]
   );
 
@@ -79,10 +84,14 @@ export const getPaymentsByStudent = async (
 ): Promise<Payment[]> => {
   logger.debug('Fetching payments for student', { tenantId, studentId });
 
+  // A person's payment history spans every enrollment they've ever had,
+  // not just their current active one.
   const result = await query(
-    `SELECT * FROM payments
-     WHERE tenant_id = $1 AND student_id = $2
-     ORDER BY date DESC`,
+    `SELECT p.*, e.student_id AS student_id
+     FROM payments p
+     JOIN enrollments e ON e.id = p.enrollment_id
+     WHERE p.tenant_id = $1 AND e.student_id = $2
+     ORDER BY p.date DESC`,
     [tenantId, studentId]
   );
 
@@ -102,9 +111,11 @@ export const getPaymentsByLesson = async (
   logger.debug('Fetching payments for lesson', { tenantId, lessonId });
 
   const result = await query(
-    `SELECT * FROM payments
-     WHERE tenant_id = $1 AND lesson_id = $2
-     ORDER BY date DESC`,
+    `SELECT p.*, e.student_id AS student_id
+     FROM payments p
+     JOIN enrollments e ON e.id = p.enrollment_id
+     WHERE p.tenant_id = $1 AND p.lesson_id = $2
+     ORDER BY p.date DESC`,
     [tenantId, lessonId]
   );
 
@@ -124,9 +135,11 @@ export const getPaymentsByStatus = async (
   logger.debug('Fetching payments by status', { tenantId, status });
 
   const result = await query(
-    `SELECT * FROM payments
-     WHERE tenant_id = $1 AND status = $2
-     ORDER BY date DESC`,
+    `SELECT p.*, e.student_id AS student_id
+     FROM payments p
+     JOIN enrollments e ON e.id = p.enrollment_id
+     WHERE p.tenant_id = $1 AND p.status = $2
+     ORDER BY p.date DESC`,
     [tenantId, status]
   );
 
@@ -146,9 +159,11 @@ export const getPaymentsByPaymentMethod = async (
   logger.debug('Fetching payments by payment method', { tenantId, paymentMethod });
 
   const result = await query(
-    `SELECT * FROM payments
-     WHERE tenant_id = $1 AND payment_method = $2
-     ORDER BY date DESC`,
+    `SELECT p.*, e.student_id AS student_id
+     FROM payments p
+     JOIN enrollments e ON e.id = p.enrollment_id
+     WHERE p.tenant_id = $1 AND p.payment_method = $2
+     ORDER BY p.date DESC`,
     [tenantId, paymentMethod]
   );
 
@@ -197,7 +212,9 @@ export const createPayment = async (
     // If lesson_id provided, validate it belongs to tenant and student
     if (data.lessonId) {
       const lessonCheck = await query(
-        'SELECT id FROM lessons WHERE id = $1 AND tenant_id = $2 AND student_id = $3',
+        `SELECT l.id FROM lessons l
+         JOIN enrollments e ON e.id = l.enrollment_id
+         WHERE l.id = $1 AND l.tenant_id = $2 AND e.student_id = $3`,
         [data.lessonId, tenantId, data.studentId]
       );
       if (lessonCheck.rows.length === 0) {
@@ -210,18 +227,14 @@ export const createPayment = async (
       }
     }
 
-    // student_id is kept alongside enrollment_id (see migration 019's
-    // deferral note - dropping it requires more read-site rewriting than
-    // fits safely in this commit). Written here so the two never drift.
     const result = await query(
       `INSERT INTO payments (
-        tenant_id, student_id, enrollment_id, amount, payment_method, payment_type,
+        tenant_id, enrollment_id, amount, payment_method, payment_type,
         date, status, bsv_transaction_id, notes, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-      RETURNING *`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+      RETURNING *, $11 AS student_id`,
       [
         tenantId,
-        data.studentId,
         activeEnrollment.id,
         data.amount,
         data.paymentMethod || 'cash',
@@ -231,6 +244,7 @@ export const createPayment = async (
         data.bsvTransactionId || null,
         data.notes || null,
         userId || null,
+        data.studentId,
       ]
     );
 
@@ -325,7 +339,7 @@ export const updatePayment = async (
     const result = await query(
       `UPDATE payments SET ${fields.join(', ')}
        WHERE id = $${paramCount} AND tenant_id = $${paramCount + 1}
-       RETURNING *`,
+       RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = payments.enrollment_id) AS student_id`,
       values
     );
 
@@ -373,7 +387,7 @@ export const markPaymentAsReceived = async (
   const result = await query(
     `UPDATE payments SET ${fields.join(', ')}
      WHERE id = $1 AND tenant_id = $2
-     RETURNING *`,
+     RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = payments.enrollment_id) AS student_id`,
     values
   );
 
@@ -399,7 +413,7 @@ export const refundPayment = async (
   const result = await query(
     `UPDATE payments SET status = 'refunded'
      WHERE id = $1 AND tenant_id = $2
-     RETURNING *`,
+     RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = payments.enrollment_id) AS student_id`,
     [id, tenantId]
   );
 
