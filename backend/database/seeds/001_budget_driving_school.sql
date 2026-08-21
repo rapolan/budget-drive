@@ -239,6 +239,11 @@ INSERT INTO vehicles (
 );
 
 -- Sample Students
+-- Program state (license_type, enrollment_date, status, hours_required,
+-- assigned_instructor_id) lives on enrollments, not students, as of
+-- migration 018/019 - see docs/ARCHITECTURE.md §11. total_paid/
+-- outstanding_balance/payment_status are derived at read time from
+-- payments, not stored - no seed data needed for them.
 INSERT INTO students (
     id,
     tenant_id,
@@ -250,16 +255,7 @@ INSERT INTO students (
     date_of_birth,
     address,
     emergency_contact_first_name,
-    emergency_contact_phone,
-    license_type,
-    enrollment_date,
-    status,
-    total_hours_completed,
-    hours_required,
-    assigned_instructor_id,
-    payment_status,
-    total_paid,
-    outstanding_balance
+    emergency_contact_phone
 ) VALUES
 (
     gen_random_uuid(),
@@ -272,16 +268,7 @@ INSERT INTO students (
     '2007-05-10',
     '111 Student Lane, Los Angeles, CA 90004',
     'Mom',
-    '(555) 111-3333',
-    'car',
-    '2024-10-01',
-    'active',
-    8.0,
-    30.0,
-    (SELECT id FROM instructors WHERE email = 'john.smith@budgetdrivingschool.com' LIMIT 1),
-    'partial',
-    400.00,
-    500.00
+    '(555) 111-3333'
 ),
 (
     gen_random_uuid(),
@@ -294,16 +281,30 @@ INSERT INTO students (
     '2006-11-18',
     '222 Learner Blvd, Los Angeles, CA 90005',
     'Dad',
-    '(555) 222-4444',
-    'car',
-    '2024-09-15',
-    'active',
-    15.0,
-    30.0,
-    (SELECT id FROM instructors WHERE email = 'maria.rodriguez@budgetdrivingschool.com' LIMIT 1),
-    'paid',
-    900.00,
-    0.00
+    '(555) 222-4444'
+);
+
+-- One active driver_training enrollment per student, carrying the program
+-- state that used to live on the students row directly.
+INSERT INTO enrollments (
+    id, tenant_id, student_id, program_type, status, enrollment_date,
+    hours_required, license_type, assigned_instructor_id
+) VALUES
+(
+    gen_random_uuid(),
+    '55654b9d-6d7f-46e0-ade2-be606abfe00a',
+    (SELECT id FROM students WHERE email = 'sarah.johnson@email.com' LIMIT 1),
+    'driver_training', 'active', '2024-10-01',
+    30.0, 'car',
+    (SELECT id FROM instructors WHERE email = 'john.smith@budgetdrivingschool.com' LIMIT 1)
+),
+(
+    gen_random_uuid(),
+    '55654b9d-6d7f-46e0-ade2-be606abfe00a',
+    (SELECT id FROM students WHERE email = 'michael.chen@email.com' LIMIT 1),
+    'driver_training', 'active', '2024-09-15',
+    30.0, 'car',
+    (SELECT id FROM instructors WHERE email = 'maria.rodriguez@budgetdrivingschool.com' LIMIT 1)
 );
 
 -- Sample Leads

@@ -37,6 +37,17 @@ DECLARE
     v_student_noah_id UUID;
     v_student_olivia_id UUID;
     v_student_marcus_id UUID;
+
+    -- lessons/payments reference enrollment_id, not student_id, as of
+    -- migration 020.
+    v_enrollment_sarah_id UUID;
+    v_enrollment_michael_id UUID;
+    v_enrollment_jessica_id UUID;
+    v_enrollment_tyler_id UUID;
+    v_enrollment_aisha_id UUID;
+    v_enrollment_noah_id UUID;
+    v_enrollment_olivia_id UUID;
+    v_enrollment_marcus_id UUID;
 BEGIN
 
     -- =====================================================
@@ -69,6 +80,12 @@ BEGIN
     IF v_student_sarah_id IS NULL OR v_student_jessica_id IS NULL THEN
         RAISE EXCEPTION 'Student data from 001/002 seeds not found. Run those first.';
     END IF;
+
+    SELECT id INTO v_enrollment_sarah_id FROM enrollments WHERE student_id = v_student_sarah_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
+    SELECT id INTO v_enrollment_michael_id FROM enrollments WHERE student_id = v_student_michael_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
+    SELECT id INTO v_enrollment_jessica_id FROM enrollments WHERE student_id = v_student_jessica_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
+    SELECT id INTO v_enrollment_tyler_id FROM enrollments WHERE student_id = v_student_tyler_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
+    SELECT id INTO v_enrollment_aisha_id FROM enrollments WHERE student_id = v_student_aisha_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
 
     -- =====================================================
     -- 1. THIRD INSTRUCTOR
@@ -150,9 +167,7 @@ BEGIN
     -- =====================================================
     INSERT INTO students (
         id, tenant_id, full_name, first_name, last_name, email, phone, date_of_birth,
-        address, emergency_contact_first_name, emergency_contact_phone, license_type, enrollment_date,
-        status, total_hours_completed, hours_required,
-        assigned_instructor_id, payment_status, total_paid, outstanding_balance
+        address, emergency_contact_first_name, emergency_contact_phone
     ) VALUES
     (
         -- Just enrolled, no hours yet. DOB is relative to CURRENT_DATE (age 16)
@@ -161,9 +176,7 @@ BEGIN
         gen_random_uuid(), v_tenant_id,
         'Noah Kim', 'Noah', 'Kim', 'noah.kim@email.com', '(555) 666-1111',
         (CURRENT_DATE - INTERVAL '16 years')::date, '666 Pine St, Los Angeles, CA 90010',
-        'Mom', '(555) 666-2222', 'car', CURRENT_DATE - INTERVAL '3 days',
-        'active', 0.0, 30.0,
-        v_instructor_priya_id, 'unpaid', 0.00, 200.00
+        'Mom', '(555) 666-2222'
     ),
     (
         -- Near completion. DOB is relative to CURRENT_DATE (age 17) so this
@@ -172,24 +185,45 @@ BEGIN
         gen_random_uuid(), v_tenant_id,
         'Olivia Garcia', 'Olivia', 'Garcia', 'olivia.garcia@email.com', '(555) 777-1111',
         (CURRENT_DATE - INTERVAL '17 years')::date, '777 Cedar Ln, Los Angeles, CA 90011',
-        'Dad', '(555) 777-2222', 'car', CURRENT_DATE - INTERVAL '100 days',
-        'active', 29.5, 30.0,
-        v_instructor_priya_id, 'paid', 900.00, 0.00
+        'Dad', '(555) 777-2222'
     ),
     (
         -- Completed the program
         gen_random_uuid(), v_tenant_id,
         'Marcus Lee', 'Marcus', 'Lee', 'marcus.lee@email.com', '(555) 888-1111',
         '2005-09-17', '888 Spruce Ave, Los Angeles, CA 90012',
-        'Mom', '(555) 888-2222', 'car', CURRENT_DATE - INTERVAL '150 days',
-        'completed', 30.0, 30.0,
-        v_instructor_maria_id, 'paid', 900.00, 0.00
+        'Mom', '(555) 888-2222'
     )
     ON CONFLICT DO NOTHING;
 
     SELECT id INTO v_student_noah_id FROM students WHERE email = 'noah.kim@email.com' LIMIT 1;
     SELECT id INTO v_student_olivia_id FROM students WHERE email = 'olivia.garcia@email.com' LIMIT 1;
     SELECT id INTO v_student_marcus_id FROM students WHERE email = 'marcus.lee@email.com' LIMIT 1;
+
+    INSERT INTO enrollments (
+        id, tenant_id, student_id, program_type, status, enrollment_date,
+        hours_required, license_type, assigned_instructor_id, completed, completed_at
+    ) VALUES
+    (
+        gen_random_uuid(), v_tenant_id, v_student_noah_id,
+        'driver_training', 'active', CURRENT_DATE - INTERVAL '3 days',
+        30.0, 'car', v_instructor_priya_id, false, NULL
+    ),
+    (
+        gen_random_uuid(), v_tenant_id, v_student_olivia_id,
+        'driver_training', 'active', CURRENT_DATE - INTERVAL '100 days',
+        30.0, 'car', v_instructor_priya_id, false, NULL
+    ),
+    (
+        gen_random_uuid(), v_tenant_id, v_student_marcus_id,
+        'driver_training', 'completed', CURRENT_DATE - INTERVAL '150 days',
+        30.0, 'car', v_instructor_maria_id, true, CURRENT_DATE - INTERVAL '10 days'
+    )
+    ON CONFLICT DO NOTHING;
+
+    SELECT id INTO v_enrollment_noah_id FROM enrollments WHERE student_id = v_student_noah_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
+    SELECT id INTO v_enrollment_olivia_id FROM enrollments WHERE student_id = v_student_olivia_id AND program_type = 'driver_training' AND status = 'active' LIMIT 1;
+    SELECT id INTO v_enrollment_marcus_id FROM enrollments WHERE student_id = v_student_marcus_id AND program_type = 'driver_training' AND status = 'completed' LIMIT 1;
 
     -- =====================================================
     -- 4a. GUARDIAN for Noah Kim (minor) - gives the Guardians tab and
@@ -220,57 +254,61 @@ BEGIN
     -- =====================================================
 
     -- ---- PAST: completed lessons (7, 6, 5, 4, 3 days ago) ----
-    INSERT INTO lessons (id, tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, student_performance, instructor_rating, completion_verified)
+    INSERT INTO lessons (id, tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, student_performance, instructor_rating, completion_verified)
     VALUES
-    (gen_random_uuid(), v_tenant_id, v_student_sarah_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE - INTERVAL '7 days', '09:00', '11:00', 120, 'completed', 'behind_wheel',   70.00, 'good',              5, true),
-    (gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE - INTERVAL '7 days', '13:00', '15:00', 120, 'completed', 'behind_wheel',   70.00, 'excellent',         5, true),
-    (gen_random_uuid(), v_tenant_id, v_student_olivia_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE - INTERVAL '6 days', '10:00', '12:00', 120, 'completed', 'road_test_prep', 85.00, 'excellent',         5, true),
-    (gen_random_uuid(), v_tenant_id, v_student_jessica_id, v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE - INTERVAL '5 days', '09:00', '11:00', 120, 'completed', 'behind_wheel',   70.00, 'needs_improvement', 3, true),
-    (gen_random_uuid(), v_tenant_id, v_student_tyler_id,   v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE - INTERVAL '4 days', '14:00', '16:00', 120, 'completed', 'behind_wheel',   70.00, 'good',              4, true),
-    (gen_random_uuid(), v_tenant_id, v_student_aisha_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE - INTERVAL '3 days', '10:00', '12:00', 120, 'completed', 'road_test_prep', 85.00, 'excellent',         5, true);
+    (gen_random_uuid(), v_tenant_id, v_enrollment_sarah_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE - INTERVAL '7 days', '09:00', '11:00', 120, 'completed', 'behind_wheel',   70.00, 'good',              5, true),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE - INTERVAL '7 days', '13:00', '15:00', 120, 'completed', 'behind_wheel',   70.00, 'excellent',         5, true),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_olivia_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE - INTERVAL '6 days', '10:00', '12:00', 120, 'completed', 'road_test_prep', 85.00, 'excellent',         5, true),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_jessica_id, v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE - INTERVAL '5 days', '09:00', '11:00', 120, 'completed', 'behind_wheel',   70.00, 'needs_improvement', 3, true),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_tyler_id,   v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE - INTERVAL '4 days', '14:00', '16:00', 120, 'completed', 'behind_wheel',   70.00, 'good',              4, true),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_aisha_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE - INTERVAL '3 days', '10:00', '12:00', 120, 'completed', 'road_test_prep', 85.00, 'excellent',         5, true);
 
     -- ---- PAST: cancelled lessons (6 and 2 days ago) ----
-    INSERT INTO lessons (id, tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, notes)
+    INSERT INTO lessons (id, tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, notes)
     VALUES
-    (gen_random_uuid(), v_tenant_id, v_student_noah_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE - INTERVAL '6 days', '13:00', '15:00', 120, 'cancelled', 'behind_wheel', 70.00, 'Student cancelled - illness'),
-    (gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE - INTERVAL '2 days', '09:00', '11:00', 120, 'cancelled', 'behind_wheel', 70.00, 'Instructor unavailable - rescheduled');
+    (gen_random_uuid(), v_tenant_id, v_enrollment_noah_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE - INTERVAL '6 days', '13:00', '15:00', 120, 'cancelled', 'behind_wheel', 70.00, 'Student cancelled - illness'),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE - INTERVAL '2 days', '09:00', '11:00', 120, 'cancelled', 'behind_wheel', 70.00, 'Instructor unavailable - rescheduled');
 
     -- ---- PAST: a no-show (1 day ago) ----
-    INSERT INTO lessons (id, tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, notes)
+    INSERT INTO lessons (id, tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, notes)
     VALUES
-    (gen_random_uuid(), v_tenant_id, v_student_sarah_id, v_instructor_john_id, v_vehicle_civic_id, CURRENT_DATE - INTERVAL '1 day', '09:00', '11:00', 120, 'no_show', 'behind_wheel', 70.00, 'Student did not show up');
+    (gen_random_uuid(), v_tenant_id, v_enrollment_sarah_id, v_instructor_john_id, v_vehicle_civic_id, CURRENT_DATE - INTERVAL '1 day', '09:00', '11:00', 120, 'no_show', 'behind_wheel', 70.00, 'Student did not show up');
 
     -- ---- TODAY: scheduled ----
-    INSERT INTO lessons (id, tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, notes)
+    INSERT INTO lessons (id, tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost, notes)
     VALUES
-    (gen_random_uuid(), v_tenant_id, v_student_jessica_id, v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE, '09:00', '11:00', 120, 'scheduled', 'behind_wheel', 70.00, 'Focus on freeway driving and lane changes'),
-    (gen_random_uuid(), v_tenant_id, v_student_tyler_id,   v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE, '13:00', '15:00', 120, 'scheduled', 'behind_wheel', 70.00, 'Parking practice and residential streets'),
-    (gen_random_uuid(), v_tenant_id, v_student_noah_id,    v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE, '10:00', '12:00', 120, 'scheduled', 'behind_wheel', 70.00, 'First lesson - basics');
+    (gen_random_uuid(), v_tenant_id, v_enrollment_jessica_id, v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE, '09:00', '11:00', 120, 'scheduled', 'behind_wheel', 70.00, 'Focus on freeway driving and lane changes'),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_tyler_id,   v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE, '13:00', '15:00', 120, 'scheduled', 'behind_wheel', 70.00, 'Parking practice and residential streets'),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_noah_id,    v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE, '10:00', '12:00', 120, 'scheduled', 'behind_wheel', 70.00, 'First lesson - basics');
 
     -- ---- FUTURE: days +1 through +7, scheduled ----
-    INSERT INTO lessons (id, tenant_id, student_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost)
+    INSERT INTO lessons (id, tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time, duration, status, lesson_type, cost)
     VALUES
-    (gen_random_uuid(), v_tenant_id, v_student_aisha_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '1 day', '14:00', '16:00', 120, 'scheduled', 'road_test_prep', 85.00),
-    (gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE + INTERVAL '1 day', '09:00', '11:00', 120, 'scheduled', 'behind_wheel',   70.00),
-    (gen_random_uuid(), v_tenant_id, v_student_sarah_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '2 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel',   70.00),
-    (gen_random_uuid(), v_tenant_id, v_student_olivia_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE + INTERVAL '2 days', '13:00', '15:00', 120, 'scheduled', 'road_test_prep', 85.00),
-    (gen_random_uuid(), v_tenant_id, v_student_jessica_id, v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '3 days', '09:00', '11:00', 120, 'scheduled', 'behind_wheel',   70.00),
-    (gen_random_uuid(), v_tenant_id, v_student_tyler_id,   v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE + INTERVAL '3 days', '14:00', '16:00', 120, 'scheduled', 'behind_wheel',   70.00),
-    (gen_random_uuid(), v_tenant_id, v_student_noah_id,    v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE + INTERVAL '4 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel',   70.00),
-    (gen_random_uuid(), v_tenant_id, v_student_aisha_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '4 days', '13:00', '15:00', 120, 'scheduled', 'road_test_prep', 85.00),
-    (gen_random_uuid(), v_tenant_id, v_student_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE + INTERVAL '5 days', '09:00', '11:00', 120, 'scheduled', 'behind_wheel',   70.00),
-    (gen_random_uuid(), v_tenant_id, v_student_olivia_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE + INTERVAL '6 days', '11:00', '13:00', 120, 'scheduled', 'road_test_prep', 85.00),
-    (gen_random_uuid(), v_tenant_id, v_student_sarah_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '7 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel',   70.00);
+    (gen_random_uuid(), v_tenant_id, v_enrollment_aisha_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '1 day', '14:00', '16:00', 120, 'scheduled', 'road_test_prep', 85.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE + INTERVAL '1 day', '09:00', '11:00', 120, 'scheduled', 'behind_wheel',   70.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_sarah_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '2 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel',   70.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_olivia_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE + INTERVAL '2 days', '13:00', '15:00', 120, 'scheduled', 'road_test_prep', 85.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_jessica_id, v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '3 days', '09:00', '11:00', 120, 'scheduled', 'behind_wheel',   70.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_tyler_id,   v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE + INTERVAL '3 days', '14:00', '16:00', 120, 'scheduled', 'behind_wheel',   70.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_noah_id,    v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE + INTERVAL '4 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel',   70.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_aisha_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '4 days', '13:00', '15:00', 120, 'scheduled', 'road_test_prep', 85.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_michael_id, v_instructor_maria_id, v_vehicle_corolla_id, CURRENT_DATE + INTERVAL '5 days', '09:00', '11:00', 120, 'scheduled', 'behind_wheel',   70.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_olivia_id,  v_instructor_priya_id, v_vehicle_elantra_id, CURRENT_DATE + INTERVAL '6 days', '11:00', '13:00', 120, 'scheduled', 'road_test_prep', 85.00),
+    (gen_random_uuid(), v_tenant_id, v_enrollment_sarah_id,   v_instructor_john_id,  v_vehicle_civic_id,   CURRENT_DATE + INTERVAL '7 days', '10:00', '12:00', 120, 'scheduled', 'behind_wheel',   70.00);
 
     -- =====================================================
     -- 6. PAYMENTS - a mix of methods and statuses
     -- =====================================================
+    -- Marcus Lee's enrollment is 'completed' (program finished), not
+    -- 'active' - the join below matches on program_type alone (there is
+    -- exactly one driver_training enrollment per seeded student, so this
+    -- stays unambiguous) rather than requiring status = 'active'.
     INSERT INTO payments (
-        id, tenant_id, student_id, date, amount, payment_method,
+        id, tenant_id, enrollment_id, date, amount, payment_method,
         payment_type, status, confirmation_date, notes
     )
     SELECT
-        gen_random_uuid(), v_tenant_id, s.id,
+        gen_random_uuid(), v_tenant_id, e.id,
         p.pay_date, p.amount, p.method,
         p.ptype, p.status,
         CASE WHEN p.status = 'confirmed' THEN p.pay_date::TIMESTAMP ELSE NULL END,
@@ -286,7 +324,8 @@ BEGIN
         ('tyler.brooks@email.com',  CURRENT_DATE - INTERVAL '1 days',  70.00,  'cash',        'Lesson Fee',                   'confirmed', NULL),
         ('michael.chen@email.com',  CURRENT_DATE - INTERVAL '9 days',  70.00,  'stripe_card', 'Cancelled Lesson - Refund',    'refunded',  'Refunded after instructor cancellation')
     ) AS p(email, pay_date, amount, method, ptype, status, notes)
-    JOIN students s ON s.email = p.email AND s.tenant_id = v_tenant_id;
+    JOIN students s ON s.email = p.email AND s.tenant_id = v_tenant_id
+    JOIN enrollments e ON e.student_id = s.id AND e.program_type = 'driver_training';
 
 END $$;
 
