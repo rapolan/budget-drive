@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
-  CheckCircle, AlertCircle, FileText, Users, Plus, Search
+  CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap
 } from 'lucide-react';
 import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi } from '@/api';
-import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson } from '@/types';
+import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson, ProgramType } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
 import { GuardianSubPanel, type DisplayGuardian } from './GuardianSubPanel';
+import { EnrollmentSubPanel } from './EnrollmentSubPanel';
 import { DuplicateGuardianConfirm } from '@/components/guardians/DuplicateGuardianConfirm';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
@@ -16,7 +17,7 @@ import { calculateAge } from '@/utils/age';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { useDebounce } from '@/hooks/useDebounce';
 
-type TabType = 'details' | 'progress' | 'history';
+type TabType = 'details' | 'progress' | 'enrollments' | 'history';
 
 // 'fields' is the default landing spot for "+ Add guardian" - blank
 // first/last/email/phone fields, since most guardians being added are new
@@ -142,15 +143,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   // The list-response `student` prop only carries activeEnrollment (a
   // narrow summary for studentStatus.ts) - the external DE prerequisite
-  // fields live on the full enrollment record, only attached by the
-  // detail endpoint. Fetched lazily, same pattern as lessons/instructors
-  // above.
+  // fields (Item 3) and the full enrollments list (Item 4) both live on the
+  // full enrollment record, only attached by the detail endpoint. Fetched
+  // lazily, same pattern as lessons/instructors above.
   const { data: enrollmentsData } = useQuery({
     queryKey: ['students', student?.id, 'enrollments'],
     queryFn: () => enrollmentsApi.getForStudent(student!.id),
-    enabled: isEditing && activeTab === 'progress' && !!student,
+    enabled: isEditing && (activeTab === 'progress' || activeTab === 'enrollments') && !!student,
   });
-  const driverTrainingEnrollment = enrollmentsData?.data?.find(
+  const enrollments = enrollmentsData?.data ?? [];
+  const driverTrainingEnrollment = enrollments.find(
     e => e.programType === 'driver_training' && e.status === 'active'
   );
 
@@ -564,6 +566,61 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
+    },
+  });
+
+  // Enrollments tab (Item 4) - add / complete / reopen. "Add" is always an
+  // explicit two-step action: a click reveals the form (isAddingProgramType),
+  // nothing is sent until the form's own "Add enrollment" button is clicked.
+  const [isAddingProgramType, setIsAddingProgramType] = useState<ProgramType | null>(null);
+  const [completingEnrollmentId, setCompletingEnrollmentId] = useState<string | null>(null);
+  const [enrollmentCompletionReason, setEnrollmentCompletionReason] = useState('');
+
+  // Reopen is a guarded write server-side (requires a reason, owner/admin
+  // only) - the UI mirrors that: a confirm step naming the consequences up
+  // front (certificateExists is only known AFTER the call - the backend has
+  // no pre-flight check endpoint - so the warning is stated generically in
+  // the confirm step, then surfaced concretely if the response confirms a
+  // certificate exists; the endpoint does NOT touch the certificate itself,
+  // see enrollmentService.reopenEnrollment's TODO).
+  const [reopeningEnrollmentId, setReopeningEnrollmentId] = useState<string | null>(null);
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopenedCertificateNotice, setReopenedCertificateNotice] = useState<string | null>(null);
+
+  const invalidateEnrollmentQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['students', student?.id, 'enrollments'] });
+    queryClient.invalidateQueries({ queryKey: ['students'] });
+  };
+
+  const createEnrollmentMutation = useMutation({
+    mutationFn: (data: { programType: ProgramType; hoursRequired?: number; manualCompletedHours?: number }) =>
+      enrollmentsApi.create(student!.id, data),
+    onSuccess: () => {
+      invalidateEnrollmentQueries();
+      setIsAddingProgramType(null);
+    },
+  });
+
+  const completeEnrollmentMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => enrollmentsApi.complete(id, reason),
+    onSuccess: () => {
+      invalidateEnrollmentQueries();
+      setCompletingEnrollmentId(null);
+      setEnrollmentCompletionReason('');
+    },
+  });
+
+  const reopenEnrollmentMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => enrollmentsApi.reopen(id, reason),
+    onSuccess: (response) => {
+      invalidateEnrollmentQueries();
+      setReopeningEnrollmentId(null);
+      setReopenReason('');
+      if (response.data?.certificateExists) {
+        setReopenedCertificateNotice(
+          'This enrollment had an issued certificate. Reopening did NOT void, unlink, or otherwise change that certificate - handle it separately.'
+        );
+      }
     },
   });
 
@@ -1046,6 +1103,18 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               >
                 <TrendingUp className="h-4 w-4" />
                 Progress
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('enrollments')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md font-medium text-sm transition-all ${
+                  activeTab === 'enrollments'
+                    ? 'bg-surface text-tx-primary shadow-sm'
+                    : 'text-tx-secondary hover:text-tx-primary'
+                }`}
+              >
+                <GraduationCap className="h-4 w-4" />
+                Enrollments
               </button>
               <button
                 type="button"
@@ -2116,6 +2185,135 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </a>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Enrollments Tab (Item 4) - the person's enrollments list, each
+              with its own progress/status, plus explicit add/complete/reopen
+              actions on the shared sub-panel. */}
+          {activeTab === 'enrollments' && isEditing && student && (
+            <div className="space-y-4">
+              {reopenedCertificateNotice && (
+                <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-status-warning-text mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 flex items-start justify-between gap-2">
+                    <p className="text-sm text-status-warning-text">{reopenedCertificateNotice}</p>
+                    <button
+                      type="button"
+                      onClick={() => setReopenedCertificateNotice(null)}
+                      className="text-status-warning-text hover:opacity-70 flex-shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <EnrollmentSubPanel
+                enrollments={enrollments}
+                canAddDriverEducation={!enrollments.some(e => e.programType === 'driver_education')}
+                canAddDriverTraining={!enrollments.some(e => e.programType === 'driver_training' && e.status === 'active')}
+                isAddingProgramType={isAddingProgramType}
+                onStartAdd={(programType) => setIsAddingProgramType(programType)}
+                onCancelAdd={() => setIsAddingProgramType(null)}
+                onConfirmAdd={(data) =>
+                  createEnrollmentMutation.mutate({ programType: isAddingProgramType!, ...data })
+                }
+                isAddPending={createEnrollmentMutation.isPending}
+                onStartComplete={(enrollmentId) => setCompletingEnrollmentId(enrollmentId)}
+                onStartReopen={(enrollmentId) => setReopeningEnrollmentId(enrollmentId)}
+                completingEnrollmentId={completingEnrollmentId}
+                reopeningEnrollmentId={reopeningEnrollmentId}
+              />
+
+              {/* Complete confirm - mirrors the Progress tab's turning-18
+                  completion prompt (reason required). */}
+              {completingEnrollmentId && (
+                <div className="bg-status-success-bg border border-status-success-border rounded-lg p-4 space-y-2">
+                  <label className="block text-xs font-medium text-status-success-text">
+                    Completion reason
+                  </label>
+                  <input
+                    type="text"
+                    value={enrollmentCompletionReason}
+                    onChange={(e) => setEnrollmentCompletionReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-status-success-border rounded-lg text-sm bg-surface"
+                    placeholder="Completion reason"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompletingEnrollmentId(null);
+                        setEnrollmentCompletionReason('');
+                      }}
+                      className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        completeEnrollmentMutation.mutate({ id: completingEnrollmentId, reason: enrollmentCompletionReason })
+                      }
+                      disabled={!enrollmentCompletionReason.trim() || completeEnrollmentMutation.isPending}
+                      className="px-3 py-2 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                    >
+                      {completeEnrollmentMutation.isPending ? 'Saving...' : 'Confirm complete'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reopen confirm - guarded: requires a reason, states the
+                  consequences up front, warns generically about certificates
+                  (concrete confirmation only known after the call succeeds -
+                  see reopenedCertificateNotice above). */}
+              {reopeningEnrollmentId && (
+                <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium text-status-warning-text">
+                    Reopening clears this enrollment's completion status and requires re-completing it later.
+                    If a certificate was already issued for this enrollment, reopening will NOT void or unlink
+                    it - that must be handled separately.
+                  </p>
+                  {reopenEnrollmentMutation.isError && (
+                    <p className="text-sm text-status-danger-text">
+                      {(reopenEnrollmentMutation.error as Error & { response?: { data?: { error?: string } } })
+                        ?.response?.data?.error || 'Only an owner or admin can reopen an enrollment.'}
+                    </p>
+                  )}
+                  <label className="block text-xs font-medium text-status-warning-text">
+                    Reason for reopening (required)
+                  </label>
+                  <input
+                    type="text"
+                    value={reopenReason}
+                    onChange={(e) => setReopenReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-status-warning-border rounded-lg text-sm bg-surface"
+                    placeholder="e.g. Marked complete by mistake"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReopeningEnrollmentId(null);
+                        setReopenReason('');
+                      }}
+                      className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reopenEnrollmentMutation.mutate({ id: reopeningEnrollmentId, reason: reopenReason })}
+                      disabled={!reopenReason.trim() || reopenEnrollmentMutation.isPending}
+                      className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                    >
+                      {reopenEnrollmentMutation.isPending ? 'Reopening...' : 'Confirm reopen'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

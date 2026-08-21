@@ -83,8 +83,14 @@ describe('StudentProgressBar', () => {
     expect(second.container.innerHTML).toBe(firstHtml);
   });
 
-  it('renders a dash when progress is undefined', () => {
-    render(<StudentProgressBar progress={undefined} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+  it('renders "No active enrollment" (muted, zero-width bar, no percent) when progress is undefined', () => {
+    const { container } = render(<StudentProgressBar progress={undefined} />);
+    const label = screen.getByText('No active enrollment');
+    expect(label).toBeInTheDocument();
+    expect(label.className).toMatch(/text-tx-muted/);
+    expect(label.className).toMatch(/italic/);
+    expect(screen.queryByText(/^\d+%$/)).not.toBeInTheDocument();
+    const bar = container.querySelector('[style]') as HTMLElement;
+    expect(bar.style.width).toBe('0%');
   });
 });

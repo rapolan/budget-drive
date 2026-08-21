@@ -34,6 +34,7 @@ vi.mock('@/api', async () => {
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
     enrollmentsApi: {
       getForStudent: vi.fn().mockResolvedValue({ data: [] }),
+      create: vi.fn().mockResolvedValue({ data: {} }),
       update: vi.fn().mockResolvedValue({ data: {} }),
       complete: vi.fn().mockResolvedValue({ data: {} }),
       reopen: vi.fn().mockResolvedValue({ data: {} }),
@@ -1544,5 +1545,154 @@ describe('StudentModal turning-18 admin actions - target the enrollment, not the
     fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
 
     expect(await screen.findByText(/acme driving school/i)).toBeInTheDocument();
+  });
+});
+
+// Item 4: the Enrollments tab - lists a person's enrollments, and gates
+// "add" independently per program type (driver_education when none exists,
+// driver_training only when there's no ACTIVE one - the returning-student
+// case the partial unique index exists to support).
+describe('StudentModal - Enrollments tab (Item 4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function enrollment(overrides: Partial<Enrollment> = {}): Enrollment {
+    return {
+      id: 'enrollment-1',
+      tenantId: 'tenant-1',
+      studentId: 'student-1',
+      programType: 'driver_training',
+      status: 'active',
+      enrollmentDate: new Date('2026-01-01'),
+      hoursRequired: 6,
+      trackOverride: null,
+      assignedInstructorId: null,
+      licenseType: 'car',
+      totalCost: null,
+      completed: false,
+      completedAt: null,
+      completedBy: null,
+      completionReason: null,
+      reopenedAt: null,
+      reopenedBy: null,
+      reopenedReason: null,
+      externalDeCompleted: false,
+      externalDeCompletedDate: null,
+      externalDeProvider: null,
+      manualCompletedHours: null,
+      completionHash: null,
+      ledgerTxid: null,
+      createdBy: null,
+      updatedBy: null,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      ...overrides,
+    };
+  }
+
+  it('offers only "add driver education" when an active driver_training enrollment already exists', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment()],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    // Wait for the real enrollment row (not just the always-visible "add"
+    // buttons, which render identically before data loads too - both
+    // canAdd* flags default true against an empty enrollments array).
+    await screen.findByText(/^driver training$/i);
+
+    expect(screen.getByRole('button', { name: /add driver education enrollment/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add driver training enrollment/i })).not.toBeInTheDocument();
+  });
+
+  it('offers "add driver training" (the returning-student case) once the only driver_training enrollment has completed', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment({ status: 'completed', completed: true, completionReason: 'Passed road test' })],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    await screen.findByText(/^driver training$/i);
+    expect(screen.getByRole('button', { name: /add driver training enrollment/i })).toBeInTheDocument();
+  });
+
+  it('creates a driver_education enrollment via enrollmentsApi.create with the manually entered hours, only after the explicit confirm click', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment()],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    await screen.findByText(/^driver training$/i);
+    const addButton = screen.getByRole('button', { name: /add driver education enrollment/i });
+    fireEvent.click(addButton);
+
+    // Nothing committed yet - only the form appeared.
+    expect(enrollmentsApi.create).not.toHaveBeenCalled();
+
+    const hoursInput = screen.getByLabelText(/hours completed/i);
+    fireEvent.change(hoursInput, { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add enrollment$/i }));
+
+    await waitFor(() =>
+      expect(enrollmentsApi.create).toHaveBeenCalledWith('student-1', {
+        programType: 'driver_education',
+        manualCompletedHours: 30,
+      })
+    );
+  });
+
+  it('reopen requires a non-empty reason and calls enrollmentsApi.reopen with the enrollment id and reason', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment({ status: 'completed', completed: true })],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    const reopenButton = await screen.findByRole('button', { name: /reopen/i });
+    fireEvent.click(reopenButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm reopen/i });
+    expect(confirmButton).toBeDisabled();
+
+    const reasonInput = screen.getByPlaceholderText(/marked complete by mistake/i);
+    fireEvent.change(reasonInput, { target: { value: 'Booked by mistake' } });
+    expect(confirmButton).not.toBeDisabled();
+
+    fireEvent.click(confirmButton);
+
+    await waitFor(() =>
+      expect(enrollmentsApi.reopen).toHaveBeenCalledWith('enrollment-1', 'Booked by mistake')
+    );
+  });
+
+  it('shows the certificate notice after a reopen response confirms one exists, and it can be dismissed', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment({ status: 'completed', completed: true })],
+    });
+    (enrollmentsApi.reopen as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { ...enrollment({ status: 'active', completed: false }), certificateExists: true },
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    fireEvent.click(await screen.findByRole('button', { name: /reopen/i }));
+    fireEvent.change(screen.getByPlaceholderText(/marked complete by mistake/i), { target: { value: 'Wrong student' } });
+    fireEvent.click(screen.getByRole('button', { name: /confirm reopen/i }));
+
+    const notice = await screen.findByText(/reopening did not void, unlink/i);
+    expect(notice).toBeInTheDocument();
+
+    const dismissButtons = screen.getAllByRole('button');
+    const closeButton = dismissButtons.find(b => b.querySelector('.lucide-x') && b.closest('.bg-status-warning-bg'));
+    fireEvent.click(closeButton!);
+    expect(screen.queryByText(/reopening did not void, unlink/i)).not.toBeInTheDocument();
   });
 });
