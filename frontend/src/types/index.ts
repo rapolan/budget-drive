@@ -265,6 +265,11 @@ export interface Enrollment {
   progress?: StudentProgress;
   paymentSummary?: EnrollmentPaymentSummary;
   certificateExists?: boolean;
+  // Was this person a minor AS OF this enrollment's completion date (not
+  // today) - resolved server-side (tenant-timezone-aware); the frontend
+  // never computes this boundary itself. False for a non-completed
+  // enrollment.
+  wasMinorAtCompletion?: boolean;
 
   createdBy: string | null;
   updatedBy: string | null;

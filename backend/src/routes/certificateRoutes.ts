@@ -16,6 +16,7 @@ router.use(requireTenantContext);
 
 router.get('/certificates/worklist', certificateController.getWorklist);
 router.get('/certificates/counts', certificateController.getCounts);
+router.get('/certificates/for-enrollments', certificateController.getForEnrollments);
 
 router.post(
   '/enrollments/:enrollmentId/certificate',

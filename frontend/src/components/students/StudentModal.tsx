@@ -4,7 +4,7 @@ import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
   CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap
 } from 'lucide-react';
-import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi } from '@/api';
+import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi, certificatesApi } from '@/api';
 import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson, ProgramType } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
@@ -621,6 +621,45 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
           'This enrollment had an issued certificate. Reopening did NOT void, unlink, or otherwise change that certificate - handle it separately.'
         );
       }
+    },
+  });
+
+  // Withdraw is a guarded write server-side (requires a reason, owner/admin
+  // only) - same shape as reopen. Only callable on an active enrollment.
+  const [withdrawingEnrollmentId, setWithdrawingEnrollmentId] = useState<string | null>(null);
+  const [withdrawReason, setWithdrawReason] = useState('');
+
+  const withdrawEnrollmentMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => enrollmentsApi.withdraw(id, reason),
+    onSuccess: () => {
+      invalidateEnrollmentQueries();
+      setWithdrawingEnrollmentId(null);
+      setWithdrawReason('');
+    },
+  });
+
+  // Recording a certificate has NO age check - available for any completed
+  // enrollment, not just the ones the certificates worklist surfaces.
+  const [recordingCertificateEnrollmentId, setRecordingCertificateEnrollmentId] = useState<string | null>(null);
+  const [certificateSerialNumber, setCertificateSerialNumber] = useState('');
+  const [certificateIssueDate, setCertificateIssueDate] = useState('');
+
+  const { data: certificatesData } = useQuery({
+    queryKey: ['students', student?.id, 'certificates', enrollments.map(e => e.id).join(',')],
+    queryFn: () => certificatesApi.getForEnrollments(enrollments.map(e => e.id)),
+    enabled: isEditing && activeTab === 'enrollments' && !!student && enrollments.length > 0,
+  });
+  const certificatesByEnrollmentId = certificatesData?.data ?? {};
+
+  const recordCertificateMutation = useMutation({
+    mutationFn: ({ id, serialNumber, issueDate }: { id: string; serialNumber: string; issueDate: string }) =>
+      certificatesApi.record(id, { serialNumber, issueDate }),
+    onSuccess: () => {
+      invalidateEnrollmentQueries();
+      queryClient.invalidateQueries({ queryKey: ['students', student?.id, 'certificates'] });
+      setRecordingCertificateEnrollmentId(null);
+      setCertificateSerialNumber('');
+      setCertificateIssueDate('');
     },
   });
 
@@ -2224,6 +2263,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 onStartReopen={(enrollmentId) => setReopeningEnrollmentId(enrollmentId)}
                 completingEnrollmentId={completingEnrollmentId}
                 reopeningEnrollmentId={reopeningEnrollmentId}
+                onStartWithdraw={(enrollmentId) => setWithdrawingEnrollmentId(enrollmentId)}
+                withdrawingEnrollmentId={withdrawingEnrollmentId}
+                onStartRecordCertificate={(enrollmentId) => {
+                  const enrollment = enrollments.find(e => e.id === enrollmentId);
+                  setCertificateIssueDate(
+                    enrollment?.completedAt ? new Date(enrollment.completedAt).toISOString().slice(0, 10) : ''
+                  );
+                  setRecordingCertificateEnrollmentId(enrollmentId);
+                }}
+                recordingCertificateEnrollmentId={recordingCertificateEnrollmentId}
+                certificatesByEnrollmentId={certificatesByEnrollmentId}
               />
 
               {/* Complete confirm - mirrors the Progress tab's turning-18
@@ -2310,6 +2360,125 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                     >
                       {reopenEnrollmentMutation.isPending ? 'Reopening...' : 'Confirm reopen'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Withdraw confirm - guarded: requires a reason, only shown
+                  for an active enrollment. A minor who withdraws before
+                  completing is entitled to a training-received transcript
+                  under 13 CCR §340.27 - generated separately from the
+                  student record, not part of this confirm step. */}
+              {withdrawingEnrollmentId && (
+                <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium text-status-danger-text">
+                    Withdrawing marks this enrollment as left before completing. This is separate from completion
+                    and cannot be undone through the app - a withdrawn enrollment stays withdrawn.
+                  </p>
+                  {withdrawEnrollmentMutation.isError && (
+                    <p className="text-sm text-status-danger-text">
+                      {(withdrawEnrollmentMutation.error as Error & { response?: { data?: { error?: string } } })
+                        ?.response?.data?.error || 'Only an owner or admin can withdraw an enrollment.'}
+                    </p>
+                  )}
+                  <label className="block text-xs font-medium text-status-danger-text">
+                    Reason for withdrawal (required)
+                  </label>
+                  <input
+                    type="text"
+                    value={withdrawReason}
+                    onChange={(e) => setWithdrawReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-status-danger-border rounded-lg text-sm bg-surface"
+                    placeholder="e.g. Moved out of state"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWithdrawingEnrollmentId(null);
+                        setWithdrawReason('');
+                      }}
+                      className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => withdrawEnrollmentMutation.mutate({ id: withdrawingEnrollmentId, reason: withdrawReason })}
+                      disabled={!withdrawReason.trim() || withdrawEnrollmentMutation.isPending}
+                      className="px-3 py-2 text-sm font-medium bg-status-danger-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                    >
+                      {withdrawEnrollmentMutation.isPending ? 'Withdrawing...' : 'Confirm withdraw'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Record certificate confirm - no age check, shown for any
+                  completed enrollment with no certificate yet. Issue date
+                  pre-fills to the enrollment's completion date, editable -
+                  same form shape as the certificates worklist row. */}
+              {recordingCertificateEnrollmentId && (
+                <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium text-status-warning-text">
+                    Record the serial number from the student's returned paper record sheet.
+                  </p>
+                  {recordCertificateMutation.isError && (
+                    <p className="text-sm text-status-danger-text">
+                      Could not record certificate - check the serial number.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-status-warning-text mb-1">
+                        Serial number
+                      </label>
+                      <input
+                        type="text"
+                        value={certificateSerialNumber}
+                        onChange={(e) => setCertificateSerialNumber(e.target.value)}
+                        className="w-full px-3 py-2 border border-status-warning-border rounded-lg text-sm bg-surface"
+                        placeholder="CS7218767"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-status-warning-text mb-1">
+                        Issue date
+                      </label>
+                      <input
+                        type="date"
+                        value={certificateIssueDate}
+                        onChange={(e) => setCertificateIssueDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-status-warning-border rounded-lg text-sm bg-surface"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecordingCertificateEnrollmentId(null);
+                        setCertificateSerialNumber('');
+                        setCertificateIssueDate('');
+                      }}
+                      className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        recordCertificateMutation.mutate({
+                          id: recordingCertificateEnrollmentId,
+                          serialNumber: certificateSerialNumber,
+                          issueDate: certificateIssueDate,
+                        })
+                      }
+                      disabled={!certificateSerialNumber.trim() || !certificateIssueDate || recordCertificateMutation.isPending}
+                      className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                    >
+                      {recordCertificateMutation.isPending ? 'Recording...' : 'Record certificate'}
                     </button>
                   </div>
                 </div>

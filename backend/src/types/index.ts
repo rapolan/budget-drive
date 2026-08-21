@@ -420,6 +420,12 @@ export interface Enrollment {
   progress?: StudentProgress; // Attached by enrollment read paths
   paymentSummary?: EnrollmentPaymentSummary; // Derived from payments, attached by enrollment read paths
   certificateExists?: boolean; // Attached only on the reopen response - enrollment-scoped (certificates.enrollment_id)
+  // Was this person a minor AS OF this enrollment's completion date (not
+  // today) - tenant-timezone-aware, computed server-side so the frontend
+  // never re-derives this date boundary itself. False (not undefined) for
+  // a non-completed enrollment. Attached by the same enrollment read paths
+  // as progress/paymentSummary.
+  wasMinorAtCompletion?: boolean;
 
   createdBy: string | null;
   updatedBy: string | null;

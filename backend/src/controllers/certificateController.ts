@@ -40,6 +40,25 @@ export const getCounts = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
+ * @route   GET /api/v1/certificates/for-enrollments?enrollmentIds=a,b,c
+ * @desc    Batched certificate lookup for a set of enrollments - used by
+ *          the student record's Enrollments tab (not N+1 per enrollment)
+ * @access  Private
+ */
+export const getForEnrollments = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const raw = req.query.enrollmentIds;
+  const enrollmentIds = typeof raw === 'string' ? raw.split(',').filter(Boolean) : [];
+
+  const certificatesByEnrollmentId = await certificateService.getCertificatesForEnrollments(enrollmentIds, tenantId);
+
+  res.json({
+    success: true,
+    data: Object.fromEntries(certificatesByEnrollmentId),
+  });
+});
+
+/**
  * @route   POST /api/v1/enrollments/:enrollmentId/certificate
  * @desc    Record a certificate against a completed enrollment - callable
  *          from the worklist or directly from any completed enrollment on

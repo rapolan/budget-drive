@@ -38,6 +38,18 @@ export const certificatesApi = {
     return response.data;
   },
 
+  // Batched - one call for all of a student's enrollments, not N+1.
+  getForEnrollments: async (enrollmentIds: string[]) => {
+    if (enrollmentIds.length === 0) {
+      return { success: true, data: {} as Record<string, Certificate> };
+    }
+    const response = await apiClient.get<ApiResponse<Record<string, Certificate>>>(
+      '/certificates/for-enrollments',
+      { params: { enrollmentIds: enrollmentIds.join(',') } }
+    );
+    return response.data;
+  },
+
   // No age check - callable for any completed enrollment, worklist or not.
   record: async (enrollmentId: string, data: RecordCertificateInput) => {
     const response = await apiClient.post<ApiResponse<Certificate>>(

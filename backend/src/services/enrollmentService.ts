@@ -90,7 +90,20 @@ async function attachProgressAndPayments(
 
     const paymentSummary = computePaymentSummary(enrollment, lessons, paidByEnrollment.get(enrollment.id) ?? 0);
 
-    return { ...enrollment, progress, paymentSummary };
+    // Certificate-worklist eligibility mirror: was this person a minor AS
+    // OF this enrollment's completion date, not today's date - computed
+    // here (tenant-timezone-aware, server-side) rather than in the
+    // frontend, so the enrollment tab's "awaiting certificate" badge can
+    // never disagree with what the certificates worklist itself surfaces.
+    // Meaningless (false) for a non-completed enrollment.
+    const wasMinorAtCompletion = enrollment.completed && enrollment.completedAt
+      ? (() => {
+          const age = calculateAge(student.dateOfBirth, timezone, new Date(enrollment.completedAt as Date));
+          return age === null || age < 18;
+        })()
+      : false;
+
+    return { ...enrollment, progress, paymentSummary, wasMinorAtCompletion };
   });
 }
 
