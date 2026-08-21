@@ -120,4 +120,66 @@ describe('lessonService.updateLesson - scheduling conflict validation', () => {
     expect(callArgs[2]).toBe(STUDENT_ID); // merged from existing row, unchanged
     expect(callArgs[6]).toBe(LESSON_ID); // excludeLessonId - the lesson's own id
   });
+
+  // Regression coverage: reassigning a lesson's student previously wrote
+  // student_id alone, leaving enrollment_id pointing at the OLD student's
+  // enrollment - a silent misattribution bug found while auditing the
+  // deferred lessons.student_id/payments.student_id cleanup. Fixed to
+  // resolve and write the NEW student's active driver_training
+  // enrollment_id in the same UPDATE, or reject if they have none.
+  it('reassigning a lesson to a new student updates both student_id and enrollment_id', async () => {
+    const { updateLesson } = await import('../services/lessonService');
+    const NEW_STUDENT_ID = 'student-2';
+    const NEW_ENROLLMENT_ID = 'enrollment-2';
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([existingLessonRow])) // fetch existing lesson
+      .mockResolvedValueOnce(queryResult([{ id: NEW_STUDENT_ID }])) // student existence check
+      .mockResolvedValueOnce(
+        queryResult([{ id: NEW_ENROLLMENT_ID, student_id: NEW_STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
+      ) // getActiveDriverTrainingEnrollment
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // resolveTimezone
+      .mockResolvedValueOnce(
+        queryResult([{ ...existingLessonRow, student_id: NEW_STUDENT_ID, enrollment_id: NEW_ENROLLMENT_ID }])
+      ); // UPDATE ... RETURNING *
+
+    mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
+
+    await updateLesson(LESSON_ID, TENANT_ID, { studentId: NEW_STUDENT_ID } as any);
+
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE lessons')
+    );
+    expect(updateCall).toBeDefined();
+    const [sql, params] = updateCall!;
+    expect(sql).toMatch(/student_id/);
+    expect(sql).toMatch(/enrollment_id/);
+    expect(params).toContain(NEW_STUDENT_ID);
+    expect(params).toContain(NEW_ENROLLMENT_ID);
+  });
+
+  it('reassigning a lesson to a student with no active driver_training enrollment is rejected with 400, before any UPDATE runs', async () => {
+    const { updateLesson } = await import('../services/lessonService');
+    const NEW_STUDENT_ID = 'student-2';
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([existingLessonRow])) // fetch existing lesson
+      .mockResolvedValueOnce(queryResult([{ id: NEW_STUDENT_ID }])) // student existence check
+      .mockResolvedValueOnce(queryResult([])); // getActiveDriverTrainingEnrollment - none found
+
+    let caught: unknown;
+    try {
+      await updateLesson(LESSON_ID, TENANT_ID, { studentId: NEW_STUDENT_ID } as any);
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(AppError);
+    expect((caught as AppError).statusCode).toBe(400);
+    expect(mockValidateLessonBooking).not.toHaveBeenCalled();
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE lessons')
+    );
+    expect(updateCall).toBeUndefined();
+  });
 });

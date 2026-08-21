@@ -749,8 +749,22 @@ export const updateLesson = async (
         });
         throw new AppError('Student not found or does not belong to this organization', 404);
       }
+
+      // Reassigning a lesson's student must also repoint enrollment_id to
+      // the NEW student's active driver_training enrollment - leaving it
+      // pointing at the old student's enrollment would silently misattribute
+      // this lesson (fee flags, progress, payments all resolve through
+      // enrollment_id). Same guard createLesson already applies: no active
+      // enrollment means no valid target for this lesson.
+      const activeEnrollment = await getActiveDriverTrainingEnrollment(data.studentId, tenantId);
+      if (!activeEnrollment) {
+        throw new AppError('Student has no active driver_training enrollment', 400);
+      }
+
       fields.push(`student_id = $${paramCount++}`);
       values.push(data.studentId);
+      fields.push(`enrollment_id = $${paramCount++}`);
+      values.push(activeEnrollment.id);
     }
 
   if (data.date !== undefined) {
