@@ -52,4 +52,14 @@ router.post(
   enrollmentController.reopenEnrollment
 );
 
+// Withdraw an active enrollment before completion - requires a reason,
+// owner/admin only. Same guarded-write shape as reopen.
+router.post(
+  '/enrollments/:id/withdraw',
+  validateUUID('id'),
+  requireRole('owner', 'admin'),
+  validateRequired(['reason']),
+  enrollmentController.withdrawEnrollment
+);
+
 export default router;

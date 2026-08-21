@@ -371,7 +371,7 @@ export interface EnrollmentPaymentSummary {
 export interface ActiveEnrollmentSummary {
   id: string;
   programType: ProgramType;
-  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  status: 'active' | 'completed' | 'inactive' | 'suspended' | 'withdrawn';
   enrollmentDate: Date;
   completed: boolean;
   completionReason: string | null;
@@ -382,7 +382,7 @@ export interface Enrollment {
   tenantId: string;
   studentId: string;
   programType: ProgramType;
-  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  status: 'active' | 'completed' | 'inactive' | 'suspended' | 'withdrawn';
   enrollmentDate: Date;
   hoursRequired: number;
   trackOverride: 'hours' | 'lessons' | null;
@@ -399,6 +399,12 @@ export interface Enrollment {
   reopenedBy: string | null;
   reopenedReason: string | null;
 
+  // A minor who leaves before completing is entitled to a training-received
+  // transcript (13 CCR §340.27) - see backend/src/services/transcriptService.ts.
+  withdrawnAt: Date | null;
+  withdrawnBy: string | null;
+  withdrawnReason: string | null;
+
   // driver_training only: external driver_education prerequisite (display only)
   externalDeCompleted: boolean;
   externalDeCompletedDate: Date | null;
@@ -413,7 +419,7 @@ export interface Enrollment {
 
   progress?: StudentProgress; // Attached by enrollment read paths
   paymentSummary?: EnrollmentPaymentSummary; // Derived from payments, attached by enrollment read paths
-  certificateExists?: boolean; // Attached only on the reopen response - person-scoped today, see TODO in enrollmentService
+  certificateExists?: boolean; // Attached only on the reopen response - enrollment-scoped (certificates.enrollment_id)
 
   createdBy: string | null;
   updatedBy: string | null;
@@ -848,31 +854,36 @@ export interface BlockchainRecord {
   createdAt: Date;
 }
 
+// A certificate is a compliance record of DMV certificate-of-completion
+// issuance (13 CCR §340.27), attached to an ENROLLMENT (not a person - a
+// person can hold a driver_education and a driver_training certificate on
+// two different DMV forms). enrollmentId is null only for a void row (a
+// spoiled/lost/stolen certificate that never reached a student - the
+// §340.27/DL 803 accounting). issuedByInstructorId and recordedBy are
+// deliberately different people: the instructor who physically handed the
+// certificate over vs. the admin who later entered its serial in the app
+// from the returned paper sheet.
 export interface Certificate {
   id: string;
   tenantId: string;
-  studentId: string;
+  enrollmentId: string | null;
 
-  certificateNumber: string;
+  serialNumber: string;
+  formType: string;
+  status: 'issued' | 'void';
+  voidReason: string | null;
+
   issueDate: Date;
-  certificateType: 'completion' | 'achievement' | 'hours_milestone' | 'test_passed' | null;
+  issuedByInstructorId: string | null;
+  recordedBy: string | null;
 
-  title: string;
-  description: string | null;
-  hoursCompleted: number | null;
+  // BSV forward-compatibility - no anchoring code, ledgerTxid always null
+  // this session, mirroring enrollments.completionHash/ledgerTxid exactly.
+  completionHash: string | null;
+  ledgerTxid: string | null;
 
-  pdfUrl: string | null;
-  imageUrl: string | null;
-
-  blockchainHash: string | null;
-  blockchainVerified: boolean;
-
-  issuedBy: string | null;
-  sentToStudent: boolean;
-  sentAt: Date | null;
-
-  notes: string | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 // =====================================================

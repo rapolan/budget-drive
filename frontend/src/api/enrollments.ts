@@ -56,4 +56,15 @@ export const enrollmentsApi = {
     );
     return response.data;
   },
+
+  // Guarded write: requires a reason, owner/admin only (enforced server-side).
+  // Only callable on an active enrollment - completed and withdrawn are
+  // mutually exclusive outcomes.
+  withdraw: async (id: string, reason: string) => {
+    const response = await apiClient.post<ApiResponse<Enrollment>>(
+      `/enrollments/${id}/withdraw`,
+      { reason }
+    );
+    return response.data;
+  },
 };

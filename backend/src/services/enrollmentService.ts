@@ -360,12 +360,9 @@ export const markEnrollmentCompleted = async (
  * so completion_hash is deliberately never cleared (the historical fact
  * "a completion occurred" must survive).
  *
- * TODO(certificates-session): certificates are still student_id-scoped, not
- * enrollment-scoped, so this check matches a person's ANY certificate, not
- * specifically one for this enrollment's program. Once certificates gain
- * enrollment_id, scope this query to the enrollment. Until then a person
- * with two enrollments could see a certificate-exists warning that belongs
- * to their other enrollment - flagged, not fixed, per this session's scope.
+ * certificateExists is scoped to THIS enrollment (certificates.enrollment_id,
+ * as of migration 021) - a person with two enrollments no longer sees a
+ * certificate-exists warning that actually belongs to their other one.
  */
 export const reopenEnrollment = async (
   id: string,
@@ -381,8 +378,8 @@ export const reopenEnrollment = async (
   }
 
   const certCheck = await query(
-    `SELECT COUNT(*) AS count FROM certificates WHERE student_id = $1 AND tenant_id = $2`,
-    [enrollment.studentId, tenantId]
+    `SELECT COUNT(*) AS count FROM certificates WHERE enrollment_id = $1 AND tenant_id = $2`,
+    [enrollment.id, tenantId]
   );
   const certificateExists = parseInt(certCheck.rows[0].count, 10) > 0;
 
@@ -402,6 +399,49 @@ export const reopenEnrollment = async (
 
   logger.info('Successfully reopened enrollment', { tenantId, enrollmentId: id, certificateExists });
   return { ...(keysToCamel(result.rows[0]) as Enrollment), certificateExists };
+};
+
+/**
+ * A minor who leaves before completing their program is entitled under
+ * 13 CCR §340.27 to a transcript of training received - see
+ * transcriptService.generateWithdrawalTranscript. Withdrawal is a guarded
+ * write, same shape as reopen: requires a reason (enforced at the route
+ * layer via validateRequired), restricted to owner/admin, records who/
+ * when/why via withdrawn_at/withdrawn_by/withdrawn_reason. Only callable
+ * on an active enrollment - completed and withdrawn are mutually
+ * exclusive outcomes for a program, matching the existing terminal-
+ * status-transition-guard pattern lessons use for their own status
+ * transitions.
+ */
+export const withdrawEnrollment = async (
+  id: string,
+  tenantId: string,
+  data: { reason: string },
+  userId?: string
+): Promise<Enrollment> => {
+  logger.info('Withdrawing enrollment', { tenantId, enrollmentId: id });
+
+  const enrollment = await getEnrollmentById(id, tenantId);
+  if (!enrollment) {
+    throw new AppError('Enrollment not found', 404);
+  }
+  if (enrollment.status !== 'active') {
+    throw new AppError(`Cannot withdraw an enrollment with status '${enrollment.status}' - only an active enrollment can be withdrawn`, 409);
+  }
+
+  const result = await query(
+    `UPDATE enrollments
+     SET status = 'withdrawn',
+         withdrawn_at = NOW(),
+         withdrawn_by = $1,
+         withdrawn_reason = $2
+     WHERE id = $3 AND tenant_id = $4
+     RETURNING *`,
+    [userId || null, data.reason, id, tenantId]
+  );
+
+  logger.info('Successfully withdrew enrollment', { tenantId, enrollmentId: id });
+  return keysToCamel(result.rows[0]) as Enrollment;
 };
 
 export interface UpdateEnrollmentInput {

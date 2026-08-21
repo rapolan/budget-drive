@@ -97,3 +97,25 @@ export const reopenEnrollment = asyncHandler(async (req: Request, res: Response)
     message: 'Enrollment reopened',
   });
 });
+
+/**
+ * @route   POST /api/v1/enrollments/:id/withdraw
+ * @desc    Withdraw an active enrollment before completion (13 CCR §340.27).
+ *          Requires a reason (validated at the route layer) and owner/admin
+ *          role (requireRole at the route layer) - same guarded-write shape
+ *          as reopen.
+ * @access  Private (owner/admin only)
+ */
+export const withdrawEnrollment = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+
+  const enrollment = await enrollmentService.withdrawEnrollment(id, tenantId, req.body, userId);
+
+  res.json({
+    success: true,
+    data: enrollment,
+    message: 'Enrollment withdrawn',
+  });
+});

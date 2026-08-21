@@ -232,7 +232,7 @@ export interface Enrollment {
   tenantId: string;
   studentId: string;
   programType: ProgramType;
-  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  status: 'active' | 'completed' | 'inactive' | 'suspended' | 'withdrawn';
   enrollmentDate: Date;
   hoursRequired: number;
   trackOverride: 'hours' | 'lessons' | null;
@@ -248,6 +248,10 @@ export interface Enrollment {
   reopenedAt: Date | null;
   reopenedBy: string | null;
   reopenedReason: string | null;
+
+  withdrawnAt: Date | null;
+  withdrawnBy: string | null;
+  withdrawnReason: string | null;
 
   externalDeCompleted: boolean;
   externalDeCompletedDate: Date | null;
@@ -446,16 +450,25 @@ export interface BlockchainTransaction {
   updatedAt: Date;
 }
 
+// See backend/src/types/index.ts's Certificate for the full rationale -
+// this must stay field-for-field identical to what the API returns.
 export interface Certificate {
   id: string;
   tenantId: string;
-  studentId: string;
-  certificateNumber: string;
+  enrollmentId: string | null;
+
+  serialNumber: string;
+  formType: string;
+  status: 'issued' | 'void';
+  voidReason: string | null;
+
   issueDate: Date;
-  certificateType: 'completion' | 'attendance' | 'behind_wheel_hours';
-  hoursCompleted?: number;
-  issuedBy: string;
-  pdfUrl?: string;
+  issuedByInstructorId: string | null;
+  recordedBy: string | null;
+
+  completionHash: string | null;
+  ledgerTxid: string | null;
+
   createdAt: Date;
   updatedAt: Date;
 }
