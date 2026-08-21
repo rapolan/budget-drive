@@ -12,6 +12,7 @@ import { InstructorsPage } from '@/pages/Instructors';
 import { VehiclesPage } from '@/pages/Vehicles';
 import { LessonsPage } from '@/pages/Lessons';
 import { ReviewQueuePage } from '@/pages/ReviewQueue';
+import { CertificatesPage } from '@/pages/Certificates';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
@@ -175,7 +176,7 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppLayout>
-              <div className="text-center text-tx-muted">Certificates page - Coming soon</div>
+              <CertificatesPage />
             </AppLayout>
           </ProtectedRoute>
         }

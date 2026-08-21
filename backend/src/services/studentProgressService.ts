@@ -34,6 +34,11 @@ type ProgressLessonInput = Pick<Lesson, 'status' | 'duration'>;
  * clock has already rolled to the 15th). `timezone` defaults to the
  * documented fallback so any not-yet-updated caller keeps compiling and
  * behaving as before; every real call site passes the tenant's actual zone.
+ * `reference` defaults to now, letting a caller ask "how old was this
+ * person AS OF a past instant" (e.g. certificate-worklist eligibility,
+ * which is gated by age at the enrollment's completion date, not today's
+ * date - a student who has since turned 18 must still surface if they were
+ * a minor when they completed the program).
  * Mirrors frontend/src/utils/age.ts's calculateAge - same algorithm,
  * written once per side since there's no shared module across the
  * language boundary (the frontend's version remains server-local, per the
@@ -41,11 +46,12 @@ type ProgressLessonInput = Pick<Lesson, 'status' | 'duration'>;
  */
 export function calculateAge(
   dob: Date | string | null,
-  timezone: string = DEFAULT_TENANT_TIMEZONE
+  timezone: string = DEFAULT_TENANT_TIMEZONE,
+  reference: Date = new Date()
 ): number | null {
   if (!dob) return null;
   const birthDate = new Date(dob);
-  const today = parseTenantDateOnly(tenantToday(timezone));
+  const today = parseTenantDateOnly(tenantToday(timezone, reference));
   let age = today.getUTCFullYear() - birthDate.getUTCFullYear();
   const monthDiff = today.getUTCMonth() - birthDate.getUTCMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getUTCDate() < birthDate.getUTCDate())) {

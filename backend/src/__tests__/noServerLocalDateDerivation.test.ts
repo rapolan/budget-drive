@@ -90,7 +90,14 @@ const ALLOWLIST: Record<string, string[]> = {
     // RFC 5545 DTSTAMP.
     'DTSTAMP:${formatICSDate(new Date())}',
   ],
-  'src/services/studentProgressService.ts': [],
+  'src/services/studentProgressService.ts': [
+    // calculateAge's own default-reference parameter, same allowlisted
+    // pattern as tenantTime.ts's/tenantService.ts's own primitives above -
+    // lets a caller ask "how old was this person AS OF a past instant"
+    // (e.g. certificate-worklist eligibility, gated by age at an
+    // enrollment's completion date) without touching Date itself.
+    `reference: Date = new Date()`,
+  ],
   'src/services/bookingPresetsService.ts': [],
   'src/services/dashboardService.ts': [
     // DATE-column extraction for the review queue's end-time-passed check.
