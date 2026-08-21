@@ -466,7 +466,7 @@ export const createLesson = async (
       ]
     );
 
-    const lesson = result.rows[0] as Lesson;
+    const lesson = keysToCamel(result.rows[0]) as Lesson;
     logger.info('Lesson created successfully', {
       tenantId,
       lessonId: lesson.id,

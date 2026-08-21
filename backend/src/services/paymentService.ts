@@ -10,6 +10,7 @@ import { AppError } from '../middleware/errorHandler';
 import { createLogger } from '../utils/logger';
 import { ledger } from './Ledger';
 import { getActiveDriverTrainingEnrollment } from './enrollmentService';
+import { keysToCamel } from '../utils/caseConversion';
 
 const logger = createLogger('PaymentService');
 
@@ -49,7 +50,7 @@ export const getAllPayments = async (
   });
 
   return {
-    payments: result.rows as Payment[],
+    payments: result.rows.map(keysToCamel) as Payment[],
     total,
     page,
     totalPages,
@@ -75,7 +76,7 @@ export const getPaymentById = async (
     return null;
   }
 
-  return result.rows[0] as Payment;
+  return keysToCamel(result.rows[0]) as Payment;
 };
 
 export const getPaymentsByStudent = async (
@@ -101,7 +102,7 @@ export const getPaymentsByStudent = async (
     count: result.rows.length,
   });
 
-  return result.rows as Payment[];
+  return result.rows.map(keysToCamel) as Payment[];
 };
 
 export const getPaymentsByLesson = async (
@@ -125,7 +126,7 @@ export const getPaymentsByLesson = async (
     count: result.rows.length,
   });
 
-  return result.rows as Payment[];
+  return result.rows.map(keysToCamel) as Payment[];
 };
 
 export const getPaymentsByStatus = async (
@@ -149,7 +150,7 @@ export const getPaymentsByStatus = async (
     count: result.rows.length,
   });
 
-  return result.rows as Payment[];
+  return result.rows.map(keysToCamel) as Payment[];
 };
 
 export const getPaymentsByPaymentMethod = async (
@@ -173,7 +174,7 @@ export const getPaymentsByPaymentMethod = async (
     count: result.rows.length,
   });
 
-  return result.rows as Payment[];
+  return result.rows.map(keysToCamel) as Payment[];
 };
 
 export const createPayment = async (
@@ -248,7 +249,7 @@ export const createPayment = async (
       ]
     );
 
-    const payment = result.rows[0] as Payment;
+    const payment = keysToCamel(result.rows[0]) as Payment;
     logger.info('Successfully created payment', {
       tenantId,
       paymentId: payment.id,
@@ -354,7 +355,7 @@ export const updatePayment = async (
       updatedFields: Object.keys(data),
     });
 
-    return result.rows[0] as Payment;
+    return keysToCamel(result.rows[0]) as Payment;
   } catch (error) {
     logger.error('Failed to update payment', error as Error, {
       tenantId,
@@ -401,7 +402,7 @@ export const markPaymentAsReceived = async (
     paymentId: id,
   });
 
-  return result.rows[0] as Payment;
+  return keysToCamel(result.rows[0]) as Payment;
 };
 
 export const refundPayment = async (
@@ -424,7 +425,7 @@ export const refundPayment = async (
 
   logger.info('Payment refunded successfully', { tenantId, paymentId: id });
 
-  return result.rows[0] as Payment;
+  return keysToCamel(result.rows[0]) as Payment;
 };
 
 export const deletePayment = async (
