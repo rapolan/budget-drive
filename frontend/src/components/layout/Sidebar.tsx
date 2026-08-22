@@ -103,18 +103,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
       return false;
     }
     
-    // Check feature flags
+    // Check feature flags. GET /tenant/settings returns these camelCase
+    // like every other field (see TenantSettings) - there is no
+    // snake_case variant to handle here.
     if (!item.featureFlag) return true;
 
-    // Handle snake_case from backend (enable_blockchain_payments)
     if (item.featureFlag === 'enableBlockchainPayments') {
-      return (settings as any)?.enable_blockchain_payments === true;
+      return settings?.enableBlockchainPayments === true;
     }
     if (item.featureFlag === 'enableCertificates') {
-      return (settings as any)?.enable_certificates === true;
+      return settings?.enableCertificates === true;
     }
     if (item.featureFlag === 'enableFollowUpTracker') {
-      return (settings as any)?.enable_follow_up_tracker === true;
+      return settings?.enableFollowUpTracker === true;
     }
 
     return true;
