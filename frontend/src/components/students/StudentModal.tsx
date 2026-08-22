@@ -663,6 +663,30 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // A training-received transcript (13 CCR §340.27) triggers a direct
+  // browser download - the endpoint is authenticated (unlike the public
+  // .ics feed), so a plain <a href> wouldn't carry the axios client's auth
+  // header; fetch the blob through apiClient, then hand the browser a
+  // client-side object URL to save.
+  const [generatingTranscriptEnrollmentId, setGeneratingTranscriptEnrollmentId] = useState<string | null>(null);
+
+  const generateTranscriptMutation = useMutation({
+    mutationFn: (enrollmentId: string) => enrollmentsApi.getWithdrawalTranscript(enrollmentId),
+    onMutate: (enrollmentId: string) => setGeneratingTranscriptEnrollmentId(enrollmentId),
+    onSuccess: ({ content, filename }) => {
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+    onSettled: () => setGeneratingTranscriptEnrollmentId(null),
+  });
+
   const { data: feeFlagsData } = useQuery({
     queryKey: ['fee-flags', 'student', student?.id],
     queryFn: () => feeFlagsApi.getOutstandingForStudent(student!.id),
@@ -2274,6 +2298,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 }}
                 recordingCertificateEnrollmentId={recordingCertificateEnrollmentId}
                 certificatesByEnrollmentId={certificatesByEnrollmentId}
+                onGenerateTranscript={(enrollmentId) => generateTranscriptMutation.mutate(enrollmentId)}
+                generatingTranscriptEnrollmentId={generatingTranscriptEnrollmentId}
               />
 
               {/* Complete confirm - mirrors the Progress tab's turning-18

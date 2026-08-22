@@ -62,4 +62,14 @@ router.post(
   enrollmentController.withdrawEnrollment
 );
 
+// Generate a §340.27 training-received transcript - no age check, no
+// role restriction beyond normal auth (any authenticated tenant user can
+// pull a training record), available for any non-completed
+// driver_training enrollment.
+router.get(
+  '/enrollments/:id/withdrawal-transcript',
+  validateUUID('id'),
+  enrollmentController.getWithdrawalTranscript
+);
+
 export default router;

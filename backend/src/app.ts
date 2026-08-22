@@ -54,7 +54,11 @@ app.use(
     origin: config.ALLOWED_ORIGINS,
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
-    exposedHeaders: ['X-Tenant-ID'],
+    // Content-Disposition: withdrawal-transcript download filename must be
+    // readable by frontend JS (apiClient uses axios + a blob download, not
+    // a plain browser navigation) - CORS hides all response headers from
+    // JS except those explicitly exposed here.
+    exposedHeaders: ['X-Tenant-ID', 'Content-Disposition'],
   })
 );
 

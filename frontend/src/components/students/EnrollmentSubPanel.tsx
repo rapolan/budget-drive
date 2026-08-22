@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, CheckCircle, RotateCcw, LogOut, Award, Clock } from 'lucide-react';
+import { Plus, CheckCircle, RotateCcw, LogOut, Award, Clock, FileText } from 'lucide-react';
 import type { Enrollment, ProgramType, Certificate } from '@/types';
 
 const PROGRAM_LABELS: Record<ProgramType, string> = {
@@ -40,6 +40,11 @@ interface EnrollmentSubPanelProps {
   // for that enrollment, distinct from a loading/unfetched state (the
   // caller fetches this once for all of the student's enrollments).
   certificatesByEnrollmentId: Record<string, Certificate>;
+  // 13 CCR §340.27 training-received transcript - no age check, available
+  // for any non-completed driver_training enrollment (active, withdrawn,
+  // inactive, or suspended alike).
+  onGenerateTranscript: (enrollmentId: string) => void;
+  generatingTranscriptEnrollmentId: string | null;
 }
 
 export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
@@ -60,6 +65,8 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
   onStartRecordCertificate,
   recordingCertificateEnrollmentId,
   certificatesByEnrollmentId,
+  onGenerateTranscript,
+  generatingTranscriptEnrollmentId,
 }) => {
   const [draftHoursRequired, setDraftHoursRequired] = React.useState('');
   const [draftManualHours, setDraftManualHours] = React.useState('');
@@ -158,6 +165,20 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
                   >
                     <Award className="h-3.5 w-3.5" />
                     Record certificate
+                  </button>
+                )}
+                {/* 13 CCR §340.27 training-received transcript - always
+                    available on demand for a non-completed driver_training
+                    enrollment, no age check, not restricted to withdrawn. */}
+                {isDriverTraining && !enrollment.completed && (
+                  <button
+                    type="button"
+                    onClick={() => onGenerateTranscript(enrollment.id)}
+                    disabled={generatingTranscriptEnrollmentId === enrollment.id}
+                    className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg text-tx-secondary hover:bg-surface3 disabled:opacity-50"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    {generatingTranscriptEnrollmentId === enrollment.id ? 'Generating...' : 'Generate transcript'}
                   </button>
                 )}
               </div>

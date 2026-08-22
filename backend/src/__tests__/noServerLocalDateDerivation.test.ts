@@ -50,6 +50,7 @@ const TARGET_FILES = [
   'src/services/dashboardService.ts',
   'src/services/tenantService.ts',
   'src/services/instructorLicenseNotificationService.ts',
+  'src/services/transcriptService.ts',
   'src/utils/tenantTime.ts',
 ];
 
@@ -130,6 +131,17 @@ const ALLOWLIST: Record<string, string[]> = {
     // "now" is legitimately read, so every other file can call these
     // functions without touching Date itself.
     `reference: Date = new Date()`,
+  ],
+  'src/services/transcriptService.ts': [
+    // The transcript's own "generated at" timestamp - a real UTC instant,
+    // immediately passed through formatInTenantZone (never read via a raw
+    // Date getter), the same "generate now, format in tenant zone"
+    // pattern as calendarFeedService's DTSTAMP.
+    `const now = new Date();`,
+    // DATE-column extraction (enrollment_date/lesson.date are plain `date`
+    // columns, no time component - UTC-midnight-safe, same reasoning as
+    // calendarFeedService.ts's identical case).
+    `value instanceof Date ? value.toISOString().split('T')[0]`,
   ],
 };
 

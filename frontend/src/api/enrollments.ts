@@ -67,4 +67,20 @@ export const enrollmentsApi = {
     );
     return response.data;
   },
+
+  // No age check - a training-received transcript (13 CCR §340.27) is
+  // available for any non-completed driver_training enrollment. Returns
+  // the raw text body (not the {success,data} envelope - this endpoint
+  // serves a downloadable file) plus the server-suggested filename from
+  // the Content-Disposition header.
+  getWithdrawalTranscript: async (id: string): Promise<{ content: string; filename: string }> => {
+    const response = await apiClient.get<Blob>(`/enrollments/${id}/withdrawal-transcript`, {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? 'transcript.txt';
+    const content = await response.data.text();
+    return { content, filename };
+  },
 };

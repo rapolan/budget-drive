@@ -10,6 +10,7 @@ import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as enrollmentService from '../services/enrollmentService';
 import * as studentService from '../services/studentService';
+import * as transcriptService from '../services/transcriptService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -118,4 +119,23 @@ export const withdrawEnrollment = asyncHandler(async (req: Request, res: Respons
     data: enrollment,
     message: 'Enrollment withdrawn',
   });
+});
+
+/**
+ * @route   GET /api/v1/enrollments/:id/withdrawal-transcript
+ * @desc    Generate a training-received transcript (13 CCR §340.27) for a
+ *          driver_training enrollment that isn't completed. Authenticated
+ *          (PII-bearing) - unlike the public .ics calendar feed, this is
+ *          not a token-based public download.
+ * @access  Private
+ */
+export const getWithdrawalTranscript = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const transcript = await transcriptService.generateWithdrawalTranscript(id, tenantId);
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${transcript.filename}"`);
+  res.send(transcript.content);
 });
