@@ -54,7 +54,7 @@ const client = new Client({ host: process.env.DB_HOST, port: process.env.DB_PORT
 
 ### 1.4 Run migrations
 
-The full schema now lives in a single `001_baseline.sql` file, so either the direct migration runner or the "run all" script works:
+The schema is a numbered sequence of migration files (`001_baseline.sql` plus every append-only migration since), applied in order:
 
 ```bash
 cd backend
@@ -550,6 +550,30 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 **Do:** On a student with an active driver_training enrollment, go to **Enrollments**, click **Mark complete** on it, enter a reason, and confirm. Then go to the **Students** list and find that student.
 
 **Pass looks like:** On the Students list, that student's progress bar reads **"No active enrollment"** (muted styling) — not blank, not a zero-percent bar, not an error. Booking a new lesson for that student is refused (a clear 400, not a crash) until a new enrollment exists. Back on the student's **Enrollments** tab, an **Add driver training enrollment** action now appears (it didn't before, while the first one was still active) — click it, fill in hours required, and confirm. The Students list now shows normal progress again for this student, resolving against the new enrollment; the completed enrollment's card is still listed above the new one, still showing `completed` and its recorded reason.
+
+### 2.46 Recording a certificate from the certificates worklist
+
+**Do:** Mark a minor's `driver_training` enrollment complete (§2.45). Open the **Certificates** page from the nav. Confirm the student appears in the "Awaiting certificate" worklist with their completion date. Click **Record certificate** on their row, enter a serial number (e.g. `CS7218767`) and confirm the pre-filled issue date, then submit.
+
+**Pass looks like:** The row disappears from the worklist immediately. The **Issued** tile's count increments by one. Reopening the student's record's **Enrollments** tab shows a gold `Award`-icon "Certificate issued" badge on that enrollment, next to its `completed` status, with the recorded serial and issue date. Recording the same serial number again anywhere in the tenant is rejected with a clear error (duplicate serial), and recording a second certificate for the same enrollment is rejected (409 — one certificate per enrollment).
+
+### 2.47 Recording an adult's certificate directly from a completed enrollment (not in the worklist)
+
+**Do:** Mark an **adult** student's `driver_training` enrollment complete. Open the **Certificates** page and confirm this student does **not** appear in the worklist (minors only). Instead, open the student's own record, go to **Enrollments**, and click **Record certificate** directly on their completed enrollment.
+
+**Pass looks like:** The same inline serial+date form appears as on the worklist row. Recording succeeds with no age check anywhere in the flow, the gold certificate badge appears on the student record exactly as it does for a minor, and the **Issued** tile on the Certificates page increments — even though this enrollment was never listed on the worklist itself.
+
+### 2.48 Voiding a certificate
+
+**Do:** On the **Certificates** page, click **Record void** in the page header. Enter a serial number, a reason (e.g. "Damaged in storage"), and a date, then submit.
+
+**Pass looks like:** The **Void** tile's count increments by one. The awaiting-certificate worklist is completely unaffected (a void has no enrollment and never appears there). Attempting to void the same serial number a second time, or to record it later as an issued certificate, is rejected — serial numbers are unique per tenant regardless of issued/void status.
+
+### 2.49 Withdrawing an enrollment and generating a training-received transcript
+
+**Do:** On a student with an **active** `driver_training` enrollment, go to **Enrollments** and click **Withdraw**. Enter a reason (e.g. "Moved out of state") and confirm. Then click **Generate transcript** on the now-withdrawn enrollment.
+
+**Pass looks like:** The enrollment's status badge changes to `withdrawn` (danger styling), the withdrawal reason displays on the card, the **Withdraw** action disappears (only available on `active` enrollments), and a **Mark complete** action is no longer offered either (withdrawal and completion are mutually exclusive). Clicking **Generate transcript** downloads a `.txt` file named `transcript-<Student Name>-<date>.txt` — open it and confirm it lists the student, program, enrollment date, the withdrawal date and reason, every lesson on that enrollment (date, duration, instructor, status), and total completed hours. Separately, confirm **Generate transcript** is also available (and produces a transcript with "Status: active" instead of withdrawal info) on a still-**active** enrollment that hasn't been withdrawn — the action has no age check and isn't restricted to withdrawn enrollments specifically.
 
 ---
 
