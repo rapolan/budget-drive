@@ -375,6 +375,7 @@ export interface ActiveEnrollmentSummary {
   enrollmentDate: Date;
   completed: boolean;
   completionReason: string | null;
+  withdrawnReason: string | null;
 }
 
 export interface Enrollment {

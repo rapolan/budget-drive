@@ -60,7 +60,23 @@ export function computeStudentStatus(
     return lesson.status === 'scheduled' && lessonDate >= now;
   });
 
-  // 1. INACTIVE: Dropped (inactive), suspended, or 60+ days no activity
+  // 1. INACTIVE: withdrawn, suspended, inactive, or 60+ days no activity.
+  // `withdrawn` owns the "student left" meaning - it's a distinct status
+  // (with its own withdrawn_at/withdrawn_by/withdrawn_reason audit trail,
+  // set only via the guarded POST /enrollments/:id/withdraw) from
+  // `inactive`, which carries no defined meaning of its own beyond "not
+  // active, not any of the other statuses" - nothing in this codebase
+  // currently writes `inactive`, so it deliberately gets a neutral label
+  // rather than a specific story like "withdrew" (that language belongs
+  // to `withdrawn` alone).
+  if (activeEnrollment?.status === 'withdrawn') {
+    return {
+      status: 'inactive',
+      displayStatus: 'Dropped',
+      reason: activeEnrollment.withdrawnReason || 'Student withdrew',
+    };
+  }
+
   if (activeEnrollment?.status === 'suspended') {
     return {
       status: 'inactive',
@@ -72,18 +88,20 @@ export function computeStudentStatus(
   if (activeEnrollment?.status === 'inactive') {
     return {
       status: 'inactive',
-      displayStatus: 'Dropped',
-      reason: 'Student withdrew',
+      displayStatus: 'Inactive',
+      reason: 'Enrollment inactive',
     };
   }
 
   // No driver_training enrollment to show at all - the backend now
   // resolves the active one if it exists, else the most recently
-  // completed one (see enrollmentService.getDisplayDriverTrainingEnrollmentsBatch),
+  // completed one, else the most recently updated one regardless of
+  // status (see enrollmentService.getDisplayDriverTrainingEnrollmentsBatch),
   // so `null` here specifically means the student has never had a
-  // driver_training enrollment reach either state. A completed program no
-  // longer falls through to this branch - it's caught by the `completed`
-  // check below instead, since `activeEnrollment` carries it now.
+  // driver_training enrollment reach ANY state. A completed, withdrawn,
+  // suspended, or inactive program no longer falls through to this branch -
+  // each is caught by its own check instead, since `activeEnrollment`
+  // carries it now.
   if (!activeEnrollment) {
     return {
       status: 'inactive',
@@ -174,8 +192,8 @@ export function studentNeedsFollowup(
   now: Date,
   activeEnrollment: ActiveEnrollmentSummary | null
 ): boolean {
-  // Don't flag completed, dropped, or suspended students
-  if (!activeEnrollment || activeEnrollment.completed || ['inactive', 'suspended'].includes(activeEnrollment.status)) {
+  // Don't flag completed, withdrawn, inactive, or suspended students
+  if (!activeEnrollment || activeEnrollment.completed || ['withdrawn', 'inactive', 'suspended'].includes(activeEnrollment.status)) {
     return false;
   }
 

@@ -36,6 +36,7 @@ const BASE_ENROLLMENT: ActiveEnrollmentSummary = {
   enrollmentDate: daysAgo(90),
   completed: false,
   completionReason: null,
+  withdrawnReason: null,
 };
 
 function lesson(overrides: Partial<Lesson>): Lesson {
@@ -114,8 +115,9 @@ describe('studentNeedsFollowup - other branches (baseline coverage)', () => {
     expect(studentNeedsFollowup(BASE_STUDENT, lessons, NOW, completedEnrollment)).toBe(false);
   });
 
-  it('never flags a dropped (inactive) or suspended enrollment regardless of lesson history', () => {
+  it('never flags a withdrawn, inactive, or suspended enrollment regardless of lesson history', () => {
     const lessons = [lesson({ date: daysAgo(3), status: 'cancelled' })];
+    expect(studentNeedsFollowup(BASE_STUDENT, lessons, NOW, { ...BASE_ENROLLMENT, status: 'withdrawn' })).toBe(false);
     expect(studentNeedsFollowup(BASE_STUDENT, lessons, NOW, { ...BASE_ENROLLMENT, status: 'inactive' })).toBe(false);
     expect(studentNeedsFollowup(BASE_STUDENT, lessons, NOW, { ...BASE_ENROLLMENT, status: 'suspended' })).toBe(false);
   });
@@ -197,5 +199,43 @@ describe('computeStudentStatus - end-to-end regression guard for the fix', () =>
     const info = computeStudentStatus(BASE_STUDENT, [], NOW, completedEnrollment);
     expect(info.status).toBe('completed');
     expect(info.reason).toBe('Passed road test');
+  });
+
+  // Follow-up regression coverage: withdrawn/inactive/suspended had the
+  // identical bug as completed did (see the data-layer fix in
+  // enrollmentService.getDisplayDriverTrainingEnrollmentsBatch) - these
+  // branches existed in computeStudentStatus already, but activeEnrollment
+  // could never actually carry one of these statuses before that fix, so
+  // they were unreachable in practice. This suite exercises the display
+  // mapping itself, independent of the data layer.
+  it('a student whose enrollment is withdrawn resolves to "Dropped", surfacing the withdrawal reason', () => {
+    const withdrawnEnrollment = { ...BASE_ENROLLMENT, status: 'withdrawn' as const, withdrawnReason: 'Moved out of state' };
+    const info = computeStudentStatus(BASE_STUDENT, [], NOW, withdrawnEnrollment);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Dropped');
+    expect(info.reason).toBe('Moved out of state');
+  });
+
+  it('a student whose enrollment is withdrawn with no recorded reason falls back to a generic "Student withdrew" reason', () => {
+    const withdrawnEnrollment = { ...BASE_ENROLLMENT, status: 'withdrawn' as const, withdrawnReason: null };
+    const info = computeStudentStatus(BASE_STUDENT, [], NOW, withdrawnEnrollment);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Dropped');
+    expect(info.reason).toBe('Student withdrew');
+  });
+
+  it('a student whose enrollment is suspended resolves to "Suspended"', () => {
+    const suspendedEnrollment = { ...BASE_ENROLLMENT, status: 'suspended' as const };
+    const info = computeStudentStatus(BASE_STUDENT, [], NOW, suspendedEnrollment);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Suspended');
+  });
+
+  it('a student whose enrollment is inactive resolves to a neutral "Inactive" - not the withdrawal language', () => {
+    const inactiveEnrollment = { ...BASE_ENROLLMENT, status: 'inactive' as const };
+    const info = computeStudentStatus(BASE_STUDENT, [], NOW, inactiveEnrollment);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Inactive');
+    expect(info.reason).not.toMatch(/withdrew/i);
   });
 });

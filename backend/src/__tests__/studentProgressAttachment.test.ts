@@ -146,6 +146,124 @@ describe('GET /api/v1/students - progress attachment', () => {
     expect(student.progress.track).toBe('completed');
   });
 
+  // Follow-up regression coverage: withdrawn/inactive/suspended have the
+  // identical bug as completed did - getActiveDriverTrainingEnrollmentsBatch's
+  // literal status = 'active' filter meant NONE of these three ever
+  // reached the student list either, so studentStatus.ts's dedicated
+  // branches for them were unreachable. getDisplayDriverTrainingEnrollmentsBatch's
+  // WHERE clause was widened to consider every status, not just active/completed.
+  it('a student whose only driver_training enrollment is withdrawn shows it in the list response, with the withdrawal reason', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString() }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        tenant_id: TENANT_ID,
+        program_type: 'driver_training',
+        status: 'withdrawn',
+        hours_required: 6,
+        completed: false,
+        completed_at: null,
+        completion_reason: null,
+        withdrawn_reason: 'Moved out of state',
+      }])
+    ); // getDisplayDriverTrainingEnrollmentsBatch - resolves the withdrawn enrollment, not null
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for that enrollment
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const student = res.body.data[0];
+    expect(student.activeEnrollment).not.toBeNull();
+    expect(student.activeEnrollment.status).toBe('withdrawn');
+    expect(student.activeEnrollment.withdrawnReason).toBe('Moved out of state');
+  });
+
+  it('a student whose only driver_training enrollment is inactive shows it in the list response', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString() }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        tenant_id: TENANT_ID,
+        program_type: 'driver_training',
+        status: 'inactive',
+        hours_required: 6,
+        completed: false,
+        completed_at: null,
+        completion_reason: null,
+        withdrawn_reason: null,
+      }])
+    ); // getDisplayDriverTrainingEnrollmentsBatch - resolves the inactive enrollment, not null
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for that enrollment
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const student = res.body.data[0];
+    expect(student.activeEnrollment).not.toBeNull();
+    expect(student.activeEnrollment.status).toBe('inactive');
+  });
+
+  it('a student whose only driver_training enrollment is suspended shows it in the list response', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString() }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        tenant_id: TENANT_ID,
+        program_type: 'driver_training',
+        status: 'suspended',
+        hours_required: 6,
+        completed: false,
+        completed_at: null,
+        completion_reason: null,
+        withdrawn_reason: null,
+      }])
+    ); // getDisplayDriverTrainingEnrollmentsBatch - resolves the suspended enrollment, not null
+    mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for that enrollment
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const student = res.body.data[0];
+    expect(student.activeEnrollment).not.toBeNull();
+    expect(student.activeEnrollment.status).toBe('suspended');
+  });
+
   it('a student with no driver_training enrollment at all still shows activeEnrollment: null (No Active Enrollment)', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');

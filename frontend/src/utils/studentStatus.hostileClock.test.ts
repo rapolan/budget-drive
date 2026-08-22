@@ -51,6 +51,7 @@ function enrollment(overrides: Partial<ActiveEnrollmentSummary> = {}): ActiveEnr
     enrollmentDate: new Date('2026-01-01'),
     completed: false,
     completionReason: null,
+    withdrawnReason: null,
     ...overrides,
   };
 }

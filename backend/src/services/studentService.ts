@@ -136,6 +136,7 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
           enrollmentDate: enrollment.enrollmentDate,
           completed: enrollment.completed,
           completionReason: enrollment.completionReason,
+          withdrawnReason: enrollment.withdrawnReason,
         }
       : null;
 
@@ -252,16 +253,21 @@ export const getStudentById = async (
   const enrollments = await getEnrollmentsForStudent(id, tenantId, student);
   const driverTrainingEnrollments = enrollments.filter(e => e.programType === 'driver_training');
   // Active always wins (a returning student's new program never shows a
-  // stale "Completed" from an old one); otherwise fall back to the most
-  // recently completed one, so a finished program still drives a
-  // "Completed" status instead of "No Active Enrollment" - the same
+  // stale status from an old one); otherwise the most recently completed
+  // one (so a finished program drives "Completed" rather than "No Active
+  // Enrollment"); otherwise the most recently updated one regardless of
+  // status (withdrawn/inactive/suspended each drive their own correct
+  // status via studentStatus.ts, rather than falling through) - the same
   // resolution order as getDisplayDriverTrainingEnrollmentsBatch, applied
   // in-memory here since this list is already fetched.
   const activeDriverTraining =
     driverTrainingEnrollments.find(e => e.status === 'active') ??
     driverTrainingEnrollments
       .filter(e => e.completedAt !== null)
-      .sort((a, b) => new Date(b.completedAt as Date).getTime() - new Date(a.completedAt as Date).getTime())[0];
+      .sort((a, b) => new Date(b.completedAt as Date).getTime() - new Date(a.completedAt as Date).getTime())[0] ??
+    driverTrainingEnrollments
+      .slice()
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
   return {
     ...student,
@@ -276,6 +282,7 @@ export const getStudentById = async (
           enrollmentDate: activeDriverTraining.enrollmentDate,
           completed: activeDriverTraining.completed,
           completionReason: activeDriverTraining.completionReason,
+          withdrawnReason: activeDriverTraining.withdrawnReason,
         }
       : null,
   };

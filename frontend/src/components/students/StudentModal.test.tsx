@@ -1459,6 +1459,7 @@ describe('StudentModal turning-18 admin actions - target the enrollment, not the
         enrollmentDate: new Date('2026-01-01'),
         completed: false,
         completionReason: null,
+        withdrawnReason: null,
       },
       progress: {
         track: 'hours',

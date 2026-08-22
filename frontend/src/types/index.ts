@@ -221,10 +221,11 @@ export interface EnrollmentPaymentSummary {
 export interface ActiveEnrollmentSummary {
   id: string;
   programType: ProgramType;
-  status: 'active' | 'completed' | 'inactive' | 'suspended';
+  status: 'active' | 'completed' | 'inactive' | 'suspended' | 'withdrawn';
   enrollmentDate: Date;
   completed: boolean;
   completionReason: string | null;
+  withdrawnReason: string | null;
 }
 
 export interface Enrollment {

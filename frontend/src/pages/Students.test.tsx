@@ -192,6 +192,7 @@ describe('Students list - guided Mark complete action', () => {
     enrollmentDate: new Date('2026-01-01'),
     completed: false,
     completionReason: null,
+    withdrawnReason: null,
   };
 
   it('[hours track / minor] shows "Mark complete" once progress reaches 100% of required hours', async () => {

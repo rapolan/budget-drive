@@ -240,18 +240,26 @@ export const getActiveDriverTrainingEnrollmentsBatch = async (
  * lesson against a completed enrollment). This function is read/display
  * only, used by attachProgress (studentService.ts) for the Students list.
  *
- * Resolution order, per student: the ACTIVE driver_training enrollment if
- * one exists (a returning student's new enrollment always takes priority
- * over an older completed one - never show a stale "Completed" status
- * once a new program has started); otherwise the most recently completed
- * one (so a finished program still drives a "Completed" status instead of
- * falling through to "No Active Enrollment", the bug this function
- * exists to fix); otherwise nothing at all (student has no driver_training
- * enrollment ever, or only ones in another status like withdrawn/
- * inactive/suspended - those are a separate, not-yet-fixed gap, since
- * getActiveDriverTrainingEnrollmentsBatch's literal `status = 'active'`
- * filter meant those branches in studentStatus.ts were already
- * unreachable before this fix, not newly broken by it).
+ * Resolution order, per student:
+ *   1. The ACTIVE driver_training enrollment, if one exists - a returning
+ *      student's new enrollment always takes priority over an older
+ *      completed/withdrawn/inactive/suspended one, never a stale status
+ *      once a new program has started.
+ *   2. Otherwise the most recently updated non-active one, whatever its
+ *      status (completed, withdrawn, inactive, or suspended) - so EVERY
+ *      terminal state drives its own correct display status
+ *      (studentStatus.ts maps each), instead of any of them falling
+ *      through to "No Active Enrollment". completed_at DESC is used
+ *      specifically for a completed row (the moment it finished is more
+ *      meaningful than when the row was last touched); updated_at DESC
+ *      is the general tiebreaker for the other three, none of which have
+ *      an equivalent "when this happened" column of their own besides
+ *      withdrawn_at (not selected into this ordering since a student
+ *      practically has at most one non-active driver_training row at a
+ *      time under today's write paths).
+ *   3. Otherwise nothing at all - the student has no driver_training
+ *      enrollment ever, the one case "No Active Enrollment" is reserved
+ *      for.
  */
 export const getDisplayDriverTrainingEnrollmentsBatch = async (
   studentIds: string[],
@@ -264,8 +272,7 @@ export const getDisplayDriverTrainingEnrollmentsBatch = async (
     `SELECT DISTINCT ON (student_id) *
      FROM enrollments
      WHERE student_id = ANY($1::uuid[]) AND tenant_id = $2 AND program_type = 'driver_training'
-       AND (status = 'active' OR completed_at IS NOT NULL)
-     ORDER BY student_id, (status = 'active') DESC, completed_at DESC NULLS LAST`,
+     ORDER BY student_id, (status = 'active') DESC, completed_at DESC NULLS LAST, updated_at DESC`,
     [studentIds, tenantId]
   );
   for (const row of result.rows) {
