@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
-import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi } from '@/api';
+import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi, enrollmentsApi } from '@/api';
 import type { Student, Guardian, LinkedStudent, Lesson } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { StudentProgressBar } from '@/components/students/StudentProgressBar';
@@ -149,6 +149,28 @@ export const StudentsPage: React.FC = () => {
     },
   });
 
+  // Reachable from the list once a student's active driver_training
+  // enrollment has met its lesson/hours requirement (progress.percentComplete
+  // >= 100 - read from computeStudentProgress's own output, never
+  // recomputed here, per Constraint A/progressCalculationOwnership.test.ts).
+  // Same guarded shape as StudentModal's own enrollment-tab "Mark complete"
+  // flow: reveals an inline reason field, requires a non-empty reason
+  // before the confirm button enables - completion is an audit-recorded
+  // compliance event (it drives the certificate worklist), never a casual
+  // toggle, so it deliberately does not fire on the first click alone.
+  const [completingStudentId, setCompletingStudentId] = useState<string | null>(null);
+  const [completionReason, setCompletionReason] = useState('');
+
+  const completeEnrollmentMutation = useMutation({
+    mutationFn: ({ enrollmentId, reason }: { enrollmentId: string; reason: string }) =>
+      enrollmentsApi.complete(enrollmentId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setCompletingStudentId(null);
+      setCompletionReason('');
+    },
+  });
+
   const handleEdit = (student: Student) => {
     setSelectedStudent(student);
     setIsModalOpen(true);
@@ -279,6 +301,33 @@ export const StudentsPage: React.FC = () => {
   const getStudentStatus = (student: Student) => {
     const lessons = lessonsData?.data || [];
     return computeStudentStatus(student, lessons, statusNow, student.activeEnrollment ?? null);
+  };
+
+  // Eligible for the guided "Mark complete" action - an ACTIVE, not-yet-
+  // completed driver_training enrollment, gated differently per track
+  // (progress.track is read as already computed by computeStudentProgress;
+  // never re-derived here, per Constraint A -
+  // progressCalculationOwnership.test.ts enforces this for every display
+  // file in this codebase, this one included):
+  //   - HOURS track (minors, or an admin-pinned override): percentComplete
+  //     is measured against the real DMV-required hours - an objective
+  //     finish line, so the action auto-surfaces once it hits 100%.
+  //   - LESSONS track (adults): lessonsRequired is defined as
+  //     lessonsBooked itself, so no percentage ever means "finished" - an
+  //     adult decides when they're done, not a computed milestone. The
+  //     action is always available once they have at least one completed
+  //     lesson, regardless of percentComplete.
+  const isReadyToMarkComplete = (student: Student): boolean => {
+    if (student.activeEnrollment?.status !== 'active' || student.activeEnrollment.completed) {
+      return false;
+    }
+    if (student.progress?.track === 'hours') {
+      return student.progress.percentComplete >= 100;
+    }
+    if (student.progress?.track === 'lessons') {
+      return (student.progress.lessonsCompleted ?? 0) >= 1;
+    }
+    return false;
   };
 
   // Calculate status counts for filter buttons
@@ -941,7 +990,62 @@ export const StudentsPage: React.FC = () => {
                         <CheckCircle className="h-4 w-4" />
                       </button>
                     )}
+                    {isReadyToMarkComplete(student) && (
+                      <button
+                        type="button"
+                        onClick={() => setCompletingStudentId(student.id)}
+                        className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-colors"
+                        title="Mark complete"
+                      >
+                        <GraduationCap className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
+
+                  {/* Guided mark-complete confirm - only reachable once the
+                      active enrollment has actually met its requirement
+                      (isReadyToMarkComplete above). Same shape as
+                      StudentModal's own enrollment-tab flow: a non-empty
+                      reason is required before the confirm button enables -
+                      completion is an audit-recorded compliance event (it
+                      drives the certificate worklist), never a casual toggle. */}
+                  {completingStudentId === student.id && (
+                    <div className="mt-3 bg-status-success-bg border border-status-success-border rounded-lg p-3 space-y-2">
+                      <label className="block text-xs font-medium text-status-success-text">
+                        Completion reason
+                      </label>
+                      <input
+                        type="text"
+                        value={completionReason}
+                        onChange={(e) => setCompletionReason(e.target.value)}
+                        className="w-full px-3 py-2 border border-status-success-border rounded-lg text-sm bg-surface"
+                        placeholder="e.g. Finished all required hours"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCompletingStudentId(null);
+                            setCompletionReason('');
+                          }}
+                          className="px-3 py-1.5 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            student.activeEnrollment &&
+                            completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id, reason: completionReason })
+                          }
+                          disabled={!completionReason.trim() || completeEnrollmentMutation.isPending}
+                          className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                        >
+                          {completeEnrollmentMutation.isPending ? 'Saving...' : 'Confirm complete'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -1013,7 +1117,8 @@ export const StudentsPage: React.FC = () => {
                   const statusInfo = getStudentStatus(student);
 
                   return (
-                    <tr key={student.id} className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
+                    <React.Fragment key={student.id}>
+                    <tr className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -1115,9 +1220,68 @@ export const StudentsPage: React.FC = () => {
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
+                          {isReadyToMarkComplete(student) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCompletingStudentId(student.id);
+                              }}
+                              className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
+                              title="Mark complete"
+                            >
+                              <GraduationCap className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
+                    {/* Guided mark-complete confirm - same shape as the card
+                        view's inline form and StudentModal's own
+                        enrollment-tab flow: a non-empty reason is required
+                        before the confirm button enables. */}
+                    {completingStudentId === student.id && (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <label className="text-xs font-medium text-status-success-text flex-shrink-0">
+                              Completion reason
+                            </label>
+                            <input
+                              type="text"
+                              value={completionReason}
+                              onChange={(e) => setCompletionReason(e.target.value)}
+                              className="flex-1 px-3 py-1.5 border border-status-success-border rounded-lg text-sm bg-surface"
+                              placeholder="e.g. Finished all required hours"
+                            />
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCompletingStudentId(null);
+                                  setCompletionReason('');
+                                }}
+                                className="px-3 py-1.5 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  student.activeEnrollment &&
+                                  completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id, reason: completionReason })
+                                }
+                                disabled={!completionReason.trim() || completeEnrollmentMutation.isPending}
+                                className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                              >
+                                {completeEnrollmentMutation.isPending ? 'Saving...' : 'Confirm complete'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                   );
                 })
               )}

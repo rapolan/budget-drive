@@ -3,8 +3,8 @@ import { render, screen, cleanup, waitFor, within } from '@testing-library/react
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { StudentsPage } from './Students';
-import { studentsApi, lessonsApi, dashboardApi, guardiansApi, searchApi } from '@/api';
-import type { Student, Guardian, Lesson } from '@/types';
+import { studentsApi, lessonsApi, dashboardApi, guardiansApi, searchApi, enrollmentsApi } from '@/api';
+import type { Student, Guardian, Lesson, StudentProgress } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -21,6 +21,7 @@ vi.mock('@/api', async () => {
       findCandidates: vi.fn().mockResolvedValue({ data: [] }),
     },
     searchApi: { ...actual.searchApi, people: vi.fn() },
+    enrollmentsApi: { ...actual.enrollmentsApi, complete: vi.fn() },
   };
 });
 
@@ -159,6 +160,222 @@ describe('Students list - needsGuardian flagging', () => {
 
     expect(screen.getByText('Minor No Guardian')).toBeInTheDocument();
     expect(screen.queryByText('Adult Fine')).not.toBeInTheDocument();
+  });
+});
+
+// Regression coverage: completion was previously only reachable by opening
+// a student and navigating to the Enrollments tab. This is a GUIDED
+// surfacing, not a freely editable status dropdown, and the eligibility
+// rule is deliberately split by track (progress.track is read as already
+// computed by computeStudentProgress, never recomputed here - see
+// progressCalculationOwnership.test.ts):
+//   - HOURS track (minors): percentComplete is measured against the real
+//     DMV-required hours, an objective finish line - the action
+//     auto-surfaces once it hits 100%.
+//   - LESSONS track (adults): lessonsRequired is defined as lessonsBooked
+//     itself, so no percentage ever means "finished" - the action is
+//     always available once they have at least one completed lesson,
+//     never gated on percentComplete.
+// Confirming still requires a non-empty reason, same guarded shape as
+// StudentModal's own enrollment-tab flow.
+describe('Students list - guided Mark complete action', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  const activeEligibleEnrollment = {
+    id: 'enrollment-ready',
+    programType: 'driver_training' as const,
+    status: 'active' as const,
+    enrollmentDate: new Date('2026-01-01'),
+    completed: false,
+    completionReason: null,
+  };
+
+  it('[hours track / minor] shows "Mark complete" once progress reaches 100% of required hours', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'ready-1',
+          fullName: 'Ready Student',
+          activeEnrollment: activeEligibleEnrollment,
+          progress: { track: 'hours', percentComplete: 100, displayLabel: '6 / 6 hrs', needsDateOfBirth: false } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Ready Student')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByTitle('Mark complete').length).toBeGreaterThan(0);
+  });
+
+  it('[hours track / minor] does not show "Mark complete" below 100% of required hours', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'not-ready-1',
+          fullName: 'Not Ready Student',
+          activeEnrollment: activeEligibleEnrollment,
+          progress: { track: 'hours', percentComplete: 67, displayLabel: '4 / 6 hrs', needsDateOfBirth: false } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Not Ready Student')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTitle('Mark complete')).not.toBeInTheDocument();
+  });
+
+  it('[lessons track / adult] shows "Mark complete" with at least one completed lesson, regardless of percentComplete', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'adult-ready-1',
+          fullName: 'Adult With Progress',
+          activeEnrollment: activeEligibleEnrollment,
+          // Only 5 of 8 booked lessons done (63%) - nowhere near "100%",
+          // but the lessons track has no objective finish line, so this
+          // must still be eligible: it's the admin's judgment call, not a
+          // computed milestone.
+          progress: {
+            track: 'lessons',
+            percentComplete: 63,
+            lessonsCompleted: 5,
+            lessonsBooked: 8,
+            lessonsRequired: 8,
+            displayLabel: '5 of 8 lessons (63%)',
+            needsDateOfBirth: false,
+          } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Adult With Progress')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByTitle('Mark complete').length).toBeGreaterThan(0);
+  });
+
+  it('[lessons track / adult] does not show "Mark complete" with zero completed lessons', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'adult-not-ready-1',
+          fullName: 'Adult No Lessons Yet',
+          activeEnrollment: activeEligibleEnrollment,
+          progress: {
+            track: 'lessons',
+            percentComplete: 0,
+            lessonsCompleted: 0,
+            lessonsBooked: 0,
+            lessonsRequired: 0,
+            displayLabel: 'No lessons booked',
+            needsDateOfBirth: false,
+          } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Adult No Lessons Yet')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTitle('Mark complete')).not.toBeInTheDocument();
+  });
+
+  it('does not show "Mark complete" for an enrollment already completed', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'done-1',
+          fullName: 'Already Done',
+          activeEnrollment: { ...activeEligibleEnrollment, status: 'completed', completed: true },
+          progress: { track: 'completed', percentComplete: 100, displayLabel: 'Completed', needsDateOfBirth: false } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Already Done')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTitle('Mark complete')).not.toBeInTheDocument();
+  });
+
+  it('does not show "Mark complete" for a student with no active enrollment', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'none-1', fullName: 'No Enrollment', activeEnrollment: null })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('No Enrollment')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTitle('Mark complete')).not.toBeInTheDocument();
+  });
+
+  it('clicking Mark complete reveals a reason field; confirm is disabled until a reason is entered, then calls enrollmentsApi.complete', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (enrollmentsApi.complete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { ...activeEligibleEnrollment, completed: true } });
+
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'ready-2',
+          fullName: 'Ready Student Two',
+          activeEnrollment: activeEligibleEnrollment,
+          progress: { track: 'hours', percentComplete: 100, displayLabel: '6 / 6 hrs', needsDateOfBirth: false } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Ready Student Two')).toBeInTheDocument();
+    });
+
+    const markCompleteButton = screen.getAllByTitle('Mark complete')[0];
+    await userEvent.click(markCompleteButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm complete/i });
+    expect(confirmButton).toBeDisabled();
+
+    const reasonInput = screen.getByPlaceholderText(/finished all required hours/i);
+    await userEvent.type(reasonInput, 'Passed final road test');
+    expect(confirmButton).not.toBeDisabled();
+
+    await userEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-ready', 'Passed final road test');
+    });
   });
 });
 
