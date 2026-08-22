@@ -15,7 +15,7 @@ import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { countGuardiansForStudentsBatch, StudentGuardianLink } from './studentGuardianService';
 import { findExactGuardianMatch } from './guardianService';
 import {
-  getActiveDriverTrainingEnrollmentsBatch,
+  getDisplayDriverTrainingEnrollmentsBatch,
   getEnrollmentsForStudent,
   createEnrollment as createEnrollmentRecord,
   computePaymentSummary,
@@ -33,12 +33,22 @@ const emptyToNull = (value: any): any => {
 /**
  * Attach computed progress to a batch of students in a single extra query
  * (not N+1) - the single source of truth for progress, per computeStudentProgress,
- * now derived from each student's ACTIVE driver_training enrollment rather
- * than columns on the student row (Constraint B: the calculation itself is
- * unchanged, only its source moved). A student with no active
- * driver_training enrollment (their prior one completed, no new one
- * started) gets progress: undefined - a new, legitimate reachable state;
- * StudentProgressBar renders "No active enrollment" for it.
+ * now derived from each student's driver_training enrollment rather than
+ * columns on the student row (Constraint B: the calculation itself is
+ * unchanged, only its source moved).
+ *
+ * The enrollment resolved here is the DISPLAY enrollment
+ * (getDisplayDriverTrainingEnrollmentsBatch), not just the active one: an
+ * active enrollment always wins if one exists (a returning student's new
+ * program never shows a stale "Completed" from an old one), but a
+ * completed enrollment is now surfaced too when there is no active one -
+ * previously a finished program fell all the way through to
+ * `activeEnrollment: null`/"No Active Enrollment", which made "Completed"
+ * unreachable for the exact case it exists to describe. A student with
+ * NEITHER an active nor a completed driver_training enrollment (never
+ * enrolled at all) still gets progress: undefined / activeEnrollment: null
+ * - a real, legitimate "No Active Enrollment" state; StudentProgressBar
+ * renders that case correctly.
  *
  * Also attaches needsGuardian (true only for minors with zero linked
  * guardians) via a second batched query, skipped entirely if no student in
@@ -52,7 +62,7 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
   const standardLessonLengthMinutes = tenantSettings?.standardLessonLengthMinutes ?? 120;
 
   const studentIds = students.map(s => s.id);
-  const activeEnrollments = await getActiveDriverTrainingEnrollmentsBatch(studentIds, tenantId);
+  const activeEnrollments = await getDisplayDriverTrainingEnrollmentsBatch(studentIds, tenantId);
   const enrollmentIds = Array.from(activeEnrollments.values()).map(e => e.id);
 
   const lessonsResult = enrollmentIds.length > 0
@@ -228,8 +238,9 @@ export const getStudentById = async (
   // Single-student read: compute needsGuardian directly (attachProgress's
   // batched form would issue its own separate enrollment/lesson queries,
   // duplicating what getEnrollmentsForStudent below already fetches) and
-  // derive student.progress from the active driver_training enrollment
-  // inside that same enrollments list, rather than querying it twice.
+  // derive student.progress from the DISPLAY driver_training enrollment
+  // (see getDisplayDriverTrainingEnrollmentsBatch's doc comment) inside
+  // that same enrollments list, rather than querying it twice.
   const student = keysToCamel(result.rows[0]) as Student;
   const tenantSettings = await getTenantSettings(tenantId);
   const timezone = resolveTenantTimezone(tenantSettings?.timezone);
@@ -239,7 +250,18 @@ export const getStudentById = async (
   const needsGuardian = isMinor && (guardianCounts.get(student.id) ?? 0) === 0;
 
   const enrollments = await getEnrollmentsForStudent(id, tenantId, student);
-  const activeDriverTraining = enrollments.find(e => e.programType === 'driver_training' && e.status === 'active');
+  const driverTrainingEnrollments = enrollments.filter(e => e.programType === 'driver_training');
+  // Active always wins (a returning student's new program never shows a
+  // stale "Completed" from an old one); otherwise fall back to the most
+  // recently completed one, so a finished program still drives a
+  // "Completed" status instead of "No Active Enrollment" - the same
+  // resolution order as getDisplayDriverTrainingEnrollmentsBatch, applied
+  // in-memory here since this list is already fetched.
+  const activeDriverTraining =
+    driverTrainingEnrollments.find(e => e.status === 'active') ??
+    driverTrainingEnrollments
+      .filter(e => e.completedAt !== null)
+      .sort((a, b) => new Date(b.completedAt as Date).getTime() - new Date(a.completedAt as Date).getTime())[0];
 
   return {
     ...student,

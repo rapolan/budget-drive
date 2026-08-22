@@ -77,8 +77,13 @@ export function computeStudentStatus(
     };
   }
 
-  // No active driver_training enrollment at all (prior one completed, no
-  // new one started) - distinct from "dropped": the person may return.
+  // No driver_training enrollment to show at all - the backend now
+  // resolves the active one if it exists, else the most recently
+  // completed one (see enrollmentService.getDisplayDriverTrainingEnrollmentsBatch),
+  // so `null` here specifically means the student has never had a
+  // driver_training enrollment reach either state. A completed program no
+  // longer falls through to this branch - it's caught by the `completed`
+  // check below instead, since `activeEnrollment` carries it now.
   if (!activeEnrollment) {
     return {
       status: 'inactive',

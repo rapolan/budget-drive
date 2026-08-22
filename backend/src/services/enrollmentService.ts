@@ -231,6 +231,50 @@ export const getActiveDriverTrainingEnrollmentsBatch = async (
   return map;
 };
 
+/**
+ * Batch form of "the driver_training enrollment that should drive this
+ * student's DISPLAY status/progress" - deliberately distinct from
+ * getActiveDriverTrainingEnrollmentsBatch above, which is write-path only
+ * (lesson/payment/fee-flag creation resolve "the enrollment to attach a
+ * new record to," and that must stay active-only - you cannot book a
+ * lesson against a completed enrollment). This function is read/display
+ * only, used by attachProgress (studentService.ts) for the Students list.
+ *
+ * Resolution order, per student: the ACTIVE driver_training enrollment if
+ * one exists (a returning student's new enrollment always takes priority
+ * over an older completed one - never show a stale "Completed" status
+ * once a new program has started); otherwise the most recently completed
+ * one (so a finished program still drives a "Completed" status instead of
+ * falling through to "No Active Enrollment", the bug this function
+ * exists to fix); otherwise nothing at all (student has no driver_training
+ * enrollment ever, or only ones in another status like withdrawn/
+ * inactive/suspended - those are a separate, not-yet-fixed gap, since
+ * getActiveDriverTrainingEnrollmentsBatch's literal `status = 'active'`
+ * filter meant those branches in studentStatus.ts were already
+ * unreachable before this fix, not newly broken by it).
+ */
+export const getDisplayDriverTrainingEnrollmentsBatch = async (
+  studentIds: string[],
+  tenantId: string
+): Promise<Map<string, Enrollment>> => {
+  const map = new Map<string, Enrollment>();
+  if (studentIds.length === 0) return map;
+
+  const result = await query(
+    `SELECT DISTINCT ON (student_id) *
+     FROM enrollments
+     WHERE student_id = ANY($1::uuid[]) AND tenant_id = $2 AND program_type = 'driver_training'
+       AND (status = 'active' OR completed_at IS NOT NULL)
+     ORDER BY student_id, (status = 'active') DESC, completed_at DESC NULLS LAST`,
+    [studentIds, tenantId]
+  );
+  for (const row of result.rows) {
+    const enrollment = keysToCamel(row) as Enrollment;
+    map.set(enrollment.studentId, enrollment);
+  }
+  return map;
+};
+
 export interface CreateEnrollmentInput {
   programType: ProgramType;
   hoursRequired?: number;
