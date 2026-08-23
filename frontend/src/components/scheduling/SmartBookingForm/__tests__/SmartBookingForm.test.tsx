@@ -214,6 +214,14 @@ describe('SmartBookingForm - happy path', () => {
     );
     expect(predicateCall).toBeDefined();
 
+    // Regression: the Students list's progress bar reads student.progress,
+    // computed server-side from the student's lessons - without also
+    // invalidating ['students'] here, a freshly booked lesson wouldn't move
+    // the bar until some unrelated action happened to refetch it.
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['students'] })
+    );
+
     await user.click(screen.getByRole('button', { name: /^done$/i }));
     expect(onBookingComplete).toHaveBeenCalledWith('lesson-1');
   });

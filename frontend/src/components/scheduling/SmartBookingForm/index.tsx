@@ -326,6 +326,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           query.queryKey[0] === 'lessons' || query.queryKey[0] === 'instructor-lessons',
       });
       queryClient.invalidateQueries({ queryKey: ['availability'] });
+      // The Students list's progress bar reads student.progress, which is
+      // computed server-side from this student's lessons - without this,
+      // a freshly booked lesson doesn't move the bar until an unrelated
+      // refetch happens to invalidate ['students'] first.
+      queryClient.invalidateQueries({ queryKey: ['students'] });
     },
   });
 
