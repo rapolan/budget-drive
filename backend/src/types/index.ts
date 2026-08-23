@@ -302,6 +302,18 @@ export interface Student {
   city: string | null;
   state: string | null;
   zipCode: string | null;
+  // Distinct pickup location, for when lessons should be picked up
+  // somewhere other than home (added in migration 022). When
+  // pickupAddressDifferentFromHome is false (the default), the booking
+  // wizard falls back to the home address fields above exactly as before
+  // this feature - the pickup_* columns are simply unused, not enforced
+  // empty, while the toggle is off.
+  pickupAddressDifferentFromHome: boolean;
+  pickupAddressLine1: string | null;
+  pickupAddressLine2: string | null;
+  pickupCity: string | null;
+  pickupState: string | null;
+  pickupZipCode: string | null;
   emergencyContactFirstName: string | null; // Parent/Guardian first name
   emergencyContactLastName: string | null; // Parent/Guardian last name
   emergencyContactPhone: string | null; // Parent/Guardian phone
@@ -351,6 +363,22 @@ export interface Student {
   updatedByName?: string | null; // Name of user who last modified this record
   createdAt: Date;
   updatedAt: Date;
+
+  // Derived (not stored) - attached by studentService's read paths, same
+  // convention as progress/needsGuardian/activeEnrollment above.
+  hasOutstandingFee?: boolean; // At least one 'outstanding' fee_flags row for this student
+  outstandingFeeAmount?: number; // Sum of those flags' amounts - listed-then-summed here, never a stored total
+  // This minor's primary linked guardian (or an arbitrary one if none is
+  // marked primary), for the Contact column's guardian-contact fallback
+  // and the clickable-guardian-name display. undefined for adults and for
+  // minors with zero linked guardians (needsGuardian covers that case).
+  primaryGuardian?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+  };
 }
 
 // =====================================================

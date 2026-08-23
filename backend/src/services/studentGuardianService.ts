@@ -253,6 +253,39 @@ export const countGuardiansForStudent = async (
 };
 
 /**
+ * Batched PRIMARY-guardian lookup for a set of students in one query (not
+ * N+1) - used by the Students list to attach a guardian-contact fallback
+ * (email/phone shown labeled "(Guardian)" when a minor has none of their
+ * own) and a clickable guardian name, without a per-student round trip.
+ * Returns a Map of studentId -> that student's primary guardian (or, if
+ * none is marked primary, an arbitrary one - mirrors getGuardiansForStudent's
+ * own ORDER BY is_primary DESC tie-break). Students with zero linked
+ * guardians simply aren't present as keys.
+ */
+export const getGuardiansForStudentsBatch = async (
+  studentIds: string[],
+  tenantId: string
+): Promise<Map<string, Guardian & { relationship: string | null; isPrimary: boolean }>> => {
+  const byStudent = new Map<string, Guardian & { relationship: string | null; isPrimary: boolean }>();
+  if (studentIds.length === 0) return byStudent;
+
+  const result = await query(
+    `SELECT DISTINCT ON (sg.student_id) sg.student_id, g.*, sg.relationship, sg.is_primary
+     FROM student_guardians sg
+     JOIN guardians g ON g.id = sg.guardian_id
+     WHERE sg.tenant_id = $1 AND sg.student_id = ANY($2::uuid[])
+     ORDER BY sg.student_id, sg.is_primary DESC, g.last_name, g.first_name`,
+    [tenantId, studentIds]
+  );
+
+  for (const row of result.rows) {
+    const { student_id, ...rest } = row;
+    byStudent.set(student_id, keysToCamel(rest));
+  }
+  return byStudent;
+};
+
+/**
  * Batched guardian-count lookup for a set of students in one query (not
  * N+1) - used by studentService's read paths to attach needsGuardian
  * without a per-student round trip. Returns a Map of studentId -> count;

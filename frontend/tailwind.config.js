@@ -82,7 +82,28 @@ export default {
             border: 'rgb(var(--status-danger-border-rgb) / <alpha-value>)',
             solid:  'rgb(var(--status-danger-solid-rgb) / <alpha-value>)',
           },
+          // Warm reddish-orange, reserved for a reversible administrative
+          // hold (suspended) - distinct from danger red, which stays
+          // reserved for genuine problems (expired license, overdue).
+          terracotta: {
+            bg:     'rgb(var(--status-terracotta-bg-rgb) / <alpha-value>)',
+            text:   'rgb(var(--status-terracotta-text-rgb) / <alpha-value>)',
+            border: 'rgb(var(--status-terracotta-border-rgb) / <alpha-value>)',
+          },
         },
+        // Gold - the positive-milestone intent (certificates, "ready to
+        // complete" stars, the guided Mark Complete action), reachable as
+        // bg-gold, text-gold, border-gold, and the two gradient stops as
+        // from-gold-gradient-from / to-gold-gradient-to for gradient
+        // buttons - never a hardcoded hex at any call site.
+        gold: {
+          DEFAULT: 'rgb(var(--gold-text-rgb) / <alpha-value>)',
+          bg:      'rgb(var(--gold-bg-rgb) / <alpha-value>)',
+          text:    'rgb(var(--gold-text-rgb) / <alpha-value>)',
+          border:  'rgb(var(--gold-border-rgb) / <alpha-value>)',
+        },
+        'gold-gradient-from': 'rgb(var(--gold-gradient-from-rgb) / <alpha-value>)',
+        'gold-gradient-to':   'rgb(var(--gold-gradient-to-rgb) / <alpha-value>)',
       },
     },
   },

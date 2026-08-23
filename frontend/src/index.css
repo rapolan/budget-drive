@@ -70,6 +70,31 @@
   --status-danger-text-rgb:    153 27 27;
   --status-danger-border:  #fecaca;
   --status-danger-border-rgb:  254 202 202;
+
+  /* Terracotta - a warm reddish-orange intent distinct from danger red,
+     reserved for a reversible administrative hold (e.g. a suspended
+     enrollment) that is a deliberate decision, not a problem the same way
+     an expired license or an overdue lesson is. */
+  --status-terracotta-bg:        #fdf1ec;
+  --status-terracotta-bg-rgb:        253 241 236;
+  --status-terracotta-text:      #9a3412;
+  --status-terracotta-text-rgb:      154 52 18;
+  --status-terracotta-border:    #fbc9b3;
+  --status-terracotta-border-rgb:    251 201 179;
+
+  /* Gold - the positive-milestone intent (certificates, "ready to
+     complete" stars, the guided Mark Complete action), distinct from the
+     ordinary green success intent used for routine positive states. */
+  --gold-bg:        #fffbeb;
+  --gold-bg-rgb:        255 251 235;
+  --gold-text:      #92400e;
+  --gold-text-rgb:      146 64 14;
+  --gold-border:    #f5c451;
+  --gold-border-rgb:    245 196 81;
+  --gold-gradient-from: #f5c451;
+  --gold-gradient-from-rgb: 245 196 81;
+  --gold-gradient-to:   #d4941f;
+  --gold-gradient-to-rgb:   212 148 31;
 }
 
 /* Status "solid" tier - a fixed, saturated background color per intent for
@@ -136,6 +161,24 @@
   --status-danger-text-rgb:    252 165 165;
   --status-danger-border:  #7f1d1d;
   --status-danger-border-rgb:  127 29 29;
+
+  --status-terracotta-bg:        #3f1f13;
+  --status-terracotta-bg-rgb:        63 31 19;
+  --status-terracotta-text:      #fdba8c;
+  --status-terracotta-text-rgb:      253 186 140;
+  --status-terracotta-border:    #7c3a1d;
+  --status-terracotta-border-rgb:    124 58 29;
+
+  --gold-bg:        #3d2e0f;
+  --gold-bg-rgb:        61 46 15;
+  --gold-text:      #fbbf24;
+  --gold-text-rgb:      251 191 36;
+  --gold-border:    #92660f;
+  --gold-border-rgb:    146 102 15;
+  --gold-gradient-from: #d4941f;
+  --gold-gradient-from-rgb: 212 148 31;
+  --gold-gradient-to:   #92660f;
+  --gold-gradient-to-rgb:   146 102 15;
 }
 
 /* ─── Base styles ───────────────────────────────────────────────────────────── */

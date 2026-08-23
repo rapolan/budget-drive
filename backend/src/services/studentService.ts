@@ -12,7 +12,8 @@ import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { resolveTenantTimezone } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
-import { countGuardiansForStudentsBatch, StudentGuardianLink } from './studentGuardianService';
+import { countGuardiansForStudentsBatch, getGuardiansForStudentsBatch, getGuardiansForStudent, StudentGuardianLink } from './studentGuardianService';
+import { getOutstandingFlagsForStudentsBatch, getOutstandingFlagsForStudent } from './feeFlagService';
 import { findExactGuardianMatch } from './guardianService';
 import {
   getDisplayDriverTrainingEnrollmentsBatch,
@@ -105,6 +106,10 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
     .map(s => s.id);
 
   const guardianCounts = await countGuardiansForStudentsBatch(minorIds, tenantId);
+  const outstandingFeesByStudent = await getOutstandingFlagsForStudentsBatch(tenantId, studentIds);
+  // Only minors need a guardian-contact fallback rendered - adults never
+  // pay for this query, same reasoning as guardianCounts above.
+  const primaryGuardiansByStudent = await getGuardiansForStudentsBatch(minorIds, tenantId);
 
   return students.map(student => {
     const age = calculateAge(student.dateOfBirth, timezone);
@@ -151,12 +156,33 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
         )
       : undefined;
 
+    // "Listed, not totalled" (Constraint A, feeFlagService's own doc
+    // comment) - the list only needs a boolean + a sum for the badge, but
+    // that sum is derived fresh here from the listed flags, never a second
+    // cached/stored total.
+    const outstandingFees = outstandingFeesByStudent.get(student.id) ?? [];
+    const hasOutstandingFee = outstandingFees.length > 0;
+    const outstandingFeeAmount = outstandingFees.reduce((sum, f) => sum + Number(f.amount), 0);
+
+    const primaryGuardian = primaryGuardiansByStudent.get(student.id);
+
     return {
       ...student,
       progress,
       needsGuardian,
       activeEnrollment,
       paymentSummary,
+      hasOutstandingFee,
+      outstandingFeeAmount,
+      primaryGuardian: primaryGuardian
+        ? {
+            id: primaryGuardian.id,
+            firstName: primaryGuardian.firstName,
+            lastName: primaryGuardian.lastName,
+            email: primaryGuardian.email,
+            phone: primaryGuardian.phone,
+          }
+        : undefined,
     };
   });
 }
@@ -256,6 +282,9 @@ export const getStudentById = async (
   const isMinor = age === null || age < 18;
   const guardianCounts = isMinor ? await countGuardiansForStudentsBatch([student.id], tenantId) : new Map<string, number>();
   const needsGuardian = isMinor && (guardianCounts.get(student.id) ?? 0) === 0;
+  const guardiansForStudent = isMinor ? await getGuardiansForStudent(student.id, tenantId) : [];
+  const primaryGuardianRecord = guardiansForStudent.find(g => g.isPrimary) ?? guardiansForStudent[0];
+  const outstandingFees = await getOutstandingFlagsForStudent(tenantId, student.id);
 
   const enrollments = await getEnrollmentsForStudent(id, tenantId, student);
   const driverTrainingEnrollments = enrollments.filter(e => e.programType === 'driver_training');
@@ -292,6 +321,17 @@ export const getStudentById = async (
           withdrawnReason: activeDriverTraining.withdrawnReason,
         }
       : null,
+    hasOutstandingFee: outstandingFees.length > 0,
+    outstandingFeeAmount: outstandingFees.reduce((sum, f) => sum + Number(f.amount), 0),
+    primaryGuardian: primaryGuardianRecord
+      ? {
+          id: primaryGuardianRecord.id,
+          firstName: primaryGuardianRecord.firstName,
+          lastName: primaryGuardianRecord.lastName,
+          email: primaryGuardianRecord.email,
+          phone: primaryGuardianRecord.phone,
+        }
+      : undefined,
   };
 };
 
@@ -316,6 +356,12 @@ export const createStudent = async (
     city?: string;
     state?: string;
     zipCode?: string;
+    pickupAddressDifferentFromHome?: boolean;
+    pickupAddressLine1?: string;
+    pickupAddressLine2?: string;
+    pickupCity?: string;
+    pickupState?: string;
+    pickupZipCode?: string;
     emergencyContactFirstName?: string; // Parent/Guardian first name
     emergencyContactLastName?: string; // Parent/Guardian last name
     emergencyContactPhone?: string; // Parent/Guardian phone
@@ -387,11 +433,13 @@ export const createStudent = async (
       `INSERT INTO students (
         tenant_id, full_name, first_name, last_name, middle_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
+        pickup_address_different_from_home, pickup_address_line1, pickup_address_line2,
+        pickup_city, pickup_state, pickup_zip_code,
         emergency_contact_first_name, emergency_contact_last_name, emergency_contact_phone,
         emergency_contact_2_first_name, emergency_contact_2_last_name, emergency_contact_2_phone,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
         notes, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $29)
       RETURNING *`,
       [
         tenantId,
@@ -408,6 +456,12 @@ export const createStudent = async (
         data.city || null,
         data.state || null,
         data.zipCode || null,
+        data.pickupAddressDifferentFromHome ?? false,
+        data.pickupAddressLine1 || null,
+        data.pickupAddressLine2 || null,
+        data.pickupCity || null,
+        data.pickupState || null,
+        data.pickupZipCode || null,
         data.emergencyContactFirstName || null,
         data.emergencyContactLastName || null,
         data.emergencyContactPhone || null,
@@ -788,6 +842,30 @@ export const updateStudent = async (
   if (data.zipCode !== undefined) {
     fields.push(`zip_code = $${paramCount++}`);
     values.push(data.zipCode);
+  }
+  if (data.pickupAddressDifferentFromHome !== undefined) {
+    fields.push(`pickup_address_different_from_home = $${paramCount++}`);
+    values.push(data.pickupAddressDifferentFromHome);
+  }
+  if (data.pickupAddressLine1 !== undefined) {
+    fields.push(`pickup_address_line1 = $${paramCount++}`);
+    values.push(data.pickupAddressLine1);
+  }
+  if (data.pickupAddressLine2 !== undefined) {
+    fields.push(`pickup_address_line2 = $${paramCount++}`);
+    values.push(data.pickupAddressLine2);
+  }
+  if (data.pickupCity !== undefined) {
+    fields.push(`pickup_city = $${paramCount++}`);
+    values.push(data.pickupCity);
+  }
+  if (data.pickupState !== undefined) {
+    fields.push(`pickup_state = $${paramCount++}`);
+    values.push(data.pickupState);
+  }
+  if (data.pickupZipCode !== undefined) {
+    fields.push(`pickup_zip_code = $${paramCount++}`);
+    values.push(data.pickupZipCode);
   }
   if (data.emergencyContactFirstName !== undefined) {
     fields.push(`emergency_contact_first_name = $${paramCount++}`);

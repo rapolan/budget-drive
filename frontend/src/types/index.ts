@@ -164,6 +164,15 @@ export interface Student {
   city?: string;
   state?: string;
   zipCode?: string;
+  // Distinct pickup location (migration 022) - when
+  // pickupAddressDifferentFromHome is false, the booking wizard falls back
+  // to the home address fields above, same as before this feature existed.
+  pickupAddressDifferentFromHome?: boolean;
+  pickupAddressLine1?: string | null;
+  pickupAddressLine2?: string | null;
+  pickupCity?: string | null;
+  pickupState?: string | null;
+  pickupZipCode?: string | null;
   emergencyContactFirstName?: string; // Parent/Guardian first name
   emergencyContactLastName?: string; // Parent/Guardian last name
   emergencyContactPhone?: string; // Parent/Guardian phone
@@ -201,6 +210,21 @@ export interface Student {
   updatedByName?: string | null;
   createdAt: Date;
   updatedAt: Date;
+
+  // Derived (not stored) - attached by the backend's read paths, same
+  // convention as progress/needsGuardian/activeEnrollment above.
+  hasOutstandingFee?: boolean;
+  outstandingFeeAmount?: number;
+  // This minor's primary linked guardian, for the Contact column's
+  // guardian-contact fallback and the clickable-guardian-name display.
+  // undefined for adults and for minors with zero linked guardians.
+  primaryGuardian?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+  };
 }
 
 // =====================================================
@@ -532,7 +556,13 @@ export interface CreateStudentInput {
   city?: string;
   state?: string;
   zipCode?: string;
-  
+  pickupAddressDifferentFromHome?: boolean;
+  pickupAddressLine1?: string;
+  pickupAddressLine2?: string;
+  pickupCity?: string;
+  pickupState?: string;
+  pickupZipCode?: string;
+
   // Parent/Guardian contact
   emergencyContactFirstName?: string; // Parent/Guardian first name
   emergencyContactLastName?: string; // Parent/Guardian last name

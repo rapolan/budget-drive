@@ -53,6 +53,8 @@ function mockCreateStudentSequence(studentId: string) {
     .mockResolvedValueOnce(queryResult([{ id: studentId, tenant_id: TENANT_ID, date_of_birth: MINOR_DOB, email: null }])) // getStudentById: student row
     .mockResolvedValueOnce(queryResult([])) // tenant settings
     .mockResolvedValueOnce(queryResult([])) // guardian counts
+    .mockResolvedValueOnce(queryResult([])) // guardians for student (minor, none linked)
+    .mockResolvedValueOnce(queryResult([])) // outstanding fees
     .mockResolvedValueOnce(
       queryResult([{ id: 'enrollment-1', student_id: studentId, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }])
     ) // enrollments for student
@@ -159,15 +161,18 @@ describe('student email optional for minors, required for adults', () => {
     const studentService = await import('../services/studentService');
 
     // getStudentById's fetch-before-write pre-check (adult - no guardian-
-    // count query): 1. the student row 2. tenant settings (age calc)
-    // 3. enrollments for student 4. tenant settings (attachProgressAndPayments)
-    // 5. lessons for enrollment 6. payments for enrollment. Then
-    // updateStudent's own age-check tenant-settings lookup.
+    // count/guardians query, but outstanding fees always runs regardless
+    // of age): 1. the student row 2. tenant settings (age calc)
+    // 3. outstanding fees 4. enrollments for student
+    // 5. tenant settings (attachProgressAndPayments) 6. lessons for
+    // enrollment 7. payments for enrollment. Then updateStudent's own
+    // age-check tenant-settings lookup.
     mockQuery
       .mockResolvedValueOnce(
         queryResult([{ id: 'student-3', tenant_id: TENANT_ID, date_of_birth: ADULT_DOB, email: 'adult@example.com' }])
       )
       .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }]))
+      .mockResolvedValueOnce(queryResult([])) // outstanding fees
       .mockResolvedValueOnce(queryResult([])) // enrollments for student - none
       .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // updateStudent's own age-check tenant-settings lookup
 

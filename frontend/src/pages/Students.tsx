@@ -6,12 +6,14 @@ import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi, enrollm
 import type { Student, Guardian, LinkedStudent, Lesson } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { StudentProgressBar } from '@/components/students/StudentProgressBar';
+import { StudentStatusBadge } from '@/components/students/StudentStatusBadge';
 import type { GuardianPrefill } from '@/components/students/StudentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
+import { getStudentContactDisplay } from '@/utils/studentContact';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
@@ -25,6 +27,15 @@ import { parseLocalDate } from '@/utils/timeFormat';
 type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup' | 'needs_guardian';
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
+
+// The gold-gradient treatment for the guided "Mark complete" action -
+// reads as the positive milestone action, consistent with the gold star
+// (StudentStatusBadge's "Ready to Complete" badge) and the gold
+// certificate badge (EnrollmentSubPanel) elsewhere in the app. Token-
+// driven (gold-gradient-from/to, defined in index.css/tailwind.config.js),
+// never a hardcoded hex - reused at both icon-button call sites below.
+const MARK_COMPLETE_BUTTON_CLASSES =
+  'bg-gradient-to-br from-gold-gradient-from to-gold-gradient-to text-white shadow-sm hover:brightness-110 hover:scale-110 transition-all';
 type ActiveView = 'students' | 'guardians';
 const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 const isActiveView = (v: string): v is ActiveView => v === 'students' || v === 'guardians';
@@ -524,23 +535,6 @@ export const StudentsPage: React.FC = () => {
   // Keep old variable name for backward compatibility in the JSX
   const filteredStudents = filteredAndSortedStudents;
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return 'bg-status-success-bg text-status-success-text';
-      case 'ready_to_book':
-        return 'bg-status-info-bg text-status-info-text';
-      case 'needs_attention':
-        return 'bg-status-warning-bg text-status-warning-text';
-      case 'completed':
-        return 'bg-purple-100 text-purple-800';
-      case 'inactive':
-        return 'bg-surface2 text-tx-primary';
-      default:
-        return 'bg-surface2 text-tx-primary';
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -920,17 +914,31 @@ export const StudentsPage: React.FC = () => {
                       </div>
                       <div className="min-w-0">
                         <h3 className="font-semibold text-tx-primary truncate">{getDisplayName(student)}</h3>
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusColor(statusInfo.status)}`}>
-                          {statusInfo.displayStatus}
-                        </span>
-                        {student.needsGuardian && (
-                          <span
-                            className="ml-1.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold bg-status-warning-bg text-status-warning-text"
-                            title="This minor has no linked guardian record"
-                          >
-                            Needs Guardian
-                          </span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <StudentStatusBadge
+                            statusInfo={statusInfo}
+                            readyToComplete={isReadyToMarkComplete(student)}
+                            title={statusInfo.status === 'needs_attention'
+                              ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
+                              : statusInfo.reason}
+                          />
+                          {student.needsGuardian && (
+                            <span
+                              className="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold leading-none bg-status-warning-bg text-status-warning-text"
+                              title="This minor has no linked guardian record"
+                            >
+                              Needs Guardian
+                            </span>
+                          )}
+                          {student.hasOutstandingFee && (
+                            <span
+                              className="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold leading-none bg-status-warning-bg text-status-warning-text"
+                              title={`Outstanding fee: $${(student.outstandingFeeAmount ?? 0).toFixed(2)}`}
+                            >
+                              Outstanding Fee
+                            </span>
+                          )}
+                        </div>
                         {/* Status reason - visible on cards */}
                         {statusInfo.reason && (
                           <p className="text-xs text-tx-muted mt-1 truncate">
@@ -948,19 +956,27 @@ export const StudentsPage: React.FC = () => {
                     <StudentProgressBar progress={student.progress} />
                   </div>
 
-                  {/* Contact Info */}
-                  <div className="space-y-2 mb-4 text-sm">
-                    {student.email && (
-                      <a href={`mailto:${student.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
-                        <Mail className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{student.email}</span>
-                      </a>
-                    )}
-                    <a href={`tel:${student.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
-                      <Phone className="h-4 w-4 flex-shrink-0" />
-                      {student.phone}
-                    </a>
-                  </div>
+                  {/* Contact Info - falls back to the linked guardian's
+                      contact for a minor with none of their own. */}
+                  {(() => {
+                    const contact = getStudentContactDisplay(student);
+                    return (
+                      <div className="space-y-2 mb-4 text-sm">
+                        {contact.email && (
+                          <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary truncate">
+                            <Mail className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{contact.email}{contact.isGuardianFallback && <span className="text-tx-muted"> (Guardian)</span>}</span>
+                          </a>
+                        )}
+                        {contact.phone && (
+                          <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-tx-secondary hover:text-primary">
+                            <Phone className="h-4 w-4 flex-shrink-0" />
+                            {contact.phone}{contact.isGuardianFallback && !contact.email && <span className="text-tx-muted"> (Guardian)</span>}
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 pt-3 border-t border-edge">
@@ -994,7 +1010,7 @@ export const StudentsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setCompletingStudentId(student.id)}
-                        className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-colors"
+                        className={`p-2 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
                         title="Mark complete"
                       >
                         <GraduationCap className="h-4 w-4" />
@@ -1074,7 +1090,7 @@ export const StudentsPage: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                   History
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary min-w-[120px]">
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary min-w-[120px] sticky right-0 z-10 bg-surface2/80">
                   Actions
                 </th>
               </tr>
@@ -1118,7 +1134,7 @@ export const StudentsPage: React.FC = () => {
 
                   return (
                     <React.Fragment key={student.id}>
-                    <tr className={`hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
+                    <tr className={`group hover:bg-surface2 cursor-pointer ${statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : ''}`} onClick={() => handleEdit(student)}>
                       {/* Student Name with Avatar */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -1137,26 +1153,58 @@ export const StudentsPage: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <div className="text-sm text-tx-muted md:hidden truncate">{student.email || student.phone || '—'}</div>
+                            <div className="text-sm text-tx-muted md:hidden truncate">
+                              {(() => {
+                                const contact = getStudentContactDisplay(student);
+                                const value = contact.email || contact.phone;
+                                return value ? `${value}${contact.isGuardianFallback ? ' (Guardian)' : ''}` : '—';
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      {/* Contact - Hidden on mobile */}
+                      {/* Contact - Hidden on mobile. Falls back to the
+                          linked guardian's contact for a minor with none of
+                          their own (getStudentContactDisplay - shared with
+                          the card view and the detail modal so they can't
+                          diverge). */}
                       <td className="px-6 py-4 hidden md:table-cell">
-                        <div className="text-sm text-tx-primary">{student.email || <span className="text-tx-muted italic">No email (minor)</span>}</div>
-                        <div className="text-sm text-tx-muted">{student.phone}</div>
+                        {(() => {
+                          const contact = getStudentContactDisplay(student);
+                          return (
+                            <>
+                              <div className="text-sm text-tx-primary">
+                                {contact.email
+                                  ? <>{contact.email}{contact.isGuardianFallback && <span className="text-tx-muted"> (Guardian)</span>}</>
+                                  : <span className="text-tx-muted italic">No email (minor)</span>}
+                              </div>
+                              <div className="text-sm text-tx-muted">
+                                {contact.phone
+                                  ? <>{contact.phone}{contact.isGuardianFallback && !contact.email && <span> (Guardian)</span>}</>
+                                  : null}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </td>
                       {/* Status - hover for reason */}
                       <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span
-                            className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold cursor-help ${getStatusColor(statusInfo.status)}`}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StudentStatusBadge
+                            statusInfo={statusInfo}
+                            readyToComplete={isReadyToMarkComplete(student)}
                             title={statusInfo.status === 'needs_attention'
                               ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
                               : statusInfo.reason}
-                          >
-                            {statusInfo.displayStatus}
-                          </span>
+                          />
+                          {student.hasOutstandingFee && (
+                            <span
+                              className="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold leading-none bg-status-warning-bg text-status-warning-text"
+                              title={`Outstanding fee: $${(student.outstandingFeeAmount ?? 0).toFixed(2)}`}
+                            >
+                              Outstanding Fee
+                            </span>
+                          )}
                         </div>
                       </td>
                       {/* Progress with visual bar */}
@@ -1174,8 +1222,14 @@ export const StudentsPage: React.FC = () => {
                           updatedAt={student.updatedAt}
                         />
                       </td>
-                      {/* Actions */}
-                      <td className="px-6 py-4 text-right">
+                      {/* Actions - sticky/pinned to the right, matching the
+                          Lessons page pattern, so mark-complete and fee
+                          actions stay reachable without horizontal scroll. */}
+                      <td
+                        className={`whitespace-nowrap px-6 py-4 text-right sticky right-0 z-10 group-hover:bg-surface2 ${
+                          statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : 'bg-surface'
+                        }`}
+                      >
                         <div className="flex justify-end gap-1">
                           {statusInfo.status === 'needs_attention' && (
                             <button
@@ -1227,7 +1281,7 @@ export const StudentsPage: React.FC = () => {
                                 e.stopPropagation();
                                 setCompletingStudentId(student.id);
                               }}
-                              className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
+                              className={`p-2 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
                               title="Mark complete"
                             >
                               <GraduationCap className="h-4 w-4" />

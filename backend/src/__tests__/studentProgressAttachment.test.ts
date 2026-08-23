@@ -47,6 +47,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     ); // lessons for those enrollments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments for those enrollments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians (minor, none linked)
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -89,6 +91,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians (minor, none linked)
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -125,6 +129,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians (minor, none linked)
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -135,18 +141,107 @@ describe('GET /api/v1/students - progress attachment', () => {
     expect(res.body.data[0].updatedByName).toBeNull();
   });
 
+  // Regression: the Students list status column's amber "Outstanding Fee"
+  // flag reads student.hasOutstandingFee/outstandingFeeAmount, attached in
+  // the SAME batched list response getAllStudents already builds - not a
+  // second round trip the frontend has to join client-side.
+  it('attaches hasOutstandingFee/outstandingFeeAmount from the batched outstanding-fees query', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString() }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ student_id: STUDENT_ID, amount: '50.00' }, { student_id: STUDENT_ID, amount: '25.50' }])
+    ); // batched outstanding fees - two flags for this student
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians (minor, none linked)
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].hasOutstandingFee).toBe(true);
+    expect(res.body.data[0].outstandingFeeAmount).toBe(75.5);
+  });
+
+  it('hasOutstandingFee is false and outstandingFeeAmount is 0 when a student has no outstanding fee flags', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString() }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees - none
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians (minor, none linked)
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].hasOutstandingFee).toBe(false);
+    expect(res.body.data[0].outstandingFeeAmount).toBe(0);
+  });
+
+  // Regression: the Contact column's guardian-contact fallback
+  // (getStudentContactDisplay on the frontend) needs student.primaryGuardian
+  // attached for a minor - previously the list response had no guardian
+  // contact info at all, only a boolean needsGuardian.
+  it('attaches primaryGuardian (email/phone) from the batched primary-guardian query for a minor', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString(), email: null, phone: null }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
+    mockQuery.mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])); // batched guardian counts - one linked
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ student_id: STUDENT_ID, id: 'guardian-1', first_name: 'Jane', last_name: 'Doe', email: 'jane@example.com', phone: '555-2222', is_primary: true }])
+    ); // batched primary guardians
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].primaryGuardian).toMatchObject({
+      id: 'guardian-1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      email: 'jane@example.com',
+      phone: '555-2222',
+    });
+  });
+
   it('attaches computed progress to a single student detail response', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
     // getStudentById: student row, tenant settings (age calc), guardian
-    // counts (minor), enrollments for student, then
-    // attachProgressAndPayments' own tenant settings + lessons + payments.
+    // counts (minor), guardians for student (minor), outstanding fees,
+    // enrollments for student, then attachProgressAndPayments' own tenant
+    // settings + lessons + payments.
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: tenYearsAgo.toISOString() }])
     ); // student row
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // guardians for student (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // outstanding fees
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }])
     ); // enrollments for student
@@ -179,6 +274,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     ); // student row
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // guardians for student (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // outstanding fees
     mockQuery.mockResolvedValueOnce(queryResult([])); // enrollments for student (none)
 
     const res = await request(app)
@@ -236,6 +333,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     ); // lessons for that enrollment
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -281,6 +380,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for that enrollment
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -319,6 +420,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for that enrollment
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -356,6 +459,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for that enrollment
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -378,6 +483,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // getDisplayDriverTrainingEnrollmentsBatch - no rows at all
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -421,6 +528,8 @@ describe('GET /api/v1/students - progress attachment', () => {
     mockQuery.mockResolvedValueOnce(queryResult([])); // lessons for the new enrollment
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched payments
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
 
     const res = await request(app)
       .get('/api/v1/students')
@@ -454,6 +563,8 @@ describe('GET /api/v1/students/:id - display enrollment resolution', () => {
     ); // student row
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings (age calc)
     mockQuery.mockResolvedValueOnce(queryResult([])); // guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // guardians for student (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // outstanding fees
     mockQuery.mockResolvedValueOnce(
       queryResult([{
         id: ONLY_ENROLLMENT_ID,
@@ -490,6 +601,8 @@ describe('GET /api/v1/students/:id - display enrollment resolution', () => {
     ); // student row
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // guardians for student (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // outstanding fees
     mockQuery.mockResolvedValueOnce(queryResult([])); // getEnrollmentsForStudent - no rows
 
     const res = await request(app)
@@ -512,6 +625,8 @@ describe('GET /api/v1/students/:id - display enrollment resolution', () => {
     ); // student row
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // guardians for student (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // outstanding fees
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {

@@ -55,7 +55,8 @@ describe('needsGuardian attachment', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: adultDob.toISOString() }]))
-      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])) // tenant settings - no guardian-count call follows for an adult
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])) // tenant settings - no guardian-count/guardians call follows for an adult
+      .mockResolvedValueOnce(queryResult([])) // outstanding fees - always runs regardless of age
       .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false }]))
       .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }]))
       .mockResolvedValueOnce(queryResult([]))
@@ -63,7 +64,7 @@ describe('needsGuardian attachment', () => {
 
     const student = await studentService.getStudentById(STUDENT_ID, TENANT_ID);
     expect(student?.needsGuardian).toBe(false);
-    expect(mockQuery).toHaveBeenCalledTimes(6);
+    expect(mockQuery).toHaveBeenCalledTimes(7);
   });
 
   it('getAllStudents batches the guardian-count query once across multiple minors, not N+1', async () => {
@@ -86,10 +87,12 @@ describe('needsGuardian attachment', () => {
       ) // active driver_training enrollments batch - only STUDENT_ID has one
       .mockResolvedValueOnce(queryResult([])) // batched lessons for that enrollment
       .mockResolvedValueOnce(queryResult([])) // batched payments for that enrollment
-      .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])); // batched guardian counts - one call for both
+      .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])) // batched guardian counts - one call for both
+      .mockResolvedValueOnce(queryResult([])) // batched outstanding fees - one call for both
+      .mockResolvedValueOnce(queryResult([])); // batched primary guardians - one call for both
 
     const { students } = await studentService.getAllStudents(TENANT_ID, 1, 50);
-    expect(mockQuery).toHaveBeenCalledTimes(7);
+    expect(mockQuery).toHaveBeenCalledTimes(9);
     expect(students.find(s => s.id === STUDENT_ID)?.needsGuardian).toBe(false);
     expect(students.find(s => s.id === STUDENT_ID_2)?.needsGuardian).toBe(true);
   });
