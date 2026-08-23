@@ -70,16 +70,16 @@ cd backend
 node database/run-seed.js
 ```
 
-This runs every file in `backend/database/seeds/` in order (`000_admin_user.sql` → `001_budget_driving_school.sql` → `002_demo_lessons_payments.sql` → `003_manual_test_dataset.sql`) and finishes with a data-integrity validation pass. Expected tail of the output:
+This runs every file in `backend/database/seeds/` in order (`000_admin_user.sql` → `001_budget_driving_school.sql`) and finishes with a data-integrity validation pass. Expected tail of the output:
 
 ```
 📊 Database Summary:
   - 1 Tenant(s)
-  - 8 Students
+  - 9 Students
   - 3 Instructors
   - 3 Vehicles
-  - 40 Lessons
-  - 20 Payments
+  - 18 Lessons
+  - 27 Payments
   - 0 Active Recurring Patterns
 
 ✅ All data integrity checks passed!
@@ -92,7 +92,35 @@ Email:    admin@budgetdrivingschool.com
 Password: AdminPassword123!
 ```
 
-Other seeded logins (all use the same password): `InstructorPass123!` for `john.smith@budgetdrivingschool.com`, `maria.rodriguez@budgetdrivingschool.com`, and `priya.patel@budgetdrivingschool.com`.
+Other seeded logins (all use the same password): `InstructorPass123!` for `marcus.webb@budgetdrivingschool.com`, `renee.okafor@budgetdrivingschool.com`, and `devon.ashby@budgetdrivingschool.com`.
+
+### 1.5a The seeded cast
+
+One lean, lifecycle-covering dataset — every student is in a **different** lifecycle state so every flow below is exercisable without anyone being overloaded with lessons. Every minor's date of birth is `CURRENT_DATE - INTERVAL 'N years'` (never a fixed birth year) so they stay minors regardless of how much real time has passed since the repo was cloned; every lesson/enrollment date is likewise relative to `CURRENT_DATE`, not hardcoded.
+
+**Instructors** — 3, each with a distinct (and partly overlapping) service area, for testing proximity ranking and out-of-area grouping:
+
+| Instructor | License | Service area |
+|---|---|---|
+| Marcus Webb | Valid, expires in ~400 days | `90001`, `90002`, `90003` |
+| Renee Okafor | **Expiring in ~20 days** — exercises the license-expiry alert | `90010`, `90011` |
+| Devon Ashby | Valid, expires in ~300 days | `90003` (overlaps Marcus), `90020` |
+
+**Students** — exactly 9, one per lifecycle state:
+
+| # | Student | Lifecycle state | Exercises |
+|---|---|---|---|
+| 1 | Ivy Delgado | New minor, guardian linked, zero lessons | Fresh booking flow |
+| 2 | Owen Castillo | New minor, **no guardian** | `needsGuardian` badge/filter |
+| 3 | Mia Torres | Mid-progress minor, guardian linked: 1 completed lesson (2/6 hrs), 1 upcoming | Normal in-progress hours track |
+| 4 | Leo Whitfield | Minor, guardian linked, required hours met (6/6), enrollment still active | "Mark complete" → certificate worklist |
+| 5 | Ruby Sandoval | Completed minor, guardian linked, **certificate recorded** | Gold certificate badge, Completed filter, certificate log |
+| 6 | Caleb Nguyen | **Withdrawn** minor, guardian linked, 2 lessons done before leaving | "Dropped" status, withdrawal transcript |
+| 7 | Priya Anand | Mid-progress minor, guardian linked, **outstanding no-show fee** | Fee-at-next-lesson flow end to end |
+| 8 | Jordan Vance | Mid-progress **adult**, no guardian, no certificate: 2 completed, 1 upcoming | Adults on the lessons track |
+| 9 | Naomi Frasier | Completed **adult**, no certificate | Confirms a completed adult stays out of the minors-only certificate worklist |
+
+Grace Kim's guardian role from the old cast is replaced by: Carla Delgado (Ivy's mother), Rosa Torres (Mia's mother), Grant Whitfield (Leo's father), Elena Sandoval (Ruby's mother), Minh Nguyen (Caleb's father), and Deepa Anand (Priya's mother) — six guardians total, one per linked minor. Owen Castillo is the one minor deliberately left unlinked.
 
 ### 1.6 Start the backend
 
@@ -160,7 +188,7 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Do:** Land on `/` after login.
 
-**Pass looks like:** Stats cards render (lessons, students, revenue, etc.) without "undefined" or "NaN". Today's schedule widget shows the 3 lessons seeded for today (John Smith/Jessica Park, Maria Rodriguez/Tyler Brooks, Priya Patel/Noah Kim). No infinite loading spinners.
+**Pass looks like:** Stats cards render (lessons, students, revenue, etc.) without "undefined" or "NaN". No infinite loading spinners. (The current seed has no lessons pinned to exactly "today" — the seeded lesson dates are relative offsets from `CURRENT_DATE` at the moment `run-seed.js` runs, so what's "on the calendar today" varies lesson-by-lesson; there's no single day guaranteed to show all three instructors booked.)
 
 **Note:** the seed data's lesson dates are relative to `CURRENT_DATE` at the moment `run-seed.js` runs, not to whenever you happen to be testing. If time has passed since seeding, "today's" seeded lessons will no longer be dated today and the widget will correctly show nothing — re-seed (§1.5) immediately before this check if you need to see it populated.
 
@@ -168,15 +196,15 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Do:** Go to `/students`.
 
-**Pass looks like:** All 8 seeded students appear (Sarah, Michael, Jessica, Tyler, Aisha, Noah, Olivia, Marcus), with progress stages visibly different — Noah at 0 lessons, Olivia near her lesson count, Marcus at `completed` status. Every progress bar (table and card view — both render the same shared component) reads `"X / Y lessons"` with a percentage next to it, in one consistent color (blue, or green only at 100%) regardless of whether the student is a minor or an adult — there is no amber tier, and no student should ever show a raw decimal like `"30.00"`. Search and status filter both narrow the list correctly. Opening a student shows their lesson history including a mix of completed/cancelled entries for students who have them (e.g. Michael Chen has a cancelled lesson).
+**Pass looks like:** All 9 seeded students appear (Ivy, Owen, Mia, Leo, Ruby, Caleb, Priya, Jordan, Naomi — see §1.5a for the full cast table), with progress stages visibly different — Ivy Delgado at 0 lessons, Leo Whitfield at 6/6 required hours (ready to complete), Ruby Sandoval and Naomi Frasier at `completed` status. Every progress bar (table and card view — both render the same shared component) reads `"X / Y lessons"` with a percentage next to it, in one consistent color (blue, or green only at 100%) regardless of whether the student is a minor or an adult — there is no amber tier, and no student should ever show a raw decimal like `"6.00"`. Search and status filter both narrow the list correctly. Opening a student shows their lesson history including a mix of statuses for students who have them (e.g. Priya Anand has a `no_show` lesson).
 
-**Note on ages:** Noah Kim's and Olivia Garcia's dates of birth are seeded *relative to the current date* (`CURRENT_DATE - INTERVAL 'N years'`), not fixed calendar dates, specifically so they stay minors (and therefore stay on the hours track) no matter how much real time has passed since the repo was cloned. Every other seeded student has a fixed date of birth and will drift into adulthood over the years — that's expected, not a bug to chase.
+**Note on ages:** every minor's date of birth (Ivy, Owen, Mia, Leo, Ruby, Caleb, Priya) is seeded *relative to the current date* (`CURRENT_DATE - INTERVAL 'N years'`), not a fixed calendar date, specifically so they stay minors (and therefore stay on the hours track) no matter how much real time has passed since the repo was cloned. The two adults (Jordan Vance, Naomi Frasier) have fixed dates of birth and will simply keep aging normally — that's expected, not a bug to chase.
 
 ### 2.3a Progress, completion, and alerts
 
-**Do:** Open Noah Kim's or Olivia Garcia's detail record (the two seeded minors) and check their Progress tab. Then open the Dashboard.
+**Do:** Open **Ivy Delgado**'s or **Leo Whitfield**'s detail record (both seeded minors) and check their Progress tab. Then open the Dashboard.
 
-**Pass looks like:** Their "Training Progress" figure at the top reads a lesson count (e.g. `"0 / 15 lessons"`), same as the list. Below it, a separate **"Required Hours"** box shows the underlying hours figure (e.g. `"0 / 30 hrs"`) with a caption noting California requires that many behind-the-wheel hours for minors — this box only appears for minors, since it's the legally meaningful number the list's lesson count doesn't capture on its own. An adult student's Progress tab instead shows only a lessons-style label (e.g. `"2 of 3 lessons (67%)"`, or `"No lessons booked"` if they have none — not `"0%"`), no hours box. The Dashboard's Alerts card shows a "Turning 18" row for **Aisha Williams** — she's seeded as an adult but pinned to the hours track via `track_override` (so this alert has a stable example regardless of how her literal age drifts over time) and is permanently under-booked (28 completed + 8 scheduled hours < 30 required) — this alert still compares hours underneath, unaffected by the list's lesson-count display. Clicking the alert filters the Students list. From that student's Progress tab, the three admin actions (keep on hours track / switch to lessons track / mark program complete) are visible and each calls through to `PUT /students/:id` or `POST /students/:id/complete`.
+**Pass looks like:** Their "Training Progress" figure at the top reads a lesson count, same as the list. Below it, a separate **"Required Hours"** box shows the underlying hours figure (e.g. `"0 / 6 hrs"` for Ivy, `"6 / 6 hrs"` for Leo) with a caption noting California requires that many behind-the-wheel hours for minors — this box only appears for minors, since it's the legally meaningful number the list's lesson count doesn't capture on its own. An adult student's Progress tab (e.g. **Jordan Vance**) instead shows only a lessons-style label (e.g. `"2 of 3 lessons (67%)"`), no hours box. Leo Whitfield having met his required hours while his enrollment is still `active` is exactly the state that should surface a "Mark complete" action (see §2.45).
 
 **Also check — short-lesson mismatch:** Book a minor three lessons of 90 minutes each (shorter than the tenant's 120-minute standard length) and mark all three `completed`. Their required lesson count (`ceil(hoursRequired * 60 / 120)`) is now met, but their hours total (4.5 of a typical 6-hour requirement) is not. Opening that student's Progress tab should show a clear warning banner — *"Lesson count met, but only 4.5 of 6 required hours logged — do not mark this program complete yet."* — distinct from the "Required Hours" box above it. This is the intended behavior when lesson durations are shorter than standard, not a bug.
 
@@ -190,7 +218,7 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** The page body swaps to a guardians list (name, email/phone, paginated) with its own search box behavior — typing filters the currently-loaded page client-side. The "Add Student" button relabels to "Add Guardian" and opens a blank `GuardianModal`. Clicking any guardian row opens that guardian's detail modal.
 
-**Also check — guardian detail:** Open **Grace Kim**, the one seeded guardian — she's linked to Noah Kim as primary mother. The modal shows editable first/last/email/phone fields and a **Linked Students** section listing every student currently linked to them (relationship badge, a star icon on the primary), *not* labeled "past and present" — this app has no unlink history, so the section only ever shows current links. Olivia Garcia (also a minor) is seeded with zero guardians on purpose — she's the example for the `needsGuardian` check in 2.3f.
+**Also check — guardian detail:** Open **Carla Delgado**, one of the six seeded guardians — she's linked to Ivy Delgado as primary mother. The modal shows editable first/last/email/phone fields and a **Linked Students** section listing every student currently linked to them (relationship badge, a star icon on the primary), *not* labeled "past and present" — this app has no unlink history, so the section only ever shows current links. Owen Castillo (also a minor) is seeded with zero guardians on purpose — he's the example for the `needsGuardian` check in 2.3f.
 
 ### 2.3c Guardian-first enrollment (the phone-call flow)
 
@@ -198,7 +226,7 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** The student form opens in create mode with that guardian already selected in the Guardian section (shown as a name + "Change" link, not the search box). The **last name**, **home address**, and **emergency contact** fields are pre-filled from the guardian's primary (or most-recently-added) linked student. **Date of birth, training hours, and permit fields are blank** — confirm these are never carried over. Fill in the remaining required fields and submit; the student is created and linked to the guardian in one request (`POST /api/v1/students/with-guardian` — check the Network tab, there should be no separate follow-up `POST /students/:id/guardians` call).
 
-**Note if using the seeded Grace Kim / Noah Kim pair:** Noah's seeded address only fills the legacy free-text `address` field, not the structured `address_line1`/city/state/zip columns the student form actually prefills from — so the home-address fields will come up blank. That's expected given the seed data, not a bug; pick a student with a structured address if you want to see the prefill populate.
+**Note if using a seeded guardian/student pair:** every seeded student's address only fills the legacy free-text `address` field, not the structured `address_line1`/city/state/zip columns the student form actually prefills from — so the home-address fields will come up blank. That's expected given the seed data, not a bug; pick a student with a structured address if you want to see the prefill populate.
 
 ### 2.3d Student-first guardian entry (the walk-in flow) - fields first, link existing as the secondary path
 
@@ -230,9 +258,9 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 ### 2.3g Adding a guardian to an existing (e.g. seeded) student
 
-**Do:** Open **Olivia Garcia** (seeded with zero guardians, `needsGuardian` flagged) in edit mode. Find the guardian sub-panel — previously this picker only appeared in create mode, so a student created before the guardian feature shipped had no way to get one through the UI.
+**Do:** Open **Owen Castillo** (seeded with zero guardians, `needsGuardian` flagged) in edit mode. Find the guardian sub-panel — previously this picker only appeared in create mode, so a student created before the guardian feature shipped had no way to get one through the UI.
 
-**Pass looks like:** The sub-panel is present and shows "+ Add guardian". Click it - blank fields open directly (fields-first, same as create mode). Either fill them in for a new guardian, or click **Link existing guardian** to search for one (e.g. Grace Kim), then click **Add Guardian**. Unlike create mode, this fires immediately — check the Network tab for a `POST /api/v1/students/:id/guardians` call (not `with-guardian`, since the student already exists). The new guardian appears as a row in the sub-panel right away, and the `needsGuardian` badge/banner clears without a page reload.
+**Pass looks like:** The sub-panel is present and shows "+ Add guardian". Click it - blank fields open directly (fields-first, same as create mode). Either fill them in for a new guardian, or click **Link existing guardian** to search for one (e.g. Carla Delgado), then click **Add Guardian**. Unlike create mode, this fires immediately — check the Network tab for a `POST /api/v1/students/:id/guardians` call (not `with-guardian`, since the student already exists). The new guardian appears as a row in the sub-panel right away, and the `needsGuardian` badge/banner clears without a page reload.
 
 ### 2.3h Adding a second guardian, and changing primary
 
@@ -258,13 +286,13 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 ### 2.4 Book a lesson (happy path)
 
-**Do:** Go to `/scheduling` (or open the booking form from a student/instructor). Pick a student with no conflicting lesson (e.g. Marcus Lee, who is `completed` status but still bookable), pick an instructor with open availability, pick a future date/time that doesn't overlap an existing lesson for that instructor, submit.
+**Do:** Go to `/scheduling` (or open the booking form from a student/instructor). Pick a student with no conflicting lesson (e.g. Naomi Frasier, who is `completed` status but still bookable), pick an instructor with open availability, pick a future date/time that doesn't overlap an existing lesson for that instructor, submit.
 
 **Pass looks like:** `POST /api/v1/lessons` returns `201`. The new lesson appears in the calendar/list immediately (or after a refetch) with status `scheduled`. No error toast.
 
 ### 2.5 Book a conflicting lesson (must be blocked)
 
-**Do:** Try to book **John Smith** for **today, 09:30–10:30** (overlaps his seeded 09:00–11:00 lesson with Jessica Park) — same student/vehicle doesn't matter, the instructor overlap alone should trigger it.
+**Do:** Find one of **Marcus Webb**'s existing seeded lessons (e.g. one of Leo Whitfield's or Jordan Vance's `09:00–11:00`/`13:00–15:00` lessons — check the Lessons page for his exact scheduled dates) and try to book him for an overlapping window on that same date — same student/vehicle doesn't matter, the instructor overlap alone should trigger it.
 
 **Pass looks like:** The request is rejected — `POST /api/v1/lessons` returns `409`, with `error` containing a clear, specific message: `"Scheduling conflict: Instructor already has a lesson during this time"`. The UI surfaces this message to the user (not a generic "something went wrong"), and no lesson is created (refresh the list/calendar to confirm nothing new appears at that slot).
 
@@ -272,7 +300,7 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 ### 2.6 Record a payment
 
-**Do:** Go to `/payments`, create a new payment for a student (e.g. a lesson fee for Noah Kim), pick a payment method, submit.
+**Do:** Go to `/payments`, create a new payment for a student (e.g. a lesson fee for Ivy Delgado), pick a payment method, submit.
 
 **Pass looks like:** `POST /api/v1/payments` returns `201`. The payment appears in the payments list with the correct amount/method/status. The student's `outstandingBalance`/`totalPaid` reflects the change if the UI surfaces it.
 
@@ -289,7 +317,7 @@ curl http://localhost:4000/api/v1/treasury/status \
 
 ### 2.8 Calendar feed
 
-**Do:** Go to `/instructors`, open an instructor (e.g. Maria Rodriguez), find the calendar feed section in the modal (ICS subscription URL / status / regenerate button).
+**Do:** Go to `/instructors`, open an instructor (e.g. Renee Okafor), find the calendar feed section in the modal (ICS subscription URL / status / regenerate button).
 
 **Pass looks like:** The feed status loads without error (`GET /api/v1/calendar-feed/feed/status/:instructorId`). Clicking "set up" or "regenerate" returns a feed URL. Opening that URL directly in a browser (or `curl`) returns `Content-Type: text/calendar` with the instructor's upcoming lessons as `VEVENT` entries — you should see the seeded future lessons for that instructor.
 
@@ -306,7 +334,7 @@ curl http://localhost:4000/api/v1/treasury/status \
 **Pass looks like:** The invite call returns `201`/`200` with the link. Opening the link renders the **Accept Invite** page (`/accept-invite`) with a password + confirm-password field — not a redirect to `/login` or a blank page. Submitting a matching password pair shows a success message and redirects to `/login` after ~2s. Logging in with the new email + chosen password succeeds and lands on the dashboard.
 
 **Also check — role enforcement:**
-- Log in as one of the seeded instructor accounts (`john.smith@budgetdrivingschool.com` / `InstructorPass123!`). Confirm the sidebar does **not** show Instructors, Vehicles, Scheduling, Instructor Earnings, Treasury, or Settings nav items (these are restricted to `owner`/`admin`/`staff` per `Sidebar.tsx`'s role filter).
+- Log in as one of the seeded instructor accounts (`marcus.webb@budgetdrivingschool.com` / `InstructorPass123!`). Confirm the sidebar does **not** show Instructors, Vehicles, Scheduling, Instructor Earnings, Treasury, or Settings nav items (these are restricted to `owner`/`admin`/`staff` per `Sidebar.tsx`'s role filter).
 - With that instructor's token, call `POST /api/v1/users/invite` directly (e.g. via curl or the browser devtools network tab replaying the request) — expect **403**, not 200.
 - **Caveat to be aware of, not a bug to chase:** nav-item hiding is cosmetic/client-side only. If an instructor manually types `/settings` into the URL bar, the Settings page still mounts client-side (there's no route-level role guard, only nav-link hiding) — the actual protection is that its data-fetching API calls will 403. Confirm this is what actually happens (page shell renders, but team data / actions fail or don't load) rather than the page silently leaking admin data.
 
@@ -463,7 +491,7 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 ### 2.31 Seeing the fee at booking
 
-**Do:** With the student from §2.30 still carrying an outstanding fee, open the booking wizard and select that student on the setup step. Continue through to the Confirm step.
+**Do:** With the student from §2.30 still carrying an outstanding fee (or **Priya Anand**, who is seeded with an outstanding no-show fee already in place — no setup needed), open the booking wizard and select that student on the setup step. Continue through to the Confirm step.
 
 **Pass looks like:** A banner reading "N outstanding fee(s) ($X.XX) - collected separately, does not affect this booking" appears right after the student info card on both the setup step and the Confirm step's Booking Summary. Neither **Find Available Instructors** nor **Confirm Booking** is ever disabled because of it — complete the booking normally and confirm it succeeds.
 
@@ -547,19 +575,19 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 ### 2.45 Completing a driver_training enrollment, then adding a new one (the returning-student case)
 
-**Do:** On a student with an active driver_training enrollment, go to **Enrollments**, click **Mark complete** on it, enter a reason, and confirm. Then go to the **Students** list and find that student.
+**Do:** On a student with an active driver_training enrollment (**Leo Whitfield** is seeded with his 6/6 required hours already met, ready for this), go to **Enrollments**, click **Mark complete** on it, enter a reason, and confirm. Then go to the **Students** list and find that student.
 
 **Pass looks like:** On the Students list, that student's progress bar reads **"No active enrollment"** (muted styling) — not blank, not a zero-percent bar, not an error. Booking a new lesson for that student is refused (a clear 400, not a crash) until a new enrollment exists. Back on the student's **Enrollments** tab, an **Add driver training enrollment** action now appears (it didn't before, while the first one was still active) — click it, fill in hours required, and confirm. The Students list now shows normal progress again for this student, resolving against the new enrollment; the completed enrollment's card is still listed above the new one, still showing `completed` and its recorded reason.
 
 ### 2.46 Recording a certificate from the certificates worklist
 
-**Do:** Mark a minor's `driver_training` enrollment complete (§2.45). Open the **Certificates** page from the nav. Confirm the student appears in the "Awaiting certificate" worklist with their completion date. Click **Record certificate** on their row, enter a serial number (e.g. `CS7218767`) and confirm the pre-filled issue date, then submit.
+**Do:** Mark a minor's `driver_training` enrollment complete (§2.45, e.g. Leo Whitfield once you've completed him there). Open the **Certificates** page from the nav. Confirm the student appears in the "Awaiting certificate" worklist with their completion date. Click **Record certificate** on their row, enter a serial number (e.g. `CS7218767`) and confirm the pre-filled issue date, then submit. (**Ruby Sandoval** is seeded already past this exact step — her enrollment is `completed` with a certificate already recorded — so opening her record directly is the fastest way to see the *end state* of this flow: the gold badge on her Enrollments tab, and the Certificates page's Issued count already includes her.)
 
 **Pass looks like:** The row disappears from the worklist immediately. The **Issued** tile's count increments by one. Reopening the student's record's **Enrollments** tab shows a gold `Award`-icon "Certificate issued" badge on that enrollment, next to its `completed` status, with the recorded serial and issue date. Recording the same serial number again anywhere in the tenant is rejected with a clear error (duplicate serial), and recording a second certificate for the same enrollment is rejected (409 — one certificate per enrollment).
 
 ### 2.47 Recording an adult's certificate directly from a completed enrollment (not in the worklist)
 
-**Do:** Mark an **adult** student's `driver_training` enrollment complete. Open the **Certificates** page and confirm this student does **not** appear in the worklist (minors only). Instead, open the student's own record, go to **Enrollments**, and click **Record certificate** directly on their completed enrollment.
+**Do:** **Naomi Frasier** is seeded as a completed adult with no certificate — exactly this scenario, no setup needed. Open the **Certificates** page and confirm she does **not** appear in the worklist (minors only). Instead, open her student record, go to **Enrollments**, and click **Record certificate** directly on her completed enrollment.
 
 **Pass looks like:** The same inline serial+date form appears as on the worklist row. Recording succeeds with no age check anywhere in the flow, the gold certificate badge appears on the student record exactly as it does for a minor, and the **Issued** tile on the Certificates page increments — even though this enrollment was never listed on the worklist itself.
 
@@ -571,7 +599,7 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 ### 2.49 Withdrawing an enrollment and generating a training-received transcript
 
-**Do:** On a student with an **active** `driver_training` enrollment, go to **Enrollments** and click **Withdraw**. Enter a reason (e.g. "Moved out of state") and confirm. Then click **Generate transcript** on the now-withdrawn enrollment.
+**Do:** **Caleb Nguyen** is already seeded `withdrawn` (reason: "Moved out of state", 2 completed lessons before leaving) — open his record's **Enrollments** tab to see the end state directly, or pick a different, still-**active** student and click **Withdraw** yourself to walk the transition live. Enter a reason and confirm. Then click **Generate transcript** on the now-withdrawn enrollment.
 
 **Pass looks like:** The enrollment's status badge changes to `withdrawn` (danger styling), the withdrawal reason displays on the card, the **Withdraw** action disappears (only available on `active` enrollments), and a **Mark complete** action is no longer offered either (withdrawal and completion are mutually exclusive). Clicking **Generate transcript** downloads a `.txt` file named `transcript-<Student Name>-<date>.txt` — open it and confirm it lists the student, program, enrollment date, the withdrawal date and reason, every lesson on that enrollment (date, duration, instructor, status), and total completed hours. Separately, confirm **Generate transcript** is also available (and produces a transcript with "Status: active" instead of withdrawal info) on a still-**active** enrollment that hasn't been withdrawn — the action has no age check and isn't restricted to withdrawn enrollments specifically.
 
