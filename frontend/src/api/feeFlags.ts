@@ -42,4 +42,14 @@ export const feeFlagsApi = {
     const response = await apiClient.post<ApiResponse<FeeFlag>>(`/fee-flags/${id}/record-payment`, {});
     return response.data;
   },
+
+  // One-click "Paid" for ALL of a student's outstanding fee flags at once -
+  // payee-aware per flag server-side (a real payment record per flag for a
+  // school-payee tenant, clear-only for instructor-payee), all in one
+  // transaction. Used by both the Students list's per-row fee action and
+  // the student detail page's actions area.
+  markStudentFeesPaid: async (studentId: string) => {
+    const response = await apiClient.post<ApiResponse<FeeFlag[]>>(`/students/${studentId}/fee-flags/mark-paid`, {});
+    return response.data;
+  },
 };

@@ -30,7 +30,7 @@
  * CRITICAL: All queries filtered by tenant_id for multi-tenant security.
  */
 
-import { query } from '../config/database';
+import { query, getClient } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -196,7 +196,11 @@ export const waiveFeeFlag = async (
 export const recordPaymentForFeeFlag = async (
   id: string,
   tenantId: string,
-  userId: string | undefined
+  userId: string | undefined,
+  // Optional transactional client - see paymentService.createPayment's own
+  // doc comment. Defaults to the module-level query so every existing
+  // caller (the single-flag detail-page action) is unaffected.
+  dbQuery: typeof query = query
 ): Promise<FeeFlag> => {
   const settings = await getTenantSettings(tenantId);
   if (settings?.cancellationFeePayee !== 'school') {
@@ -206,7 +210,7 @@ export const recordPaymentForFeeFlag = async (
     );
   }
 
-  const flagResult = await query(
+  const flagResult = await dbQuery(
     `SELECT * FROM fee_flags WHERE id = $1 AND tenant_id = $2 AND status = 'outstanding'`,
     [id, tenantId]
   );
@@ -224,10 +228,11 @@ export const recordPaymentForFeeFlag = async (
       paymentType: 'cancellation_fee',
       notes: flag.reason,
     },
-    userId
+    userId,
+    dbQuery
   );
 
-  const result = await query(
+  const result = await dbQuery(
     `UPDATE fee_flags
      SET status = 'paid', paid_payment_id = $1, paid_at = NOW()
      WHERE id = $2 AND tenant_id = $3
@@ -253,4 +258,88 @@ export const clearOutstandingFlagsForStudent = async (
      WHERE tenant_id = $1 AND student_id = $2 AND status = 'outstanding'`,
     [tenantId, studentId]
   );
+};
+
+/**
+ * One-click "Paid" for every outstanding fee flag a student currently has -
+ * the Students list's per-row fee action (and reused by the detail page's
+ * actions area, per Constraint A: one source of truth). Marking a fee paid
+ * is a single fact, not a partial one, so this always resolves the
+ * student's ENTIRE outstanding set, not one flag at a time.
+ *
+ * Payee-aware per flag, exactly matching what each flag's own action would
+ * do individually - fee_flags has no stored payee column (it's a live
+ * tenant_settings.cancellation_fee_payee read, same as
+ * recordPaymentForFeeFlag already does), so every currently-outstanding
+ * flag is resolved the same way, by the tenant's CURRENT setting:
+ *   - 'school' payee: mirrors recordPaymentForFeeFlag exactly (a real
+ *     payments row per flag, flag -> 'paid') - this is real school
+ *     revenue, so clearing without a payment record would misstate the
+ *     books. The list and the detail page's per-flag Paid action must
+ *     produce identical payment records for the same flag - this function
+ *     calls recordPaymentForFeeFlag itself for each flag rather than
+ *     reimplementing payment creation.
+ *   - 'instructor' payee: clear-only (flag -> 'cleared', no payment row) -
+ *     the instructor collected cash that never reaches the school; a
+ *     payment record here would put phantom revenue on the school's books
+ *     for money it never received.
+ *
+ * Wrapped in one real BEGIN/COMMIT (a genuine multi-row money operation -
+ * a partial failure with two payments created and a third flag still
+ * outstanding is an inconsistent state that has to reconcile for a
+ * school's books, and a retry would double-pay the already-recorded
+ * flags). paymentService.createPayment and recordPaymentForFeeFlag both
+ * accept the transactional client so every insert/update in this batch
+ * participates in the same transaction.
+ */
+export const markStudentFeesPaid = async (
+  tenantId: string,
+  studentId: string,
+  userId: string | undefined
+): Promise<FeeFlag[]> => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    const dbQuery = client.query.bind(client) as typeof query;
+
+    const outstanding = await dbQuery(
+      `SELECT * FROM fee_flags WHERE tenant_id = $1 AND student_id = $2 AND status = 'outstanding'`,
+      [tenantId, studentId]
+    );
+    if (outstanding.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return [];
+    }
+
+    const settings = await getTenantSettings(tenantId);
+    const isSchoolPayee = settings?.cancellationFeePayee === 'school';
+
+    const resolved: FeeFlag[] = [];
+    for (const row of outstanding.rows) {
+      const flag = keysToCamel(row) as FeeFlag;
+      if (isSchoolPayee) {
+        resolved.push(await recordPaymentForFeeFlag(flag.id, tenantId, userId, dbQuery));
+      } else {
+        const clearedResult = await dbQuery(
+          `UPDATE fee_flags SET status = 'cleared' WHERE id = $1 AND tenant_id = $2 RETURNING *`,
+          [flag.id, tenantId]
+        );
+        resolved.push(keysToCamel(clearedResult.rows[0]) as FeeFlag);
+      }
+    }
+
+    await client.query('COMMIT');
+    logger.info('Marked all of a student\'s outstanding fees paid', {
+      tenantId,
+      studentId,
+      count: resolved.length,
+      payee: isSchoolPayee ? 'school' : 'instructor',
+    });
+    return resolved;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };

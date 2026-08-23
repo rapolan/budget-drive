@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown } from 'lucide-react';
-import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi, enrollmentsApi } from '@/api';
+import { Plus, Search, Edit, Trash2, Calendar, CheckCircle, Users, LayoutGrid, LayoutList, Phone, Mail, UserCheck, AlertCircle, TrendingUp, GraduationCap, ChevronDown, X, ArrowUpDown, DollarSign } from 'lucide-react';
+import { studentsApi, lessonsApi, dashboardApi, searchApi, guardiansApi, enrollmentsApi, feeFlagsApi } from '@/api';
 import type { Student, Guardian, LinkedStudent, Lesson } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { StudentProgressBar } from '@/components/students/StudentProgressBar';
@@ -14,6 +14,7 @@ import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
 import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
 import { getStudentContactDisplay } from '@/utils/studentContact';
+import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
@@ -27,15 +28,6 @@ import { parseLocalDate } from '@/utils/timeFormat';
 type StatusFilter = 'all' | 'new_this_month' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18' | 'no_show_followup' | 'needs_guardian';
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
-
-// The gold-gradient treatment for the guided "Mark complete" action -
-// reads as the positive milestone action, consistent with the gold star
-// (StudentStatusBadge's "Ready to Complete" badge) and the gold
-// certificate badge (EnrollmentSubPanel) elsewhere in the app. Token-
-// driven (gold-gradient-from/to, defined in index.css/tailwind.config.js),
-// never a hardcoded hex - reused at both icon-button call sites below.
-const MARK_COMPLETE_BUTTON_CLASSES =
-  'bg-gradient-to-br from-gold-gradient-from to-gold-gradient-to text-white shadow-sm hover:brightness-110 hover:scale-110 transition-all';
 type ActiveView = 'students' | 'guardians';
 const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 const isActiveView = (v: string): v is ActiveView => v === 'students' || v === 'guardians';
@@ -56,6 +48,10 @@ export const StudentsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useSessionState<ViewMode>('students-view-mode', 'table', isViewMode);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Which tab StudentModal opens on - 'progress' for the list's "Waive"
+  // action (routes to the existing waive-with-reason flow there rather
+  // than duplicating it), 'details' for every other entry point.
+  const [modalInitialTab, setModalInitialTab] = useState<'details' | 'progress'>('details');
   const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentForBooking, setStudentForBooking] = useState<Student | null>(null);
@@ -182,8 +178,38 @@ export const StudentsPage: React.FC = () => {
     },
   });
 
+  // One-click "Paid" for ALL of a student's outstanding fees at once
+  // (payee-aware server-side - see feeFlagService.markStudentFeesPaid).
+  // "Waive" requires a typed reason (discretionary, audit-relevant) and is
+  // NOT rebuilt here as a second inline form - it routes to the existing
+  // waive-with-reason flow in StudentModal's Progress tab instead, so
+  // there's exactly one implementation of that flow, not two.
+  const markFeesPaidMutation = useMutation({
+    mutationFn: (studentId: string) => feeFlagsApi.markStudentFeesPaid(studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    },
+  });
+
+  const handleMarkFeesPaid = (student: Student) => {
+    const amount = (student.outstandingFeeAmount ?? 0).toFixed(2);
+    if (window.confirm(`Mark $${amount} in outstanding fees as paid for ${getDisplayName(student)}?`)) {
+      markFeesPaidMutation.mutate(student.id);
+    }
+  };
+
+  // Waiving requires a typed reason - routes to the existing form in
+  // StudentModal's Progress tab rather than duplicating it inline here.
+  const handleWaiveFees = (student: Student) => {
+    setSelectedStudent(student);
+    setModalInitialTab('progress');
+    setIsModalOpen(true);
+  };
+
   const handleEdit = (student: Student) => {
     setSelectedStudent(student);
+    setModalInitialTab('details');
     setIsModalOpen(true);
   };
 
@@ -312,33 +338,6 @@ export const StudentsPage: React.FC = () => {
   const getStudentStatus = (student: Student) => {
     const lessons = lessonsData?.data || [];
     return computeStudentStatus(student, lessons, statusNow, student.activeEnrollment ?? null);
-  };
-
-  // Eligible for the guided "Mark complete" action - an ACTIVE, not-yet-
-  // completed driver_training enrollment, gated differently per track
-  // (progress.track is read as already computed by computeStudentProgress;
-  // never re-derived here, per Constraint A -
-  // progressCalculationOwnership.test.ts enforces this for every display
-  // file in this codebase, this one included):
-  //   - HOURS track (minors, or an admin-pinned override): percentComplete
-  //     is measured against the real DMV-required hours - an objective
-  //     finish line, so the action auto-surfaces once it hits 100%.
-  //   - LESSONS track (adults): lessonsRequired is defined as
-  //     lessonsBooked itself, so no percentage ever means "finished" - an
-  //     adult decides when they're done, not a computed milestone. The
-  //     action is always available once they have at least one completed
-  //     lesson, regardless of percentComplete.
-  const isReadyToMarkComplete = (student: Student): boolean => {
-    if (student.activeEnrollment?.status !== 'active' || student.activeEnrollment.completed) {
-      return false;
-    }
-    if (student.progress?.track === 'hours') {
-      return student.progress.percentComplete >= 100;
-    }
-    if (student.progress?.track === 'lessons') {
-      return (student.progress.lessonsCompleted ?? 0) >= 1;
-    }
-    return false;
   };
 
   // Calculate status counts for filter buttons
@@ -1016,6 +1015,28 @@ export const StudentsPage: React.FC = () => {
                         <GraduationCap className="h-4 w-4" />
                       </button>
                     )}
+                    {student.hasOutstandingFee && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleMarkFeesPaid(student)}
+                          aria-label="Mark outstanding fees paid"
+                          title="Mark fees paid"
+                          className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-colors"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleWaiveFees(student)}
+                          aria-label="Waive outstanding fees"
+                          title="Waive fees"
+                          className="p-2 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-colors"
+                        >
+                          <AlertCircle className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Guided mark-complete confirm - only reachable once the
@@ -1090,21 +1111,18 @@ export const StudentsPage: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                   History
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary min-w-[120px]">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/20 bg-transparent">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-12">
+                  <td colSpan={5} className="py-12">
                     <LoadingSpinner />
                   </td>
                 </tr>
               ) : filteredStudents?.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-2">
+                  <td colSpan={5} className="py-2">
                     <EmptyState
                       icon={<Users className="h-12 w-12" />}
                       title="No students found"
@@ -1159,6 +1177,124 @@ export const StudentsPage: React.FC = () => {
                                 const value = contact.email || contact.phone;
                                 return value ? `${value}${contact.isGuardianFallback ? ' (Guardian)' : ''}` : '—';
                               })()}
+                            </div>
+                            {/* Row actions - under the name, not a
+                                right-side column (item 1's fix: actions on
+                                the far right required scrolling right to
+                                reach regardless of how they appeared; the
+                                name is always on-screen, so actions belong
+                                there). This line's height is reserved
+                                unconditionally (min-h-[28px], not
+                                conditionally rendered) so a hovered row
+                                never reflows the ones around it - only the
+                                icons themselves fade in/out via opacity.
+                                Same (hover: hover)-gated reveal as before:
+                                hidden until the cursor is ANYWHERE on the
+                                row or an action inside receives keyboard
+                                focus, always visible on touch/coarse-
+                                pointer devices (no hover to trigger it
+                                there - instructors will use a touch
+                                build). Delete is visually separated (a
+                                left border + margin) from the routine
+                                actions since it's the one destructive one
+                                in the set. */}
+                            <div className="min-h-[28px] flex items-center gap-1 mt-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+                              {isReadyToMarkComplete(student) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompletingStudentId(student.id);
+                                  }}
+                                  aria-label="Mark program complete"
+                                  title="Mark complete"
+                                  className={`p-1.5 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
+                                >
+                                  <GraduationCap className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleBookLesson(student, null);
+                                }}
+                                aria-label="Book a lesson"
+                                title="Book lesson"
+                                className="p-1.5 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
+                              >
+                                <Calendar className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(student);
+                                }}
+                                aria-label="Edit student"
+                                title="Edit student"
+                                className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </button>
+                              {student.hasOutstandingFee && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkFeesPaid(student);
+                                    }}
+                                    aria-label="Mark outstanding fees paid"
+                                    title="Mark fees paid"
+                                    className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                                  >
+                                    <DollarSign className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleWaiveFees(student);
+                                    }}
+                                    aria-label="Waive outstanding fees"
+                                    title="Waive fees"
+                                    className="p-1.5 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
+                                  >
+                                    <AlertCircle className="h-3.5 w-3.5" />
+                                  </button>
+                                </>
+                              )}
+                              {statusInfo.status === 'needs_attention' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkAsContacted(student.id);
+                                  }}
+                                  aria-label="Mark as contacted"
+                                  title="Mark as contacted"
+                                  className="p-1.5 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {/* Delete - visually separated (border +
+                                  margin) since it's the one destructive
+                                  action here; window.confirm inside
+                                  handleDelete is its confirmation. */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(student.id);
+                                }}
+                                aria-label="Delete student"
+                                title="Delete student"
+                                className="ml-1 pl-2 border-l border-edge p-1.5 text-tx-muted hover:text-status-danger-text hover:bg-status-danger-bg rounded-lg transition-all"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1222,79 +1358,6 @@ export const StudentsPage: React.FC = () => {
                           updatedAt={student.updatedAt}
                         />
                       </td>
-                      {/* Actions - per-row hover reveal (Gmail/Linear/Notion
-                          pattern), not sticky/pinned. Hidden by default and
-                          faded in via opacity (never a layout insert, so
-                          nothing shifts) when the cursor is ANYWHERE on this
-                          row (group-hover on the <tr> above) or when any
-                          action inside receives keyboard focus
-                          (group-focus-within - :focus-within fires from a
-                          focused descendant, so Tab-ing to a button reveals
-                          the row the same way hover does). The whole reveal
-                          is gated behind the (hover: hover) media feature -
-                          on a touch/coarse-pointer device, which has no
-                          hover to trigger it, actions stay always visible
-                          (the base opacity-100, unconditionally). */}
-                      <td className="whitespace-nowrap px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
-                          {statusInfo.status === 'needs_attention' && (
-                            <button
-                              type="button"
-                              onClick={() => handleMarkAsContacted(student.id)}
-                              className="p-2 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
-                              title="Mark as contacted"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleBookLesson(student, null);
-                            }}
-                            className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
-                            title="Book lesson"
-                          >
-                            <Calendar className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEdit(student);
-                            }}
-                            className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
-                            title="Edit student"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(student.id);
-                            }}
-                            className="p-2 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
-                            title="Delete student"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                          {isReadyToMarkComplete(student) && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCompletingStudentId(student.id);
-                              }}
-                              className={`p-2 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
-                              title="Mark complete"
-                            >
-                              <GraduationCap className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
                     </tr>
                     {/* Guided mark-complete confirm - same shape as the card
                         view's inline form and StudentModal's own
@@ -1302,7 +1365,7 @@ export const StudentsPage: React.FC = () => {
                         before the confirm button enables. */}
                     {completingStudentId === student.id && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
+                        <td colSpan={5} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <label className="text-xs font-medium text-status-success-text flex-shrink-0">
                               Completion reason
@@ -1403,10 +1466,12 @@ export const StudentsPage: React.FC = () => {
             setIsModalOpen(false);
             setSelectedStudent(null);
             setGuardianPrefill(undefined);
+            setModalInitialTab('details');
           }}
           onBookLesson={handleBookLesson}
           prefillFromGuardian={selectedStudent ? undefined : guardianPrefill}
           onViewGuardian={handleSelectSearchedGuardian}
+          initialTab={modalInitialTab}
         />
       )}
 

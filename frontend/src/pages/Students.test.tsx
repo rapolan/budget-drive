@@ -3,7 +3,7 @@ import { render, screen, cleanup, waitFor, within } from '@testing-library/react
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { StudentsPage } from './Students';
-import { studentsApi, lessonsApi, dashboardApi, guardiansApi, searchApi, enrollmentsApi } from '@/api';
+import { studentsApi, lessonsApi, dashboardApi, guardiansApi, searchApi, enrollmentsApi, feeFlagsApi } from '@/api';
 import type { Student, Guardian, Lesson, StudentProgress } from '@/types';
 
 vi.mock('@/api', async () => {
@@ -22,6 +22,7 @@ vi.mock('@/api', async () => {
     },
     searchApi: { ...actual.searchApi, people: vi.fn() },
     enrollmentsApi: { ...actual.enrollmentsApi, complete: vi.fn() },
+    feeFlagsApi: { ...actual.feeFlagsApi, markStudentFeesPaid: vi.fn().mockResolvedValue({ data: [] }) },
   };
 });
 
@@ -671,16 +672,21 @@ describe('Students page - "Book Lesson" duration coercion', () => {
   });
 });
 
-// The Actions column switched from sticky/pinned-right to a per-row
-// hover-reveal pattern (Gmail/Linear/Notion): hidden by default, faded in
-// via opacity (never a layout insert) when hovering ANYWHERE on the row or
-// when a row's action receives keyboard focus, and always visible on a
-// touch/coarse-pointer device (no hover to trigger the reveal there).
-// jsdom doesn't evaluate @media(hover:hover) or actually run :hover/
-// :focus-within, so this is a structural check on the className contract
-// itself, not a rendered-computed-style assertion (that's covered live via
-// Playwright instead - see e2e-screenshots/).
-describe('Students list - Actions column hover reveal (not sticky)', () => {
+// The dedicated right-side Actions column was removed entirely - actions
+// now live UNDER the student's name (item 1 of the Students-list actions
+// rework), since the name is always on-screen while a far-right column
+// requires scrolling right regardless of how it's revealed. Same per-row
+// hover-reveal mechanics as before (Gmail/Linear/Notion pattern), just
+// relocated: hidden by default, faded in via opacity in a height that's
+// unconditionally reserved (so a hovered row never reflows its neighbors)
+// when hovering ANYWHERE on the row or when a row's action receives
+// keyboard focus, and always visible on a touch/coarse-pointer device (no
+// hover to trigger the reveal there). jsdom doesn't evaluate
+// @media(hover:hover) or actually run :hover/:focus-within, so this is a
+// structural check on the className contract itself, not a rendered-
+// computed-style assertion (that's covered live via Playwright instead -
+// see e2e-screenshots/).
+describe('Students list - row actions live under the name, not a right-side column', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
@@ -691,27 +697,36 @@ describe('Students list - Actions column hover reveal (not sticky)', () => {
     });
   });
 
-  it('the Actions cell is no longer sticky/pinned, and the row still carries "group" for the hover-scoped reveal', async () => {
+  it('there is no dedicated Actions column - the Edit action lives in the same cell as the student name, not a separate sticky cell', async () => {
     renderStudentsPage();
     await waitFor(() => expect(screen.getByText('Hover Test Student')).toBeInTheDocument());
 
-    const editButton = screen.getByTitle('Edit student');
+    const nameCell = screen.getByText('Hover Test Student').closest('td')!;
+    const editButton = screen.getByLabelText('Edit student');
     const actionsCell = editButton.closest('td')!;
+
+    expect(actionsCell).toBe(nameCell);
     expect(actionsCell.className).not.toMatch(/\bsticky\b/);
 
     const row = actionsCell.closest('tr')!;
     expect(row.className).toMatch(/\bgroup\b/);
+
+    // No table column is headed "Actions" any more.
+    expect(screen.queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();
   });
 
   it('the actions wrapper is hidden-by-default and reveals on hover/focus only behind a (hover: hover) media guard, with a base opacity-100 fallback for touch', async () => {
     renderStudentsPage();
     await waitFor(() => expect(screen.getByText('Hover Test Student')).toBeInTheDocument());
 
-    const editButton = screen.getByTitle('Edit student');
+    const editButton = screen.getByLabelText('Edit student');
     const actionsWrapper = editButton.closest('div')!;
 
     // Touch/no-hover fallback: visible unconditionally by default.
     expect(actionsWrapper.className).toMatch(/(^|\s)opacity-100(\s|$)/);
+    // A fixed min-height is reserved unconditionally (not only when
+    // actions are shown), so a hovered row never reflows its neighbors.
+    expect(actionsWrapper.className).toMatch(/min-h-\[/);
     // The hide/reveal behavior is gated behind an explicit hover-capable
     // media guard - never applied unconditionally, which is what would
     // make it invisible on a touch device with no hover.
@@ -721,5 +736,91 @@ describe('Students list - Actions column hover reveal (not sticky)', () => {
     // reveal it the same way hover does - group-focus-within, not
     // group-hover alone.
     expect(actionsWrapper.className).toContain('[@media(hover:hover)]:group-focus-within:opacity-100');
+  });
+
+  it('every icon-only action has an accessible label', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Hover Test Student')).toBeInTheDocument());
+
+    expect(screen.getByLabelText('Book a lesson')).toBeInTheDocument();
+    expect(screen.getByLabelText('Edit student')).toBeInTheDocument();
+    expect(screen.getByLabelText('Delete student')).toBeInTheDocument();
+  });
+});
+
+describe('Students list - fee actions (Paid / Waive) under the name', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('shows Mark-fees-paid and Waive-fees icons when a student has an outstanding fee', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Fee Student', hasOutstandingFee: true, outstandingFeeAmount: 50 })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Fee Student')).toBeInTheDocument());
+
+    expect(screen.getByLabelText('Mark outstanding fees paid')).toBeInTheDocument();
+    expect(screen.getByLabelText('Waive outstanding fees')).toBeInTheDocument();
+  });
+
+  it('does not show fee action icons when a student has no outstanding fee', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'No Fee Student', hasOutstandingFee: false })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('No Fee Student')).toBeInTheDocument());
+
+    expect(screen.queryByLabelText('Mark outstanding fees paid')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Waive outstanding fees')).not.toBeInTheDocument();
+  });
+
+  it('clicking "Mark outstanding fees paid" confirms, then calls feeFlagsApi.markStudentFeesPaid with the student id', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (feeFlagsApi.markStudentFeesPaid as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Fee Student', hasOutstandingFee: true, outstandingFeeAmount: 50 })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Fee Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Mark outstanding fees paid'));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(feeFlagsApi.markStudentFeesPaid).toHaveBeenCalledWith('student-1'));
+
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call markStudentFeesPaid when the confirm dialog is declined', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Fee Student', hasOutstandingFee: true, outstandingFeeAmount: 50 })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Fee Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Mark outstanding fees paid'));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(feeFlagsApi.markStudentFeesPaid).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
   });
 });

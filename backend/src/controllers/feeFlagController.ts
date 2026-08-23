@@ -84,3 +84,26 @@ export const recordPaymentForFeeFlag = asyncHandler(async (req: Request, res: Re
     message: 'Payment recorded for fee flag',
   });
 });
+
+/**
+ * @route   POST /api/v1/students/:studentId/fee-flags/mark-paid
+ * @desc    One-click "Paid" for ALL of a student's outstanding fee flags at
+ *          once - payee-aware per flag (a real payment record for a
+ *          school-payee tenant, clear-only for instructor-payee), all in
+ *          one transaction. Used by both the Students list's per-row fee
+ *          action and the student detail page's actions area.
+ * @access  Private
+ */
+export const markStudentFeesPaid = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { studentId } = req.params;
+
+  const flags = await feeFlagService.markStudentFeesPaid(tenantId, studentId, userId);
+
+  res.json({
+    success: true,
+    data: flags,
+    message: flags.length > 0 ? `${flags.length} fee(s) marked paid` : 'No outstanding fees for this student',
+  });
+});

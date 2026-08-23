@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockGetClient, mockClientQuery, mockClientRelease, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 vi.mock('../services/treasuryService', () => ({
   default: { createTransaction: vi.fn() },
@@ -46,6 +46,7 @@ function feeFlagRow(overrides: Partial<Record<string, unknown>> = {}) {
 describe('feeFlagService', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('createFeeFlag inserts an outstanding flag with amount/reason/source lesson', async () => {
@@ -158,6 +159,117 @@ describe('feeFlagService', () => {
         ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO payments')
       );
       expect(paymentInsertCall).toBeDefined();
+    });
+  });
+
+  describe('markStudentFeesPaid - one-click "Paid" for all of a student\'s outstanding fees', () => {
+    it('instructor payee: clears every outstanding flag, creates no payment records, all in one transaction', async () => {
+      const { markStudentFeesPaid } = await import('../services/feeFlagService');
+
+      // getTenantSettings is a plain read that always goes through the
+      // module-level query, never the transactional client.
+      mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_payee: 'instructor' }]));
+
+      mockClientQuery
+        .mockResolvedValueOnce(queryResult([])) // BEGIN
+        .mockResolvedValueOnce(
+          queryResult([feeFlagRow({ id: 'flag-1' }), feeFlagRow({ id: 'flag-2' })])
+        ) // outstanding flags for student
+        .mockResolvedValueOnce(queryResult([feeFlagRow({ id: 'flag-1', status: 'cleared' })])) // clear flag-1
+        .mockResolvedValueOnce(queryResult([feeFlagRow({ id: 'flag-2', status: 'cleared' })])) // clear flag-2
+        .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+      const flags = await markStudentFeesPaid(TENANT_ID, STUDENT_ID, USER_ID);
+
+      expect(flags).toHaveLength(2);
+      expect(flags.every(f => f.status === 'cleared')).toBe(true);
+      expect(mockGetClient).toHaveBeenCalledTimes(1);
+      expect(mockClientRelease).toHaveBeenCalledTimes(1);
+
+      const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+      expect(clientCalls[0]).toBe('BEGIN');
+      expect(clientCalls[clientCalls.length - 1]).toBe('COMMIT');
+      // No payment INSERT anywhere in this transaction - instructor-payee
+      // fees never create a payment record.
+      expect(clientCalls.some(sql => typeof sql === 'string' && sql.includes('INSERT INTO payments'))).toBe(false);
+    });
+
+    it('school payee: creates a real payment per flag (mirrors recordPaymentForFeeFlag exactly), all in one transaction', async () => {
+      const { markStudentFeesPaid } = await import('../services/feeFlagService');
+
+      // Both getTenantSettings (called once by markStudentFeesPaid itself,
+      // and again inside recordPaymentForFeeFlag's own payee re-check) and
+      // getActiveDriverTrainingEnrollment (inside paymentService.createPayment)
+      // are plain reads that always go through the module-level query,
+      // never the transactional client - only the writes are passed dbQuery.
+      mockQuery
+        .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_payee: 'school' }])) // getTenantSettings (markStudentFeesPaid)
+        .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_payee: 'school' }])) // getTenantSettings (recordPaymentForFeeFlag's own re-check)
+        .mockResolvedValueOnce(
+          queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
+        ); // createPayment's active driver_training enrollment lookup
+
+      mockClientQuery
+        .mockResolvedValueOnce(queryResult([])) // BEGIN
+        .mockResolvedValueOnce(queryResult([feeFlagRow({ id: 'flag-1' })])) // outstanding flags for student (one flag)
+        // recordPaymentForFeeFlag('flag-1', ...) internals, all on the same client:
+        .mockResolvedValueOnce(queryResult([feeFlagRow({ id: 'flag-1' })])) // outstanding flag lookup
+        .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // createPayment's student check
+        .mockResolvedValueOnce(queryResult([{ id: LESSON_ID }])) // createPayment's lesson check
+        .mockResolvedValueOnce(
+          queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, student_id: STUDENT_ID, amount: 50, payment_type: 'cancellation_fee', status: 'confirmed' }])
+        ) // INSERT INTO payments
+        .mockResolvedValueOnce(queryResult([feeFlagRow({ id: 'flag-1', status: 'paid', paid_payment_id: 'payment-1' })])) // UPDATE fee_flags -> paid
+        .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+      const flags = await markStudentFeesPaid(TENANT_ID, STUDENT_ID, USER_ID);
+
+      expect(flags).toHaveLength(1);
+      expect(flags[0].status).toBe('paid');
+      expect(flags[0].paidPaymentId).toBe('payment-1');
+
+      const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+      expect(clientCalls[0]).toBe('BEGIN');
+      expect(clientCalls[clientCalls.length - 1]).toBe('COMMIT');
+      expect(clientCalls.some(sql => typeof sql === 'string' && sql.includes('INSERT INTO payments'))).toBe(true);
+    });
+
+    it('rolls back the whole transaction and creates nothing if one flag in the batch fails', async () => {
+      const { markStudentFeesPaid } = await import('../services/feeFlagService');
+
+      mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_payee: 'instructor' }])); // getTenantSettings
+
+      mockClientQuery
+        .mockResolvedValueOnce(queryResult([])) // BEGIN
+        .mockResolvedValueOnce(
+          queryResult([feeFlagRow({ id: 'flag-1' }), feeFlagRow({ id: 'flag-2' })])
+        ) // outstanding flags for student
+        .mockResolvedValueOnce(queryResult([feeFlagRow({ id: 'flag-1', status: 'cleared' })])) // clear flag-1 succeeds
+        .mockRejectedValueOnce(new Error('connection lost')) // clear flag-2 fails
+        .mockResolvedValueOnce(queryResult([])); // ROLLBACK
+
+      await expect(markStudentFeesPaid(TENANT_ID, STUDENT_ID, USER_ID)).rejects.toThrow('connection lost');
+
+      const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+      expect(clientCalls).toContain('ROLLBACK');
+      expect(clientCalls).not.toContain('COMMIT');
+      expect(mockClientRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns an empty array and rolls back cleanly when the student has no outstanding fees', async () => {
+      const { markStudentFeesPaid } = await import('../services/feeFlagService');
+
+      mockClientQuery
+        .mockResolvedValueOnce(queryResult([])) // BEGIN
+        .mockResolvedValueOnce(queryResult([])) // outstanding flags for student - none
+        .mockResolvedValueOnce(queryResult([])); // ROLLBACK
+
+      const flags = await markStudentFeesPaid(TENANT_ID, STUDENT_ID, USER_ID);
+
+      expect(flags).toEqual([]);
+      const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+      expect(clientCalls).toContain('ROLLBACK');
+      expect(clientCalls).not.toContain('COMMIT');
     });
   });
 });

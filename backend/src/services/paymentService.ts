@@ -180,7 +180,13 @@ export const getPaymentsByPaymentMethod = async (
 export const createPayment = async (
   tenantId: string,
   data: any,
-  userId?: string
+  userId?: string,
+  // Optional transactional client - defaults to the module-level query
+  // function, so every existing caller is unaffected (same behavior, no
+  // signature break). Only a caller that needs this insert to participate
+  // in a wider BEGIN/COMMIT (e.g. feeFlagService's batch-paid action)
+  // passes its own client here.
+  dbQuery: typeof query = query
 ): Promise<Payment> => {
   logger.info('Creating new payment', {
     tenantId,
@@ -191,7 +197,7 @@ export const createPayment = async (
 
   try {
     // Validate that student belongs to tenant
-    const studentCheck = await query(
+    const studentCheck = await dbQuery(
       'SELECT id FROM students WHERE id = $1 AND tenant_id = $2',
       [data.studentId, tenantId]
     );
@@ -212,7 +218,7 @@ export const createPayment = async (
 
     // If lesson_id provided, validate it belongs to tenant and student
     if (data.lessonId) {
-      const lessonCheck = await query(
+      const lessonCheck = await dbQuery(
         `SELECT l.id FROM lessons l
          JOIN enrollments e ON e.id = l.enrollment_id
          WHERE l.id = $1 AND l.tenant_id = $2 AND e.student_id = $3`,
@@ -228,7 +234,7 @@ export const createPayment = async (
       }
     }
 
-    const result = await query(
+    const result = await dbQuery(
       `INSERT INTO payments (
         tenant_id, enrollment_id, amount, payment_method, payment_type,
         date, status, bsv_transaction_id, notes, created_by, updated_by

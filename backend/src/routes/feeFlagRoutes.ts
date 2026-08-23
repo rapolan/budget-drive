@@ -37,4 +37,10 @@ router.post(
   feeFlagController.recordPaymentForFeeFlag
 );
 
+router.post(
+  '/students/:studentId/fee-flags/mark-paid',
+  validateUUID('studentId'),
+  feeFlagController.markStudentFeesPaid
+);
+
 export default router;
