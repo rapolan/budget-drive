@@ -7,6 +7,7 @@ import { ProgressStepper } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatShortDate, formatLocalDate, addCalendarDays, daysBetween } from '@/utils/timeFormat';
 import { extractZipCode } from '@/utils/zipCode';
+import { resolveStudentPickupAddress } from '@/utils/studentPickupAddress';
 import { getConflictMessage } from '@/utils/conflictMessages';
 import { SlotWithProximity } from './GroupedAvailabilityView';
 import { SetupStep, TimePreference, LessonType, DatePreset } from './SetupStep';
@@ -192,24 +193,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   // Auto-fill pickup address when student is selected. "Book again"'s
   // prefilledPickupAddress (the most recent lesson's actual pickup
-  // location) takes priority over the student's general home address when
-  // both are available - the lesson's own pickup point is the more
-  // relevant default for a repeat booking.
+  // location) takes priority over resolveStudentPickupAddress (the
+  // student's own designated pickup address if set, else their home
+  // address) when both are available - the lesson's own pickup point is
+  // the more relevant default for a repeat booking.
   useEffect(() => {
     if (preselectedStudent) {
       setSelectedStudentId(preselectedStudent.id);
-      const addr = prefilledPickupAddress || (preselectedStudent.addressLine1
-        ? [
-            preselectedStudent.addressLine1,
-            preselectedStudent.addressLine2,
-            preselectedStudent.city && preselectedStudent.state
-              ? `${preselectedStudent.city}, ${preselectedStudent.state}`
-              : preselectedStudent.city || preselectedStudent.state,
-            preselectedStudent.zipCode,
-          ].filter(Boolean).join(', ')
-        : preselectedStudent.address || '');
+      const addr = prefilledPickupAddress || resolveStudentPickupAddress(preselectedStudent);
       setPickupAddress(addr);
-      setPickupZip(extractZipCode(addr) || preselectedStudent.zipCode || null);
+      setPickupZip(extractZipCode(addr) || preselectedStudent.pickupZipCode || preselectedStudent.zipCode || null);
     }
   }, [preselectedStudent, prefilledPickupAddress]);
 

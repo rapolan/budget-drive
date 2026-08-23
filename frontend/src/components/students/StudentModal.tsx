@@ -228,6 +228,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     city: prefillFromGuardian?.city || '',
     state: prefillFromGuardian?.state || '',
     zipCode: prefillFromGuardian?.zipCode || '',
+    pickupAddressDifferentFromHome: false,
+    pickupAddressLine1: '',
+    pickupAddressLine2: '',
+    pickupCity: '',
+    pickupState: '',
+    pickupZipCode: '',
     emergencyContactFirstName: prefillFromGuardian?.emergencyContactFirstName || '',
     emergencyContactLastName: prefillFromGuardian?.emergencyContactLastName || '',
     emergencyContactPhone: prefillFromGuardian?.emergencyContactPhone || '',
@@ -434,6 +440,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
         city: student.city || '',
         state: student.state || '',
         zipCode: student.zipCode || '',
+        pickupAddressDifferentFromHome: student.pickupAddressDifferentFromHome ?? false,
+        pickupAddressLine1: student.pickupAddressLine1 || '',
+        pickupAddressLine2: student.pickupAddressLine2 || '',
+        pickupCity: student.pickupCity || '',
+        pickupState: student.pickupState || '',
+        pickupZipCode: student.pickupZipCode || '',
         emergencyContactFirstName: student.emergencyContactFirstName || '',
         emergencyContactLastName: student.emergencyContactLastName || '',
         emergencyContactPhone: student.emergencyContactPhone || '',
@@ -1026,20 +1038,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     if (source) copyEmergencyContactFrom(source);
   };
 
-  // Calculate form completion percentage
-  const formProgress = useMemo(() => {
-    const fields = [
-      { filled: !!(formData.firstName && formData.lastName), weight: 20 },
-      { filled: !!formData.phone, weight: 20 },
-      { filled: !!formData.email, weight: 20 },
-      { filled: !!formData.dateOfBirth, weight: 10 },
-      { filled: !!formData.addressLine1 && !!formData.city && !!formData.zipCode, weight: 10 },
-      { filled: !!formData.emergencyContactLastName && !!formData.emergencyContactPhone, weight: 15 },
-      { filled: !!formData.learnerPermitNumber, weight: 5 },
-    ];
-    return fields.reduce((acc, field) => acc + (field.filled ? field.weight : 0), 0);
-  }, [formData]);
-
   // Validation helpers
   const isValidPhone = (phone: string) => phone && phone.replace(/\D/g, '').length >= 10;
 
@@ -1126,22 +1124,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               </button>
             </div>
           </div>
-
-          {/* Progress Bar - Only for new students */}
-          {!isEditing && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-xs text-tx-muted mb-1.5">
-                <span>Profile completion</span>
-                <span className="font-medium text-primary">{formProgress}%</span>
-              </div>
-              <div className="h-1.5 bg-surface2 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${formProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Tabs - Only show for existing students - Minimal pill style */}
@@ -1336,12 +1318,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 </div>
               </div>
 
-              {/* Section 2: Address (for pickup) */}
+              {/* Section 2: Address */}
               <div ref={addressSectionRef} className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-tx-muted" />
                   Home Address
-                  <span className="text-xs font-normal text-tx-muted normal-case">(for pickup location)</span>
                 </h3>
 
                 <div className="space-y-3">
@@ -1396,6 +1377,75 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </div>
                 </div>
                 <input type="hidden" name="address" value={formData.address} />
+
+                {/* Pickup location toggle - off (default) means the booking
+                    wizard keeps falling back to the home address above,
+                    unchanged from before this feature. On reveals a
+                    separate structured pickup address that populates the
+                    wizard's pickup location for this student instead. */}
+                <label className="flex items-center gap-2 text-sm text-tx-secondary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.pickupAddressDifferentFromHome ?? false}
+                    onChange={(e) => setFormData(prev => ({ ...prev, pickupAddressDifferentFromHome: e.target.checked }))}
+                    className="h-4 w-4 rounded border-edge-strong text-primary focus:ring-primary"
+                  />
+                  Pickup location is different from home address
+                </label>
+
+                {formData.pickupAddressDifferentFromHome && (
+                  <div className="space-y-3 pl-1 border-l-2 border-edge pl-4">
+                    <input
+                      type="text"
+                      name="student_pickup_street_input"
+                      value={formData.pickupAddressLine1 || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, pickupAddressLine1: e.target.value }))}
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      placeholder="Pickup street address"
+                    />
+                    <input
+                      type="text"
+                      name="student_pickup_unit_input"
+                      value={formData.pickupAddressLine2 || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, pickupAddressLine2: e.target.value }))}
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                      placeholder="Apt, Suite, Unit (optional)"
+                    />
+                    <div className="grid grid-cols-6 gap-2">
+                      <input
+                        type="text"
+                        name="student_pickup_city_input"
+                        value={formData.pickupCity || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pickupCity: e.target.value }))}
+                        autoComplete="new-password"
+                        className="col-span-3 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        placeholder="City"
+                      />
+                      <input
+                        type="text"
+                        name="student_pickup_state_input"
+                        value={formData.pickupState || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pickupState: e.target.value }))}
+                        autoComplete="new-password"
+                        className="col-span-1 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm text-center"
+                        placeholder="CA"
+                        maxLength={2}
+                      />
+                      <input
+                        type="text"
+                        name="student_pickup_zip_input"
+                        value={formData.pickupZipCode || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pickupZipCode: e.target.value }))}
+                        autoComplete="new-password"
+                        className="col-span-2 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        placeholder="ZIP"
+                        maxLength={10}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Section 3: Guardian (structured, linked record) */}

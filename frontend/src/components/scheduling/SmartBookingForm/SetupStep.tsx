@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, User, Clock, MapPin, CheckCircle, Filter, Sun, Sunset, Moon, AlertTriangle } from 'lucide-react';
 import { Student, Instructor, DatePresetsResponse } from '@/types';
 import { extractZipCode } from '@/utils/zipCode';
+import { resolveStudentPickupAddress } from '@/utils/studentPickupAddress';
 import { Button } from '@/components/common';
 import { feeFlagsApi } from '@/api';
 
@@ -114,20 +115,6 @@ export const SetupStep: React.FC<SetupStepProps> = ({
   onCancel,
   onFindSlots,
 }) => {
-  // Helper: Get full address string from student's structured fields
-  const getStudentFullAddress = (student: Student): string => {
-    if (student.addressLine1) {
-      const parts = [
-        student.addressLine1,
-        student.addressLine2,
-        student.city && student.state ? `${student.city}, ${student.state}` : student.city || student.state,
-        student.zipCode
-      ].filter(Boolean);
-      return parts.join(', ');
-    }
-    return student.address || '';
-  };
-
   // Get initials for avatar
   const getInitials = (name: string) => {
     const parts = name.split(' ');
@@ -223,9 +210,9 @@ export const SetupStep: React.FC<SetupStepProps> = ({
                       setSelectedStudentId(student.id);
                       setStudentSearch(getStudentDisplay(student));
                       setShowStudentDropdown(false);
-                      const addr = getStudentFullAddress(student);
+                      const addr = resolveStudentPickupAddress(student);
                       setPickupAddress(addr);
-                      setPickupZip(extractZipCode(addr) || student.zipCode || null);
+                      setPickupZip(extractZipCode(addr) || student.pickupZipCode || student.zipCode || null);
                     }}
                     className="w-full px-4 py-3 text-left hover:bg-status-info-bg transition-colors border-b border-edge last:border-0 flex items-center space-x-3"
                   >

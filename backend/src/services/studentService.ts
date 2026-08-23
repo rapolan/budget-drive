@@ -439,7 +439,7 @@ export const createStudent = async (
         emergency_contact_2_first_name, emergency_contact_2_last_name, emergency_contact_2_phone,
         learner_permit_number, learner_permit_issue_date, learner_permit_expiration,
         notes, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $29)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $31)
       RETURNING *`,
       [
         tenantId,
