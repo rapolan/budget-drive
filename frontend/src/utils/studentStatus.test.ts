@@ -239,3 +239,70 @@ describe('computeStudentStatus - end-to-end regression guard for the fix', () =>
     expect(info.reason).not.toMatch(/withdrew/i);
   });
 });
+
+describe('computeStudentStatus - status column colors/sizing/flags', () => {
+  it('appends the non-cancelled upcoming-lesson count to the "Scheduled" label', () => {
+    const lessons = [
+      lesson({ status: 'scheduled', date: daysFromNow(1) }),
+      lesson({ status: 'scheduled', date: daysFromNow(3) }),
+      lesson({ status: 'cancelled', date: daysFromNow(2) }),
+    ];
+    const info = computeStudentStatus(BASE_STUDENT, lessons, NOW, BASE_ENROLLMENT);
+    expect(info.status).toBe('scheduled');
+    expect(info.displayStatus).toBe('Scheduled (2)');
+    expect(info.upcomingLessonCount).toBe(2);
+  });
+
+  it('"Ready to Book" never carries actionRequired - it is the calm between-lessons state, not a flag', () => {
+    // A completed lesson recent enough to be past the 14-60 day
+    // needs_attention gap window, with no upcoming lesson - the plain
+    // "ready to book, needs scheduling" state, not an urgent flag.
+    const lessons = [lesson({ status: 'completed', date: daysAgo(3) })];
+    const info = computeStudentStatus(BASE_STUDENT, lessons, NOW, BASE_ENROLLMENT);
+    expect(info.status).toBe('ready_to_book');
+    expect(info.displayStatus).toBe('Ready to Book');
+    expect(info.actionRequired).toBeUndefined();
+  });
+});
+
+// Regression: a terminal enrollment state must always win over the
+// transient 60+-day-inactivity check - found live against seed student
+// Naomi Frasier (completed Aug 3, last lesson Jun 14 - over 60 days
+// before "today"), whose completed enrollment was showing "Inactive"
+// because the 60-day check ran BEFORE the completed check. Terminal
+// states (withdrawn/suspended/inactive/completed) are now all resolved
+// first; the 60-day check is only reachable for an enrollment that is
+// still active and not completed.
+describe('computeStudentStatus - terminal states always win over the 60+-day-inactivity check', () => {
+  it('a completed enrollment whose last lesson was 60+ days ago still shows "Completed", not "Inactive"', () => {
+    const completedEnrollment = { ...BASE_ENROLLMENT, completed: true, completionReason: 'Finished all lessons' };
+    const lessons = [lesson({ status: 'completed', date: daysAgo(70) })];
+    const info = computeStudentStatus(BASE_STUDENT, lessons, NOW, completedEnrollment);
+    expect(info.status).toBe('completed');
+    expect(info.displayStatus).toBe('Completed');
+  });
+
+  it('a withdrawn enrollment quiet for 60+ days still shows "Dropped", not "Inactive"', () => {
+    const withdrawnEnrollment = { ...BASE_ENROLLMENT, status: 'withdrawn' as const, withdrawnReason: 'Moved out of state' };
+    const lessons = [lesson({ status: 'completed', date: daysAgo(70) })];
+    const info = computeStudentStatus(BASE_STUDENT, lessons, NOW, withdrawnEnrollment);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Dropped');
+  });
+
+  it('a suspended enrollment quiet for 60+ days still shows "Suspended", not the generic "Inactive"', () => {
+    const suspendedEnrollment = { ...BASE_ENROLLMENT, status: 'suspended' as const };
+    const lessons = [lesson({ status: 'completed', date: daysAgo(70) })];
+    const info = computeStudentStatus(BASE_STUDENT, lessons, NOW, suspendedEnrollment);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Suspended');
+  });
+
+  it('an ACTIVE, not-completed enrollment quiet for 60+ days still correctly raises "Inactive" - the check is scoped, not removed', () => {
+    const lessons = [lesson({ status: 'completed', date: daysAgo(70) })];
+    const info = computeStudentStatus(BASE_STUDENT, lessons, NOW, BASE_ENROLLMENT);
+    expect(info.status).toBe('inactive');
+    expect(info.displayStatus).toBe('Inactive');
+    expect(info.reason).toMatch(/no activity for 70 days/i);
+  });
+});

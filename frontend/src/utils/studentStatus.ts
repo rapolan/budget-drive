@@ -25,12 +25,19 @@ export interface StatusInfo {
 /**
  * Compute the actual student status based on lessons and data
  *
- * Workflow priority:
- * 1. Inactive (dropped/suspended/60+ days no activity) - archive
- * 2. Completed - finished all hours
- * 3. Needs Attention - issues requiring action
- * 4. Scheduled - has upcoming lessons
- * 5. Ready to Book - no upcoming lessons, needs scheduling
+ * Workflow priority - terminal enrollment states are resolved FIRST and
+ * always win over any transient/time-based signal (a completed or
+ * withdrawn student going quiet is normal, never a reason to override
+ * their real status - a bug once let 60+ days of quiet silently flip a
+ * completed enrollment to "Inactive"):
+ * 1. Dropped (withdrawn) / Suspended / Inactive (enrollment.status) - archive
+ * 2. No active enrollment at all
+ * 3. Completed - explicit admin-verified completion
+ * 4. 60+ days no activity (only reachable for an enrollment still active
+ *    and not completed - every terminal state above already returned)
+ * 5. Needs Attention - issues requiring action
+ * 6. Scheduled - has upcoming lessons
+ * 7. Ready to Book - no upcoming lessons, needs scheduling
  *
  * `now` is REQUIRED, never defaulted - callers must pass a tenant-resolved
  * instant (e.g. parseLocalDate(tenantNow.today) from TenantContext), never
@@ -110,7 +117,28 @@ export function computeStudentStatus(
     };
   }
 
-  // Check for 60+ days of inactivity (no lessons at all, or last lesson was 60+ days ago)
+  // 2. COMPLETED: Explicit admin-verified program completion (see item 6) -
+  // this is the sole source of truth, not an hours-threshold auto-derivation.
+  // Resolved here, BEFORE the 60+-day-inactivity check below - a terminal
+  // state (completed, and withdrawn/suspended/inactive above) must always
+  // win over a transient time-based signal. A completed student going
+  // quiet for 60+ days after finishing is normal, not a reason to silently
+  // flip their status to "Inactive" and make "Completed" unreachable once
+  // enough time passes (the exact bug this ordering fixes - found live
+  // against seed student Naomi Frasier, completed Aug 3 with her last
+  // lesson Jun 14, previously showing "Inactive").
+  if (activeEnrollment.completed) {
+    return {
+      status: 'completed',
+      displayStatus: 'Completed',
+      reason: activeEnrollment.completionReason || 'Program marked complete',
+    };
+  }
+
+  // Check for 60+ days of inactivity (no lessons at all, or last lesson was
+  // 60+ days ago) - only reachable here, for an enrollment that is still
+  // active (every terminal status - withdrawn/suspended/inactive/completed -
+  // was already resolved and returned above).
   if (studentLessons.length > 0 && upcomingLessons.length === 0) {
     const lastLesson = studentLessons
       .filter(l => l.status === 'completed' || l.status === 'cancelled' || l.status === 'no_show')
@@ -128,16 +156,6 @@ export function computeStudentStatus(
     }
   }
 
-  // 2. COMPLETED: Explicit admin-verified program completion (see item 6) -
-  // this is the sole source of truth, not an hours-threshold auto-derivation.
-  if (activeEnrollment.completed) {
-    return {
-      status: 'completed',
-      displayStatus: 'Completed',
-      reason: activeEnrollment.completionReason || 'Program marked complete',
-    };
-  }
-
   // 3. NEEDS ATTENTION: Issues requiring admin action
   if (studentNeedsFollowup(student, studentLessons, now, activeEnrollment)) {
     return {
@@ -148,7 +166,10 @@ export function computeStudentStatus(
     };
   }
 
-  // 4. SCHEDULED: Has upcoming lesson(s)
+  // 4. SCHEDULED: Has upcoming lesson(s). Count is non-cancelled upcoming
+  // lessons for the active enrollment - upcomingLessons above already
+  // filters to status === 'scheduled' (excludes cancelled/no_show), so its
+  // length is exactly that count.
   if (upcomingLessons.length > 0) {
     const nextLesson = upcomingLessons.sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -158,7 +179,7 @@ export function computeStudentStatus(
 
     return {
       status: 'scheduled',
-      displayStatus: 'Scheduled',
+      displayStatus: `Scheduled (${upcomingLessons.length})`,
       reason: isToday
         ? `Lesson today at ${nextLesson.startTime}`
         : `Next lesson: ${nextLessonDate.toLocaleDateString()}`,
@@ -166,14 +187,17 @@ export function computeStudentStatus(
     };
   }
 
-  // 5. READY TO BOOK: No upcoming lessons, needs scheduling
+  // 5. READY TO BOOK: No upcoming lessons, needs scheduling. This is the
+  // calm between-lessons state, not an alert - "no upcoming lessons" is
+  // not itself a flag (the time-based follow-up check above already
+  // caught the cases that actually need urgency), so this never carries
+  // actionRequired/amber styling.
   return {
     status: 'ready_to_book',
     displayStatus: 'Ready to Book',
     reason: studentLessons.length === 0
       ? 'New student - no lessons yet'
       : 'No upcoming lessons scheduled',
-    actionRequired: true,
   };
 }
 
