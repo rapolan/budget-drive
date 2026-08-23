@@ -32,6 +32,10 @@ interface GuardianSubPanelProps {
   onUnlink: (key: string) => void;
   onChangeRelationship: (key: string, relationship: GuardianRelationship | null) => void;
   onSetPrimary: (key: string) => void;
+  // Opens that guardian's own detail view - only provided in edit mode,
+  // where a row's `key` is a real guardian id (create mode's staged rows
+  // have no real record to view yet, so the name stays plain text there).
+  onViewGuardian?: (guardianId: string) => void;
 }
 
 // The single "linked guardians" list + row actions, shared by StudentModal's
@@ -48,6 +52,7 @@ export const GuardianSubPanel: React.FC<GuardianSubPanelProps> = ({
   onUnlink,
   onChangeRelationship,
   onSetPrimary,
+  onViewGuardian,
 }) => {
   const lastGuardianOfMinor = isMinor && guardians.length === 1;
 
@@ -75,7 +80,18 @@ export const GuardianSubPanel: React.FC<GuardianSubPanelProps> = ({
                   fill={g.isPrimary ? 'currentColor' : 'none'}
                 />
               </button>
-              <span className="font-medium text-tx-primary truncate">{name}</span>
+              {onViewGuardian ? (
+                <button
+                  type="button"
+                  onClick={() => onViewGuardian(g.key)}
+                  className="font-medium text-tx-primary truncate hover:text-primary hover:underline text-left"
+                  title="View guardian details"
+                >
+                  {name}
+                </button>
+              ) : (
+                <span className="font-medium text-tx-primary truncate">{name}</span>
+              )}
               {g.email && (
                 <span className="text-xs text-tx-muted flex items-center gap-1 flex-shrink-0">
                   <Mail className="h-3 w-3" />

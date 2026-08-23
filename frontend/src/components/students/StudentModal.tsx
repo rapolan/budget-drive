@@ -84,9 +84,14 @@ interface StudentModalProps {
   // decided by lesson history alone, not by which button was clicked.
   onBookLesson?: (student: Student, mostRecentLesson: Lesson | null) => void;
   prefillFromGuardian?: GuardianPrefill;
+  // Opens that guardian's own detail view (Students.tsx's guardian modal) -
+  // only meaningful in edit mode, where GuardianSubPanel's rows are real
+  // linked guardians (key === guardian id). Create mode's staged rows have
+  // no real guardian to view yet, so the name isn't clickable there.
+  onViewGuardian?: (guardianId: string) => void;
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian, onViewGuardian }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
@@ -1398,9 +1403,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4 text-tx-muted" />
                   Guardian
+                  {/* Red asterisk ONLY for a minor (required before program
+                      completion) - never shown for an adult, where a
+                      guardian is optional. */}
                   {!isAdult && studentAge !== null && (
-                    <span className="text-xs font-normal text-tx-muted normal-case">
-                      (recommended for minors - required before program completion)
+                    <span className="text-status-danger-text" title="Required for minors before their program can be marked complete">
+                      *
                     </span>
                   )}
                 </h3>
@@ -1427,6 +1435,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   isMinor={!isAdult}
                   isAddingGuardian={isAddingGuardian}
                   onAddClick={() => setIsAddingGuardian(true)}
+                  onViewGuardian={isEditing ? onViewGuardian : undefined}
                   onUnlink={(key) => {
                     if (isEditing) {
                       unlinkGuardianMutation.mutate(key);

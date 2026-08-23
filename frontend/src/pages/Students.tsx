@@ -1400,6 +1400,7 @@ export const StudentsPage: React.FC = () => {
           }}
           onBookLesson={handleBookLesson}
           prefillFromGuardian={selectedStudent ? undefined : guardianPrefill}
+          onViewGuardian={handleSelectSearchedGuardian}
         />
       )}
 

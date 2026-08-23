@@ -627,12 +627,12 @@ describe('StudentModal - needsGuardian surfaced in the guardian section', () => 
     expect(screen.queryByText(/needs a linked guardian record/i)).not.toBeInTheDocument();
   });
 
-  it('shows the "recommended for minors" hint and blank guardian fields for a new minor student', () => {
+  it('shows the required-guardian asterisk and blank guardian fields for a new minor student', () => {
     renderModal(); // create mode, student is null
 
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
 
-    expect(screen.getByText(/recommended for minors/i)).toBeInTheDocument();
+    expect(screen.getByTitle('Required for minors before their program can be marked complete')).toBeInTheDocument();
     // Fields-first (item 1 of the add-flow UX fix): the blank guardian
     // entry fields are the default landing spot, not a search box. "First"
     // also matches the student's own first-name field, so scope the query.
@@ -641,12 +641,12 @@ describe('StudentModal - needsGuardian surfaced in the guardian section', () => 
     expect(screen.getByRole('button', { name: /link existing guardian/i })).toBeInTheDocument();
   });
 
-  it('does not show the "recommended for minors" hint for a new adult student, but the fields are still available', () => {
+  it('does not show the required-guardian asterisk for a new adult student, but the fields are still available', () => {
     renderModal();
 
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
 
-    expect(screen.queryByText(/recommended for minors/i)).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Required for minors before their program can be marked complete')).not.toBeInTheDocument();
     // Adults may also link a guardian - it's optional either way, not gated by age.
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     expect(newGuardianSection.querySelector('input[placeholder="First"]')).toBeInTheDocument();
