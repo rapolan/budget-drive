@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useMutation, useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
-  CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap
+  CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap, DollarSign
 } from 'lucide-react';
 import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi, certificatesApi } from '@/api';
 import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson, ProgramType } from '@/types';
@@ -15,6 +15,7 @@ import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
 import { calculateAge } from '@/utils/age';
 import { needsTurning18Alert } from '@/utils/turning18';
+import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { useDebounce } from '@/hooks/useDebounce';
 
 type TabType = 'details' | 'progress' | 'enrollments' | 'history';
@@ -89,14 +90,19 @@ interface StudentModalProps {
   // linked guardians (key === guardian id). Create mode's staged rows have
   // no real guardian to view yet, so the name isn't clickable there.
   onViewGuardian?: (guardianId: string) => void;
+  // Which tab to land on when opening in edit mode - defaults to
+  // 'details'. The Students list's "Waive" fee action passes 'progress'
+  // so it lands directly on the existing waive-with-reason flow there,
+  // instead of duplicating that flow inline in the list.
+  initialTab?: 'details' | 'progress' | 'enrollments' | 'history';
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian, onViewGuardian }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian, onViewGuardian, initialTab }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('details');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'details');
 
   // Auto-scroll (create mode only): as each section is filled in, scroll
   // the next one into view instead of requiring the user to scroll
@@ -726,6 +732,19 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // One-click "Paid" for ALL of this student's outstanding fees at once,
+  // for the persistent actions bar - same endpoint/semantics as the
+  // Students list's per-row fee action (feeFlagService.markStudentFeesPaid
+  // is the single source of truth: payee-aware per flag, one transaction).
+  const markFeesPaidMutation = useMutation({
+    mutationFn: (studentId: string) => feeFlagsApi.markStudentFeesPaid(studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fee-flags', 'student', student?.id] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    },
+  });
+
   const [waivingFeeFlagId, setWaivingFeeFlagId] = useState<string | null>(null);
   const [waiveReason, setWaiveReason] = useState('');
 
@@ -1179,6 +1198,71 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 History
               </button>
             </nav>
+          </div>
+        )}
+
+        {/* Persistent actions bar (Item 2) - Mark Complete and the fee
+            Paid/Waive actions, visible regardless of which tab is active.
+            "Edit" isn't included here - this whole modal already IS the
+            edit surface, so a separate Edit action would be redundant.
+            "Book Lesson" already lives in the header above, always
+            visible - not duplicated here. Mark Complete routes to the
+            existing Enrollments-tab confirm-reason flow (switches tabs
+            and opens it) rather than acting instantly or rebuilding that
+            flow inline - completion is an audit-recorded compliance
+            event, never a casual toggle, matching the list's own guarded
+            shape. "Waive" similarly routes to the Progress tab's existing
+            waive-with-reason form rather than duplicating it here; only
+            "Mark Paid" acts directly, since it needs no reason. Same
+            eligibility (isReadyToMarkComplete) and same fee endpoint
+            (feeFlagsApi.markStudentFeesPaid) as the Students list - one
+            source of truth for what each action does and when it shows. */}
+        {isEditing && student && (isReadyToMarkComplete(student) || outstandingFeeFlags.length > 0) && (
+          <div className="px-6 py-3 bg-surface2/40 border-b border-edge-glass/30 flex flex-wrap items-center gap-2">
+            {isReadyToMarkComplete(student) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('enrollments');
+                  if (student.activeEnrollment) {
+                    setCompletingEnrollmentId(student.activeEnrollment.id);
+                  }
+                }}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
+              >
+                <GraduationCap className="h-4 w-4" />
+                Mark Complete
+              </button>
+            )}
+            {outstandingFeeFlags.length > 0 && (
+              <>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-status-danger-text">
+                  <DollarSign className="h-4 w-4" />
+                  {outstandingFeeFlags.length} outstanding fee{outstandingFeeFlags.length === 1 ? '' : 's'}
+                  {' '}(${outstandingFeeFlags.reduce((sum, f) => sum + Number(f.amount), 0).toFixed(2)})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const amount = outstandingFeeFlags.reduce((sum, f) => sum + Number(f.amount), 0).toFixed(2);
+                    if (window.confirm(`Mark $${amount} in outstanding fees as paid for ${student.fullName}?`)) {
+                      markFeesPaidMutation.mutate(student.id);
+                    }
+                  }}
+                  disabled={markFeesPaidMutation.isPending}
+                  className="px-3 py-1.5 text-sm font-medium bg-primary text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                >
+                  {markFeesPaidMutation.isPending ? 'Marking paid...' : 'Mark Paid'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('progress')}
+                  className="px-3 py-1.5 text-sm font-medium bg-surface2 text-tx-secondary rounded-lg hover:bg-surface3 transition-colors"
+                >
+                  Waive
+                </button>
+              </>
+            )}
           </div>
         )}
 

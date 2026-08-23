@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
-import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi } from '@/api';
+import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi, feeFlagsApi } from '@/api';
 import type { Student, GuardianCandidate, Lesson, Enrollment } from '@/types';
 
 vi.mock('@/api', async () => {
@@ -43,6 +43,7 @@ vi.mock('@/api', async () => {
       getOutstandingForStudent: vi.fn().mockResolvedValue({ data: [] }),
       waive: vi.fn(),
       recordPayment: vi.fn(),
+      markStudentFeesPaid: vi.fn().mockResolvedValue({ data: [] }),
     },
   };
 });
@@ -1701,5 +1702,169 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
     const closeButton = dismissButtons.find(b => b.querySelector('.lucide-x') && b.closest('.bg-status-warning-bg'));
     fireEvent.click(closeButton!);
     expect(screen.queryByText(/reopening did not void, unlink/i)).not.toBeInTheDocument();
+  });
+});
+
+// Item 2: a persistent actions bar (Mark Complete when eligible, fee
+// Paid/Waive when outstanding), visible regardless of which tab is
+// active - not buried inside one tab. "Edit" isn't included (the whole
+// modal already is the edit surface) and "Book Lesson" stays where it
+// already was (the header, already always visible) rather than being
+// duplicated. Eligibility/endpoints are the same ones the Students list
+// uses (isReadyToMarkComplete, feeFlagsApi.markStudentFeesPaid) - one
+// source of truth, per item 2's explicit requirement.
+describe('StudentModal - persistent actions bar (Item 2)', () => {
+  function readyToCompleteStudent(overrides: Partial<Student> = {}): Student {
+    return editableStudent({
+      activeEnrollment: {
+        id: 'enrollment-1',
+        programType: 'driver_training',
+        status: 'active',
+        enrollmentDate: new Date('2026-01-01'),
+        completed: false,
+        completionReason: null,
+        withdrawnReason: null,
+      },
+      progress: {
+        track: 'hours',
+        hoursCompleted: 6,
+        hoursRequired: 6,
+        hoursScheduled: 0,
+        needsDateOfBirth: false,
+        displayLabel: '6 / 6 hrs',
+        percentComplete: 100,
+      },
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (feeFlagsApi.getOutstandingForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('shows a "Mark Complete" button on the Details tab (no tab-switching needed) when the student is eligible', async () => {
+    renderModal(readyToCompleteStudent());
+
+    expect(await screen.findByRole('button', { name: /mark complete/i })).toBeInTheDocument();
+  });
+
+  it('does not show "Mark Complete" when the student is not eligible', async () => {
+    renderModal(editableStudent({
+      activeEnrollment: {
+        id: 'enrollment-1',
+        programType: 'driver_training',
+        status: 'active',
+        enrollmentDate: new Date('2026-01-01'),
+        completed: false,
+        completionReason: null,
+        withdrawnReason: null,
+      },
+      progress: {
+        track: 'hours',
+        hoursCompleted: 2,
+        hoursRequired: 6,
+        hoursScheduled: 0,
+        needsDateOfBirth: false,
+        displayLabel: '2 / 6 hrs',
+        percentComplete: 33,
+      },
+    }));
+
+    await screen.findByText('Existing Student');
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking "Mark Complete" switches to the Enrollments tab and opens that tab\'s existing completion-reason flow (no duplicate flow)', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{
+        id: 'enrollment-1',
+        tenantId: 'tenant-1',
+        studentId: 'student-1',
+        programType: 'driver_training',
+        status: 'active',
+        enrollmentDate: new Date('2026-01-01'),
+        hoursRequired: 6,
+        completed: false,
+        completedAt: null,
+        completionReason: null,
+        withdrawnAt: null,
+        withdrawnReason: null,
+      }],
+    });
+
+    renderModal(readyToCompleteStudent());
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /mark complete/i }));
+
+    // Landed on the Enrollments tab, and its own completion-reason input
+    // (the one existing implementation of this flow) is now open.
+    expect(await screen.findByPlaceholderText('Completion reason')).toBeInTheDocument();
+  });
+
+  it('shows an outstanding-fee summary with Mark Paid and Waive when the student has an outstanding fee', async () => {
+    (feeFlagsApi.getOutstandingForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'flag-1', tenantId: 'tenant-1', studentId: 'student-1', lessonId: 'lesson-1', amount: 50, reason: 'No-show', status: 'outstanding', waivedBy: null, waivedReason: null, waivedAt: null, paidPaymentId: null, paidAt: null, createdAt: '2026-01-01', updatedAt: '2026-01-01' }],
+    });
+
+    renderModal(editableStudent());
+
+    expect(await screen.findByText(/1 outstanding fee/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mark paid/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^waive$/i })).toBeInTheDocument();
+  });
+
+  it('does not show the fee summary when there are no outstanding fees', async () => {
+    renderModal(editableStudent());
+
+    await screen.findByText('Existing Student');
+    expect(screen.queryByText(/outstanding fee/i)).not.toBeInTheDocument();
+  });
+
+  it('"Mark Paid" confirms, then calls feeFlagsApi.markStudentFeesPaid with the student id', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (feeFlagsApi.getOutstandingForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'flag-1', tenantId: 'tenant-1', studentId: 'student-1', lessonId: 'lesson-1', amount: 50, reason: 'No-show', status: 'outstanding', waivedBy: null, waivedReason: null, waivedAt: null, paidPaymentId: null, paidAt: null, createdAt: '2026-01-01', updatedAt: '2026-01-01' }],
+    });
+
+    renderModal(editableStudent());
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /mark paid/i }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(feeFlagsApi.markStudentFeesPaid).toHaveBeenCalledWith('student-1'));
+
+    confirmSpy.mockRestore();
+  });
+
+  it('"Waive" switches to the Progress tab, where the existing waive-with-reason form lives (no duplicate flow)', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (feeFlagsApi.getOutstandingForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'flag-1', tenantId: 'tenant-1', studentId: 'student-1', lessonId: 'lesson-1', amount: 50, reason: 'No-show', status: 'outstanding', waivedBy: null, waivedReason: null, waivedAt: null, paidPaymentId: null, paidAt: null, createdAt: '2026-01-01', updatedAt: '2026-01-01' }],
+    });
+
+    renderModal(editableStudent());
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /^waive$/i }));
+
+    // The Progress tab's own per-flag Waive button (distinct from the
+    // persistent bar's summary-level one clicked above) is now visible.
+    expect(await screen.findByText(/\$50\.00 - No-show/i)).toBeInTheDocument();
+  });
+
+  it('opening the modal with initialTab="progress" (the list\'s Waive shortcut) lands directly on the Progress tab', async () => {
+    (feeFlagsApi.getOutstandingForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'flag-1', tenantId: 'tenant-1', studentId: 'student-1', lessonId: 'lesson-1', amount: 50, reason: 'No-show', status: 'outstanding', waivedBy: null, waivedReason: null, waivedAt: null, paidPaymentId: null, paidAt: null, createdAt: '2026-01-01', updatedAt: '2026-01-01' }],
+    });
+
+    renderModal(editableStudent(), { initialTab: 'progress' });
+
+    expect(await screen.findByText(/\$50\.00 - No-show/i)).toBeInTheDocument();
   });
 });
