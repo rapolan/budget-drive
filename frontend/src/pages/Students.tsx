@@ -1090,7 +1090,7 @@ export const StudentsPage: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                   History
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary min-w-[120px] sticky right-0 z-10 bg-surface2/80">
+                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary min-w-[120px]">
                   Actions
                 </th>
               </tr>
@@ -1222,15 +1222,21 @@ export const StudentsPage: React.FC = () => {
                           updatedAt={student.updatedAt}
                         />
                       </td>
-                      {/* Actions - sticky/pinned to the right, matching the
-                          Lessons page pattern, so mark-complete and fee
-                          actions stay reachable without horizontal scroll. */}
-                      <td
-                        className={`whitespace-nowrap px-6 py-4 text-right sticky right-0 z-10 group-hover:bg-surface2 ${
-                          statusInfo.status === 'needs_attention' ? 'bg-status-warning-bg' : 'bg-surface'
-                        }`}
-                      >
-                        <div className="flex justify-end gap-1">
+                      {/* Actions - per-row hover reveal (Gmail/Linear/Notion
+                          pattern), not sticky/pinned. Hidden by default and
+                          faded in via opacity (never a layout insert, so
+                          nothing shifts) when the cursor is ANYWHERE on this
+                          row (group-hover on the <tr> above) or when any
+                          action inside receives keyboard focus
+                          (group-focus-within - :focus-within fires from a
+                          focused descendant, so Tab-ing to a button reveals
+                          the row the same way hover does). The whole reveal
+                          is gated behind the (hover: hover) media feature -
+                          on a touch/coarse-pointer device, which has no
+                          hover to trigger it, actions stay always visible
+                          (the base opacity-100, unconditionally). */}
+                      <td className="whitespace-nowrap px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
                           {statusInfo.status === 'needs_attention' && (
                             <button
                               type="button"

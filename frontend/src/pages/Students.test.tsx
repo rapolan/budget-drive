@@ -670,3 +670,56 @@ describe('Students page - "Book Lesson" duration coercion', () => {
     expect(typeof prefilledDuration).toBe('number');
   });
 });
+
+// The Actions column switched from sticky/pinned-right to a per-row
+// hover-reveal pattern (Gmail/Linear/Notion): hidden by default, faded in
+// via opacity (never a layout insert) when hovering ANYWHERE on the row or
+// when a row's action receives keyboard focus, and always visible on a
+// touch/coarse-pointer device (no hover to trigger the reveal there).
+// jsdom doesn't evaluate @media(hover:hover) or actually run :hover/
+// :focus-within, so this is a structural check on the className contract
+// itself, not a rendered-computed-style assertion (that's covered live via
+// Playwright instead - see e2e-screenshots/).
+describe('Students list - Actions column hover reveal (not sticky)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Hover Test Student' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('the Actions cell is no longer sticky/pinned, and the row still carries "group" for the hover-scoped reveal', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Hover Test Student')).toBeInTheDocument());
+
+    const editButton = screen.getByTitle('Edit student');
+    const actionsCell = editButton.closest('td')!;
+    expect(actionsCell.className).not.toMatch(/\bsticky\b/);
+
+    const row = actionsCell.closest('tr')!;
+    expect(row.className).toMatch(/\bgroup\b/);
+  });
+
+  it('the actions wrapper is hidden-by-default and reveals on hover/focus only behind a (hover: hover) media guard, with a base opacity-100 fallback for touch', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Hover Test Student')).toBeInTheDocument());
+
+    const editButton = screen.getByTitle('Edit student');
+    const actionsWrapper = editButton.closest('div')!;
+
+    // Touch/no-hover fallback: visible unconditionally by default.
+    expect(actionsWrapper.className).toMatch(/(^|\s)opacity-100(\s|$)/);
+    // The hide/reveal behavior is gated behind an explicit hover-capable
+    // media guard - never applied unconditionally, which is what would
+    // make it invisible on a touch device with no hover.
+    expect(actionsWrapper.className).toContain('[@media(hover:hover)]:opacity-0');
+    expect(actionsWrapper.className).toContain('[@media(hover:hover)]:group-hover:opacity-100');
+    // Keyboard accessibility: focusing any action inside the row must
+    // reveal it the same way hover does - group-focus-within, not
+    // group-hover alone.
+    expect(actionsWrapper.className).toContain('[@media(hover:hover)]:group-focus-within:opacity-100');
+  });
+});
