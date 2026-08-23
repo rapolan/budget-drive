@@ -178,30 +178,37 @@ INSERT INTO vehicles (
 -- adulthood over time is fine and expected for them).
 -- =====================================================
 
+-- created_by/updated_by are set to the seeded admin user so the Students
+-- list's History column (studentService.getAllStudents's created_by_name/
+-- updated_by_name join) has a name to resolve instead of showing "Unknown".
 INSERT INTO students (
     id, tenant_id, full_name, first_name, last_name, email, phone, date_of_birth,
-    address, emergency_contact_first_name, emergency_contact_phone
+    address, emergency_contact_first_name, emergency_contact_phone,
+    created_by, updated_by
 ) VALUES
 (
     -- 1. New minor, guardian linked, zero lessons.
     '20000000-0000-0000-0000-000000000001', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Ivy Delgado', 'Ivy', 'Delgado', 'ivy.delgado@email.com', '(555) 601-1111',
     (CURRENT_DATE - INTERVAL '16 years')::date, '101 Birchwood Ln, Los Angeles, CA 90001',
-    'Mom', '(555) 601-2222'
+    'Mom', '(555) 601-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 2. New minor, NO guardian (needsGuardian badge/filter).
     '20000000-0000-0000-0000-000000000002', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Owen Castillo', 'Owen', 'Castillo', 'owen.castillo@email.com', '(555) 602-1111',
     (CURRENT_DATE - INTERVAL '16 years')::date, '102 Willow Ct, Los Angeles, CA 90002',
-    'Dad', '(555) 602-2222'
+    'Dad', '(555) 602-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 3. Mid-progress minor, guardian linked: ~2 of 6 hours, 1 upcoming lesson.
     '20000000-0000-0000-0000-000000000003', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Mia Torres', 'Mia', 'Torres', 'mia.torres@email.com', '(555) 603-1111',
     (CURRENT_DATE - INTERVAL '16 years')::date, '103 Cedar Ave, Los Angeles, CA 90003',
-    'Mom', '(555) 603-2222'
+    'Mom', '(555) 603-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 4. Ready-to-complete minor, guardian linked: required hours met,
@@ -209,42 +216,48 @@ INSERT INTO students (
     '20000000-0000-0000-0000-000000000004', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Leo Whitfield', 'Leo', 'Whitfield', 'leo.whitfield@email.com', '(555) 604-1111',
     (CURRENT_DATE - INTERVAL '17 years')::date, '104 Maple Dr, Los Angeles, CA 90010',
-    'Dad', '(555) 604-2222'
+    'Dad', '(555) 604-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 5. Completed minor, guardian linked, certificate recorded.
     '20000000-0000-0000-0000-000000000005', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Ruby Sandoval', 'Ruby', 'Sandoval', 'ruby.sandoval@email.com', '(555) 605-1111',
     (CURRENT_DATE - INTERVAL '17 years')::date, '105 Spruce St, Los Angeles, CA 90011',
-    'Mom', '(555) 605-2222'
+    'Mom', '(555) 605-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 6. Withdrawn minor, guardian linked, some lessons done before leaving.
     '20000000-0000-0000-0000-000000000006', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Caleb Nguyen', 'Caleb', 'Nguyen', 'caleb.nguyen@email.com', '(555) 606-1111',
     (CURRENT_DATE - INTERVAL '16 years')::date, '106 Poplar Way, Los Angeles, CA 90020',
-    'Dad', '(555) 606-2222'
+    'Dad', '(555) 606-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 7. Mid-progress minor, guardian linked, WITH an outstanding no-show fee.
     '20000000-0000-0000-0000-000000000007', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Priya Anand', 'Priya', 'Anand', 'priya.anand@email.com', '(555) 607-1111',
     (CURRENT_DATE - INTERVAL '16 years')::date, '107 Aspen Cir, Los Angeles, CA 90003',
-    'Mom', '(555) 607-2222'
+    'Mom', '(555) 607-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 8. Mid-progress adult, no guardian, no certificate.
     '20000000-0000-0000-0000-000000000008', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Jordan Vance', 'Jordan', 'Vance', 'jordan.vance@email.com', '(555) 608-1111',
     '2002-04-09', '108 Redwood Pl, Los Angeles, CA 90001',
-    'Sibling', '(555) 608-2222'
+    'Sibling', '(555) 608-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 ),
 (
     -- 9. Completed adult, no certificate.
     '20000000-0000-0000-0000-000000000009', '55654b9d-6d7f-46e0-ade2-be606abfe00a',
     'Naomi Frasier', 'Naomi', 'Frasier', 'naomi.frasier@email.com', '(555) 609-1111',
     '2000-01-25', '109 Sequoia Blvd, Los Angeles, CA 90002',
-    'Spouse', '(555) 609-2222'
+    'Spouse', '(555) 609-2222',
+    '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001'
 );
 
 -- =====================================================

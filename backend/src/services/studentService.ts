@@ -182,10 +182,15 @@ export const getAllStudents = async (
     );
     const total = parseInt(countResult.rows[0].count);
 
-    // Get students
+    // Get students. created_by_name/updated_by_name resolve the audit
+    // columns' user IDs to display names for the Students list's History
+    // column (AuditColumn) - left joins since created_by/updated_by are
+    // nullable and users.id ON DELETE SET NULL can leave them null too.
     const result = await query(
-      `SELECT s.*
+      `SELECT s.*, cu.full_name AS created_by_name, uu.full_name AS updated_by_name
        FROM students s
+       LEFT JOIN users cu ON cu.id = s.created_by
+       LEFT JOIN users uu ON uu.id = s.updated_by
        WHERE s.tenant_id = $1
        ORDER BY s.created_at DESC
        LIMIT $2 OFFSET $3`,
@@ -225,8 +230,10 @@ export const getStudentById = async (
   logger.debug('Fetching student by ID', { tenantId, studentId: id });
 
   const result = await query(
-    `SELECT s.*
+    `SELECT s.*, cu.full_name AS created_by_name, uu.full_name AS updated_by_name
      FROM students s
+     LEFT JOIN users cu ON cu.id = s.created_by
+     LEFT JOIN users uu ON uu.id = s.updated_by
      WHERE s.id = $1 AND s.tenant_id = $2`,
     [id, tenantId]
   );

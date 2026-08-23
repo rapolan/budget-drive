@@ -67,6 +67,74 @@ describe('GET /api/v1/students - progress attachment', () => {
     expect(params[1]).toEqual([ENROLLMENT_ID]);
   });
 
+  // Regression: the Students list's History column (AuditColumn) reads
+  // student.createdByName/updatedByName, but getAllStudents never resolved
+  // those from created_by/updated_by - the column always fell back to
+  // "Unknown" for every student, seeded or not, because the field was
+  // simply never present on the response.
+  it('resolves createdByName/updatedByName from a users join in the list response', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: STUDENT_ID,
+        tenant_id: TENANT_ID,
+        date_of_birth: tenYearsAgo.toISOString(),
+        created_by_name: 'System Admin',
+        updated_by_name: 'System Admin',
+      }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].createdByName).toBe('System Admin');
+    expect(res.body.data[0].updatedByName).toBe('System Admin');
+
+    const studentsCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('FROM students') && sql.includes('LEFT JOIN')
+    );
+    expect(studentsCall).toBeDefined();
+    const [studentsSql] = studentsCall!;
+    expect(studentsSql).toMatch(/LEFT JOIN users/i);
+    expect(studentsSql).toMatch(/created_by_name/i);
+    expect(studentsSql).toMatch(/updated_by_name/i);
+  });
+
+  it('createdByName/updatedByName are null (not "Unknown" server-side) when the audit user has no name to resolve', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: STUDENT_ID,
+        tenant_id: TENANT_ID,
+        date_of_birth: tenYearsAgo.toISOString(),
+        created_by_name: null,
+        updated_by_name: null,
+      }])
+    ); // student rows - e.g. created_by was never set (older/seed data)
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts (minor, none linked)
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].createdByName).toBeNull();
+    expect(res.body.data[0].updatedByName).toBeNull();
+  });
+
   it('attaches computed progress to a single student detail response', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
@@ -94,6 +162,41 @@ describe('GET /api/v1/students - progress attachment', () => {
     expect(res.body.data.progress).toBeDefined();
     expect(res.body.data.progress.track).toBe('hours');
     expect(res.body.data.progress.hoursCompleted).toBe(0);
+  });
+
+  it('resolves createdByName/updatedByName from a users join in the detail response', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: STUDENT_ID,
+        tenant_id: TENANT_ID,
+        date_of_birth: tenYearsAgo.toISOString(),
+        created_by_name: 'System Admin',
+        updated_by_name: 'System Admin',
+      }])
+    ); // student row
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // guardian counts (minor, none linked)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // enrollments for student (none)
+
+    const res = await request(app)
+      .get(`/api/v1/students/${STUDENT_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.createdByName).toBe('System Admin');
+    expect(res.body.data.updatedByName).toBe('System Admin');
+
+    const studentCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('FROM students')
+    );
+    expect(studentCall).toBeDefined();
+    const [studentSql] = studentCall!;
+    expect(studentSql).toMatch(/LEFT JOIN users/i);
+    expect(studentSql).toMatch(/created_by_name/i);
+    expect(studentSql).toMatch(/updated_by_name/i);
   });
 
   // Regression coverage: a completed driver_training enrollment previously
