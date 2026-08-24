@@ -506,16 +506,16 @@ describe('SmartBookingForm - "Book Another" preserves preferences and returns to
 // Proximity badge consistency (bug fix): GroupedAvailabilityView previously
 // only rendered a badge at the instructor-header level using the best score
 // across ALL of that instructor's slots, so a slot with a lower score than
-// the header could read "Close" in the list and then a different tier on
-// ConfirmStep once selected. Each slot row now shows its own badge, computed
-// from that slot's own proximityScore - the same value ConfirmStep uses -
-// so what you pick is what you saw.
+// the header could read a different tier in the list vs. ConfirmStep once
+// selected. Each slot row now shows its own badge, computed from that
+// slot's own proximityScore - the same value ConfirmStep uses - so what you
+// pick is what you saw.
 describe('SmartBookingForm - proximity badge consistency', () => {
   it("shows the selected slot's own badge on both the slot row and the confirm step, even when a different slot from the same instructor has a better score", async () => {
     const user = userEvent.setup();
-    const CLOSE_SLOT = { ...SLOT, startTime: '10:00', endTime: '12:00', startTimeLocal: '10:00', endTimeLocal: '12:00', proximityScore: 95 }; // "Very Close"
+    const NEARBY_SLOT = { ...SLOT, startTime: '10:00', endTime: '12:00', startTimeLocal: '10:00', endTimeLocal: '12:00', proximityScore: 95 }; // "Nearby"
     const FAR_SLOT = { ...SLOT, startTime: '14:00', endTime: '16:00', startTimeLocal: '14:00', endTimeLocal: '16:00', proximityScore: 40 }; // "Far"
-    findRankedAvailableSlots.mockResolvedValue({ slots: [CLOSE_SLOT, FAR_SLOT], failedInstructors: [] });
+    findRankedAvailableSlots.mockResolvedValue({ slots: [NEARBY_SLOT, FAR_SLOT], failedInstructors: [] });
 
     renderForm({ preselectedStudent: STUDENT });
 
@@ -525,14 +525,14 @@ describe('SmartBookingForm - proximity badge consistency', () => {
 
     const instructorHeader = await screen.findByText('John Smith');
     // Header badge reflects the BEST score across this instructor's slots
-    // (95 -> "Very Close"), explicitly labeled "Closest:" so it reads as a
-    // summary rather than a per-slot guarantee.
-    expect(await screen.findByText('Closest: 🏠 Very Close')).toBeInTheDocument();
+    // (95 -> "Nearby"), explicitly labeled "Travel distance:" so it reads
+    // as a summary rather than a per-slot guarantee.
+    expect(await screen.findByText('Travel distance: 🏠 Nearby')).toBeInTheDocument();
     await user.click(instructorHeader);
 
-    // Each slot row shows its OWN badge - the close slot reads "Very Close"...
-    const closeSlotRow = (await screen.findByText(/10:00 AM - 12:00 PM/i)).closest('button') as HTMLElement;
-    expect(within(closeSlotRow).getByText('🏠 Very Close')).toBeInTheDocument();
+    // Each slot row shows its OWN badge - the nearby slot reads "Nearby"...
+    const nearbySlotRow = (await screen.findByText(/10:00 AM - 12:00 PM/i)).closest('button') as HTMLElement;
+    expect(within(nearbySlotRow).getByText('🏠 Nearby')).toBeInTheDocument();
 
     // ...and the far slot (same instructor, lower score) reads "Far", not
     // the instructor's best score.
@@ -541,11 +541,11 @@ describe('SmartBookingForm - proximity badge consistency', () => {
 
     // Selecting the FAR slot: ConfirmStep's badge must match what that
     // slot's own row showed in the list ("Far"), not the instructor
-    // header's "Very Close" summary.
+    // header's "Nearby" summary.
     await user.click(farSlotRow);
     expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
     expect(screen.getByText('🗺️ Far')).toBeInTheDocument();
-    expect(screen.queryByText('🏠 Very Close')).not.toBeInTheDocument();
+    expect(screen.queryByText('🏠 Nearby')).not.toBeInTheDocument();
   });
 });
 

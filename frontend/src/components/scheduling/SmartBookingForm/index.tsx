@@ -442,11 +442,15 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
+  // Three-tier travel-distance scale mapped onto the 0-100 proximityScore
+  // range computed server-side (calculateProximityScore: 100 same zip, 70
+  // same region, 50 unknown/neutral, 30 different regions). Thresholds
+  // cover the full range with no gap: [80,100] Nearby, [50,80) Moderate,
+  // [0,50) Far - so 100/70/50/30 land as Nearby/Moderate/Moderate/Far.
   const getProximityBadge = (score: number) => {
-    if (score >= 90) return { label: '🏠 Very Close', class: 'bg-status-success-bg text-status-success-text' };
-    if (score >= 70) return { label: '📍 Nearby', class: 'bg-status-success-bg text-status-success-text' };
-    if (score >= 50) return { label: '🚗 Close', class: 'bg-status-warning-bg text-status-warning-text' };
-    return { label: '🗺️ Far', class: 'bg-surface2 text-tx-secondary' };
+    if (score >= 80) return { label: '🏠 Nearby', class: 'bg-status-success-bg text-status-success-text' };
+    if (score >= 50) return { label: '📍 Moderate', class: 'bg-status-warning-bg text-status-warning-text' };
+    return { label: '🗺️ Far', class: 'bg-status-terracotta-bg text-status-terracotta-text' };
   };
 
   // Orthogonal to proximity - null on the common (in-area) case so callers

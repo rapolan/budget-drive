@@ -127,7 +127,7 @@ export const GroupedAvailabilityView: React.FC<GroupedAvailabilityViewProps> = (
                   below shows its own badge, which is what actually
                   carries through to ConfirmStep once picked. */}
               <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${badge.class}`}>
-                Closest: {badge.label}
+                Travel distance: {badge.label}
               </span>
               {areaBadge && (
                 <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${areaBadge.class}`}>
