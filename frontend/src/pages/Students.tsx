@@ -653,15 +653,17 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Scheduled - Students with upcoming lessons */}
+        {/* Scheduled - Students with upcoming lessons. Blue/info, matching
+            the status column's "scheduled" treatment (StudentStatusBadge /
+            computeStudentStatus: blue = has upcoming lessons). */}
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('scheduled')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-status-success-bg rounded-lg group-hover:brightness-95 transition-colors">
-              <Calendar className="h-5 w-5 text-status-success-text" />
+            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <Calendar className="h-5 w-5 text-primary" />
             </div>
             {statusCounts.scheduled > 0 && (
-              <span className="text-xs font-medium text-status-success-text bg-status-success-bg px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-primary bg-status-info-bg px-2 py-1 rounded-full">
                 On calendar
               </span>
             )}
@@ -672,15 +674,17 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Ready to Book - Students needing their next lesson */}
+        {/* Ready to Book - Students needing their next lesson. Green/success,
+            matching the status column's "ready_to_book" treatment (the calm
+            between-lessons state). */}
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('ready_to_book')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
-              <UserCheck className="h-5 w-5 text-primary" />
+            <div className="p-2 bg-status-success-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <UserCheck className="h-5 w-5 text-status-success-text" />
             </div>
             {statusCounts.ready_to_book > 0 && (
-              <span className="text-xs font-medium text-primary bg-status-info-bg px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-status-success-text bg-status-success-bg px-2 py-1 rounded-full">
                 Book now
               </span>
             )}
@@ -710,15 +714,17 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Completed */}
+        {/* Completed - gray/neutral, matching the status column's
+            "completed" treatment (finished, not urgent - surface3/
+            tx-secondary, not a color-coded status). */}
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('completed')}>
           <div className="flex items-center justify-between">
-            <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
-              <GraduationCap className="h-5 w-5 text-purple-600" />
+            <div className="p-2 bg-surface3 rounded-lg group-hover:brightness-95 transition-colors">
+              <GraduationCap className="h-5 w-5 text-tx-secondary" />
             </div>
             {stats.completedThisMonth > 0 && (
-              <span className="text-xs font-medium text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+              <span className="text-xs font-medium text-tx-secondary bg-surface3 px-2 py-1 rounded-full">
                 +{stats.completedThisMonth} this month
               </span>
             )}
@@ -774,14 +780,14 @@ export const StudentsPage: React.FC = () => {
             isActive={statusFilter === 'scheduled'}
             onClick={() => setStatusFilter('scheduled')}
             count={statusCounts.scheduled}
-            variant="success"
+            variant="info"
           />
           <FilterButton
             label="Ready to Book"
             isActive={statusFilter === 'ready_to_book'}
             onClick={() => setStatusFilter('ready_to_book')}
             count={statusCounts.ready_to_book}
-            variant="info"
+            variant="success"
           />
           <FilterButton
             label="Needs Attention"
@@ -813,7 +819,7 @@ export const StudentsPage: React.FC = () => {
             isActive={statusFilter === 'completed'}
             onClick={() => setStatusFilter('completed')}
             count={statusCounts.completed}
-            variant="secondary"
+            variant="default"
           />
           <FilterButton
             label="Inactive"
