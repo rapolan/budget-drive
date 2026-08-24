@@ -52,11 +52,18 @@ export const getAllLessons = async (
     const total = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(total / limit);
 
-    // Get paginated lessons with creator/editor names
+    // Get paginated lessons with creator/editor names. created_by_name/
+    // updated_by_name resolve the audit columns' user IDs to display names
+    // for the Lessons list's History column (AuditColumn) - left joins
+    // since created_by/updated_by are nullable and users.id ON DELETE SET
+    // NULL can leave them null too. Mirrors studentService.getAllStudents's
+    // identical fix.
     const result = await query(
-      `SELECT l.*, e.student_id AS student_id
+      `SELECT l.*, e.student_id AS student_id, cu.full_name AS created_by_name, uu.full_name AS updated_by_name
        FROM lessons l
        JOIN enrollments e ON e.id = l.enrollment_id
+       LEFT JOIN users cu ON cu.id = l.created_by
+       LEFT JOIN users uu ON uu.id = l.updated_by
        WHERE l.tenant_id = $1
        ORDER BY l.date DESC, l.start_time DESC
        LIMIT $2 OFFSET $3`,
@@ -91,9 +98,11 @@ export const getLessonById = async (
   logger.debug('Fetching lesson by ID', { tenantId, lessonId: id });
 
   const result = await query(
-    `SELECT l.*, e.student_id AS student_id
+    `SELECT l.*, e.student_id AS student_id, cu.full_name AS created_by_name, uu.full_name AS updated_by_name
      FROM lessons l
      JOIN enrollments e ON e.id = l.enrollment_id
+     LEFT JOIN users cu ON cu.id = l.created_by
+     LEFT JOIN users uu ON uu.id = l.updated_by
      WHERE l.id = $1 AND l.tenant_id = $2`,
     [id, tenantId]
   );
