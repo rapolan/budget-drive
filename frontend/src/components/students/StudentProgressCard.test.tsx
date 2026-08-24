@@ -65,7 +65,7 @@ describe('StudentProgressCard', () => {
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
   });
 
-  it('hides the hours-based milestones section for a lessons-track student', () => {
+  it('shows the same three achievement badges for a lessons-track (adult) student', () => {
     render(
       <StudentProgressCard
         student={makeStudent({
@@ -82,7 +82,10 @@ describe('StudentProgressCard', () => {
     );
 
     expect(screen.getByText('2 of 3 lessons (67%)')).toBeInTheDocument();
-    expect(screen.queryByText('Milestones')).not.toBeInTheDocument();
+    expect(screen.getByText('Achievement Badges')).toBeInTheDocument();
+    expect(screen.getByText('Mile One')).toBeInTheDocument();
+    expect(screen.getByText('Cali Cruiser')).toBeInTheDocument();
+    expect(screen.getByText('The Golden Ticket')).toBeInTheDocument();
   });
 
   it('shows the lesson count as the primary label and the hours figure in a separate caption for a minor', () => {

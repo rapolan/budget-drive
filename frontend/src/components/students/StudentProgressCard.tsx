@@ -1,6 +1,7 @@
 import React from 'react';
-import { Award, TrendingUp, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Clock, AlertCircle } from 'lucide-react';
 import type { Student, Lesson } from '@/types';
+import { AchievementBadges } from './AchievementBadges';
 
 interface StudentProgressCardProps {
   student: Student;
@@ -26,21 +27,6 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
   }
 
   const progressPercentage = progress.percentComplete;
-
-  // Milestones only have a meaningful narrative on the hours track - the
-  // lessons track's denominator is admin-movable, and completed students
-  // show as fully achieved.
-  const milestones = progress.track === 'hours'
-    ? [
-        { label: 'First Lesson', achieved: completedLessons >= 1, icon: CheckCircle },
-        { label: '25% Complete', achieved: progressPercentage >= 25, icon: TrendingUp },
-        { label: 'Halfway', achieved: progressPercentage >= 50, icon: Award },
-        { label: '75% Complete', achieved: progressPercentage >= 75, icon: TrendingUp },
-        { label: 'Completed', achieved: progressPercentage >= 100, icon: Award },
-      ]
-    : [];
-
-  const achievedMilestones = milestones.filter(m => m.achieved).length;
 
   return (
     <div className="bg-surface rounded-lg shadow-sm border border-edge p-6 space-y-6">
@@ -133,51 +119,10 @@ export const StudentProgressCard: React.FC<StudentProgressCardProps> = ({ studen
         </div>
       </div>
 
-      {/* Milestones */}
-      {milestones.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-medium text-tx-secondary">Milestones</h4>
-            <span className="text-xs text-tx-muted">
-              {achievedMilestones} / {milestones.length}
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            {milestones.map((milestone, index) => {
-              const Icon = milestone.icon;
-              return (
-                <div
-                  key={index}
-                  className={`flex items-center gap-3 p-2 rounded transition-colors ${
-                    milestone.achieved
-                      ? 'bg-status-success-bg border-l-4 border-status-success-text'
-                      : 'bg-surface2 border-l-4 border-edge-strong'
-                  }`}
-                >
-                  <Icon
-                    className={`h-4 w-4 ${
-                      milestone.achieved ? 'text-status-success-text' : 'text-tx-muted'
-                    }`}
-                  />
-                  <span
-                    className={`text-sm ${
-                      milestone.achieved
-                        ? 'text-status-success-text font-medium'
-                        : 'text-tx-muted'
-                    }`}
-                  >
-                    {milestone.label}
-                  </span>
-                  {milestone.achieved && (
-                    <CheckCircle className="h-4 w-4 text-status-success-text ml-auto" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Achievement Badges - a rewards display, not a progress readout (no
+          percentage here; see the Training Progress bar above for that).
+          Same three badges regardless of track/age. */}
+      <AchievementBadges lessonsCompleted={completedLessons} />
 
       {/* Next Lesson Indicator */}
       {scheduledLessons > 0 && (
