@@ -1241,10 +1241,12 @@ export const LessonsPage: React.FC = () => {
             )}
           </div>
         )}
+      </div>
 
       {/* Table View */}
-      {viewMode === 'table' && (
-      <div className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
+      <div>
+        {viewMode === 'table' && (
+          <div className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-edge">
             <thead className="bg-surface2/80">
@@ -1400,8 +1402,8 @@ export const LessonsPage: React.FC = () => {
             )}
           </tbody>
         </table>
+          </div>
         </div>
-      </div>
       )}
       </div>
 

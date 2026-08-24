@@ -1098,9 +1098,8 @@ export const StudentsPage: React.FC = () => {
 
       {/* Table View */}
       {viewMode === 'table' && (
-      <div className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/20">
+        <div className="overflow-x-auto rounded-xl bg-surface shadow-sm border border-edge">
+          <table className="min-w-full divide-y divide-white/20">
             <thead className="bg-surface/8">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
@@ -1418,7 +1417,6 @@ export const StudentsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
       )}
       </div>
 
