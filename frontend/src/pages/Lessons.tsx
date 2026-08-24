@@ -583,20 +583,12 @@ export const LessonsPage: React.FC = () => {
                   the way a student row does, so Date & Time - the leftmost,
                   always-on-screen cell, already the anchor for the "Soon"
                   badge above - takes over as the anchor instead. Reserved
-                  height (min-h-[24px], unconditional) so a hovered row
-                  never reflows its neighbors; only opacity animates.
-                  (hover: hover)-gated: hidden until the cursor is anywhere
-                  on the row or an action receives keyboard focus, always
-                  visible on touch/coarse-pointer devices.
-
-                  Buttons are Lessons-scoped smaller than the Students
-                  list's row-action buttons (h-3 w-3 icon at p-1.5 padding
-                  = 24x24px total) rather than shrinking the shared
-                  p-1.5/h-3.5 (26x26px) pattern Students also uses -
-                  Students keeps its own larger icon size unchanged.
-                  24x24 is WCAG 2.5.8 AA's minimum target size, so this is
-                  the floor, not an arbitrary shrink. */}
-              <div className="min-h-[24px] flex items-center gap-0.5 mt-0.5 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+                  height (min-h-[28px], unconditional) so a hovered row never
+                  reflows its neighbors; only opacity animates. (hover:
+                  hover)-gated: hidden until the cursor is anywhere on the
+                  row or an action receives keyboard focus, always visible on
+                  touch/coarse-pointer devices. */}
+              <div className="min-h-[28px] flex items-center gap-1 mt-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
                 {lesson.status === 'scheduled' && (
                   <>
                     <button
@@ -609,7 +601,7 @@ export const LessonsPage: React.FC = () => {
                       title="Edit lesson"
                       className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                     >
-                      <Edit className="h-3 w-3" />
+                      <Edit className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
@@ -621,7 +613,7 @@ export const LessonsPage: React.FC = () => {
                       title="Mark as completed"
                       className="p-1.5 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
                     >
-                      <CheckCircle className="h-3 w-3" />
+                      <CheckCircle className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
@@ -633,7 +625,7 @@ export const LessonsPage: React.FC = () => {
                       title="Mark as no-show"
                       className="p-1.5 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
                     >
-                      <AlertCircle className="h-3 w-3" />
+                      <AlertCircle className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
@@ -645,7 +637,7 @@ export const LessonsPage: React.FC = () => {
                       title="Cancel lesson"
                       className="p-1.5 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </button>
                   </>
                 )}
@@ -660,7 +652,7 @@ export const LessonsPage: React.FC = () => {
                     title="Reschedule lesson"
                     className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                   >
-                    <RefreshCw className="h-3 w-3" />
+                    <RefreshCw className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -673,7 +665,7 @@ export const LessonsPage: React.FC = () => {
             )}
           </div>
         </td>
-        <td className="whitespace-nowrap px-6 py-4">
+        <td className="whitespace-nowrap pl-6 pr-2 py-4">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium">
               {getStudentName(lesson.studentId).split(' ').map(n => n[0]).join('').slice(0, 2)}
@@ -734,7 +726,7 @@ export const LessonsPage: React.FC = () => {
           })()}
         </td>
         {/* History - Hidden on mobile */}
-        <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+        <td className="pl-6 pr-2 py-4 whitespace-nowrap hidden lg:table-cell">
           <AuditColumn
             createdByName={lesson.createdByName}
             updatedByName={lesson.updatedByName}
@@ -1266,10 +1258,10 @@ export const LessonsPage: React.FC = () => {
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                 Type
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
+              <th className="pl-6 pr-2 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                 Status
               </th>
-              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
+              <th className="pl-6 pr-2 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                 History
               </th>
             </tr>
