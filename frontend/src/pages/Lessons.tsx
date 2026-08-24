@@ -576,6 +576,86 @@ export const LessonsPage: React.FC = () => {
               <div className="text-sm text-tx-muted">
                 {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
               </div>
+              {/* Row actions - under Date & Time, not a right-side sticky
+                  column (same fix/pattern as the Students list: actions on
+                  the far right required scrolling right regardless of how
+                  they appeared). A lesson row has no single "name" column
+                  the way a student row does, so Date & Time - the leftmost,
+                  always-on-screen cell, already the anchor for the "Soon"
+                  badge above - takes over as the anchor instead. Reserved
+                  height (min-h-[28px], unconditional) so a hovered row
+                  never reflows its neighbors; only opacity animates.
+                  (hover: hover)-gated: hidden until the cursor is anywhere
+                  on the row or an action receives keyboard focus, always
+                  visible on touch/coarse-pointer devices. */}
+              <div className="min-h-[28px] flex items-center gap-1 mt-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+                {lesson.status === 'scheduled' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(lesson);
+                      }}
+                      aria-label="Edit lesson"
+                      title="Edit lesson"
+                      className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleComplete(lesson.id);
+                      }}
+                      aria-label="Mark lesson as completed"
+                      title="Mark as completed"
+                      className="p-1.5 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleNoShow(lesson.id);
+                      }}
+                      aria-label="Mark lesson as no-show"
+                      title="Mark as no-show"
+                      className="p-1.5 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
+                    >
+                      <AlertCircle className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancel(lesson.id);
+                      }}
+                      aria-label="Cancel lesson"
+                      title="Cancel lesson"
+                      className="p-1.5 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+                {lesson.status === 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReschedule(lesson);
+                    }}
+                    aria-label="Reschedule lesson"
+                    title="Reschedule lesson"
+                    className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
             {upcoming && (
               <span className="inline-flex items-center rounded-full bg-status-warning-bg px-2 py-0.5 text-xs font-medium text-status-warning-text animate-pulse">
@@ -653,78 +733,6 @@ export const LessonsPage: React.FC = () => {
             createdAt={lesson.createdAt}
             updatedAt={lesson.updatedAt}
           />
-        </td>
-        <td
-          className={`whitespace-nowrap px-6 py-4 text-right text-sm font-medium sticky right-0 z-10 group-hover:bg-surface2 ${
-            upcoming ? 'bg-status-warning-bg' : 'bg-surface'
-          }`}
-        >
-          <div className="flex justify-end space-x-1">
-            {lesson.status === 'scheduled' && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEdit(lesson);
-                  }}
-                  className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
-                  title="Edit lesson"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleComplete(lesson.id);
-                  }}
-                  className="p-2 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
-                  title="Mark as completed"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleNoShow(lesson.id);
-                  }}
-                  className="p-2 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
-                  title="Mark as no-show"
-                >
-                  <AlertCircle className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCancel(lesson.id);
-                  }}
-                  className="p-2 text-status-danger-text hover:brightness-75 hover:bg-status-danger-bg rounded-lg transition-all hover:scale-110"
-                  title="Cancel lesson"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </>
-            )}
-            {lesson.status === 'cancelled' && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleReschedule(lesson);
-                }}
-                className="p-2 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
-                title="Reschedule lesson"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
-            )}
-            {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
-              <span className="text-tx-muted text-xs italic">—</span>
-            )}
-          </div>
         </td>
       </tr>
     );
@@ -1253,21 +1261,18 @@ export const LessonsPage: React.FC = () => {
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                 History
               </th>
-              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary sticky right-0 z-10 bg-surface2/80">
-                Actions
-              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-edge bg-surface">
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="py-12">
+                <td colSpan={7} className="py-12">
                   <LoadingSpinner />
                 </td>
               </tr>
             ) : filteredLessons?.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-2">
+                <td colSpan={7} className="py-2">
                   <EmptyState
                     icon={<CalendarDays className="h-12 w-12" />}
                     title="No lessons found"
@@ -1297,7 +1302,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.today && groupedLessons.today.length > 0 && (
                   <>
                     <tr className="bg-status-info-bg">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={7} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-primary" />
                           <h3 className="text-sm font-semibold text-status-info-text">Today</h3>
@@ -1315,7 +1320,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.tomorrow && groupedLessons.tomorrow.length > 0 && (
                   <>
                     <tr className="bg-status-success-bg">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={7} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-status-success-text" />
                           <h3 className="text-sm font-semibold text-status-success-text">Tomorrow</h3>
@@ -1333,7 +1338,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.thisWeek && groupedLessons.thisWeek.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-purple-50 to-purple-100/50">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={7} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <CalendarRange className="h-4 w-4 text-purple-600" />
                           <h3 className="text-sm font-semibold text-purple-900">This Week</h3>
@@ -1351,7 +1356,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.later && groupedLessons.later.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={7} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-tx-secondary" />
                           <h3 className="text-sm font-semibold text-tx-secondary">Later</h3>
@@ -1369,7 +1374,7 @@ export const LessonsPage: React.FC = () => {
                 {groupedLessons?.past && groupedLessons.past.length > 0 && (
                   <>
                     <tr className="bg-gradient-to-r from-gray-100 to-gray-200/50">
-                      <td colSpan={8} className="px-6 py-3">
+                      <td colSpan={7} className="px-6 py-3">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-tx-muted" />
                           <h3 className="text-sm font-semibold text-tx-secondary">Past</h3>
