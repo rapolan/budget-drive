@@ -750,71 +750,6 @@ export const LessonsPage: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* View Toggle */}
-          <div className="flex rounded-lg border border-edge-strong bg-surface overflow-hidden">
-            {/* Table/Cards toggle - show icons on mobile, text on larger screens */}
-            <button
-              onClick={() => {
-                setViewMode('table');
-                setTimeout(() => scrollToViewSection('table'), 100);
-              }}
-              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
-                viewMode === 'table'
-                  ? 'bg-primary text-white'
-                  : 'text-tx-secondary hover:bg-surface2'
-              }`}
-              title="Table view"
-            >
-              <LayoutList className="h-4 w-4 sm:mr-2 flex-shrink-0" />
-              <span className="hidden sm:inline">Table</span>
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('cards');
-                setTimeout(() => scrollToViewSection('cards'), 100);
-              }}
-              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
-                viewMode === 'cards'
-                  ? 'bg-primary text-white'
-                  : 'text-tx-secondary hover:bg-surface2'
-              }`}
-              title="Card view"
-            >
-              <LayoutGrid className="h-4 w-4 sm:mr-2 flex-shrink-0" />
-              <span className="hidden sm:inline">Cards</span>
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('calendar');
-                setTimeout(() => scrollToViewSection('calendar'), 100);
-              }}
-              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
-                viewMode === 'calendar'
-                  ? 'bg-primary text-white'
-                  : 'text-tx-secondary hover:bg-surface2'
-              }`}
-              title="Month view"
-            >
-              <Calendar className="h-4 w-4 sm:mr-2 flex-shrink-0" />
-              <span className="hidden sm:inline">Month</span>
-            </button>
-            <button
-              onClick={() => {
-                setViewMode('weekly');
-                setTimeout(() => scrollToViewSection('weekly'), 100);
-              }}
-              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all flex-1 sm:flex-initial ${
-                viewMode === 'weekly'
-                  ? 'bg-primary text-white'
-                  : 'text-tx-secondary hover:bg-surface2'
-              }`}
-              title="Weekly view"
-            >
-              <CalendarRange className="h-4 w-4 sm:mr-2 flex-shrink-0" />
-              <span className="hidden sm:inline">Weekly</span>
-            </button>
-          </div>
-
           {/* Keyboard Shortcuts Button */}
           <button
             onClick={() => setShowShortcutsHelp(true)}
@@ -952,9 +887,11 @@ export const LessonsPage: React.FC = () => {
       />
 
       {/* Status Filter - Show in all views */}
-      <div className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
-        <span className="text-sm font-medium text-tx-secondary">Status:</span>
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-tx-secondary">Status:</span>
+        </div>
+        <div className="flex flex-wrap gap-2 flex-1">
           <FilterButton
             label="All"
             isActive={statusFilter === 'all'}
@@ -997,6 +934,72 @@ export const LessonsPage: React.FC = () => {
             count={statusCounts.no_show}
             variant="warning"
           />
+          {/* View Toggle - moved here from the page header so switching
+              views (e.g. Table -> Weekly) never requires scrolling back up
+              first; selection still persists via useSessionState
+              ('lessons-view-mode'), unchanged. */}
+          <div className="flex rounded-lg border border-edge-strong bg-surface overflow-hidden ml-auto">
+            <button
+              onClick={() => {
+                setViewMode('table');
+                setTimeout(() => scrollToViewSection('table'), 100);
+              }}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all ${
+                viewMode === 'table'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
+              }`}
+              title="Table view"
+            >
+              <LayoutList className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('cards');
+                setTimeout(() => scrollToViewSection('cards'), 100);
+              }}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all ${
+                viewMode === 'cards'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
+              }`}
+              title="Card view"
+            >
+              <LayoutGrid className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Cards</span>
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('calendar');
+                setTimeout(() => scrollToViewSection('calendar'), 100);
+              }}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all ${
+                viewMode === 'calendar'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
+              }`}
+              title="Month view"
+            >
+              <Calendar className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Month</span>
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('weekly');
+                setTimeout(() => scrollToViewSection('weekly'), 100);
+              }}
+              className={`flex items-center justify-center px-3 py-2 text-sm font-medium transition-all ${
+                viewMode === 'weekly'
+                  ? 'bg-primary text-white'
+                  : 'text-tx-secondary hover:bg-surface2'
+              }`}
+              title="Weekly view"
+            >
+              <CalendarRange className="h-4 w-4 sm:mr-2 flex-shrink-0" />
+              <span className="hidden sm:inline">Weekly</span>
+            </button>
+          </div>
         </div>
       </div>
 
