@@ -1985,7 +1985,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   <span className="text-xs font-normal text-tx-muted normal-case">(optional)</span>
                 </h3>
 
-                <div className="grid grid-cols-3 gap-2">
+                {/* items-start: Issue date/Expiration are each wrapped in a
+                    div with a caption span below the input, taller than the
+                    bare Permit # input's own cell - without this, grid's
+                    default align-items: stretch stretches the Permit #
+                    input's height to match those taller cells, making it
+                    look oversized next to its own sibling date fields. */}
+                <div className="grid grid-cols-3 gap-2 items-start">
                   <input
                     type="text"
                     name="permit_number_input"
