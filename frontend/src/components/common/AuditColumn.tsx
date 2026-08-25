@@ -73,7 +73,16 @@ export const AuditColumn: React.FC<AuditColumnProps> = ({
       <div
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-max max-w-xs rounded-lg border border-edge bg-surface px-3 py-2 text-xs text-tx-secondary shadow-lg opacity-0 transition-opacity group-hover/audit:opacity-100 group-focus-within/audit:opacity-100"
+        // Anchored right (not left) - AuditColumn always renders as the
+        // table's last (History) column, and the tooltip's full-trail text
+        // is routinely wider than the short inline trigger. Left-anchoring
+        // let it extend past the trigger to the right with nothing to
+        // constrain it, which silently inflated the table's scrollWidth
+        // (an absolutely-positioned descendant still counts toward an
+        // ancestor's scroll width even at opacity-0) - the actual root
+        // cause of the "large gap at the table's right edge" bug, not
+        // fixable by adjusting cell padding alone.
+        className="pointer-events-none absolute right-0 top-full z-20 mt-1 w-max max-w-xs rounded-lg border border-edge bg-surface px-3 py-2 text-xs text-tx-secondary shadow-lg opacity-0 transition-opacity group-hover/audit:opacity-100 group-focus-within/audit:opacity-100"
       >
         <div className="flex items-center gap-1">
           <span className="font-medium text-tx-primary">Created by {createdByName || 'Unknown'}</span>

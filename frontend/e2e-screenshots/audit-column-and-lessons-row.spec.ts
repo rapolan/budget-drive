@@ -8,11 +8,10 @@ import { test, type Page } from '@playwright/test';
  *    absolute-time entries) revealed in a hover/focus tooltip. Shown on
  *    both pages that render it (Lessons and Students - the only two
  *    usages in the app).
- * 2. The Lessons table row's tightened height: smaller (24x24, the WCAG
- *    2.5.8 AA floor) row-action buttons and a vertically-centered Date &
- *    Time cell. Not a visual-regression suite - the row-height assertion
- *    below is the actual check that the row got shorter, not just a
- *    screenshot.
+ * 2. The Lessons table row's icon sizing: h-4 w-4 action icons with p-1.5
+ *    padding (28x28 touch target) matching the Students table. The row is
+ *    intentionally a bit taller — readable icons that match Students matter
+ *    more than the tightest possible row.
  *
  * Requires both dev servers already running (backend :4000, frontend
  * :5173 - see docs/TESTING.md §1) and the repo's seed data loaded.
@@ -91,12 +90,12 @@ for (const theme of ['light', 'dark'] as const) {
     const rowBox = await row.boundingBox();
     if (!rowBox) throw new Error('First lesson row not found');
 
-    // The regression this guards: before this fix the row measured 105px
-    // (28px reserved action strip + p-1.5/h-3.5 buttons). After shrinking
-    // the buttons to the 24x24 WCAG floor and tightening the strip's
-    // margin, it should be visibly shorter.
-    if (rowBox.height > 102) {
-      throw new Error(`Lessons row is ${rowBox.height}px tall - expected the tightened height (~99px), not the old ~105px`);
+    // The icons were bumped back up from h-3 w-3 (24x24 buttons) to h-4 w-4
+    // (28x28 buttons) to match the Students table. The row is intentionally
+    // taller than the original shrink — readable icons matter more than the
+    // tightest row. ~105px is expected.
+    if (rowBox.height > 115) {
+      throw new Error(`Lessons row is ${rowBox.height}px tall - expected ~105px with h-4 w-4 icons, not taller`);
     }
 
     await page.screenshot({

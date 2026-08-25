@@ -1115,7 +1115,7 @@ export const StudentsPage: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Progress
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
+                <th className="pl-6 pr-2 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                   History
                 </th>
               </tr>
@@ -1217,7 +1217,7 @@ export const StudentsPage: React.FC = () => {
                                   title="Mark complete"
                                   className={`p-1.5 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
                                 >
-                                  <GraduationCap className="h-3.5 w-3.5" />
+                                  <GraduationCap className="h-4 w-4" />
                                 </button>
                               )}
                               <button
@@ -1230,7 +1230,7 @@ export const StudentsPage: React.FC = () => {
                                 title="Book lesson"
                                 className="p-1.5 text-status-success-text hover:brightness-75 hover:bg-status-success-bg rounded-lg transition-all hover:scale-110"
                               >
-                                <Calendar className="h-3.5 w-3.5" />
+                                <Calendar className="h-4 w-4" />
                               </button>
                               <button
                                 type="button"
@@ -1242,7 +1242,7 @@ export const StudentsPage: React.FC = () => {
                                 title="Edit student"
                                 className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                               >
-                                <Edit className="h-3.5 w-3.5" />
+                                <Edit className="h-4 w-4" />
                               </button>
                               {student.hasOutstandingFee && (
                                 <>
@@ -1256,7 +1256,7 @@ export const StudentsPage: React.FC = () => {
                                     title="Mark fees paid"
                                     className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                                   >
-                                    <DollarSign className="h-3.5 w-3.5" />
+                                    <DollarSign className="h-4 w-4" />
                                   </button>
                                   <button
                                     type="button"
@@ -1268,7 +1268,7 @@ export const StudentsPage: React.FC = () => {
                                     title="Waive fees"
                                     className="p-1.5 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
                                   >
-                                    <AlertCircle className="h-3.5 w-3.5" />
+                                    <AlertCircle className="h-4 w-4" />
                                   </button>
                                 </>
                               )}
@@ -1283,7 +1283,7 @@ export const StudentsPage: React.FC = () => {
                                   title="Mark as contacted"
                                   className="p-1.5 text-status-warning-text hover:brightness-75 hover:bg-status-warning-bg rounded-lg transition-all hover:scale-110"
                                 >
-                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  <CheckCircle className="h-4 w-4" />
                                 </button>
                               )}
                               {/* Delete - visually separated (border +
@@ -1300,7 +1300,7 @@ export const StudentsPage: React.FC = () => {
                                 title="Delete student"
                                 className="ml-1 pl-2 border-l border-edge p-1.5 text-tx-muted hover:text-status-danger-text hover:bg-status-danger-bg rounded-lg transition-all"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
@@ -1357,7 +1357,7 @@ export const StudentsPage: React.FC = () => {
                         </div>
                       </td>
                       {/* History - Hidden on mobile */}
-                      <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                      <td className="pl-6 pr-2 py-4 whitespace-nowrap hidden lg:table-cell">
                         <AuditColumn
                           createdByName={student.createdByName}
                           updatedByName={student.updatedByName}
