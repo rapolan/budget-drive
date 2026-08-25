@@ -1245,11 +1245,10 @@ export const LessonsPage: React.FC = () => {
       </div>
 
       {/* Table View */}
-      <div>
-        {viewMode === 'table' && (
-          <div className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-edge">
+      {viewMode === 'table' && (
+      <div className="rounded-xl bg-surface shadow-sm border border-edge overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-edge border-separate border-spacing-0">
             <thead className="bg-surface2/80">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
@@ -1403,10 +1402,9 @@ export const LessonsPage: React.FC = () => {
             )}
           </tbody>
         </table>
-          </div>
         </div>
-      )}
       </div>
+      )}
 
       {/* Pagination - Only show in table view */}
       {viewMode === 'table' && data?.pagination && data.pagination.totalPages > 1 && (
