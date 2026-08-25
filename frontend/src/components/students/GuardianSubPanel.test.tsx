@@ -41,6 +41,25 @@ describe('GuardianSubPanel', () => {
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();
   });
 
+  it('shows BOTH email and phone next to the guardian name when both are present, not either/or', () => {
+    render(
+      <GuardianSubPanel
+        guardians={[
+          guardian({ key: 'g-1', firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', phone: '555-1234' }),
+        ]}
+        isMinor={false}
+        isAddingGuardian={false}
+        onAddClick={noop}
+        onUnlink={noop}
+        onChangeRelationship={noop}
+        onSetPrimary={noop}
+      />
+    );
+
+    expect(screen.getByText('jane@example.com')).toBeInTheDocument();
+    expect(screen.getByText('555-1234')).toBeInTheDocument();
+  });
+
   it('shows the primary star as filled for the primary guardian and outlined for the rest - never two filled', () => {
     const { container } = render(
       <GuardianSubPanel

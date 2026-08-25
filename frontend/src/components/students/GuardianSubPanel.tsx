@@ -98,7 +98,7 @@ export const GuardianSubPanel: React.FC<GuardianSubPanelProps> = ({
                   {g.email}
                 </span>
               )}
-              {!g.email && g.phone && (
+              {g.phone && (
                 <span className="text-xs text-tx-muted flex items-center gap-1 flex-shrink-0">
                   <Phone className="h-3 w-3" />
                   {g.phone}
