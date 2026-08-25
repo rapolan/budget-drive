@@ -115,3 +115,54 @@ describe('TodaysScheduleWidget - completion bar denominator (item 8 regression)'
     expect(screen.getByText('1/3 complete')).toBeInTheDocument();
   });
 });
+
+describe('TodaysScheduleWidget - Now vs Upcoming (item 9 regression: two lessons at the same start time)', () => {
+  // tenantNow.currentTime is '10:00' (mocked above) - both lessons below
+  // start at 09:00 and end at 11:00, so both are genuinely in progress
+  // right now.
+  const gigi = lesson({ id: 'in-progress-1', startTime: '09:00', endTime: '11:00', studentId: 'gigi' });
+  const owen = lesson({ id: 'in-progress-2', startTime: '09:00', endTime: '11:00', studentId: 'owen' });
+
+  function getStudentName(id: string) {
+    return id === 'gigi' ? 'Gigi Polan' : id === 'owen' ? 'Owen Castillo' : 'Unknown';
+  }
+
+  it('classifies BOTH same-start-time in-progress lessons as "Now", not just the first', () => {
+    render(
+      <TodaysScheduleWidget
+        lessons={[gigi, owen]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={getStudentName}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    // Both students appear under a "Now" treatment - the regression this
+    // guards against is Owen falling through to plain "Upcoming" with no
+    // in-progress indicator while Gigi correctly showed "Now".
+    const nowLabels = screen.getAllByText('Now');
+    expect(nowLabels.length).toBe(2);
+    expect(screen.getByText('Gigi Polan')).toBeInTheDocument();
+    expect(screen.getByText('Owen Castillo')).toBeInTheDocument();
+  });
+
+  it('neither same-start-time in-progress lesson is rendered inside the "Upcoming" list itself', () => {
+    render(
+      <TodaysScheduleWidget
+        lessons={[gigi, owen]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={getStudentName}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    // Both students already appear once (in the "Now" cards asserted
+    // above) - the regression this guards is either name appearing a
+    // SECOND time in the Upcoming list beneath, which is what would
+    // happen if the currentLessonIds exclusion filter missed one of them.
+    expect(screen.getAllByText('Gigi Polan')).toHaveLength(1);
+    expect(screen.getAllByText('Owen Castillo')).toHaveLength(1);
+  });
+});

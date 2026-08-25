@@ -70,10 +70,17 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
 
   const completedLessons = lessons.filter(l => l.status === 'completed');
 
-  // Find current and next lessons
-  const currentLesson = scheduledLessons.find(
+  // Find current (in-progress) and next lessons. currentLessons is a list,
+  // not a single lesson - .find() previously stopped at the first match,
+  // so two lessons starting at the identical time (a realistic scenario:
+  // two different instructors, each with their own student) had only the
+  // first misclassify as "Now" while the second silently fell through to
+  // the generic "Upcoming" list below with no in-progress indicator, even
+  // though it had also already started.
+  const currentLessons = scheduledLessons.filter(
     l => l.startTime <= currentTime && l.endTime > currentTime
   );
+  const currentLessonIds = new Set(currentLessons.map(l => l.id));
 
   const nextLesson = scheduledLessons.find(l => l.startTime > currentTime);
 
@@ -160,11 +167,15 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
 
         <div className="flex items-center gap-3">
           {/* Current/Next lesson preview when collapsed */}
-          {isCollapsed && (currentLesson || nextLesson) && (
+          {isCollapsed && (currentLessons.length > 0 || nextLesson) && (
             <div className="text-sm text-tx-secondary hidden sm:block">
-              {currentLesson ? (
+              {currentLessons.length === 1 ? (
                 <span className="text-primary font-medium">
-                  Now: {getStudentName(currentLesson.studentId)}
+                  Now: {getStudentName(currentLessons[0].studentId)}
+                </span>
+              ) : currentLessons.length > 1 ? (
+                <span className="text-primary font-medium">
+                  Now: {currentLessons.length} lessons in progress
                 </span>
               ) : nextLesson ? (
                 <span>
@@ -198,24 +209,26 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
             </span>
           </div>
 
-          {/* Current lesson highlight */}
-          {currentLesson && (
-            <div className="bg-primary text-white rounded-lg p-3">
+          {/* Current lesson highlight(s) - one card per lesson currently in
+              progress, not just the first (see currentLessons above for
+              why this must be a list, not a single lesson). */}
+          {currentLessons.map((lesson) => (
+            <div key={lesson.id} className="bg-primary text-white rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold uppercase tracking-wider text-blue-100">Now</span>
                     <Clock className="h-3 w-3 text-blue-200" />
                   </div>
-                  <p className="font-semibold">{getStudentName(currentLesson.studentId)}</p>
+                  <p className="font-semibold">{getStudentName(lesson.studentId)}</p>
                   <p className="text-sm text-blue-100">
-                    {formatTime(currentLesson.startTime)} - {formatTime(currentLesson.endTime)} • {getInstructorName(currentLesson.instructorId)}
+                    {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)} • {getInstructorName(lesson.instructorId)}
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onViewLesson(currentLesson); }}
+                    onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
                     className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors"
                     title="View details"
                   >
@@ -223,7 +236,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onCompleteLesson(currentLesson.id); }}
+                    onClick={(e) => { e.stopPropagation(); onCompleteLesson(lesson.id); }}
                     className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors"
                     title="Mark complete"
                   >
@@ -232,10 +245,10 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                 </div>
               </div>
             </div>
-          )}
+          ))}
 
-          {/* Next lesson highlight (only if no current lesson) */}
-          {!currentLesson && nextLesson && (
+          {/* Next lesson highlight (only if nothing is currently in progress) */}
+          {currentLessons.length === 0 && nextLesson && (
             <div className="bg-status-info-bg border border-status-info-border rounded-lg p-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -265,7 +278,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
               <p className="text-xs font-medium text-tx-muted uppercase tracking-wider">Upcoming</p>
               <div className="space-y-1">
                 {scheduledLessons
-                  .filter(l => l.id !== currentLesson?.id && l.id !== nextLesson?.id)
+                  .filter(l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id)
                   .slice(0, 3) // Show max 3 more
                   .map(lesson => (
                     <div
@@ -295,9 +308,9 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                       </div>
                     </div>
                   ))}
-                {scheduledLessons.filter(l => l.id !== currentLesson?.id && l.id !== nextLesson?.id).length > 3 && (
+                {scheduledLessons.filter(l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id).length > 3 && (
                   <p className="text-xs text-tx-muted px-3">
-                    +{scheduledLessons.filter(l => l.id !== currentLesson?.id && l.id !== nextLesson?.id).length - 3} more
+                    +{scheduledLessons.filter(l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id).length - 3} more
                   </p>
                 )}
               </div>
