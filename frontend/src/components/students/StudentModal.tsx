@@ -1214,9 +1214,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
             eligibility (isReadyToMarkComplete) and same fee endpoint
             (feeFlagsApi.markStudentFeesPaid) as the Students list - one
             source of truth for what each action does and when it shows. */}
-        {isEditing && student && (isReadyToMarkComplete(student) || outstandingFeeFlags.length > 0) && (
+        {isEditing && student && (isReadyToMarkComplete(student, studentLessons) || outstandingFeeFlags.length > 0) && (
           <div className="px-6 py-3 bg-surface2/40 border-b border-edge-glass/30 flex flex-wrap items-center gap-2">
-            {isReadyToMarkComplete(student) && (
+            {isReadyToMarkComplete(student, studentLessons) && (
               <button
                 type="button"
                 onClick={() => {

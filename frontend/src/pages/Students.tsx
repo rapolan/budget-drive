@@ -922,7 +922,7 @@ export const StudentsPage: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <StudentStatusBadge
                             statusInfo={statusInfo}
-                            readyToComplete={isReadyToMarkComplete(student)}
+                            readyToComplete={isReadyToMarkComplete(student, lessonsData?.data || [])}
                             title={statusInfo.status === 'needs_attention'
                               ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
                               : statusInfo.reason}
@@ -1011,7 +1011,7 @@ export const StudentsPage: React.FC = () => {
                         <CheckCircle className="h-4 w-4" />
                       </button>
                     )}
-                    {isReadyToMarkComplete(student) && (
+                    {isReadyToMarkComplete(student, lessonsData?.data || []) && (
                       <button
                         type="button"
                         onClick={() => setCompletingStudentId(student.id)}
@@ -1206,7 +1206,7 @@ export const StudentsPage: React.FC = () => {
                                 actions since it's the one destructive one
                                 in the set. */}
                             <div className="min-h-[28px] flex items-center gap-1 mt-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
-                              {isReadyToMarkComplete(student) && (
+                              {isReadyToMarkComplete(student, lessonsData?.data || []) && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1335,7 +1335,7 @@ export const StudentsPage: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <StudentStatusBadge
                             statusInfo={statusInfo}
-                            readyToComplete={isReadyToMarkComplete(student)}
+                            readyToComplete={isReadyToMarkComplete(student, lessonsData?.data || [])}
                             title={statusInfo.status === 'needs_attention'
                               ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
                               : statusInfo.reason}
