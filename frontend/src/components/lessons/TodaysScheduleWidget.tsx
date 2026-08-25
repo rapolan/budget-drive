@@ -113,7 +113,15 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
     );
   }
 
-  const totalLessons = lessons.length;
+  // Denominator for the completion bar/badges: only lessons that can
+  // actually become "completed" today - scheduled + already-completed.
+  // lessons.length (the raw prop) also includes cancelled/no_show, which
+  // can never be completed, so using it as the denominator made the bar
+  // permanently short of 100% and undercounted "done" (e.g. "0/3" when
+  // only 2 of today's 3 lessons were ever actionable - the 3rd was a
+  // no-show). scheduledLessons/completedLessons are already computed
+  // above from the same `lessons` prop.
+  const totalLessons = scheduledLessons.length + completedLessons.length;
   const remainingLessons = scheduledLessons.length;
 
   return (
