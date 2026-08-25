@@ -188,3 +188,39 @@ describe('Dashboard alerts', () => {
     });
   });
 });
+
+describe('Dashboard - Book Lesson opens in place (regression: previously navigated to /lessons)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('"Schedule Lesson" opens the SmartBookingForm modal in place, without navigating away', async () => {
+    renderDashboard();
+
+    const scheduleButton = await screen.findByRole('button', { name: /schedule lesson/i });
+    scheduleButton.click();
+
+    await waitFor(() => {
+      expect(screen.getByText('Smart Booking')).toBeInTheDocument();
+    });
+    // Still on the dashboard - the page's own "Today's Schedule" heading
+    // (rendered only on Dashboard, not on /lessons) stays present.
+    expect(screen.getByText("Today's Schedule")).toBeInTheDocument();
+  });
+
+  it('the empty-state "Schedule a Lesson" CTA also opens the modal in place', async () => {
+    renderDashboard();
+
+    const emptyStateButton = await screen.findByRole('button', { name: /schedule a lesson/i });
+    emptyStateButton.click();
+
+    await waitFor(() => {
+      expect(screen.getByText('Smart Booking')).toBeInTheDocument();
+    });
+  });
+});

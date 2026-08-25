@@ -20,8 +20,11 @@ import {
   X
 } from 'lucide-react';
 import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } from '@/api';
+import type { Student } from '@/types';
 import { StudentModal } from '@/components/students/StudentModal';
 import { PaymentModal } from '@/components/payments/PaymentModal';
+import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
+import { ModalShell } from '@/components/common/ModalShell';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
 import { format12Hour, formatTenantDateLabel, parseLocalDate, addCalendarDays } from '@/utils/timeFormat';
 import { computeStudentStatus } from '@/utils/studentStatus';
@@ -37,6 +40,17 @@ export const DashboardPage: React.FC = () => {
 
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  // Book Lesson opens SmartBookingForm in place on the dashboard (matching
+  // the create-student modal's own same-page behavior) instead of
+  // navigating to /lessons - studentForBooking is only ever set when
+  // opened from the create-student modal's own "Book Lesson" follow-up
+  // (a freshly created student has no prior lesson to prefill from,
+  // matching StudentModal's own onBookLesson(createdStudent, null) call
+  // shape); the two general "Schedule Lesson" entry points below leave it
+  // unset for a blank booking, same as Lessons.tsx's own blank-booking
+  // entry point with no preselected student.
+  const [isSmartBookingOpen, setIsSmartBookingOpen] = useState(false);
+  const [studentForBooking, setStudentForBooking] = useState<Student | null>(null);
 
   // Fetch data
   const { data: studentsData, isLoading: studentsLoading } = useQuery({
@@ -82,6 +96,21 @@ export const DashboardPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'no-show-alerts'] });
     },
   });
+
+  // Dashboard only ever books a blank lesson or one for a just-created
+  // student (never "book again" with prior-lesson prefill), so this is
+  // the simple form of the handler - Students.tsx's own handleBookLesson
+  // additionally handles prefill from a prior lesson, not needed here.
+  const handleBookLesson = (student: Student) => {
+    setStudentForBooking(student);
+    setIsSmartBookingOpen(true);
+  };
+
+  const handleBookingComplete = () => {
+    setIsSmartBookingOpen(false);
+    setStudentForBooking(null);
+    queryClient.invalidateQueries({ queryKey: ['lessons'] });
+  };
 
   const students = studentsData?.data || [];
   const instructors = instructorsData?.data || [];
@@ -252,7 +281,7 @@ export const DashboardPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/lessons', { state: { openSmartBooking: true } })}
+              onClick={() => setIsSmartBookingOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 transition-all text-sm font-medium"
             >
               <CalendarIcon className="h-4 w-4" />
@@ -297,7 +326,7 @@ export const DashboardPage: React.FC = () => {
                   <p className="text-sm text-tx-muted mb-4">Enjoy your day off!</p>
                   <button
                     type="button"
-                    onClick={() => navigate('/lessons', { state: { openSmartBooking: true } })}
+                    onClick={() => setIsSmartBookingOpen(true)}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:brightness-90 transition-all text-sm font-medium"
                   >
                     <Plus className="h-4 w-4" />
@@ -748,9 +777,26 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {isStudentModalOpen && (
-        <StudentModal student={null} onClose={() => setIsStudentModalOpen(false)} />
+        <StudentModal
+          student={null}
+          onClose={() => setIsStudentModalOpen(false)}
+          onBookLesson={handleBookLesson}
+        />
       )}
       <PaymentModal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} student={null} />
+
+      {isSmartBookingOpen && (
+        <ModalShell maxWidth="max-w-3xl">
+          <SmartBookingForm
+            preselectedStudent={studentForBooking || undefined}
+            onBookingComplete={handleBookingComplete}
+            onCancel={() => {
+              setIsSmartBookingOpen(false);
+              setStudentForBooking(null);
+            }}
+          />
+        </ModalShell>
+      )}
     </div>
   );
 };
