@@ -17,7 +17,7 @@ import { getStudentContactDisplay } from '@/utils/studentContact';
 import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
 import { needsTurning18Alert } from '@/utils/turning18';
-import { EmptyState, LoadingSpinner, FilterButton, BackButton } from '@/components/common';
+import { EmptyState, LoadingSpinner, FilterButton, BackButton, ModalShell } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -1485,24 +1485,22 @@ export const StudentsPage: React.FC = () => {
 
       {/* SmartBookingForm - for booking lessons */}
       {isSmartBookingOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <SmartBookingForm
-              preselectedStudent={studentForBooking || undefined}
-              prefilledInstructorId={bookAgainPrefill?.instructorId}
-              prefilledDuration={bookAgainPrefill?.duration}
-              prefilledLessonType={bookAgainPrefill?.lessonType}
-              prefilledTimePreference={bookAgainPrefill?.timePreference}
-              prefilledPickupAddress={bookAgainPrefill?.pickupAddress}
-              onBookingComplete={handleBookingComplete}
-              onCancel={() => {
-                setIsSmartBookingOpen(false);
-                setStudentForBooking(null);
-                setBookAgainPrefill(undefined);
-              }}
-            />
-          </div>
-        </div>
+        <ModalShell maxWidth="max-w-3xl">
+          <SmartBookingForm
+            preselectedStudent={studentForBooking || undefined}
+            prefilledInstructorId={bookAgainPrefill?.instructorId}
+            prefilledDuration={bookAgainPrefill?.duration}
+            prefilledLessonType={bookAgainPrefill?.lessonType}
+            prefilledTimePreference={bookAgainPrefill?.timePreference}
+            prefilledPickupAddress={bookAgainPrefill?.pickupAddress}
+            onBookingComplete={handleBookingComplete}
+            onCancel={() => {
+              setIsSmartBookingOpen(false);
+              setStudentForBooking(null);
+              setBookAgainPrefill(undefined);
+            }}
+          />
+        </ModalShell>
       )}
 
       {/* Guardian Modal */}

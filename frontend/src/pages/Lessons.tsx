@@ -9,7 +9,7 @@ import type { LessonsCalendarViewRef } from '@/components/lessons';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
 import type { InstructorWeeklyScheduleRef } from '@/components/scheduling/InstructorWeeklySchedule';
-import { EmptyState, LoadingSpinner, FilterButton, BackButton, ToastContainer, DateRangeFilter, KeyboardShortcutsHelp } from '@/components/common';
+import { EmptyState, LoadingSpinner, FilterButton, BackButton, ToastContainer, DateRangeFilter, KeyboardShortcutsHelp, ModalShell } from '@/components/common';
 import type { DateRangeValue } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
@@ -1454,32 +1454,30 @@ export const LessonsPage: React.FC = () => {
 
       {/* SmartBookingForm - for new bookings */}
       {isSmartBookingOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <SmartBookingForm
-              preselectedInstructor={
-                preselectedInstructorId
-                  ? instructorsData?.data?.find(i => i.id === preselectedInstructorId)
-                  : undefined
-              }
-              preselectedStudent={
-                preselectedStudentId
-                  ? studentsData?.data?.find(s => s.id === preselectedStudentId)
-                  : undefined
-              }
-              preselectedDate={preselectedDate || undefined}
-              preselectedTime={preselectedTime || undefined}
-              onBookingComplete={handleBookingComplete}
-              onCancel={() => {
-                setIsSmartBookingOpen(false);
-                setPreselectedInstructorId(null);
-                setPreselectedStudentId(null);
-                setPreselectedDate(null);
-                setPreselectedTime(null);
-              }}
-            />
-          </div>
-        </div>
+        <ModalShell maxWidth="max-w-3xl">
+          <SmartBookingForm
+            preselectedInstructor={
+              preselectedInstructorId
+                ? instructorsData?.data?.find(i => i.id === preselectedInstructorId)
+                : undefined
+            }
+            preselectedStudent={
+              preselectedStudentId
+                ? studentsData?.data?.find(s => s.id === preselectedStudentId)
+                : undefined
+            }
+            preselectedDate={preselectedDate || undefined}
+            preselectedTime={preselectedTime || undefined}
+            onBookingComplete={handleBookingComplete}
+            onCancel={() => {
+              setIsSmartBookingOpen(false);
+              setPreselectedInstructorId(null);
+              setPreselectedStudentId(null);
+              setPreselectedDate(null);
+              setPreselectedTime(null);
+            }}
+          />
+        </ModalShell>
       )}
 
       {/* Toast Notifications */}

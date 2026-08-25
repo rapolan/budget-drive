@@ -11,6 +11,7 @@ import { LessonHistoryTimeline } from './LessonHistoryTimeline';
 import { GuardianSubPanel, type DisplayGuardian } from './GuardianSubPanel';
 import { EnrollmentSubPanel } from './EnrollmentSubPanel';
 import { DuplicateGuardianConfirm } from '@/components/guardians/DuplicateGuardianConfirm';
+import { ModalShell } from '@/components/common/ModalShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
 import { calculateAge } from '@/utils/age';
@@ -1085,11 +1086,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   }, [createdStudent]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-      <div
-        ref={scrollContainerRef}
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60"
-      >
+    <ModalShell maxWidth="max-w-2xl" contentRef={scrollContainerRef}>
         {/* Header - Clean & Minimal */}
         <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between gap-4">
@@ -2674,7 +2671,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };

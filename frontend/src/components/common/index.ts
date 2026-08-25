@@ -9,6 +9,7 @@ export { ProgressStepper } from './ProgressStepper';
 export { Toast } from './Toast';
 export { ToastContainer } from './ToastContainer';
 export { BackButton } from './BackButton';
+export { ModalShell } from './ModalShell';
 export { ErrorBoundary } from './ErrorBoundary';
 export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 export {
