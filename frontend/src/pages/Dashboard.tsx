@@ -5,7 +5,6 @@ import {
   Plus,
   Calendar as CalendarIcon,
   DollarSign,
-  Clock,
   User,
   Users,
   TrendingUp,
@@ -26,7 +25,8 @@ import { PaymentModal } from '@/components/payments/PaymentModal';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { ModalShell } from '@/components/common/ModalShell';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
-import { format12Hour, formatTenantDateLabel, parseLocalDate, addCalendarDays } from '@/utils/timeFormat';
+import { TodaysScheduleWidget } from '@/components/lessons/TodaysScheduleWidget';
+import { formatTenantDateLabel, parseLocalDate, addCalendarDays } from '@/utils/timeFormat';
 import { computeStudentStatus } from '@/utils/studentStatus';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { useAuth } from '@/contexts/AuthContext';
@@ -194,33 +194,44 @@ export const DashboardPage: React.FC = () => {
     }).length;
   }, [lessons, tenantNow]);
 
-  // Today's lessons, by the TENANT's calendar date.
-  const todaysLessons = useMemo(() => {
+  // Today's SCHEDULED lessons, by the TENANT's calendar date - used only
+  // for the page-title's "N lessons scheduled today" line above the
+  // widget, which is deliberately about the scheduled count, not the
+  // widget's own total (which also includes already-completed lessons).
+  const todaysScheduledLessons = useMemo(() => {
     if (!tenantNow) return [];
-    return lessons
-      .filter((l) => String(l.date).split('T')[0] === tenantNow.today && l.status === 'scheduled')
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return lessons.filter((l) => String(l.date).split('T')[0] === tenantNow.today && l.status === 'scheduled');
   }, [lessons, tenantNow]);
 
-  // Current and next lesson, against the tenant's current wall-clock time.
-  const currentTime = tenantNow?.currentTime ?? '';
-  const currentLesson = useMemo(() => {
-    return todaysLessons.find(
-      (l) => l.startTime <= currentTime && l.endTime > currentTime
-    );
-  }, [todaysLessons, currentTime]);
+  // All of today's lessons regardless of status, for TodaysScheduleWidget -
+  // the same shared component Lessons.tsx uses (see its own
+  // todaysLessonsForWidget), so "completed" here means the widget's own
+  // status === 'completed' check, never a clock-time inference. Previously
+  // this page had its own hand-rolled copy of the widget that defined
+  // "completed" as endTime <= now, which could mark a lesson complete
+  // purely because its time window had passed even though it was still
+  // status: 'scheduled' - directly contradicting the review-queue alert
+  // for that same lesson.
+  const todaysLessonsForWidget = useMemo(() => {
+    if (!tenantNow) return [];
+    return lessons.filter((l) => String(l.date).split('T')[0] === tenantNow.today);
+  }, [lessons, tenantNow]);
 
-  const nextLesson = useMemo(() => {
-    return todaysLessons.find((l) => l.startTime > currentTime);
-  }, [todaysLessons, currentTime]);
+  const getStudentName = (studentId: string) => students.find((s) => s.id === studentId)?.fullName || 'Unknown Student';
+  const getInstructorName = (instructorId: string) => instructors.find((i) => i.id === instructorId)?.fullName || 'Unknown Instructor';
 
-  const completedLessons = useMemo(() => {
-    return todaysLessons.filter((l) => l.endTime <= currentTime);
-  }, [todaysLessons, currentTime]);
+  const completeLessonMutation = useMutation({
+    mutationFn: (id: string) => lessonsApi.complete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+    },
+  });
 
-  const upcomingLessons = useMemo(() => {
-    return todaysLessons.filter((l) => l.startTime > currentTime);
-  }, [todaysLessons, currentTime]);
+  const handleCompleteLesson = async (id: string) => {
+    if (window.confirm('Mark this lesson as completed?')) {
+      await completeLessonMutation.mutateAsync(id);
+    }
+  };
 
   // Get next 7 days of lessons, walking forward from the tenant's today.
   const weeklyLessons = useMemo(() => {
@@ -265,9 +276,9 @@ export const DashboardPage: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-tx-primary">{tenantNow ? formatTenantDateLabel(tenantNow.today) : ''}</h1>
             <p className="mt-1 text-sm text-tx-muted">
-              {todaysLessons.length === 0
+              {todaysScheduledLessons.length === 0
                 ? 'No lessons scheduled today'
-                : `${todaysLessons.length} lesson${todaysLessons.length > 1 ? 's' : ''} scheduled today`}
+                : `${todaysScheduledLessons.length} lesson${todaysScheduledLessons.length > 1 ? 's' : ''} scheduled today`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -306,6 +317,15 @@ export const DashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* ── Left — Today's Schedule ──────────────────────────────── */}
+          {/* The same TodaysScheduleWidget Lessons.tsx renders (item 3) -
+              this page used to hand-roll its own copy with a DIFFERENT,
+              incorrect definition of "completed" (lesson.endTime <= now,
+              a clock inference) instead of the widget's correct one
+              (status === 'completed', an explicit action). That let this
+              page claim "all done" for a lesson simultaneously sitting in
+              the review-queue alert as still needing a status. Rendering
+              the real shared widget guarantees identical behavior by
+              construction instead of by keeping two copies in sync. */}
           <div className="lg:col-span-7 order-2 lg:order-1">
             <div className="bg-surface rounded-xl border border-edge overflow-hidden flex flex-col h-full">
               <div className="px-5 py-4 border-b border-edge bg-surface2 flex items-center justify-between">
@@ -319,7 +339,7 @@ export const DashboardPage: React.FC = () => {
                 </button>
               </div>
 
-              {todaysLessons.length === 0 ? (
+              {todaysLessonsForWidget.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 px-6 text-center flex-1">
                   <CalendarIcon className="h-12 w-12 text-tx-muted mb-3" />
                   <p className="font-medium text-tx-primary mb-1">No lessons today</p>
@@ -334,117 +354,14 @@ export const DashboardPage: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                <div className="flex flex-col flex-1 overflow-hidden">
-
-                  {/* Progress strip */}
-                  <div className="px-5 pt-4 pb-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex gap-4">
-                        <span className="text-xs font-medium text-status-success-text">
-                          {completedLessons.length} completed
-                        </span>
-                        <span className="text-xs font-medium text-tx-muted">
-                          {upcomingLessons.length} remaining
-                        </span>
-                      </div>
-                      <span className="text-xs text-tx-muted">
-                        {todaysLessons.length} total
-                      </span>
-                    </div>
-                    <div className="bg-surface2 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="bg-status-success-text h-full transition-all duration-500"
-                        style={{ width: `${(completedLessons.length / todaysLessons.length) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Current lesson banner */}
-                  {currentLesson && (
-                    <div className="mx-5 mb-3 bg-primary rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-white/70 uppercase tracking-wider">In progress</span>
-                        <Clock className="h-4 w-4 text-white/70" />
-                      </div>
-                      <p className="font-semibold text-white">
-                        {students.find(s => s.id === currentLesson.studentId)?.fullName || 'Unknown Student'}
-                      </p>
-                      <p className="text-xs text-white/70 mt-0.5">
-                        {format12Hour(currentLesson.startTime)} – {format12Hour(currentLesson.endTime)} · {instructors.find(i => i.id === currentLesson.instructorId)?.fullName || 'Unknown Instructor'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Next lesson banner (only when nothing is active) */}
-                  {nextLesson && !currentLesson && (
-                    <div className="mx-5 mb-3 bg-primary/10 border border-primary/20 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-primary uppercase tracking-wider">Up next</span>
-                        <Clock className="h-4 w-4 text-primary" />
-                      </div>
-                      <p className="font-semibold text-tx-primary">
-                        {students.find(s => s.id === nextLesson.studentId)?.fullName || 'Unknown Student'}
-                      </p>
-                      <p className="text-xs text-tx-muted mt-0.5">
-                        {format12Hour(nextLesson.startTime)} – {format12Hour(nextLesson.endTime)} · {instructors.find(i => i.id === nextLesson.instructorId)?.fullName || 'Unknown Instructor'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* All done state */}
-                  {completedLessons.length === todaysLessons.length && (
-                    <div className="mx-5 mb-3 bg-status-success-bg border border-status-success-border rounded-lg p-4 text-center">
-                      <p className="text-2xl mb-1">🎉</p>
-                      <p className="font-semibold text-status-success-text">All done for today!</p>
-                      <p className="text-xs text-tx-muted mt-0.5">{completedLessons.length} lesson{completedLessons.length > 1 ? 's' : ''} completed</p>
-                    </div>
-                  )}
-
-                  {/* Lesson list */}
-                  <div className="flex-1 overflow-y-auto px-5 pb-5">
-                    <div className="space-y-2">
-                      {todaysLessons.map((lesson) => {
-                        const student = students.find(s => s.id === lesson.studentId);
-                        const instructor = instructors.find(i => i.id === lesson.instructorId);
-                        const isPast = lesson.endTime <= currentTime;
-                        const isNow = lesson.startTime <= currentTime && lesson.endTime > currentTime;
-                        return (
-                          <div
-                            key={lesson.id}
-                            onClick={() => navigate('/lessons')}
-                            className={`rounded-lg border px-4 py-3 cursor-pointer transition-all ${
-                              isNow
-                                ? 'border-primary/40 bg-primary/10'
-                                : isPast
-                                ? 'border-edge opacity-40'
-                                : 'border-edge hover:border-edge-strong hover:bg-surface2'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <Clock className="h-3.5 w-3.5 flex-shrink-0 text-tx-muted" />
-                                <span className="text-sm font-medium text-tx-primary truncate">
-                                  {format12Hour(lesson.startTime)} – {format12Hour(lesson.endTime)}
-                                </span>
-                              </div>
-                              {isNow && (
-                                <span className="ml-2 flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-white font-semibold">
-                                  Now
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1 min-w-0">
-                              <User className="h-3.5 w-3.5 flex-shrink-0 text-tx-muted" />
-                              <span className="text-sm text-tx-secondary truncate">
-                                {student?.fullName || 'Unknown'} · {instructor?.fullName || 'Unknown'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
+                <div className="flex-1 overflow-y-auto p-4">
+                  <TodaysScheduleWidget
+                    lessons={todaysLessonsForWidget}
+                    onViewLesson={() => navigate('/lessons')}
+                    onCompleteLesson={handleCompleteLesson}
+                    getStudentName={getStudentName}
+                    getInstructorName={getInstructorName}
+                  />
                 </div>
               )}
             </div>

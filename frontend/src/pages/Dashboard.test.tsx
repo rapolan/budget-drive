@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from './Dashboard';
 import { studentsApi, instructorsApi, lessonsApi, paymentsApi, dashboardApi } from '@/api';
-import type { Student } from '@/types';
+import type { Student, Lesson } from '@/types';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -222,5 +222,81 @@ describe('Dashboard - Book Lesson opens in place (regression: previously navigat
     await waitFor(() => {
       expect(screen.getByText('Smart Booking')).toBeInTheDocument();
     });
+  });
+});
+
+// Item 3: Dashboard used to hand-roll its own copy of TodaysScheduleWidget
+// with a DIFFERENT, incorrect definition of "completed" - lesson.endTime
+// <= now (a clock inference) instead of status === 'completed' (an
+// explicit action). Dashboard now renders the real shared widget, so
+// these assert the widget's actual (correct) behavior appears here, not
+// the old hand-rolled one.
+describe('Dashboard - Today\'s Schedule uses the real shared TodaysScheduleWidget (item 3)', () => {
+  function lesson(overrides: Partial<Lesson>): Lesson {
+    return {
+      id: 'lesson-1',
+      tenantId: 'tenant-1',
+      studentId: 'student-1',
+      instructorId: 'instructor-1',
+      vehicleId: null,
+      date: '2026-08-17' as unknown as Date,
+      startTime: '09:00',
+      endTime: '10:00',
+      duration: 60,
+      lessonType: 'behind_wheel',
+      status: 'scheduled',
+      cost: 100,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      ...overrides,
+    } as Lesson;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Jordan Vance' })],
+    });
+    (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('does NOT treat a past-time but still-"scheduled" lesson as completed (tenantNow.currentTime is 12:00, lesson ended at 10:00)', async () => {
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'l1', status: 'scheduled', startTime: '09:00', endTime: '10:00' })],
+    });
+
+    renderDashboard();
+
+    // The old hand-rolled logic classified this as "completed" purely
+    // because endTime (10:00) <= currentTime (12:00) - the widget's real
+    // status-based logic must not.
+    await screen.findByText('Jordan Vance');
+    expect(screen.queryByText(/all done for today/i)).not.toBeInTheDocument();
+    expect(screen.getByText('0/1 complete')).toBeInTheDocument();
+  });
+
+  it('shows the widget\'s own "All done!" celebration only once every lesson is genuinely status "completed"', async () => {
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'l1', status: 'completed', startTime: '09:00', endTime: '10:00' })],
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByText(/all lessons completed for today/i)).toBeInTheDocument();
+  });
+
+  it('renders the same "Upcoming" list the Lessons page would for identical data', async () => {
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        lesson({ id: 'l1', status: 'scheduled', studentId: 'student-1', startTime: '09:00', endTime: '10:00' }),
+      ],
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByText(/^upcoming$/i)).toBeInTheDocument();
+    expect(screen.getByText('Jordan Vance')).toBeInTheDocument();
   });
 });
