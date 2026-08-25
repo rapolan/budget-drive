@@ -341,7 +341,7 @@ describe('Students list - guided Mark complete action', () => {
     expect(screen.queryByTitle('Mark complete')).not.toBeInTheDocument();
   });
 
-  it('clicking Mark complete reveals a reason field; confirm is enabled with an empty reason (item 11: reason is optional on the complete path), then calls enrollmentsApi.complete with it entered', async () => {
+  it('clicking Mark complete shows a simple confirm dialog with no reason field, and confirms in one call (item 1)', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     (enrollmentsApi.complete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { ...activeEligibleEnrollment, completed: true } });
 
@@ -366,53 +366,18 @@ describe('Students list - guided Mark complete action', () => {
     const markCompleteButton = screen.getAllByTitle('Mark complete')[0];
     await userEvent.click(markCompleteButton);
 
-    // Item 11 regression: previously disabled until a reason was typed -
-    // the reason is now optional, so this must be enabled immediately.
+    // Item 1 regression: the reason step is gone entirely - only a
+    // confirm dialog remains, and it's enabled immediately.
     const confirmButton = await screen.findByRole('button', { name: /confirm complete/i });
     expect(confirmButton).not.toBeDisabled();
-
-    const reasonInput = screen.getByPlaceholderText(/finished all required hours/i);
-    await userEvent.type(reasonInput, 'Passed final road test');
-    expect(confirmButton).not.toBeDisabled();
+    expect(screen.queryByPlaceholderText(/finished all required hours/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/completion reason/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/mark ready student two complete\?/i)).toBeInTheDocument();
 
     await userEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-ready', 'Passed final road test');
-    });
-  });
-
-  it('confirming Mark complete with NO reason entered still succeeds (item 11)', async () => {
-    const { default: userEvent } = await import('@testing-library/user-event');
-    (enrollmentsApi.complete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { ...activeEligibleEnrollment, completed: true } });
-
-    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        emptyStudent({
-          id: 'ready-3',
-          fullName: 'Ready Student Three',
-          activeEnrollment: activeEligibleEnrollment,
-          progress: { track: 'hours', percentComplete: 100, displayLabel: '6 / 6 hrs', needsDateOfBirth: false } as StudentProgress,
-        }),
-      ],
-      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
-    });
-
-    renderStudentsPage();
-
-    await waitFor(() => {
-      expect(screen.getByText('Ready Student Three')).toBeInTheDocument();
-    });
-
-    const markCompleteButton = screen.getAllByTitle('Mark complete')[0];
-    await userEvent.click(markCompleteButton);
-
-    const confirmButton = await screen.findByRole('button', { name: /confirm complete/i });
-    expect(confirmButton).not.toBeDisabled();
-    await userEvent.click(confirmButton);
-
-    await waitFor(() => {
-      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-ready', '');
+      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-ready');
     });
   });
 });

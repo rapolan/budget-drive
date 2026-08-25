@@ -161,20 +161,19 @@ export const StudentsPage: React.FC = () => {
   // >= 100 - read from computeStudentProgress's own output, never
   // recomputed here, per Constraint A/progressCalculationOwnership.test.ts).
   // Same guarded shape as StudentModal's own enrollment-tab "Mark complete"
-  // flow: reveals an inline reason field, requires a non-empty reason
-  // before the confirm button enables - completion is an audit-recorded
-  // compliance event (it drives the certificate worklist), never a casual
-  // toggle, so it deliberately does not fire on the first click alone.
+  // flow: reveals a simple confirm step (no reason field - item 1) before
+  // the mutation fires - completion is an audit-recorded compliance event
+  // (it drives the certificate worklist), never a casual toggle, so it
+  // deliberately does not fire on the first click alone.
   const [completingStudentId, setCompletingStudentId] = useState<string | null>(null);
-  const [completionReason, setCompletionReason] = useState('');
 
+  // No reason on the complete path (item 1) - enrollmentsApi.complete's
+  // reason parameter is optional; only reopen/withdraw require one.
   const completeEnrollmentMutation = useMutation({
-    mutationFn: ({ enrollmentId, reason }: { enrollmentId: string; reason: string }) =>
-      enrollmentsApi.complete(enrollmentId, reason),
+    mutationFn: ({ enrollmentId }: { enrollmentId: string }) => enrollmentsApi.complete(enrollmentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setCompletingStudentId(null);
-      setCompletionReason('');
     },
   });
 
@@ -1047,32 +1046,19 @@ export const StudentsPage: React.FC = () => {
 
                   {/* Guided mark-complete confirm - only reachable once the
                       active enrollment has actually met its requirement
-                      (isReadyToMarkComplete above). The reason is
-                      OPTIONAL on this path - the backend already treats
-                      completionReason as optional (no validateRequired on
-                      /complete, unlike /reopen and /withdraw, which both
-                      still require one) - so the confirm button is never
-                      blocked on it, only on the mutation actually being
-                      in flight. */}
+                      (isReadyToMarkComplete above). No reason field on this
+                      path (item 1) - just a confirm step, to guard against
+                      a misclick given completion triggers certificates and
+                      is itself audit-recorded. */}
                   {completingStudentId === student.id && (
                     <div className="mt-3 bg-status-success-bg border border-status-success-border rounded-lg p-3 space-y-2">
-                      <label className="block text-xs font-medium text-status-success-text">
-                        Completion reason (optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={completionReason}
-                        onChange={(e) => setCompletionReason(e.target.value)}
-                        className="w-full px-3 py-2 border border-status-success-border rounded-lg text-sm bg-surface"
-                        placeholder="e.g. Finished all required hours"
-                      />
+                      <p className="text-sm text-status-success-text">
+                        Mark {student.fullName} complete?
+                      </p>
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setCompletingStudentId(null);
-                            setCompletionReason('');
-                          }}
+                          onClick={() => setCompletingStudentId(null)}
                           className="px-3 py-1.5 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
                         >
                           Cancel
@@ -1081,7 +1067,7 @@ export const StudentsPage: React.FC = () => {
                           type="button"
                           onClick={() =>
                             student.activeEnrollment &&
-                            completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id, reason: completionReason })
+                            completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id })
                           }
                           disabled={completeEnrollmentMutation.isPending}
                           className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
@@ -1370,31 +1356,20 @@ export const StudentsPage: React.FC = () => {
                     </tr>
                     {/* Guided mark-complete confirm - same shape as the card
                         view's inline form and StudentModal's own
-                        enrollment-tab flow. The reason is OPTIONAL on this
-                        path (see the card view's identical note above) -
-                        the confirm button is only blocked on the mutation
-                        being in flight. */}
+                        enrollment-tab flow. No reason field on this path
+                        (item 1, see the card view's identical note above) -
+                        just a confirm step. */}
                     {completingStudentId === student.id && (
                       <tr>
                         <td colSpan={5} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            <label className="text-xs font-medium text-status-success-text flex-shrink-0">
-                              Completion reason (optional)
-                            </label>
-                            <input
-                              type="text"
-                              value={completionReason}
-                              onChange={(e) => setCompletionReason(e.target.value)}
-                              className="flex-1 px-3 py-1.5 border border-status-success-border rounded-lg text-sm bg-surface"
-                              placeholder="e.g. Finished all required hours"
-                            />
+                            <p className="text-sm text-status-success-text flex-1">
+                              Mark {student.fullName} complete?
+                            </p>
                             <div className="flex gap-2 flex-shrink-0">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setCompletingStudentId(null);
-                                  setCompletionReason('');
-                                }}
+                                onClick={() => setCompletingStudentId(null)}
                                 className="px-3 py-1.5 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
                               >
                                 Cancel
@@ -1403,7 +1378,7 @@ export const StudentsPage: React.FC = () => {
                                 type="button"
                                 onClick={() =>
                                   student.activeEnrollment &&
-                                  completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id, reason: completionReason })
+                                  completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id })
                                 }
                                 disabled={completeEnrollmentMutation.isPending}
                                 className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"

@@ -584,9 +584,10 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // No reason on the complete path (item 1) - enrollmentsApi.complete's
+  // reason parameter is optional; only reopen/withdraw require one.
   const completeMutation = useMutation({
-    mutationFn: (completionReason: string) =>
-      enrollmentsApi.complete(student!.activeEnrollment!.id, completionReason),
+    mutationFn: () => enrollmentsApi.complete(student!.activeEnrollment!.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       onClose();
@@ -598,7 +599,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // nothing is sent until the form's own "Add enrollment" button is clicked.
   const [isAddingProgramType, setIsAddingProgramType] = useState<ProgramType | null>(null);
   const [completingEnrollmentId, setCompletingEnrollmentId] = useState<string | null>(null);
-  const [enrollmentCompletionReason, setEnrollmentCompletionReason] = useState('');
 
   // Reopen is a guarded write server-side (requires a reason, owner/admin
   // only) - the UI mirrors that: a confirm step naming the consequences up
@@ -625,12 +625,13 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // No reason on the complete path (item 1) - enrollmentsApi.complete's
+  // reason parameter is optional; only reopen/withdraw require one.
   const completeEnrollmentMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => enrollmentsApi.complete(id, reason),
+    mutationFn: ({ id }: { id: string }) => enrollmentsApi.complete(id),
     onSuccess: () => {
       invalidateEnrollmentQueries();
       setCompletingEnrollmentId(null);
-      setEnrollmentCompletionReason('');
     },
   });
 
@@ -750,7 +751,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const [waiveReason, setWaiveReason] = useState('');
 
   const [validationError, setValidationError] = useState<string>('');
-  const [completionReason, setCompletionReason] = useState('');
   const [showCompletionPrompt, setShowCompletionPrompt] = useState(false);
 
   // External driver_education prerequisite (Item 3) - display + edit on the
@@ -1204,11 +1204,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
             edit surface, so a separate Edit action would be redundant.
             "Book Lesson" already lives in the header above, always
             visible - not duplicated here. Mark Complete routes to the
-            existing Enrollments-tab confirm-reason flow (switches tabs
-            and opens it) rather than acting instantly or rebuilding that
+            existing Enrollments-tab confirm flow (switches tabs and
+            opens it) rather than acting instantly or rebuilding that
             flow inline - completion is an audit-recorded compliance
-            event, never a casual toggle, matching the list's own guarded
-            shape. "Waive" similarly routes to the Progress tab's existing
+            event, never a casual toggle (a confirm step, no reason -
+            item 1), matching the list's own guarded shape. "Waive"
+            similarly routes to the Progress tab's existing
             waive-with-reason form rather than duplicating it here; only
             "Mark Paid" acts directly, since it needs no reason. Same
             eligibility (isReadyToMarkComplete) and same fee endpoint
@@ -2150,16 +2151,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <label className="block text-xs font-medium text-status-warning-text">
-                        Reason (optional) - e.g. "student opted not to continue after turning 18"
-                      </label>
-                      <input
-                        type="text"
-                        value={completionReason}
-                        onChange={(e) => setCompletionReason(e.target.value)}
-                        className="w-full px-3 py-2 border border-status-warning-border rounded-lg text-sm bg-surface"
-                        placeholder="Completion reason"
-                      />
+                      {/* No reason field on the complete path (item 1) - only
+                          a confirm step, to guard against a misclick given
+                          completion triggers certificates and is itself
+                          audit-recorded. Reopen (below) is unchanged and
+                          still requires a reason. */}
+                      <p className="text-sm text-status-warning-text">
+                        Mark {student.fullName} complete?
+                      </p>
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -2170,7 +2169,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         </button>
                         <button
                           type="button"
-                          onClick={() => completeMutation.mutate(completionReason)}
+                          onClick={() => completeMutation.mutate()}
                           disabled={completeMutation.isPending}
                           className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                         >
@@ -2449,38 +2448,27 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               />
 
               {/* Complete confirm - mirrors the Progress tab's turning-18
-                  completion prompt. The reason is OPTIONAL on this path
-                  (the backend has no validateRequired on /complete,
-                  unlike /reopen and /withdraw, which both still require
-                  one) - only the mutation being in flight blocks confirm. */}
+                  completion prompt. No reason field on this path (item 1) -
+                  just a confirm step, to guard against a misclick given
+                  completion triggers certificates and is itself
+                  audit-recorded. Reopen (below) is unchanged and still
+                  requires a reason. */}
               {completingEnrollmentId && (
                 <div className="bg-status-success-bg border border-status-success-border rounded-lg p-4 space-y-2">
-                  <label className="block text-xs font-medium text-status-success-text">
-                    Completion reason (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={enrollmentCompletionReason}
-                    onChange={(e) => setEnrollmentCompletionReason(e.target.value)}
-                    className="w-full px-3 py-2 border border-status-success-border rounded-lg text-sm bg-surface"
-                    placeholder="Completion reason"
-                  />
+                  <p className="text-sm text-status-success-text">
+                    Mark {student.fullName} complete?
+                  </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setCompletingEnrollmentId(null);
-                        setEnrollmentCompletionReason('');
-                      }}
+                      onClick={() => setCompletingEnrollmentId(null)}
                       className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        completeEnrollmentMutation.mutate({ id: completingEnrollmentId, reason: enrollmentCompletionReason })
-                      }
+                      onClick={() => completeEnrollmentMutation.mutate({ id: completingEnrollmentId })}
                       disabled={completeEnrollmentMutation.isPending}
                       className="px-3 py-2 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                     >

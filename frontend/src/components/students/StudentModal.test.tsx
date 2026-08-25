@@ -1502,16 +1502,14 @@ describe('StudentModal turning-18 admin actions - target the enrollment, not the
     const markCompleteButton = await screen.findByRole('button', { name: /mark program complete/i });
     fireEvent.click(markCompleteButton);
 
-    const reasonInput = screen.getByPlaceholderText(/completion reason/i);
-    fireEvent.change(reasonInput, { target: { value: 'Passed road test' } });
     fireEvent.click(screen.getByRole('button', { name: /confirm complete/i }));
 
     await waitFor(() =>
-      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-1', 'Passed road test')
+      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-1')
     );
   });
 
-  it('item 11: the complete-path confirm button is enabled with an empty reason, and confirming with no reason succeeds', async () => {
+  it('item 1: the complete path shows only a confirm dialog, with no reason field at all', async () => {
     renderModal(turningEighteenStudent());
 
     fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
@@ -1519,12 +1517,15 @@ describe('StudentModal turning-18 admin actions - target the enrollment, not the
     const markCompleteButton = await screen.findByRole('button', { name: /mark program complete/i });
     fireEvent.click(markCompleteButton);
 
+    expect(screen.queryByPlaceholderText(/completion reason/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reason \(optional\)/i)).not.toBeInTheDocument();
+
     const confirmButton = await screen.findByRole('button', { name: /confirm complete/i });
     expect(confirmButton).not.toBeDisabled();
     fireEvent.click(confirmButton);
 
     await waitFor(() =>
-      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-1', '')
+      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-1')
     );
   });
 
@@ -1793,7 +1794,7 @@ describe('StudentModal - persistent actions bar (Item 2)', () => {
     expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
   });
 
-  it('clicking "Mark Complete" switches to the Enrollments tab and opens that tab\'s existing completion-reason flow (no duplicate flow)', async () => {
+  it('clicking "Mark Complete" switches to the Enrollments tab and opens that tab\'s existing confirm flow (no duplicate flow, no reason field)', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [{
@@ -1817,11 +1818,11 @@ describe('StudentModal - persistent actions bar (Item 2)', () => {
 
     await user.click(await screen.findByRole('button', { name: /mark complete/i }));
 
-    // Landed on the Enrollments tab, and its own completion-reason input
-    // (the one existing implementation of this flow) is now open.
-    expect(await screen.findByPlaceholderText('Completion reason')).toBeInTheDocument();
-
-    // Item 11: reason is optional here too - confirm is enabled immediately.
+    // Landed on the Enrollments tab, and its own confirm dialog (the one
+    // existing implementation of this flow) is now open - item 1: no
+    // reason field at all, just a confirm.
+    expect(await screen.findByText(/mark .* complete\?/i)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Completion reason')).not.toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /confirm complete/i })).not.toBeDisabled();
   });
 
