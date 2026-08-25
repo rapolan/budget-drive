@@ -1511,6 +1511,23 @@ describe('StudentModal turning-18 admin actions - target the enrollment, not the
     );
   });
 
+  it('item 11: the complete-path confirm button is enabled with an empty reason, and confirming with no reason succeeds', async () => {
+    renderModal(turningEighteenStudent());
+
+    fireEvent.click(screen.getByRole('button', { name: /^progress$/i }));
+
+    const markCompleteButton = await screen.findByRole('button', { name: /mark program complete/i });
+    fireEvent.click(markCompleteButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm complete/i });
+    expect(confirmButton).not.toBeDisabled();
+    fireEvent.click(confirmButton);
+
+    await waitFor(() =>
+      expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-1', '')
+    );
+  });
+
   // Item 3: external driver_education prerequisite - display + edit on the
   // driver_training enrollment, display-only (no booking gate).
   it('displays "Not recorded" by default, and saves externalDeCompleted/date/provider via enrollmentsApi.update on the enrollment id', async () => {
@@ -1803,6 +1820,9 @@ describe('StudentModal - persistent actions bar (Item 2)', () => {
     // Landed on the Enrollments tab, and its own completion-reason input
     // (the one existing implementation of this flow) is now open.
     expect(await screen.findByPlaceholderText('Completion reason')).toBeInTheDocument();
+
+    // Item 11: reason is optional here too - confirm is enabled immediately.
+    expect(await screen.findByRole('button', { name: /confirm complete/i })).not.toBeDisabled();
   });
 
   it('shows an outstanding-fee summary with Mark Paid and Waive when the student has an outstanding fee', async () => {

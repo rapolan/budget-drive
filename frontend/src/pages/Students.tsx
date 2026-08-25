@@ -1047,15 +1047,17 @@ export const StudentsPage: React.FC = () => {
 
                   {/* Guided mark-complete confirm - only reachable once the
                       active enrollment has actually met its requirement
-                      (isReadyToMarkComplete above). Same shape as
-                      StudentModal's own enrollment-tab flow: a non-empty
-                      reason is required before the confirm button enables -
-                      completion is an audit-recorded compliance event (it
-                      drives the certificate worklist), never a casual toggle. */}
+                      (isReadyToMarkComplete above). The reason is
+                      OPTIONAL on this path - the backend already treats
+                      completionReason as optional (no validateRequired on
+                      /complete, unlike /reopen and /withdraw, which both
+                      still require one) - so the confirm button is never
+                      blocked on it, only on the mutation actually being
+                      in flight. */}
                   {completingStudentId === student.id && (
                     <div className="mt-3 bg-status-success-bg border border-status-success-border rounded-lg p-3 space-y-2">
                       <label className="block text-xs font-medium text-status-success-text">
-                        Completion reason
+                        Completion reason (optional)
                       </label>
                       <input
                         type="text"
@@ -1081,7 +1083,7 @@ export const StudentsPage: React.FC = () => {
                             student.activeEnrollment &&
                             completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id, reason: completionReason })
                           }
-                          disabled={!completionReason.trim() || completeEnrollmentMutation.isPending}
+                          disabled={completeEnrollmentMutation.isPending}
                           className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                         >
                           {completeEnrollmentMutation.isPending ? 'Saving...' : 'Confirm complete'}
@@ -1368,14 +1370,16 @@ export const StudentsPage: React.FC = () => {
                     </tr>
                     {/* Guided mark-complete confirm - same shape as the card
                         view's inline form and StudentModal's own
-                        enrollment-tab flow: a non-empty reason is required
-                        before the confirm button enables. */}
+                        enrollment-tab flow. The reason is OPTIONAL on this
+                        path (see the card view's identical note above) -
+                        the confirm button is only blocked on the mutation
+                        being in flight. */}
                     {completingStudentId === student.id && (
                       <tr>
                         <td colSpan={5} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <label className="text-xs font-medium text-status-success-text flex-shrink-0">
-                              Completion reason
+                              Completion reason (optional)
                             </label>
                             <input
                               type="text"
@@ -1401,7 +1405,7 @@ export const StudentsPage: React.FC = () => {
                                   student.activeEnrollment &&
                                   completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id, reason: completionReason })
                                 }
-                                disabled={!completionReason.trim() || completeEnrollmentMutation.isPending}
+                                disabled={completeEnrollmentMutation.isPending}
                                 className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                               >
                                 {completeEnrollmentMutation.isPending ? 'Saving...' : 'Confirm complete'}

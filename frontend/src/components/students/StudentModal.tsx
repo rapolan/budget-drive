@@ -2151,7 +2151,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   ) : (
                     <div className="space-y-2">
                       <label className="block text-xs font-medium text-status-warning-text">
-                        Reason (e.g. "student opted not to continue after turning 18")
+                        Reason (optional) - e.g. "student opted not to continue after turning 18"
                       </label>
                       <input
                         type="text"
@@ -2171,7 +2171,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                         <button
                           type="button"
                           onClick={() => completeMutation.mutate(completionReason)}
-                          disabled={!completionReason.trim() || completeMutation.isPending}
+                          disabled={completeMutation.isPending}
                           className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                         >
                           {completeMutation.isPending ? 'Saving...' : 'Confirm Complete'}
@@ -2449,11 +2449,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
               />
 
               {/* Complete confirm - mirrors the Progress tab's turning-18
-                  completion prompt (reason required). */}
+                  completion prompt. The reason is OPTIONAL on this path
+                  (the backend has no validateRequired on /complete,
+                  unlike /reopen and /withdraw, which both still require
+                  one) - only the mutation being in flight blocks confirm. */}
               {completingEnrollmentId && (
                 <div className="bg-status-success-bg border border-status-success-border rounded-lg p-4 space-y-2">
                   <label className="block text-xs font-medium text-status-success-text">
-                    Completion reason
+                    Completion reason (optional)
                   </label>
                   <input
                     type="text"
@@ -2478,7 +2481,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       onClick={() =>
                         completeEnrollmentMutation.mutate({ id: completingEnrollmentId, reason: enrollmentCompletionReason })
                       }
-                      disabled={!enrollmentCompletionReason.trim() || completeEnrollmentMutation.isPending}
+                      disabled={completeEnrollmentMutation.isPending}
                       className="px-3 py-2 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                     >
                       {completeEnrollmentMutation.isPending ? 'Saving...' : 'Confirm complete'}
