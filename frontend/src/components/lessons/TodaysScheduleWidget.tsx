@@ -272,15 +272,22 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
             </div>
           )}
 
-          {/* Remaining lessons list */}
-          {scheduledLessons.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-tx-muted uppercase tracking-wider">Upcoming</p>
-              <div className="space-y-1">
-                {scheduledLessons
-                  .filter(l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id)
-                  .slice(0, 3) // Show max 3 more
-                  .map(lesson => (
+          {/* Remaining lessons list. Gated on the POST-FILTER list, not
+              scheduledLessons.length - a lesson already shown above as
+              "Now" or "Next" still counts toward scheduledLessons, so
+              that raw count can be > 0 while nothing is actually left
+              to show here, which previously rendered an empty "Upcoming"
+              header with nothing beneath it. */}
+          {(() => {
+            const upcomingLessons = scheduledLessons.filter(
+              l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id
+            );
+            if (upcomingLessons.length === 0) return null;
+            return (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-tx-muted uppercase tracking-wider">Upcoming</p>
+                <div className="space-y-1">
+                  {upcomingLessons.slice(0, 3).map(lesson => ( // Show max 3 more
                     <div
                       key={lesson.id}
                       className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-surface2 transition-colors group"
@@ -308,14 +315,15 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                       </div>
                     </div>
                   ))}
-                {scheduledLessons.filter(l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id).length > 3 && (
-                  <p className="text-xs text-tx-muted px-3">
-                    +{scheduledLessons.filter(l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id).length - 3} more
-                  </p>
-                )}
+                  {upcomingLessons.length > 3 && (
+                    <p className="text-xs text-tx-muted px-3">
+                      +{upcomingLessons.length - 3} more
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* All done message */}
           {completedLessons.length === totalLessons && (

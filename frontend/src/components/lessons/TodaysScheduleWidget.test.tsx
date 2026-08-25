@@ -166,3 +166,48 @@ describe('TodaysScheduleWidget - Now vs Upcoming (item 9 regression: two lessons
     expect(screen.getAllByText('Owen Castillo')).toHaveLength(1);
   });
 });
+
+describe('TodaysScheduleWidget - "Upcoming" header hidden when empty (item 2 regression)', () => {
+  it('does not render the "Upcoming" header when every scheduled lesson is already shown as Now or Next', () => {
+    // Both lessons start at the same time as tenantNow.currentTime
+    // ('10:00'), so both are classified "Now" and consumed by that
+    // section above - nothing is left for the plain Upcoming list, but
+    // scheduledLessons.length is still 2 (> 0), which previously gated
+    // the header on its own and rendered it with nothing beneath it.
+    const a = lesson({ id: 'now-1', startTime: '09:00', endTime: '11:00', studentId: 'a' });
+    const b = lesson({ id: 'now-2', startTime: '09:00', endTime: '11:00', studentId: 'b' });
+
+    render(
+      <TodaysScheduleWidget
+        lessons={[a, b]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={() => 'Test Student'}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    expect(screen.queryByText(/^upcoming$/i)).not.toBeInTheDocument();
+  });
+
+  it('still renders the "Upcoming" header when a lesson genuinely remains after Now/Next', () => {
+    // `now` is classified "Now"; of the two remaining scheduled lessons,
+    // the earlier (`next`) is consumed by its own "Next" card, leaving
+    // `later` as the one genuine entry in the plain Upcoming list.
+    const now = lesson({ id: 'now-1', startTime: '09:00', endTime: '11:00', studentId: 'now-student' });
+    const next = lesson({ id: 'next-1', startTime: '14:00', endTime: '15:00', studentId: 'next-student' });
+    const later = lesson({ id: 'later-1', startTime: '16:00', endTime: '17:00', studentId: 'later-student' });
+
+    render(
+      <TodaysScheduleWidget
+        lessons={[now, next, later]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={() => 'Test Student'}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    expect(screen.getByText(/^upcoming$/i)).toBeInTheDocument();
+  });
+});
