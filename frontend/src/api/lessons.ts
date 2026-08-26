@@ -31,8 +31,12 @@ export const lessonsApi = {
 
   // Cancels a lesson, recording who reviewed it and when. Replaces the old
   // DELETE /lessons/:id (which had no audit trail and no fee-window check).
-  cancel: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/cancel`);
+  // `allowCorrection` bypasses the backend's terminal-status guard - the
+  // one deliberate "I'm choosing a different status than the one already
+  // recorded" path (the "Correct" affordance on an already-closed lesson),
+  // as opposed to a normal cancel, which must still 409 on a double-click.
+  cancel: async (id: string, allowCorrection = false) => {
+    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/cancel`, { allowCorrection });
     return response.data;
   },
 
@@ -67,13 +71,15 @@ export const lessonsApi = {
     return response.data;
   },
 
-  complete: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/complete`);
+  // `allowCorrection`: see cancel()'s note above - same bypass, same
+  // "Correct" affordance, same guard on the normal (non-correction) path.
+  complete: async (id: string, allowCorrection = false) => {
+    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/complete`, { allowCorrection });
     return response.data;
   },
 
-  noShow: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/no-show`);
+  noShow: async (id: string, allowCorrection = false) => {
+    const response = await apiClient.post<ApiResponse<Lesson>>(`/lessons/${id}/no-show`, { allowCorrection });
     return response.data;
   },
 };

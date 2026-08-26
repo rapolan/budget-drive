@@ -220,16 +220,57 @@ export const DashboardPage: React.FC = () => {
   const getStudentName = (studentId: string) => students.find((s) => s.id === studentId)?.fullName || 'Unknown Student';
   const getInstructorName = (instructorId: string) => instructors.find((i) => i.id === instructorId)?.fullName || 'Unknown Instructor';
 
+  // Same status-transition mutations Lessons.tsx uses (lessonsApi.complete/
+  // noShow/cancel) - one definition of what each action does, surfaced
+  // here too. Invalidates the same query keys Lessons.tsx's own
+  // invalidateAllLessonQueries AND ReviewQueue.tsx's own invalidate() use
+  // (predicate on 'lessons'/'instructor-lessons', plus the explicit
+  // ['dashboard', 'review-queue'] key, which that predicate does not
+  // match) - so a status change made from this widget is immediately
+  // visible on the Lessons page's table, its own widget instance, AND the
+  // review-queue alert/page, not just Dashboard's own ['lessons'] query.
+  const invalidateAllLessonQueries = () => {
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === 'lessons' ||
+        query.queryKey[0] === 'instructor-lessons',
+    });
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'review-queue'] });
+  };
+
   const completeLessonMutation = useMutation({
-    mutationFn: (id: string) => lessonsApi.complete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lessons'] });
-    },
+    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
+      lessonsApi.complete(id, allowCorrection),
+    onSuccess: invalidateAllLessonQueries,
   });
 
-  const handleCompleteLesson = async (id: string) => {
+  const noShowLessonMutation = useMutation({
+    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
+      lessonsApi.noShow(id, allowCorrection),
+    onSuccess: invalidateAllLessonQueries,
+  });
+
+  const cancelLessonMutation = useMutation({
+    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
+      lessonsApi.cancel(id, allowCorrection),
+    onSuccess: invalidateAllLessonQueries,
+  });
+
+  const handleCompleteLesson = async (id: string, allowCorrection = false) => {
     if (window.confirm('Mark this lesson as completed?')) {
-      await completeLessonMutation.mutateAsync(id);
+      await completeLessonMutation.mutateAsync({ id, allowCorrection });
+    }
+  };
+
+  const handleNoShowLesson = async (id: string, allowCorrection = false) => {
+    if (window.confirm('Mark this lesson as no-show? The student did not arrive for their scheduled lesson.')) {
+      await noShowLessonMutation.mutateAsync({ id, allowCorrection });
+    }
+  };
+
+  const handleCancelLesson = async (id: string, allowCorrection = false) => {
+    if (window.confirm('Are you sure you want to cancel this lesson?')) {
+      await cancelLessonMutation.mutateAsync({ id, allowCorrection });
     }
   };
 
@@ -359,6 +400,8 @@ export const DashboardPage: React.FC = () => {
                     lessons={todaysLessonsForWidget}
                     onViewLesson={() => navigate('/lessons')}
                     onCompleteLesson={handleCompleteLesson}
+                    onNoShowLesson={handleNoShowLesson}
+                    onCancelLesson={handleCancelLesson}
                     getStudentName={getStudentName}
                     getInstructorName={getInstructorName}
                   />

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Clock, CheckCircle, Eye, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock, CheckCircle, AlertCircle, X, Eye, Calendar, Pencil } from 'lucide-react';
 import type { Lesson } from '@/types';
 import { useTenant } from '@/contexts/TenantContext';
+import { StatusMenu } from './StatusMenu';
 
 // Advances a tenant-resolved "HH:MM" wall-clock reading by the real
 // milliseconds elapsed since it was captured - never re-reads the
@@ -17,10 +18,82 @@ function advanceTime(hhmm: string, elapsedMs: number): string {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
+interface LessonActionButtonsProps {
+  onComplete: () => void;
+  onNoShow: () => void;
+  onCancel: () => void;
+  // 'now' (on the primary-colored "Now" card) needs light-on-dark buttons;
+  // 'pastDue' (on the warning-colored "Needs marking" card) needs buttons
+  // that read against a light amber background. Same three actions, same
+  // handlers - only the surrounding card's palette differs.
+  variant: 'now' | 'pastDue';
+}
+
+// Complete/No-show/Cancel, identical on both the "Now" and "Needs
+// marking" sections (item 1 and item 2 both call this) - tap-friendly
+// (min 44px touch target per WCAG 2.5.5) and each button carries a
+// visible text label, not just an icon, so it's unambiguous without
+// relying on a title/aria-label tooltip alone.
+const LessonActionButtons: React.FC<LessonActionButtonsProps> = ({ onComplete, onNoShow, onCancel, variant }) => {
+  const baseClasses = 'flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium transition-colors';
+  const classes = variant === 'now'
+    ? {
+        complete: `${baseClasses} bg-white text-primary hover:bg-blue-50`,
+        noShow: `${baseClasses} bg-surface/20 text-white hover:bg-surface/30`,
+        cancel: `${baseClasses} bg-surface/20 text-white hover:bg-surface/30`,
+      }
+    : {
+        complete: `${baseClasses} bg-status-success-text text-white hover:brightness-90`,
+        noShow: `${baseClasses} bg-surface text-status-warning-text border border-status-warning-border hover:bg-status-warning-bg`,
+        cancel: `${baseClasses} bg-surface text-status-danger-text border border-status-danger-border hover:bg-status-danger-bg`,
+      };
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onComplete(); }}
+        aria-label="Mark lesson as completed"
+        className={classes.complete}
+      >
+        <CheckCircle className="h-4 w-4" />
+        Complete
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onNoShow(); }}
+        aria-label="Mark lesson as no-show"
+        className={classes.noShow}
+      >
+        <AlertCircle className="h-4 w-4" />
+        No-show
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onCancel(); }}
+        aria-label="Cancel lesson"
+        className={classes.cancel}
+      >
+        <X className="h-4 w-4" />
+        Cancel
+      </button>
+    </div>
+  );
+};
+
 interface TodaysScheduleWidgetProps {
   lessons: Lesson[];
   onViewLesson: (lesson: Lesson) => void;
-  onCompleteLesson: (id: string) => void;
+  // Same status-transition handlers the Lessons page/review queue use -
+  // no second definition of what Complete/No-show/Cancel does lives here.
+  // `allowCorrection` is the one flag distinguishing a normal transition
+  // (never set from this widget's Now/Needs-marking action buttons, which
+  // only ever act on a 'scheduled' lesson) from the Completed-Today
+  // section's "Correct" affordance (always set - it's re-picking a status
+  // on a lesson that already has one).
+  onCompleteLesson: (id: string, allowCorrection?: boolean) => void;
+  onNoShowLesson: (id: string, allowCorrection?: boolean) => void;
+  onCancelLesson: (id: string, allowCorrection?: boolean) => void;
   getStudentName: (id: string) => string;
   getInstructorName: (id: string) => string;
 }
@@ -29,6 +102,8 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
   lessons,
   onViewLesson,
   onCompleteLesson,
+  onNoShowLesson,
+  onCancelLesson,
   getStudentName,
   getInstructorName,
 }) => {
@@ -223,9 +298,12 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
 
           {/* Current lesson highlight(s) - one card per lesson currently in
               progress, not just the first (see currentLessons above for
-              why this must be a list, not a single lesson). */}
+              why this must be a list, not a single lesson). Direct inline
+              status actions - reuses the exact same handlers the Lessons
+              page/review queue call, no second "what does Complete/
+              No-show/Cancel do" here. */}
           {currentLessons.map((lesson) => (
-            <div key={lesson.id} className="bg-primary text-white rounded-lg p-3">
+            <div key={lesson.id} className="bg-primary text-white rounded-lg p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -237,25 +315,22 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                     {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)} • {getInstructorName(lesson.instructorId)}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
-                    className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors"
-                    title="View details"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onCompleteLesson(lesson.id); }}
-                    className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors"
-                    title="Mark complete"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
+                  className="p-2 rounded-lg bg-surface/20 hover:bg-surface/30 transition-colors flex-shrink-0"
+                  aria-label="View lesson details"
+                  title="View details"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
               </div>
+              <LessonActionButtons
+                variant="now"
+                onComplete={() => onCompleteLesson(lesson.id)}
+                onNoShow={() => onNoShowLesson(lesson.id)}
+                onCancel={() => onCancelLesson(lesson.id)}
+              />
             </div>
           ))}
 
@@ -291,7 +366,7 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
               past), so the two surfaces should visibly agree instead of
               one saying "needs review" while the other says "upcoming". */}
           {pastDueLessons.map((lesson) => (
-            <div key={lesson.id} className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3">
+            <div key={lesson.id} className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -303,25 +378,25 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
                     {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)} • {getInstructorName(lesson.instructorId)}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
-                    className="p-2 rounded-lg hover:bg-surface3 text-status-warning-text transition-colors"
-                    title="View details"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onCompleteLesson(lesson.id); }}
-                    className="p-2 rounded-lg hover:bg-surface3 text-status-warning-text transition-colors"
-                    title="Mark complete"
-                  >
-                    <CheckCircle className="h-4 w-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
+                  className="p-2 rounded-lg hover:bg-surface3 text-status-warning-text transition-colors flex-shrink-0"
+                  aria-label="View lesson details"
+                  title="View details"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
               </div>
+              {/* Same three actions and same handlers as the "Now" section
+                  above - an overdue lesson can be closed out here exactly
+                  like an in-progress one. */}
+              <LessonActionButtons
+                variant="pastDue"
+                onComplete={() => onCompleteLesson(lesson.id)}
+                onNoShow={() => onNoShowLesson(lesson.id)}
+                onCancel={() => onCancelLesson(lesson.id)}
+              />
             </div>
           ))}
 
@@ -377,6 +452,55 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
               </div>
             );
           })()}
+
+          {/* Completed Today - muted list, each row correctable. "Correct"
+              is NOT a separate reopen-with-reason flow (that's for
+              enrollment completion via computeStudentProgress's own
+              guarded path, not a lesson's status) - it's the same
+              StatusMenu the Lessons table already uses on a 'scheduled'
+              row, opened here with allowCorrection: true so the backend's
+              terminal-status guard lets a wrongly-marked lesson be
+              re-picked. A completed lesson corrected to no-show still
+              fires the identical fee-flag side effect noShowLesson always
+              fires - same function, same call. */}
+          {completedLessons.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-tx-muted uppercase tracking-wider">Completed Today</p>
+              <div className="space-y-1">
+                {completedLessons
+                  .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                  .map((lesson) => (
+                    <div
+                      key={lesson.id}
+                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface2/60"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CheckCircle className="h-4 w-4 text-tx-muted flex-shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-tx-muted line-through">
+                            {getStudentName(lesson.studentId)}
+                          </span>
+                          <span className="text-sm text-tx-muted ml-2">
+                            {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)} • {getInstructorName(lesson.instructorId)}
+                          </span>
+                        </div>
+                      </div>
+                      <StatusMenu
+                        trigger={
+                          <span className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium text-tx-secondary hover:bg-surface3 transition-colors flex-shrink-0">
+                            <Pencil className="h-3.5 w-3.5" />
+                            Correct
+                          </span>
+                        }
+                        onComplete={() => onCompleteLesson(lesson.id, true)}
+                        onNoShow={() => onNoShowLesson(lesson.id, true)}
+                        onCancel={() => onCancelLesson(lesson.id, true)}
+                      />
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* All done message */}
           {completedLessons.length === totalLessons && (

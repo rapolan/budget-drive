@@ -189,31 +189,39 @@ export const LessonsPage: React.FC = () => {
     enabled: viewMode === 'calendar', // Only fetch when in calendar view
   });
 
-  // Helper to invalidate all lesson-related queries (handles Weekly view's complex query keys)
+  // Helper to invalidate all lesson-related queries (handles Weekly view's
+  // complex query keys) AND the review-queue's own key (ReviewQueue.tsx's
+  // own invalidate() does the same two things) - a status change made
+  // here (including from this page's own TodaysScheduleWidget instance)
+  // must be reflected in the review-queue alert/page immediately too.
   const invalidateAllLessonQueries = () => {
     queryClient.invalidateQueries({
       predicate: (query) =>
         query.queryKey[0] === 'lessons' ||
         query.queryKey[0] === 'instructor-lessons'
     });
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'review-queue'] });
   };
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => lessonsApi.cancel(id),
+    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
+      lessonsApi.cancel(id, allowCorrection),
     onSuccess: () => {
       invalidateAllLessonQueries();
     },
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => lessonsApi.complete(id),
+    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
+      lessonsApi.complete(id, allowCorrection),
     onSuccess: () => {
       invalidateAllLessonQueries();
     },
   });
 
   const noShowMutation = useMutation({
-    mutationFn: (id: string) => lessonsApi.noShow(id),
+    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
+      lessonsApi.noShow(id, allowCorrection),
     onSuccess: () => {
       invalidateAllLessonQueries();
     },
@@ -235,16 +243,22 @@ export const LessonsPage: React.FC = () => {
   };
 
 
-  const handleCancel = async (id: string) => {
+  // `allowCorrection`: the "Correct" affordance on an already-closed
+  // lesson (widget's Completed-Today section, and this page's own
+  // StatusMenu once wired onto completed rows) passes true to bypass the
+  // backend's terminal-status guard - the normal action buttons never do,
+  // so they still 409 (surfaced as the confirm dialog never even firing,
+  // since window.confirm always runs first regardless) on a stale UI.
+  const handleCancel = async (id: string, allowCorrection = false) => {
     if (window.confirm('Are you sure you want to cancel this lesson?')) {
-      await cancelMutation.mutateAsync(id);
+      await cancelMutation.mutateAsync({ id, allowCorrection });
       success('Lesson cancelled successfully');
     }
   };
 
-  const handleComplete = async (id: string) => {
+  const handleComplete = async (id: string, allowCorrection = false) => {
     if (window.confirm('Mark this lesson as completed?')) {
-      await completeMutation.mutateAsync(id);
+      await completeMutation.mutateAsync({ id, allowCorrection });
       success('Lesson marked as completed');
       // Automatically filter to scheduled lessons after completing
       if (statusFilter === 'all') {
@@ -253,9 +267,9 @@ export const LessonsPage: React.FC = () => {
     }
   };
 
-  const handleNoShow = async (id: string) => {
+  const handleNoShow = async (id: string, allowCorrection = false) => {
     if (window.confirm('Mark this lesson as no-show? The student did not arrive for their scheduled lesson.')) {
-      await noShowMutation.mutateAsync(id);
+      await noShowMutation.mutateAsync({ id, allowCorrection });
       success('Lesson marked as no-show');
       // Automatically filter to scheduled lessons after marking no-show
       if (statusFilter === 'all') {
@@ -722,15 +736,21 @@ export const LessonsPage: React.FC = () => {
                 {lesson.status.replace(/_/g, ' ')}
               </span>
             );
-            return lesson.status === 'scheduled' ? (
+            // A 'scheduled' lesson gets the normal StatusMenu (no
+            // allowCorrection - the backend still 409s a double
+            // transition). A terminal lesson (completed/cancelled/
+            // no_show) gets the SAME menu with allowCorrection: true -
+            // this is "Correct", not a second implementation: identical
+            // handlers, identical backend endpoints, just the one flag
+            // that lets a wrongly-marked lesson be re-picked.
+            const allowCorrection = lesson.status !== 'scheduled';
+            return (
               <StatusMenu
                 trigger={badge}
-                onComplete={() => handleComplete(lesson.id)}
-                onNoShow={() => handleNoShow(lesson.id)}
-                onCancel={() => handleCancel(lesson.id)}
+                onComplete={() => handleComplete(lesson.id, allowCorrection)}
+                onNoShow={() => handleNoShow(lesson.id, allowCorrection)}
+                onCancel={() => handleCancel(lesson.id, allowCorrection)}
               />
-            ) : (
-              badge
             );
           })()}
         </td>
@@ -1017,6 +1037,8 @@ export const LessonsPage: React.FC = () => {
         lessons={todaysLessonsForWidget}
         onViewLesson={handleEdit}
         onCompleteLesson={handleComplete}
+        onNoShowLesson={handleNoShow}
+        onCancelLesson={handleCancel}
         getStudentName={getStudentName}
         getInstructorName={getInstructorName}
       />
@@ -1123,15 +1145,17 @@ export const LessonsPage: React.FC = () => {
                               {lesson.status.replace(/_/g, ' ')}
                             </span>
                           );
-                          return lesson.status === 'scheduled' ? (
+                          // Same "Correct" pattern as the table view above -
+                          // one StatusMenu, allowCorrection true only for an
+                          // already-terminal lesson.
+                          const allowCorrection = lesson.status !== 'scheduled';
+                          return (
                             <StatusMenu
                               trigger={badge}
-                              onComplete={() => handleComplete(lesson.id)}
-                              onNoShow={() => handleNoShow(lesson.id)}
-                              onCancel={() => handleCancel(lesson.id)}
+                              onComplete={() => handleComplete(lesson.id, allowCorrection)}
+                              onNoShow={() => handleNoShow(lesson.id, allowCorrection)}
+                              onCancel={() => handleCancel(lesson.id, allowCorrection)}
                             />
-                          ) : (
-                            badge
                           );
                         })()}
                         {upcoming && (

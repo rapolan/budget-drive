@@ -12,7 +12,13 @@ vi.mock('@/api', async () => {
     ...actual,
     studentsApi: { ...actual.studentsApi, getAll: vi.fn() },
     instructorsApi: { ...actual.instructorsApi, getAll: vi.fn() },
-    lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
+    lessonsApi: {
+      ...actual.lessonsApi,
+      getAll: vi.fn(),
+      complete: vi.fn(),
+      noShow: vi.fn(),
+      cancel: vi.fn(),
+    },
     paymentsApi: { ...actual.paymentsApi, getAll: vi.fn() },
     dashboardApi: {
       ...actual.dashboardApi,
@@ -32,17 +38,28 @@ vi.mock('@/contexts/AuthContext', () => ({
 // deterministic in tests, matching the tenant-timezone-resolved shape
 // TenantContext now provides (see docs/ARCHITECTURE.md §7) - Dashboard.tsx
 // renders a loading skeleton until this resolves, so every test needs it.
+// A stable module-level object, not a fresh literal per call - the real
+// TenantContext stores tenantNow in useState and only creates a new
+// reference on an actual refetch (contexts/TenantContext.tsx), so a
+// consumer's useEffect keyed on [tenantNow] never re-fires on an
+// unrelated render. Mocking it as `() => ({ tenantNow: {...} })` (a new
+// object every call) doesn't preserve that guarantee and can trip a
+// "Maximum update depth exceeded" warning in exactly that kind of effect
+// once a test drives enough consecutive re-renders (e.g. clicking an
+// action button and awaiting its mutation).
+const MOCK_TENANT_NOW = {
+  timezone: 'America/Los_Angeles',
+  today: '2026-08-17',
+  tomorrow: '2026-08-18',
+  currentTime: '12:00',
+  weekStart: '2026-08-16',
+  weekEnd: '2026-08-22',
+  monthBoundaries: { start: '2026-08-01', end: '2026-08-31' },
+};
+
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({
-    tenantNow: {
-      timezone: 'America/Los_Angeles',
-      today: '2026-08-17',
-      tomorrow: '2026-08-18',
-      currentTime: '12:00',
-      weekStart: '2026-08-16',
-      weekEnd: '2026-08-22',
-      monthBoundaries: { start: '2026-08-01', end: '2026-08-31' },
-    },
+    tenantNow: MOCK_TENANT_NOW,
   }),
 }));
 
@@ -61,6 +78,26 @@ function emptyStudent(overrides: Partial<Student>): Student {
     updatedAt: new Date('2026-01-01'),
     ...overrides,
   } as Student;
+}
+
+function lesson(overrides: Partial<Lesson>): Lesson {
+  return {
+    id: 'lesson-1',
+    tenantId: 'tenant-1',
+    studentId: 'student-1',
+    instructorId: 'instructor-1',
+    vehicleId: null,
+    date: '2026-08-17' as unknown as Date,
+    startTime: '09:00',
+    endTime: '10:00',
+    duration: 60,
+    lessonType: 'behind_wheel',
+    status: 'scheduled',
+    cost: 100,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    ...overrides,
+  } as Lesson;
 }
 
 function renderDashboard() {
@@ -232,25 +269,6 @@ describe('Dashboard - Book Lesson opens in place (regression: previously navigat
 // these assert the widget's actual (correct) behavior appears here, not
 // the old hand-rolled one.
 describe('Dashboard - Today\'s Schedule uses the real shared TodaysScheduleWidget (item 3)', () => {
-  function lesson(overrides: Partial<Lesson>): Lesson {
-    return {
-      id: 'lesson-1',
-      tenantId: 'tenant-1',
-      studentId: 'student-1',
-      instructorId: 'instructor-1',
-      vehicleId: null,
-      date: '2026-08-17' as unknown as Date,
-      startTime: '09:00',
-      endTime: '10:00',
-      duration: 60,
-      lessonType: 'behind_wheel',
-      status: 'scheduled',
-      cost: 100,
-      createdAt: new Date('2026-01-01'),
-      updatedAt: new Date('2026-01-01'),
-      ...overrides,
-    } as Lesson;
-  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -315,5 +333,78 @@ describe('Dashboard - Today\'s Schedule uses the real shared TodaysScheduleWidge
 
     expect(await screen.findByText(/needs marking/i)).toBeInTheDocument();
     expect(screen.queryByText(/^upcoming$/i)).not.toBeInTheDocument();
+  });
+});
+
+// Widget enhancement: inline status actions + Completed Today. These
+// assert Dashboard wires the SAME lessonsApi.complete/noShow/cancel
+// functions the Lessons page uses into the widget (no reimplementation),
+// and that a status change made here invalidates the review-queue query
+// too - not just ['lessons'] - so the "Lessons Need Review" alert can
+// never disagree with what the widget itself now shows.
+describe('Dashboard - TodaysScheduleWidget inline actions reuse the same lessonsApi calls and invalidate the review queue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Jordan Vance' })],
+    });
+    (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('clicking Complete on the "Now" card calls lessonsApi.complete (not a Dashboard-local reimplementation) and refetches the review queue', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'l1', status: 'scheduled', studentId: 'student-1', startTime: '11:00', endTime: '13:00' })],
+    });
+    (lessonsApi.complete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: 'l1', status: 'completed' } });
+
+    renderDashboard();
+    await screen.findByText('Jordan Vance');
+
+    const reviewQueueCallsBefore = (dashboardApi.getReviewQueue as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    await screen.findByRole('button', { name: /mark lesson as completed/i }).then((btn) => btn.click());
+
+    await waitFor(() => expect(lessonsApi.complete).toHaveBeenCalledWith('l1', false));
+    await waitFor(() =>
+      expect((dashboardApi.getReviewQueue as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(reviewQueueCallsBefore)
+    );
+
+    confirmSpy.mockRestore();
+  });
+
+  it('clicking No-show calls lessonsApi.noShow with the same id', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'l1', status: 'scheduled', studentId: 'student-1', startTime: '11:00', endTime: '13:00' })],
+    });
+    (lessonsApi.noShow as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: 'l1', status: 'no_show' } });
+
+    renderDashboard();
+    await screen.findByText('Jordan Vance');
+
+    (await screen.findByRole('button', { name: /mark lesson as no-show/i })).click();
+
+    await waitFor(() => expect(lessonsApi.noShow).toHaveBeenCalledWith('l1', false));
+    confirmSpy.mockRestore();
+  });
+
+  it('a completed lesson appears under "Completed Today" with a "Correct" affordance, and correcting to no-show calls lessonsApi.noShow with allowCorrection=true', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'l1', status: 'completed', studentId: 'student-1', startTime: '09:00', endTime: '10:00' })],
+    });
+    (lessonsApi.noShow as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: 'l1', status: 'no_show' } });
+
+    renderDashboard();
+    expect(await screen.findByText(/^completed today$/i)).toBeInTheDocument();
+
+    (await screen.findByText('Correct')).click();
+    (await screen.findByText('No-show')).click();
+
+    await waitFor(() => expect(lessonsApi.noShow).toHaveBeenCalledWith('l1', true));
+    confirmSpy.mockRestore();
   });
 });
