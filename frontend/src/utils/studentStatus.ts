@@ -11,8 +11,28 @@
  */
 
 import type { Student, Lesson, ActiveEnrollmentSummary } from '@/types';
+import { formatLocalDate, parseLocalDate } from './timeFormat';
 
 export type ComputedStatus = 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
+
+// A lesson is "upcoming" if it's still scheduled and its calendar date is
+// today or later. Compares as YYYY-MM-DD STRINGS, not Date objects -
+// lesson.date arrives from the API as a UTC-normalized ISO datetime (e.g.
+// "2026-08-25T00:00:00.000Z") for what is really just a DATE column, so
+// `new Date(lesson.date) >= now` compares a UTC midnight instant against a
+// separately-constructed LOCAL midnight `now` - in any negative-UTC-offset
+// timezone (every US timezone), a lesson dated TODAY resolves to ~5-8pm
+// the day before once shifted to local time, landing before local
+// midnight and failing the comparison. A lesson dated tomorrow or later
+// happens to pass anyway, since the same shift still lands after today's
+// local midnight - which is what made this bug invisible for every date
+// except the one that matters most (a same-day booking). String-comparing
+// the plain calendar dates sidesteps the whole instant-vs-instant problem,
+// matching the pattern already used elsewhere (e.g. Dashboard.tsx,
+// Lessons.tsx: `String(lesson.date).split('T')[0] === tenantNow.today`).
+function isUpcomingScheduledLesson(lesson: Lesson, nowDateStr: string): boolean {
+  return lesson.status === 'scheduled' && String(lesson.date).split('T')[0] >= nowDateStr;
+}
 
 export interface StatusInfo {
   status: ComputedStatus;
@@ -60,12 +80,10 @@ export function computeStudentStatus(
   activeEnrollment: ActiveEnrollmentSummary | null
 ): StatusInfo {
   const studentLessons = lessons.filter(l => l.studentId === student.id);
+  const nowDateStr = formatLocalDate(now);
 
   // Get upcoming scheduled lessons
-  const upcomingLessons = studentLessons.filter(lesson => {
-    const lessonDate = new Date(lesson.date);
-    return lesson.status === 'scheduled' && lessonDate >= now;
-  });
+  const upcomingLessons = studentLessons.filter(lesson => isUpcomingScheduledLesson(lesson, nowDateStr));
 
   // 1. INACTIVE: withdrawn, suspended, inactive, or 60+ days no activity.
   // `withdrawn` owns the "student left" meaning - it's a distinct status
@@ -172,10 +190,13 @@ export function computeStudentStatus(
   // length is exactly that count.
   if (upcomingLessons.length > 0) {
     const nextLesson = upcomingLessons.sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+      String(a.date).localeCompare(String(b.date))
     )[0];
-    const nextLessonDate = new Date(nextLesson.date);
-    const isToday = nextLessonDate.toDateString() === now.toDateString();
+    // Same UTC-vs-local mismatch as isUpcomingScheduledLesson above -
+    // compare calendar-date strings, not a UTC-shifted Date's toDateString().
+    const nextLessonDateStr = String(nextLesson.date).split('T')[0];
+    const isToday = nextLessonDateStr === nowDateStr;
+    const nextLessonDate = parseLocalDate(nextLessonDateStr);
 
     return {
       status: 'scheduled',
@@ -245,9 +266,7 @@ export function studentNeedsFollowup(
 
   // Upcoming lessons - computed once, used both to resolve a recent
   // cancellation/no-show (clause 3) and to gate the long-gap check (clause 4).
-  const upcomingLessons = studentLessons.filter(l =>
-    l.status === 'scheduled' && new Date(l.date) >= now
-  );
+  const upcomingLessons = studentLessons.filter(l => isUpcomingScheduledLesson(l, formatLocalDate(now)));
 
   // 3. Recent cancelled or no-show lessons (within 14 days), UNLESS a
   // future lesson has since been booked - a replacement lesson resolves
@@ -309,9 +328,7 @@ export function getFollowupReason(
 
   // 3. Recent cancelled or no-show, UNLESS a future lesson has since been
   // booked (mirrors studentNeedsFollowup's clause 3 - see there for why).
-  const upcomingLessons = studentLessons.filter(l =>
-    l.status === 'scheduled' && new Date(l.date) >= now
-  );
+  const upcomingLessons = studentLessons.filter(l => isUpcomingScheduledLesson(l, formatLocalDate(now)));
 
   const recentCancelledOrNoShow = studentLessons
     .filter(lesson => {

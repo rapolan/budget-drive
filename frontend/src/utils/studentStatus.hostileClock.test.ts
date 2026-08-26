@@ -122,4 +122,44 @@ describe('studentStatus - hostile clock (explicit now, browser TZ varied)', () =
 
     expect(newYork).toEqual(losAngeles);
   });
+
+  // Investigation follow-up: a same-day booking never flipped a student to
+  // "Scheduled" - lesson.date arrives from the API as a UTC-midnight ISO
+  // string (e.g. "2026-08-25T00:00:00.000Z") for what is really just a
+  // calendar date, and the old code compared `new Date(lesson.date) >= now`
+  // as absolute instants. `now` (tenantNow.today, parsed via
+  // parseLocalDate) is LOCAL midnight, while the lesson's UTC-midnight
+  // value shifts to ~5-8pm the PREVIOUS day once read in a negative-UTC-
+  // offset zone - so a lesson dated exactly "today" always landed before
+  // local midnight and failed the >= comparison, no matter which US zone
+  // was ambient. Fixed by comparing calendar-date strings instead.
+  it('computeStudentStatus: a lesson booked for TODAY shows "Scheduled" under a tenant/browser timezone mismatch (hostile clock)', () => {
+    // `now` must be a fixed ABSOLUTE instant (like the file's own NOW
+    // above), not a local-time constructor - `new Date(year, month, day)`
+    // bakes in whatever TZ was ambient at construction time, which would
+    // defeat the point of testing "same instant, different ambient zone"
+    // (its calendar date could itself shift when read back under a
+    // different TZ, independent of anything this fix touches). This
+    // instant is late enough in the UTC day that it reads as Feb 28 in
+    // both New York (UTC-5) and Los Angeles (UTC-8).
+    const now = new Date('2026-02-28T20:00:00.000Z');
+    const s = student();
+    const e = enrollment();
+    // lesson.date exactly as it arrives over the wire from a real API
+    // response: a JSON string (typed as Date in TS, but never actually a
+    // Date instance at runtime) - a UTC-midnight ISO string for the SAME
+    // calendar day `now` represents. Deliberately a string, not `new
+    // Date(...)`, to match production; a real Date object here would take
+    // a different (also-buggy) code path through Date#toString() rather
+    // than the JSON-string path this fix targets.
+    const lessons = [lesson({ date: '2026-02-28T00:00:00.000Z' as unknown as Date, status: 'scheduled' })];
+
+    const { newYork, losAngeles } = runUnderBothZones(() =>
+      computeStudentStatus(s, lessons, now, e)
+    );
+
+    expect(newYork.status).toBe('scheduled');
+    expect(newYork.reason).toMatch(/lesson today/i);
+    expect(newYork).toEqual(losAngeles);
+  });
 });
