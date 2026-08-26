@@ -211,3 +211,76 @@ describe('TodaysScheduleWidget - "Upcoming" header hidden when empty (item 2 reg
     expect(screen.getByText(/^upcoming$/i)).toBeInTheDocument();
   });
 });
+
+describe('TodaysScheduleWidget - past-due lessons are not shown as Upcoming (investigation follow-up)', () => {
+  // tenantNow.currentTime is '10:00' (mocked above) - this lesson ended at
+  // 09:00, well before "now", but is still status: 'scheduled' (never
+  // marked complete/no-show/cancelled).
+  const pastDue = lesson({ id: 'past-due-1', startTime: '08:00', endTime: '09:00', studentId: 'overdue-student' });
+
+  it('does not list a past-due scheduled lesson under "Upcoming"', () => {
+    render(
+      <TodaysScheduleWidget
+        lessons={[pastDue]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={() => 'Overdue Student'}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    expect(screen.queryByText(/^upcoming$/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a past-due scheduled lesson under its own "Needs marking" treatment instead', () => {
+    render(
+      <TodaysScheduleWidget
+        lessons={[pastDue]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={() => 'Overdue Student'}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    expect(screen.getByText(/needs marking/i)).toBeInTheDocument();
+    expect(screen.getByText('Overdue Student')).toBeInTheDocument();
+  });
+
+  it('does not count a past-due lesson as completed - it has no effect on the completion bar beyond being scheduled', () => {
+    const completed = lesson({ id: 'completed-1', status: 'completed', startTime: '07:00', endTime: '08:00', studentId: 'done-student' });
+
+    render(
+      <TodaysScheduleWidget
+        lessons={[pastDue, completed]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={() => 'Test Student'}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    // 1 completed out of 2 actionable (scheduled + completed) - the
+    // past-due lesson still counts toward the denominator (it hasn't been
+    // marked) but must never be silently counted as done.
+    expect(screen.getByText('1/2 complete')).toBeInTheDocument();
+    expect(screen.queryByText(/all lessons completed for today/i)).not.toBeInTheDocument();
+  });
+
+  it('a lesson still in progress (not yet past-due) is unaffected - still classified "Now", not past-due', () => {
+    const inProgress = lesson({ id: 'now-1', startTime: '09:30', endTime: '10:30', studentId: 'in-progress-student' });
+
+    render(
+      <TodaysScheduleWidget
+        lessons={[inProgress]}
+        onViewLesson={noop}
+        onCompleteLesson={noopStr}
+        getStudentName={() => 'In Progress Student'}
+        getInstructorName={() => 'Test Instructor'}
+      />
+    );
+
+    expect(screen.getByText('Now')).toBeInTheDocument();
+    expect(screen.queryByText(/needs marking/i)).not.toBeInTheDocument();
+  });
+});

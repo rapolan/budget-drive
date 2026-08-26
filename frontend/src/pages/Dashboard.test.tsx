@@ -288,15 +288,32 @@ describe('Dashboard - Today\'s Schedule uses the real shared TodaysScheduleWidge
   });
 
   it('renders the same "Upcoming" list the Lessons page would for identical data', async () => {
+    // tenantNow.currentTime is '12:00' (mocked in this file). The
+    // earliest future lesson (14:00) becomes its own "Next" card, leaving
+    // the later one (16:00) as the genuine entry in the plain Upcoming
+    // list - same pattern as TodaysScheduleWidget.test.tsx's own
+    // "still renders the Upcoming header..." case.
     (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        lesson({ id: 'l1', status: 'scheduled', studentId: 'student-1', startTime: '09:00', endTime: '10:00' }),
+        lesson({ id: 'next', status: 'scheduled', studentId: 'student-1', startTime: '14:00', endTime: '15:00' }),
+        lesson({ id: 'l1', status: 'scheduled', studentId: 'student-1', startTime: '16:00', endTime: '17:00' }),
       ],
     });
 
     renderDashboard();
 
     expect(await screen.findByText(/^upcoming$/i)).toBeInTheDocument();
-    expect(screen.getByText('Jordan Vance')).toBeInTheDocument();
+    expect(screen.getAllByText('Jordan Vance').length).toBeGreaterThan(0);
+  });
+
+  it('shows a past-due scheduled lesson as "Needs marking", not "Upcoming" (investigation follow-up)', async () => {
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [lesson({ id: 'l1', status: 'scheduled', studentId: 'student-1', startTime: '09:00', endTime: '10:00' })],
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByText(/needs marking/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^upcoming$/i)).not.toBeInTheDocument();
   });
 });

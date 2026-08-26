@@ -82,6 +82,18 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
   );
   const currentLessonIds = new Set(currentLessons.map(l => l.id));
 
+  // Past-due: still 'scheduled' but its end time has already passed - it
+  // never got marked complete/no-show/cancelled. This must NOT render as
+  // "Upcoming" (its time already happened) or as completed (it never was
+  // marked) - it belongs in its own past-due bucket, consistent with the
+  // review queue's "past lesson needs a status" treatment (dashboardService
+  // getLessonsNeedingReview uses the same status='scheduled' + ended-in-
+  // the-past definition). All comparisons here use currentTime, which is
+  // itself derived from tenantNow (see advanceTime above) - never browser-
+  // local time.
+  const pastDueLessons = scheduledLessons.filter(l => l.endTime <= currentTime);
+  const pastDueLessonIds = new Set(pastDueLessons.map(l => l.id));
+
   const nextLesson = scheduledLessons.find(l => l.startTime > currentTime);
 
   const formatTime = (time: string) => {
@@ -272,15 +284,56 @@ export const TodaysScheduleWidget: React.FC<TodaysScheduleWidgetProps> = ({
             </div>
           )}
 
+          {/* Past-due: still 'scheduled', end time already passed, never
+              marked. Same warning treatment as the Dashboard's "Lessons
+              Need Review" alert (status-warning-* tokens) - this is the
+              same underlying condition (status='scheduled' + ended in the
+              past), so the two surfaces should visibly agree instead of
+              one saying "needs review" while the other says "upcoming". */}
+          {pastDueLessons.map((lesson) => (
+            <div key={lesson.id} className="bg-status-warning-bg border border-status-warning-border rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-status-warning-text">Needs marking</span>
+                    <Clock className="h-3 w-3 text-status-warning-text" />
+                  </div>
+                  <p className="font-semibold text-tx-primary">{getStudentName(lesson.studentId)}</p>
+                  <p className="text-sm text-status-warning-text">
+                    {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)} • {getInstructorName(lesson.instructorId)}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onViewLesson(lesson); }}
+                    className="p-2 rounded-lg hover:bg-surface3 text-status-warning-text transition-colors"
+                    title="View details"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onCompleteLesson(lesson.id); }}
+                    className="p-2 rounded-lg hover:bg-surface3 text-status-warning-text transition-colors"
+                    title="Mark complete"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
           {/* Remaining lessons list. Gated on the POST-FILTER list, not
               scheduledLessons.length - a lesson already shown above as
-              "Now" or "Next" still counts toward scheduledLessons, so
-              that raw count can be > 0 while nothing is actually left
-              to show here, which previously rendered an empty "Upcoming"
-              header with nothing beneath it. */}
+              "Now", "Next", or past-due still counts toward
+              scheduledLessons, so that raw count can be > 0 while nothing
+              is actually left to show here, which previously rendered an
+              empty "Upcoming" header with nothing beneath it. */}
           {(() => {
             const upcomingLessons = scheduledLessons.filter(
-              l => !currentLessonIds.has(l.id) && l.id !== nextLesson?.id
+              l => !currentLessonIds.has(l.id) && !pastDueLessonIds.has(l.id) && l.id !== nextLesson?.id
             );
             if (upcomingLessons.length === 0) return null;
             return (
