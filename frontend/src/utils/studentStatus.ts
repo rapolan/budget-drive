@@ -15,6 +15,25 @@ import { formatLocalDate, parseLocalDate } from './timeFormat';
 
 export type ComputedStatus = 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
 
+// Normalizes a Lesson's `date` field to a plain YYYY-MM-DD string.
+// `Lesson.date` is TYPED as `Date`, but at runtime (after JSON.parse from
+// an API response) it's actually always a UTC-normalized ISO datetime
+// STRING for what is really just a DATE column (e.g.
+// "2026-08-25T00:00:00.000Z") - the established pattern elsewhere (e.g.
+// Dashboard.tsx: `String(l.date).split('T')[0]`) relies on exactly that
+// runtime shape. But a genuine `Date` INSTANCE (as any fixture faithfully
+// typed to `Lesson` may legitimately construct, e.g. `new Date(...)` in a
+// test) hits `Date.prototype.toString()` instead, which has NO 'T'
+// separator at all - "Thu Aug 27 2026 ... GMT+0000" - so `.split('T')[0]`
+// silently returns '' whenever the day-of-week name starts with a capital
+// T (Tuesday/Thursday), and the comparison against nowDateStr fails
+// regardless of the actual date. `toISOString()` for a Date instance
+// sidesteps this entirely and always produces a real ISO string to split.
+function toDateOnlyString(date: Date | string): string {
+  const iso = date instanceof Date ? date.toISOString() : String(date);
+  return iso.split('T')[0];
+}
+
 // A lesson is "upcoming" if it's still scheduled and its calendar date is
 // today or later. Compares as YYYY-MM-DD STRINGS, not Date objects -
 // lesson.date arrives from the API as a UTC-normalized ISO datetime (e.g.
@@ -27,11 +46,9 @@ export type ComputedStatus = 'scheduled' | 'ready_to_book' | 'needs_attention' |
 // happens to pass anyway, since the same shift still lands after today's
 // local midnight - which is what made this bug invisible for every date
 // except the one that matters most (a same-day booking). String-comparing
-// the plain calendar dates sidesteps the whole instant-vs-instant problem,
-// matching the pattern already used elsewhere (e.g. Dashboard.tsx,
-// Lessons.tsx: `String(lesson.date).split('T')[0] === tenantNow.today`).
+// the plain calendar dates sidesteps the whole instant-vs-instant problem.
 function isUpcomingScheduledLesson(lesson: Lesson, nowDateStr: string): boolean {
-  return lesson.status === 'scheduled' && String(lesson.date).split('T')[0] >= nowDateStr;
+  return lesson.status === 'scheduled' && toDateOnlyString(lesson.date) >= nowDateStr;
 }
 
 export interface StatusInfo {
@@ -190,11 +207,11 @@ export function computeStudentStatus(
   // length is exactly that count.
   if (upcomingLessons.length > 0) {
     const nextLesson = upcomingLessons.sort((a, b) =>
-      String(a.date).localeCompare(String(b.date))
+      toDateOnlyString(a.date).localeCompare(toDateOnlyString(b.date))
     )[0];
     // Same UTC-vs-local mismatch as isUpcomingScheduledLesson above -
     // compare calendar-date strings, not a UTC-shifted Date's toDateString().
-    const nextLessonDateStr = String(nextLesson.date).split('T')[0];
+    const nextLessonDateStr = toDateOnlyString(nextLesson.date);
     const isToday = nextLessonDateStr === nowDateStr;
     const nextLessonDate = parseLocalDate(nextLessonDateStr);
 

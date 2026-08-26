@@ -162,4 +162,37 @@ describe('studentStatus - hostile clock (explicit now, browser TZ varied)', () =
     expect(newYork.reason).toMatch(/lesson today/i);
     expect(newYork).toEqual(losAngeles);
   });
+
+  // Regression guard for a bug the fix above introduced and a later
+  // review caught: the fix's date-string comparison used
+  // `String(lesson.date).split('T')[0]`, which only produces a real
+  // YYYY-MM-DD when lesson.date is already a JSON string (the actual
+  // runtime shape from the API). `Lesson.date` is TYPED as `Date` though,
+  // and a genuine Date INSTANCE's `String(...)` calls
+  // `Date.prototype.toString()` - a locale string with NO 'T' separator
+  // at all, e.g. "Thu Aug 20 2026 00:00:00 GMT+0000 (Coordinated
+  // Universal Time)". `.split('T')[0]` on that string silently returns
+  // '' whenever the day-of-week name starts with a capital T (Tuesday or
+  // Thursday) - '' sorts before any real date, so an upcoming lesson on
+  // a Tue/Thu got wrongly excluded from the upcoming count regardless of
+  // how far in the future it was. Both fixture dates below deliberately
+  // land on a T-weekday (Tue 2026-08-18, Thu 2026-08-20) to catch this
+  // class of bug if it's ever reintroduced.
+  it('computeStudentStatus counts an upcoming lesson correctly even when both "now" and the lesson land on a Tuesday/Thursday (Date-object weekday-name regression)', () => {
+    const now = new Date('2026-08-18T12:00:00.000Z'); // Tuesday
+    const s = student();
+    const e = enrollment();
+    // A genuine Date INSTANCE (not a string) - this is what a fixture
+    // faithfully typed to Lesson.date's declared `Date` type legitimately
+    // constructs, and what exposed the bug.
+    const lessons = [lesson({ date: new Date('2026-08-20T12:00:00.000Z'), status: 'scheduled' })]; // Thursday
+
+    const { newYork, losAngeles } = runUnderBothZones(() =>
+      computeStudentStatus(s, lessons, now, e)
+    );
+
+    expect(newYork.status).toBe('scheduled');
+    expect(newYork.upcomingLessonCount).toBe(1);
+    expect(newYork).toEqual(losAngeles);
+  });
 });
