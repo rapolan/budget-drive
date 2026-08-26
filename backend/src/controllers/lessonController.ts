@@ -150,8 +150,9 @@ export const cancelLesson = asyncHandler(async (req: Request, res: Response) => 
   const tenantId = getTenantId(req);
   const userId = req.user?.userId;
   const { id } = req.params;
+  const allowCorrection = req.body?.allowCorrection === true;
 
-  const lesson = await lessonService.cancelLesson(id, tenantId, userId);
+  const lesson = await lessonService.cancelLesson(id, tenantId, userId, allowCorrection);
 
   res.json({
     success: true,
@@ -274,8 +275,9 @@ export const completeLesson = asyncHandler(async (req: Request, res: Response) =
   const tenantId = getTenantId(req);
   const userId = req.user?.userId;
   const { id } = req.params;
+  const allowCorrection = req.body?.allowCorrection === true;
 
-  const lesson = await lessonService.completeLesson(id, tenantId, userId);
+  const lesson = await lessonService.completeLesson(id, tenantId, userId, allowCorrection);
 
   res.json({
     success: true,
@@ -288,8 +290,9 @@ export const noShowLesson = asyncHandler(async (req: Request, res: Response) => 
   const tenantId = getTenantId(req);
   const userId = req.user?.userId;
   const { id } = req.params;
+  const allowCorrection = req.body?.allowCorrection === true;
 
-  const lesson = await lessonService.noShowLesson(id, tenantId, userId);
+  const lesson = await lessonService.noShowLesson(id, tenantId, userId, allowCorrection);
 
   res.json({
     success: true,

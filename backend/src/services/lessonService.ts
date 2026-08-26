@@ -932,18 +932,28 @@ export const updateLesson = async (
 
 // Statuses a lesson can never transition OUT of via the three review
 // actions below (complete/no-show/cancel) - once a lesson has a terminal
-// status, correcting it means an explicit new action, not silently
-// overwriting a previous reviewer's call. updateLesson's generic
-// PUT /lessons/:id is unaffected by this guard - it stays available for
-// correcting other fields (date/time/notes/etc) regardless of status.
+// status, correcting it means an explicit new action (allowCorrection),
+// not an accidental re-click of the same action silently overwriting a
+// previous reviewer's call. updateLesson's generic PUT /lessons/:id is
+// unaffected by this guard - it stays available for correcting other
+// fields (date/time/notes/etc) regardless of status.
 const TERMINAL_LESSON_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 
-async function assertLessonReviewable(id: string, tenantId: string): Promise<Lesson> {
+// `allowCorrection` deliberately bypasses the terminal-status guard - it's
+// the one, explicit "I know this lesson already has a status and I'm
+// choosing a different one" path (e.g. TodaysScheduleWidget's/the Lessons
+// table's "Correct" action on an already-completed row), as opposed to
+// the normal Complete/No-show/Cancel buttons, which must still 409 on a
+// double-click or a stale UI. Every other behavior (the UPDATE itself,
+// audit fields, fee-flag/notification side effects) is byte-identical
+// between a normal transition and a correction - this is not a second
+// implementation of "what does Complete/No-show/Cancel do."
+async function assertLessonReviewable(id: string, tenantId: string, allowCorrection = false): Promise<Lesson> {
   const existing = await getLessonById(id, tenantId);
   if (!existing) {
     throw new AppError('Lesson not found', 404);
   }
-  if (TERMINAL_LESSON_STATUSES.has(existing.status)) {
+  if (!allowCorrection && TERMINAL_LESSON_STATUSES.has(existing.status)) {
     throw new AppError(
       `Lesson is already ${existing.status.replace(/_/g, ' ')} and cannot be transitioned again`,
       409
@@ -955,12 +965,13 @@ async function assertLessonReviewable(id: string, tenantId: string): Promise<Les
 export const completeLesson = async (
   id: string,
   tenantId: string,
-  userId?: string
+  userId?: string,
+  allowCorrection = false
 ): Promise<Lesson> => {
-  logger.info('Completing lesson', { tenantId, lessonId: id });
+  logger.info('Completing lesson', { tenantId, lessonId: id, allowCorrection });
 
   try {
-    await assertLessonReviewable(id, tenantId);
+    await assertLessonReviewable(id, tenantId, allowCorrection);
 
     const result = await query(
       `UPDATE lessons
@@ -1008,12 +1019,13 @@ export const completeLesson = async (
 export const noShowLesson = async (
   id: string,
   tenantId: string,
-  userId?: string
+  userId?: string,
+  allowCorrection = false
 ): Promise<Lesson> => {
-  logger.info('Marking lesson as no-show', { tenantId, lessonId: id });
+  logger.info('Marking lesson as no-show', { tenantId, lessonId: id, allowCorrection });
 
   try {
-    await assertLessonReviewable(id, tenantId);
+    await assertLessonReviewable(id, tenantId, allowCorrection);
 
     const result = await query(
       `UPDATE lessons
@@ -1077,12 +1089,13 @@ export const noShowLesson = async (
 export const cancelLesson = async (
   id: string,
   tenantId: string,
-  userId?: string
+  userId?: string,
+  allowCorrection = false
 ): Promise<Lesson> => {
-  logger.info('Cancelling lesson', { tenantId, lessonId: id });
+  logger.info('Cancelling lesson', { tenantId, lessonId: id, allowCorrection });
 
   try {
-    await assertLessonReviewable(id, tenantId);
+    await assertLessonReviewable(id, tenantId, allowCorrection);
 
     const result = await query(
       `UPDATE lessons

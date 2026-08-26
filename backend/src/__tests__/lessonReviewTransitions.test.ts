@@ -185,3 +185,70 @@ describe('lessonService - status transition guard rejects an already-terminal le
     });
   });
 });
+
+// "Correct" (TodaysScheduleWidget's/the Lessons table's affordance for
+// fixing a lesson marked wrong) is the one deliberate way past the guard
+// above - allowCorrection is a plain boolean the caller must pass
+// explicitly; the normal Complete/No-show/Cancel buttons never set it, so
+// they keep 409ing on a double-click or stale UI exactly as before (see
+// the describe block above, all still passing with allowCorrection
+// defaulting to false).
+describe('lessonService - allowCorrection bypasses the terminal-status guard', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('completeLesson with allowCorrection=true succeeds on an already-cancelled lesson', async () => {
+    const { completeLesson } = await import('../services/lessonService');
+    mockQuery
+      .mockResolvedValueOnce(queryResult([lessonRow({ status: 'cancelled' })])) // assertLessonReviewable
+      .mockResolvedValueOnce(queryResult([lessonRow({ status: 'completed', completion_verified: true })])) // UPDATE
+      .mockResolvedValueOnce(queryResult([])); // fee_flags clear UPDATE (completeLesson's own side effect)
+
+    const lesson = await completeLesson(LESSON_ID, TENANT_ID, USER_ID, true);
+    expect(lesson.status).toBe('completed');
+  });
+
+  it('completeLesson with allowCorrection=false (the default) still rejects the same already-cancelled lesson', async () => {
+    const { completeLesson } = await import('../services/lessonService');
+    mockQuery.mockResolvedValueOnce(queryResult([lessonRow({ status: 'cancelled' })]));
+
+    await expect(completeLesson(LESSON_ID, TENANT_ID, USER_ID)).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  });
+
+  it('noShowLesson with allowCorrection=true succeeds on an already-completed lesson AND still fires the fee-flag side effect', async () => {
+    const { noShowLesson } = await import('../services/lessonService');
+    mockQuery
+      .mockResolvedValueOnce(queryResult([lessonRow({ status: 'completed' })])) // assertLessonReviewable
+      .mockResolvedValueOnce(queryResult([lessonRow({ status: 'no_show' })])) // UPDATE
+      .mockResolvedValueOnce(queryResult([{ full_name: 'Test Student' }])) // student name lookup for notification
+      .mockResolvedValueOnce(queryResult([{ id: 'notif-1' }])) // createNoShowNotification's INSERT
+      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_amount: '50.00' }])) // getTenantSettings for fee flag
+      .mockResolvedValueOnce(queryResult([{ id: 'flag-1', status: 'outstanding' }])); // fee_flags INSERT
+
+    const lesson = await noShowLesson(LESSON_ID, TENANT_ID, USER_ID, true);
+    expect(lesson.status).toBe('no_show');
+
+    const feeFlagInsertCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO fee_flags')
+    );
+    expect(feeFlagInsertCall).toBeDefined();
+  });
+
+  it('cancelLesson with allowCorrection=true succeeds on an already-no_show lesson', async () => {
+    const { cancelLesson } = await import('../services/lessonService');
+    mockQuery
+      .mockResolvedValueOnce(queryResult([lessonRow({ status: 'no_show' })])) // assertLessonReviewable
+      .mockResolvedValueOnce(queryResult([lessonRow({ status: 'cancelled' })])) // UPDATE
+      .mockResolvedValueOnce(queryResult([{ email: 'student@example.com' }]))
+      .mockResolvedValueOnce(queryResult([{ email: 'instructor@example.com' }]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]));
+
+    const lesson = await cancelLesson(LESSON_ID, TENANT_ID, USER_ID, true);
+    expect(lesson.status).toBe('cancelled');
+  });
+});
