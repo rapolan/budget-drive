@@ -9,7 +9,6 @@ import {
   CreditCard,
   Settings,
   Award,
-  ClipboardList,
   Coins,
   DollarSign,
   Bell,
@@ -64,9 +63,8 @@ const allNavigation: NavItem[] = [
   { name: 'Notifications', href: '/notifications', icon: Bell, group: 'communication' },
   { name: 'Notification History', href: '/notification-history', icon: History, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'communication' },
   
-  // Certificates & Follow-ups (school only for now)
+  // Certificates (school only for now)
   { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
-  { name: 'Follow-Ups', href: '/follow-ups', icon: ClipboardList, featureFlag: 'enableFollowUpTracker', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
   
   // System
   { name: 'Settings', href: '/settings', icon: Settings, roles: ['owner', 'admin'], group: 'system' },
@@ -113,9 +111,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     }
     if (item.featureFlag === 'enableCertificates') {
       return settings?.enableCertificates === true;
-    }
-    if (item.featureFlag === 'enableFollowUpTracker') {
-      return settings?.enableFollowUpTracker === true;
     }
 
     return true;

@@ -1200,17 +1200,6 @@ const FeaturesSettings: React.FC = () => {
         </div>
       </div>
 
-      <div className="border border-edge rounded-lg p-6 opacity-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-medium text-tx-primary">Follow-Up Tracker</h3>
-            <p className="mt-1 text-sm text-tx-muted">
-              Automated student follow-up reminders
-            </p>
-          </div>
-          <span className="text-sm text-tx-muted">Coming Soon</span>
-        </div>
-      </div>
     </div>
   );
 };

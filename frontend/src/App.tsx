@@ -182,16 +182,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/follow-ups"
-        element={
-          <ProtectedRoute>
-            <AppLayout>
-              <div className="text-center text-tx-muted">Follow-ups page - Coming soon</div>
-            </AppLayout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/notifications"
         element={
           <ProtectedRoute>
