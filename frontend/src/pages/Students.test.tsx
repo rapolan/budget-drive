@@ -380,6 +380,47 @@ describe('Students list - guided Mark complete action', () => {
       expect(enrollmentsApi.complete).toHaveBeenCalledWith('enrollment-ready');
     });
   });
+
+  // Regression coverage: the table view's confirm used to render its
+  // Cancel/Confirm buttons in a `justify-between`-spread row stretched
+  // across the full colSpan width, pushing them out to the far-right edge
+  // of the table (where the old sticky action column used to be) even
+  // though the row action that opened it lives under the name on the left.
+  // The confirm now renders in a width-constrained block anchored under
+  // the name, so Cancel/Confirm never drift away from where the user
+  // clicked.
+  it('renders the table-view confirm compactly under the name, not stretched full-width', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({
+          id: 'ready-3',
+          fullName: 'Ready Student Three',
+          activeEnrollment: activeEligibleEnrollment,
+          progress: { track: 'hours', percentComplete: 100, displayLabel: '6 / 6 hrs', needsDateOfBirth: false } as StudentProgress,
+        }),
+      ],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Ready Student Three')).toBeInTheDocument();
+    });
+
+    const markCompleteButton = screen.getAllByTitle('Mark complete')[0];
+    await userEvent.click(markCompleteButton);
+
+    const confirmText = await screen.findByText(/mark ready student three complete\?/i);
+    // The confirm's own wrapper (text + buttons together) is width-
+    // constrained and NOT spread with justify-between across the row -
+    // that's what let Cancel/Confirm drift to the far-right edge before.
+    const confirmWrapper = confirmText.parentElement as HTMLElement;
+    expect(confirmWrapper.className).toMatch(/max-w-sm/);
+    expect(confirmWrapper.className).not.toMatch(/justify-between/);
+  });
 });
 
 // Coverage for the new Students | Guardians segmented toggle - a shared

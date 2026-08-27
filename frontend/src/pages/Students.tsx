@@ -1358,15 +1358,21 @@ export const StudentsPage: React.FC = () => {
                         view's inline form and StudentModal's own
                         enrollment-tab flow. No reason field on this path
                         (item 1, see the card view's identical note above) -
-                        just a confirm step. */}
+                        just a confirm step. Rendered under the Name column
+                        specifically (not spread with justify-between across
+                        the full colSpan row) so it appears right where the
+                        user clicked the row action, instead of pushing
+                        Cancel/Confirm out to the far-right edge of a wide
+                        table - the same travel-distance problem the row
+                        actions themselves moved under the name to fix. */}
                     {completingStudentId === student.id && (
                       <tr>
                         <td colSpan={5} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            <p className="text-sm text-status-success-text flex-1">
+                          <div className="max-w-sm space-y-2" onClick={(e) => e.stopPropagation()}>
+                            <p className="text-sm text-status-success-text">
                               Mark {student.fullName} complete?
                             </p>
-                            <div className="flex gap-2 flex-shrink-0">
+                            <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={() => setCompletingStudentId(null)}
