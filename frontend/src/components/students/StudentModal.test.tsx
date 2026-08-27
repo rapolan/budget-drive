@@ -809,6 +809,79 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     expect(payload.guardians[0].lastName).toBe('Guardian');
   });
 
+  // Regression coverage: hasAtLeastOnePhone only checked the student's own
+  // phone/emergencyContactPhone, so a minor whose real contact is a staged
+  // guardian's phone couldn't enable Create at all, even though the backend
+  // (createStudentWithGuardian) accepts exactly this case.
+  it('enables Create and submits for a minor with no phone of their own when a staged guardian has a phone', async () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Minor' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+    // Deliberately no student_phone_input and no student_email_input.
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'Guardian' } });
+    fireEvent.change(lastNameInput, { target: { value: 'Contact' } });
+    fireEvent.change(phoneInput, { target: { value: '5551234567' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    await waitFor(() => expect(guardiansApi.findExactMatch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByText(/no guardians linked yet/i)).not.toBeInTheDocument());
+    expect(screen.queryByText(/phone required/i)).not.toBeInTheDocument();
+
+    const createButton = screen.getByRole('button', { name: /create student/i });
+    expect(createButton).not.toBeDisabled();
+
+    fireEvent.click(createButton);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    expect(studentsApi.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps Create disabled for a minor with no phone/email of their own and no guardian staged', () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Minor' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+    // No phone, no email, and the new-guardian fields are left blank -
+    // never staged via "Add Guardian".
+
+    const createButton = screen.getByRole('button', { name: /create student/i });
+    expect(createButton).toBeDisabled();
+  });
+
+  it('keeps Create disabled for an adult with no phone of their own, even if a guardian is staged', async () => {
+    renderModal();
+
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Adult' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], { target: { value: 'adult@example.com' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'Guardian' } });
+    fireEvent.change(lastNameInput, { target: { value: 'Contact' } });
+    fireEvent.change(phoneInput, { target: { value: '5551234567' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+
+    const form = screen.getByTitle('Date of Birth').closest('form')!;
+    fireEvent.submit(form);
+
+    expect(screen.getByText(/phone required/i)).toBeInTheDocument();
+    expect(studentsApi.createWithGuardian).not.toHaveBeenCalled();
+    expect(studentsApi.create).not.toHaveBeenCalled();
+  });
+
   it('plain create() is still used when no guardian is staged (adults, or minors deferring guardian setup)', async () => {
     renderModal();
     fillBasicFields();

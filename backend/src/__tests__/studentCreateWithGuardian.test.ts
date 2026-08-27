@@ -305,9 +305,21 @@ describe('POST /api/v1/students/with-guardian', () => {
     expect(clientCalls).not.toContain('COMMIT');
   });
 
-  it('rejects with 400 before opening a transaction when the student payload is invalid (no contact method)', async () => {
+  it('accepts a minor with no phone of their own when the new guardian has an email (guardian contact satisfies the requirement)', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings (age check)
+      .mockResolvedValueOnce(queryResult([])); // findExactGuardianMatch - no match
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID, full_name: 'No Contact' }])) // student INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])) // enrollment INSERT
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID, first_name: 'Jane', last_name: 'Doe' }])) // guardian INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1', tenant_id: TENANT_ID, student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link INSERT
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     const res = await request(app)
       .post('/api/v1/students/with-guardian')
@@ -315,6 +327,44 @@ describe('POST /api/v1/students/with-guardian', () => {
       .send({
         student: { fullName: 'No Contact', dateOfBirth: '2015-01-01' },
         guardians: [{ mode: 'new', email: 'parent@example.com' }],
+      });
+
+    expect(res.status).toBe(201);
+    expect(mockGetClient).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects with 400 before opening a transaction when a minor has no phone/email of their own and the linked existing guardian also has neither', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings (age check)
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID, email: null, phone: null }])); // getGuardianById - no contact info
+
+    const res = await request(app)
+      .post('/api/v1/students/with-guardian')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        student: { fullName: 'No Contact', dateOfBirth: '2015-01-01' },
+        guardians: [{ mode: 'existing', guardianId: GUARDIAN_ID }],
+      });
+
+    expect(res.status).toBe(400);
+    expect(mockGetClient).not.toHaveBeenCalled();
+  });
+
+  it('rejects with 400 before opening a transaction when an adult has no phone of their own, even with a guardian contact', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (age check)
+
+    const res = await request(app)
+      .post('/api/v1/students/with-guardian')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        student: { fullName: 'Adult No Phone', dateOfBirth: '1990-01-01', email: 'adult@example.com' },
+        guardians: [{ mode: 'new', email: 'parent@example.com', phone: '555-0200' }],
       });
 
     expect(res.status).toBe(400);

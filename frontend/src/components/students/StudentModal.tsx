@@ -1060,9 +1060,22 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   // Validation helpers
   const isValidPhone = (phone: string) => phone && phone.replace(/\D/g, '').length >= 10;
+  const isValidEmail = (email: string) => !!email && /\S+@\S+\.\S+/.test(email);
 
   // Check if at least one contact phone is provided (student OR parent/guardian)
   const hasAtLeastOnePhone = isValidPhone(formData.phone || '') || isValidPhone(formData.emergencyContactPhone || '');
+
+  // A minor's real point of contact is often their guardian, not the minor
+  // themselves - staged (create mode) or linked (edit mode) guardians, same
+  // list the sub-panel renders (see availableGuardiansForCopy above).
+  const hasGuardianContact = availableGuardiansForCopy.some(
+    g => isValidPhone(g.phone || '') || isValidEmail(g.email || '')
+  );
+
+  // Contact requirement: an adult always needs their own phone (email is
+  // covered separately by the isAdult clause below); a minor's own phone is
+  // only required when no guardian contact exists to fall back on.
+  const hasRequiredContact = isAdult ? hasAtLeastOnePhone : (hasAtLeastOnePhone || hasGuardianContact);
 
   // Create-mode only - editing an already-complete record should never
   // auto-scroll, since the user isn't filling it out top-to-bottom.
@@ -1835,8 +1848,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <Users className="h-4 w-4 text-tx-muted" />
                   Emergency Contact
-                  {!hasAtLeastOnePhone && (
-                    <span className="text-xs font-normal text-status-danger-text normal-case">* Phone required if student has none</span>
+                  {!hasRequiredContact && (
+                    <span className="text-xs font-normal text-status-danger-text normal-case">
+                      {isAdult
+                        ? '* Phone required if student has none'
+                        : '* Phone required here, or add a guardian with a phone or email'}
+                    </span>
                   )}
                 </h3>
 
@@ -2059,7 +2076,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasAtLeastOnePhone || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
+                    disabled={createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasRequiredContact || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
                     className="px-6 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed transition-colors"
                   >
                     {createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending

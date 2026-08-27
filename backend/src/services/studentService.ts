@@ -14,7 +14,7 @@ import { resolveTenantTimezone } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { countGuardiansForStudentsBatch, getGuardiansForStudentsBatch, getGuardiansForStudent, StudentGuardianLink } from './studentGuardianService';
 import { getOutstandingFlagsForStudentsBatch, getOutstandingFlagsForStudent } from './feeFlagService';
-import { findExactGuardianMatch } from './guardianService';
+import { findExactGuardianMatch, getGuardianById } from './guardianService';
 import {
   getDisplayDriverTrainingEnrollmentsBatch,
   getEnrollmentsForStudent,
@@ -550,13 +550,9 @@ export const createStudentWithGuardian = async (
     guardianCount: guardians?.length,
   });
 
-  // --- Student validation (identical to createStudent) ---
-  const hasStudentPhone = data.phone && data.phone.trim().length > 0;
-  const hasParentContact = data.emergencyContactPhone && data.emergencyContactPhone.trim().length > 0;
-  if (!hasStudentPhone && !hasParentContact) {
-    throw new AppError('At least one contact phone is required (Student Phone or Parent/Guardian)', 400);
-  }
-
+  // --- Student validation (identical to createStudent, except the contact-
+  // method check below, which additionally accepts a guardian's contact for
+  // a minor - see hasGuardianContact) ---
   if (!data.dateOfBirth) {
     throw new AppError('Date of birth is required', 400);
   }
@@ -583,6 +579,38 @@ export const createStudentWithGuardian = async (
       }
     } else if (!guardian.guardianId) {
       throw new AppError('guardianId is required', 400);
+    }
+  }
+
+  // --- Contact-method check (student phone, OR for a minor, a guardian's
+  // phone or email) - a minor's real point of contact is often the guardian
+  // being created/linked alongside them, not the minor's own (often absent)
+  // phone. An adult still requires their own phone or the free-text
+  // emergency contact's phone, same as createStudent. ---
+  const hasStudentPhone = data.phone && data.phone.trim().length > 0;
+  const hasParentContact = data.emergencyContactPhone && data.emergencyContactPhone.trim().length > 0;
+  if (!hasStudentPhone && !hasParentContact) {
+    let hasGuardianContact = false;
+    if (!isAdult) {
+      for (const guardian of guardians) {
+        if (guardian.mode === 'new') {
+          const hasEmail = guardian.email && guardian.email.trim().length > 0;
+          const hasPhone = guardian.phone && guardian.phone.trim().length > 0;
+          if (hasEmail || hasPhone) {
+            hasGuardianContact = true;
+            break;
+          }
+        } else {
+          const existingGuardian = await getGuardianById(guardian.guardianId, tenantId);
+          if (existingGuardian && (existingGuardian.email || existingGuardian.phone)) {
+            hasGuardianContact = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!hasGuardianContact) {
+      throw new AppError('At least one contact phone is required (Student Phone or Parent/Guardian)', 400);
     }
   }
 
