@@ -18,6 +18,10 @@ export const CertificatesPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [isVoiding, setIsVoiding] = React.useState(false);
   const [expandedEnrollmentId, setExpandedEnrollmentId] = React.useState<string | null>(null);
+  // Instructor filter for the worklist - NOT a date filter (item 1). Sheets
+  // arrive on no fixed schedule, so the admin needs to narrow by whose
+  // stack of paper they're holding, not by when students finished.
+  const [worklistInstructorId, setWorklistInstructorId] = React.useState<string>('all');
 
   const { data: worklistData, isLoading: worklistLoading } = useQuery({
     queryKey: ['certificates', 'worklist'],
@@ -28,8 +32,29 @@ export const CertificatesPage: React.FC = () => {
     queryFn: () => certificatesApi.getCounts(),
   });
 
-  const worklist: AwaitingCertificateEntry[] = worklistData?.data || [];
+  const worklist: AwaitingCertificateEntry[] = React.useMemo(() => worklistData?.data || [], [worklistData]);
   const counts = countsData?.data || { issued: 0, void: 0 };
+
+  // Only instructors who actually have an awaiting student - never list one
+  // with nothing pending, per item 1's explicit requirement.
+  const worklistInstructors = React.useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const entry of worklist) {
+      if (entry.suggestedInstructorId && entry.suggestedInstructorName) {
+        byId.set(entry.suggestedInstructorId, entry.suggestedInstructorName);
+      }
+    }
+    return Array.from(byId.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [worklist]);
+
+  const filteredWorklist = React.useMemo(() => {
+    if (worklistInstructorId === 'all') return worklist;
+    return worklist.filter((entry) => entry.suggestedInstructorId === worklistInstructorId);
+  }, [worklist, worklistInstructorId]);
+
+  const activeWorklistInstructorName = worklistInstructors.find((i) => i.id === worklistInstructorId)?.name ?? null;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['certificates', 'worklist'] });
@@ -100,7 +125,35 @@ export const CertificatesPage: React.FC = () => {
       )}
 
       <div>
-        <h2 className="text-sm font-semibold text-tx-primary mb-3">Awaiting certificate</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-tx-primary">Awaiting certificate</h2>
+
+          {worklistInstructors.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="worklist-instructor-filter" className="text-xs font-medium text-tx-secondary">
+                Instructor
+              </label>
+              <select
+                id="worklist-instructor-filter"
+                value={worklistInstructorId}
+                onChange={(e) => setWorklistInstructorId(e.target.value)}
+                className="px-3 py-1.5 border border-edge-strong rounded-lg text-sm bg-surface"
+              >
+                <option value="all">All</option>
+                {worklistInstructors.map((instructor) => (
+                  <option key={instructor.id} value={instructor.id}>
+                    {instructor.name}
+                  </option>
+                ))}
+              </select>
+              {activeWorklistInstructorName && (
+                <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-status-info-bg text-primary whitespace-nowrap">
+                  Showing: {activeWorklistInstructorName}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {worklistLoading && (
           <div className="flex justify-center py-12">
@@ -116,9 +169,17 @@ export const CertificatesPage: React.FC = () => {
           />
         )}
 
-        {!worklistLoading && worklist.length > 0 && (
+        {!worklistLoading && worklist.length > 0 && filteredWorklist.length === 0 && (
+          <EmptyState
+            icon={<Award className="h-10 w-10" />}
+            title="Nothing awaiting a certificate for this instructor"
+            description="Try a different instructor, or switch back to All."
+          />
+        )}
+
+        {!worklistLoading && filteredWorklist.length > 0 && (
           <div className="rounded-xl border border-edge bg-surface divide-y divide-edge overflow-hidden">
-            {worklist.map((entry) => (
+            {filteredWorklist.map((entry) => (
               <WorklistRow
                 key={entry.enrollmentId}
                 entry={entry}
