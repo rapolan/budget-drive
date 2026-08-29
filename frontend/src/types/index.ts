@@ -71,6 +71,10 @@ export interface TenantSettings {
   // Business identity
   businessName?: string;
   businessTagline?: string;
+  // DMV-issued driving school license number - Phase 1 of the
+  // compliance-records arc (docs/compliance-records-build-plan.md).
+  // Nullable: not every tenant has one on file yet.
+  licenseNumber?: string;
   logoUrl?: string;
 
   // Colors

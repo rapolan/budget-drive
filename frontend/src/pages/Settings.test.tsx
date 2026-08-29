@@ -151,6 +151,63 @@ describe('Settings - General tab default lesson cost', () => {
   });
 });
 
+// Phase 1 of the compliance-records arc (docs/compliance-records-build-plan.md):
+// the DMV driving school license number, added to the existing School
+// Identity box - not a new section, not a new save endpoint.
+describe('Settings - General tab DMV license number', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('renders the license number field in the School Identity section, empty when unset', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/dmv driving school license number/i);
+    expect((input as HTMLInputElement).value).toBe('');
+  });
+
+  it('submits the newly-entered license number through the existing save path', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/dmv driving school license number/i);
+    fireEvent.change(input, { target: { value: 'E1234' } });
+    expect((input as HTMLInputElement).value).toBe('E1234');
+
+    fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/tenant/settings'),
+        expect.objectContaining({ method: 'PUT' })
+      );
+    });
+
+    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([, options]) => options?.method === 'PUT'
+    );
+    expect(putCall).toBeDefined();
+    const body = JSON.parse(putCall![1].body as string);
+    expect(body.licenseNumber).toBe('E1234');
+  });
+
+  it('pre-fills from an already-saved license number', async () => {
+    mockTenantSettings = { ...MOCK_SETTINGS, licenseNumber: 'E9999' } as typeof MOCK_SETTINGS;
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const input = await screen.findByLabelText(/dmv driving school license number/i);
+    expect((input as HTMLInputElement).value).toBe('E9999');
+  });
+});
+
 describe('Settings - General tab max lessons per student per day', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -33,6 +33,12 @@ export interface TenantSettings {
   // Branding
   businessName: string;
   businessTagline: string | null;
+  // DMV-issued driving school license number (e.g. "E1234") - Phase 1 of
+  // the compliance-records arc (docs/compliance-records-build-plan.md).
+  // Nullable: not every tenant has one on file yet. Nothing consumes this
+  // yet (certificates/transcripts/archive are later phases) - pure
+  // storage and editing this phase.
+  licenseNumber: string | null;
   logoUrl: string | null;
   faviconUrl: string | null;
   primaryColor: string;
@@ -1071,6 +1077,7 @@ export interface CreateLessonDTO {
 export interface UpdateTenantSettingsDTO {
   businessName?: string;
   businessTagline?: string;
+  licenseNumber?: string;
   logoUrl?: string;
   primaryColor?: string;
   secondaryColor?: string;

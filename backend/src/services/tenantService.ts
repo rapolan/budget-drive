@@ -263,6 +263,10 @@ export const updateTenantSettings = async (
     fields.push(`business_tagline = $${paramCount++}`);
     values.push(data.businessTagline);
   }
+  if (data.licenseNumber !== undefined) {
+    fields.push(`license_number = $${paramCount++}`);
+    values.push(data.licenseNumber);
+  }
   if (data.logoUrl !== undefined) {
     fields.push(`logo_url = $${paramCount++}`);
     values.push(data.logoUrl);

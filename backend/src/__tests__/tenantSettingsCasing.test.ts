@@ -123,6 +123,49 @@ describe('tenantService camelCase conversion', () => {
     expect(params).toContain(2);
   });
 
+  // Phase 1 of the compliance-records arc (docs/compliance-records-build-plan.md):
+  // the DMV driving school license number, added to the same
+  // tenant_settings table/save flow business_name/address already use.
+  it('getTenantSettings returns licenseNumber in camelCase', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', license_number: 'E1234' }])
+    );
+
+    const settings = await tenantService.getTenantSettings('tenant-1');
+
+    expect(settings?.licenseNumber).toBe('E1234');
+    expect((settings as unknown as { license_number?: string }).license_number).toBeUndefined();
+  });
+
+  it('getTenantSettings returns licenseNumber as null when never set', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', license_number: null }])
+    );
+
+    const settings = await tenantService.getTenantSettings('tenant-1');
+
+    expect(settings?.licenseNumber).toBeNull();
+  });
+
+  it('updateTenantSettings writes license_number when licenseNumber is provided', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ tenant_id: 'tenant-1', license_number: 'E1234' }])
+    );
+
+    const settings = await tenantService.updateTenantSettings('tenant-1', { licenseNumber: 'E1234' });
+
+    expect(settings.licenseNumber).toBe('E1234');
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/license_number\s*=\s*\$/);
+    expect(params).toContain('E1234');
+  });
+
   // A newly-created tenant's timezone column has no DB default (see
   // backend/database/migrations/011_timezone_default_nullable.sql) - it
   // must round-trip as a real null, not an empty string or the old

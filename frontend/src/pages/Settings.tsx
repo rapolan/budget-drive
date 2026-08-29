@@ -119,6 +119,7 @@ const GeneralSettings: React.FC = () => {
   const [form, setForm] = useState({
     businessName:        settings?.businessName        || '',
     businessTagline:     settings?.businessTagline     || '',
+    licenseNumber:       (settings as any)?.license_number || settings?.licenseNumber || '',
     supportPhone:        (settings as any)?.support_phone   || settings?.supportPhone   || '',
     supportEmail:        (settings as any)?.support_email   || settings?.supportEmail   || '',
     websiteUrl:          (settings as any)?.website_url     || settings?.websiteUrl     || '',
@@ -146,6 +147,7 @@ const GeneralSettings: React.FC = () => {
     setForm({
       businessName:        (settings as any).business_name    || settings.businessName    || '',
       businessTagline:     (settings as any).business_tagline || settings.businessTagline || '',
+      licenseNumber:       (settings as any).license_number   || settings.licenseNumber   || '',
       supportPhone:        (settings as any).support_phone    || settings.supportPhone    || '',
       supportEmail:        (settings as any).support_email    || settings.supportEmail    || '',
       websiteUrl:          (settings as any).website_url      || settings.websiteUrl      || '',
@@ -252,6 +254,19 @@ const GeneralSettings: React.FC = () => {
             value={form.businessName}
             onChange={set('businessName')}
             placeholder="Budget Driving School"
+            className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label htmlFor="settings-license-number" className="block text-sm font-medium text-tx-secondary mb-1">
+            DMV Driving School License Number <span className="text-tx-muted font-normal">(optional)</span>
+          </label>
+          <input
+            id="settings-license-number"
+            type="text"
+            value={form.licenseNumber}
+            onChange={set('licenseNumber')}
+            placeholder="E1234"
             className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
