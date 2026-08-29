@@ -14,7 +14,10 @@ function statusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {
 }
 
 describe('StudentStatusBadge', () => {
-  it('renders "Scheduled (N)" with blue/info tokens for a scheduled student', () => {
+  // Color swap: scheduled is now green/success ("on track, all set"),
+  // ready_to_book is now blue/info ("neutral, between lessons") - reversed
+  // from the original assignment.
+  it('renders "Scheduled (N)" with green/success tokens for a scheduled student', () => {
     const { container } = render(
       <StudentStatusBadge
         statusInfo={statusInfo({ status: 'scheduled', displayStatus: 'Scheduled (3)', upcomingLessonCount: 3 })}
@@ -22,15 +25,15 @@ describe('StudentStatusBadge', () => {
       />
     );
     expect(screen.getByText('Scheduled (3)')).toBeInTheDocument();
-    expect(container.querySelector('.bg-status-info-bg')).toBeInTheDocument();
+    expect(container.querySelector('.bg-status-success-bg')).toBeInTheDocument();
   });
 
-  it('renders "Ready to Book" with green/success tokens, not amber', () => {
+  it('renders "Ready to Book" with blue/info tokens, not amber', () => {
     const { container } = render(
       <StudentStatusBadge statusInfo={statusInfo({ status: 'ready_to_book', displayStatus: 'Ready to Book' })} readyToComplete={false} />
     );
     expect(screen.getByText('Ready to Book')).toBeInTheDocument();
-    expect(container.querySelector('.bg-status-success-bg')).toBeInTheDocument();
+    expect(container.querySelector('.bg-status-info-bg')).toBeInTheDocument();
     expect(container.querySelector('.bg-status-warning-bg')).not.toBeInTheDocument();
   });
 

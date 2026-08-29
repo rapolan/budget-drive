@@ -93,21 +93,34 @@ function renderStudentsPage() {
 
 // Regression coverage: the backend attaches a needsGuardian flag (true only
 // for minors with no linked guardian record) to every student read, and
-// rejects marking such a student's program complete - but the Students
-// list previously had no way to surface which existing records are
-// affected, so an admin had no way to find and fix them proactively.
-describe('Students list - needsGuardian flagging', () => {
+// rejects marking such a student's program complete. needsGuardian no
+// longer has its own standalone filter chip - it's one of Needs
+// Attention's OVERLAY reasons (a student can be genuinely Scheduled/Ready
+// to Book AND need a guardian at the same time - both are shown, neither
+// is hidden by the other), surfaced via a per-row "Needs guardian" amber
+// flag next to the status badge.
+describe('Students list - needsGuardian flagging folds into Needs Attention', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
     (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
   });
 
-  it('shows a "Needs Guardian" badge on an affected student row', async () => {
+  const readyToBookEnrollment = {
+    id: 'enrollment-ready',
+    programType: 'driver_training' as const,
+    status: 'active' as const,
+    enrollmentDate: new Date('2026-01-01'),
+    completed: false,
+    completionReason: null,
+    withdrawnReason: null,
+  };
+
+  it('shows a "Needs guardian" flag on an affected student row, additively alongside their base status', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        emptyStudent({ id: 'minor-1', fullName: 'Minor No Guardian', needsGuardian: true }),
-        emptyStudent({ id: 'adult-1', fullName: 'Adult Fine', needsGuardian: false }),
+        emptyStudent({ id: 'minor-1', fullName: 'Minor No Guardian', needsGuardian: true, activeEnrollment: readyToBookEnrollment }),
+        emptyStudent({ id: 'adult-1', fullName: 'Adult Fine', needsGuardian: false, activeEnrollment: readyToBookEnrollment }),
       ],
       pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
     });
@@ -119,27 +132,31 @@ describe('Students list - needsGuardian flagging', () => {
     });
 
     const minorRow = screen.getByText('Minor No Guardian').closest('tr')!;
-    expect(within(minorRow).getByText('Needs Guardian')).toBeInTheDocument();
+    expect(within(minorRow).getByText('Needs guardian')).toBeInTheDocument();
+    // Additive, not exclusive (per the standing design decision): the
+    // student's base status badge is still shown alongside the flag, not
+    // replaced by it.
+    expect(within(minorRow).getByText(/ready to book/i)).toBeInTheDocument();
 
     const adultRow = screen.getByText('Adult Fine').closest('tr')!;
-    expect(within(adultRow).queryByText('Needs Guardian')).not.toBeInTheDocument();
+    expect(within(adultRow).queryByText('Needs guardian')).not.toBeInTheDocument();
   });
 
-  it('does not render the "Needs Guardian" filter chip when no student is affected', async () => {
+  it('there is no standalone "Needs Guardian" filter chip in the bar', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [emptyStudent({ id: 'adult-1', fullName: 'Adult Fine', needsGuardian: false })],
+      data: [emptyStudent({ id: 'minor-1', fullName: 'Minor No Guardian', needsGuardian: true })],
       pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
     });
 
     renderStudentsPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Adult Fine')).toBeInTheDocument();
+      expect(screen.getByText('Minor No Guardian')).toBeInTheDocument();
     });
-    expect(screen.queryByText('Needs Guardian', { selector: 'button *' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^needs guardian$/i })).not.toBeInTheDocument();
   });
 
-  it('the "Needs Guardian" filter chip narrows the list to only affected students', async () => {
+  it('the "Needs Attention" filter includes a needs-guardian student even when their base status is Ready to Book', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
 
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -156,11 +173,84 @@ describe('Students list - needsGuardian flagging', () => {
       expect(screen.getByText('Adult Fine')).toBeInTheDocument();
     });
 
-    const filterButton = screen.getByRole('button', { name: /needs guardian/i });
+    const filterButton = screen.getByRole('button', { name: /^needs attention/i });
     await userEvent.click(filterButton);
 
     expect(screen.getByText('Minor No Guardian')).toBeInTheDocument();
     expect(screen.queryByText('Adult Fine')).not.toBeInTheDocument();
+  });
+});
+
+// The filter bar is exactly 6 working-state chips (All/Scheduled/Ready to
+// Book/Needs Attention/Completed/Inactive). new_this_month is stat-card-
+// only; turning_18/no_show_followup/needs_guardian have no chip at all
+// (turning_18 stays reachable only via Dashboard's deep-link; the other
+// two folded entirely into Needs Attention).
+describe('Students list - filter bar is exactly 6 chips', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Solo Student' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('renders exactly the 6 named chips and none of the removed ones', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Solo Student')).toBeInTheDocument());
+
+    for (const label of ['All', 'Scheduled', 'Ready to Book', 'Needs Attention', 'Completed', 'Inactive']) {
+      expect(screen.getByRole('button', { name: new RegExp(`^${label}`, 'i') })).toBeInTheDocument();
+    }
+
+    expect(screen.queryByRole('button', { name: /^new$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^turning 18/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^needs guardian$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^no.show/i })).not.toBeInTheDocument();
+  });
+
+  it('"New This Month" is a stat card, not a filter chip - no filter narrows to it', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Solo Student')).toBeInTheDocument());
+
+    expect(screen.getByText('New This Month')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new this month/i })).not.toBeInTheDocument();
+  });
+});
+
+// Color swap (item 5): Scheduled is now green/success ("on track, all
+// set"), Ready to Book is now blue/info ("neutral, between lessons") -
+// reversed from the original assignment. Checked at the chip level here;
+// StudentStatusBadge.test.tsx covers the status-column pill itself.
+describe('Students list - Scheduled/Ready to Book color swap on filter chips', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'student-1', fullName: 'Solo Student' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+  });
+
+  it('the Scheduled chip uses success/green tokens, not info/blue', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Solo Student')).toBeInTheDocument());
+
+    const chip = screen.getByRole('button', { name: /^scheduled/i });
+    expect(chip.className).toContain('status-success');
+    expect(chip.className).not.toContain('text-primary');
+  });
+
+  it('the Ready to Book chip uses info/blue tokens, not success/green', async () => {
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Solo Student')).toBeInTheDocument());
+
+    const chip = screen.getByRole('button', { name: /^ready to book/i });
+    expect(chip.className).toContain('text-primary');
+    expect(chip.className).not.toContain('status-success');
   });
 });
 

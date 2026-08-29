@@ -16,8 +16,10 @@ interface StudentStatusBadgeProps {
 }
 
 // Color communicates urgency, not category:
-// - blue/info: has upcoming lessons (a normal, active state)
-// - green/success: the calm between-lessons state, or a positive milestone
+// - green/success: scheduled - on track, all set, has upcoming lessons
+//   (item 5 swap - was blue/info)
+// - blue/info: ready_to_book - the calm, neutral between-lessons state
+//   (item 5 swap - was green/success)
 // - gold: ready to complete - a positive milestone, distinct from routine green
 // - neutral gray (surface3/tx-secondary): completed - finished, not urgent
 // - muted gray (surface2/tx-muted): withdrawn/inactive - archived, not urgent
@@ -35,9 +37,9 @@ function statusClasses(status: ComputedStatus, displayStatus: string): string {
   }
   switch (status) {
     case 'scheduled':
-      return 'bg-status-info-bg text-status-info-text';
-    case 'ready_to_book':
       return 'bg-status-success-bg text-status-success-text';
+    case 'ready_to_book':
+      return 'bg-status-info-bg text-status-info-text';
     case 'needs_attention':
       return 'bg-status-warning-bg text-status-warning-text';
     case 'completed':
