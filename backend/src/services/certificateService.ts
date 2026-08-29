@@ -130,6 +130,55 @@ export const getIssuedVoidCounts = async (tenantId: string): Promise<Certificate
   return counts;
 };
 
+export interface CertificateLogEntry {
+  id: string;
+  serialNumber: string;
+  status: 'issued' | 'void';
+  issueDate: Date;
+  voidReason: string | null;
+  studentId: string | null;
+  studentName: string | null;
+  instructorId: string | null;
+  instructorName: string | null;
+}
+
+/**
+ * Every certificate record (issued and void), newest-issue-date-first, for
+ * the audit/browse log (item 2). A void record has no enrollment and no
+ * issuing instructor by construction (recordVoid inserts both NULL) - it
+ * always carries studentId/studentName/instructorId/instructorName as null,
+ * which the frontend uses to decide void behavior under an instructor
+ * filter (shown under "All", hidden once a specific instructor is picked -
+ * a void isn't attributable to one).
+ */
+export const getIssuedLog = async (tenantId: string): Promise<CertificateLogEntry[]> => {
+  const result = await query(
+    `SELECT
+       c.id, c.serial_number, c.status, c.issue_date, c.void_reason,
+       s.id AS student_id, s.full_name AS student_name,
+       i.id AS instructor_id, i.full_name AS instructor_name
+     FROM certificates c
+     LEFT JOIN enrollments e ON e.id = c.enrollment_id
+     LEFT JOIN students s ON s.id = e.student_id
+     LEFT JOIN instructors i ON i.id = c.issued_by_instructor_id
+     WHERE c.tenant_id = $1
+     ORDER BY c.issue_date DESC, c.created_at DESC`,
+    [tenantId]
+  );
+
+  return result.rows.map((row: any) => ({
+    id: row.id,
+    serialNumber: row.serial_number,
+    status: row.status,
+    issueDate: row.issue_date,
+    voidReason: row.void_reason,
+    studentId: row.student_id,
+    studentName: row.student_name,
+    instructorId: row.instructor_id,
+    instructorName: row.instructor_name,
+  }));
+};
+
 /**
  * Resolve a sensible default issuing instructor for an enrollment being
  * recorded - the enrollment's own most recent COMPLETED lesson's

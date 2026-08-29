@@ -15,6 +15,18 @@ export interface CertificateCounts {
   void: number;
 }
 
+export interface CertificateLogEntry {
+  id: string;
+  serialNumber: string;
+  status: 'issued' | 'void';
+  issueDate: string;
+  voidReason: string | null;
+  studentId: string | null;
+  studentName: string | null;
+  instructorId: string | null;
+  instructorName: string | null;
+}
+
 export interface RecordCertificateInput {
   serialNumber: string;
   issueDate: string;
@@ -35,6 +47,11 @@ export const certificatesApi = {
 
   getCounts: async () => {
     const response = await apiClient.get<ApiResponse<CertificateCounts>>('/certificates/counts');
+    return response.data;
+  },
+
+  getLog: async () => {
+    const response = await apiClient.get<ApiResponse<CertificateLogEntry[]>>('/certificates/log');
     return response.data;
   },
 

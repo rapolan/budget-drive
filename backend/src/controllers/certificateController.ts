@@ -40,6 +40,22 @@ export const getCounts = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
+ * @route   GET /api/v1/certificates/log
+ * @desc    Every certificate record (issued and void) for the audit/browse
+ *          log, newest issue date first
+ * @access  Private
+ */
+export const getLog = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const log = await certificateService.getIssuedLog(tenantId);
+
+  res.json({
+    success: true,
+    data: log,
+  });
+});
+
+/**
  * @route   GET /api/v1/certificates/for-enrollments?enrollmentIds=a,b,c
  * @desc    Batched certificate lookup for a set of enrollments - used by
  *          the student record's Enrollments tab (not N+1 per enrollment)

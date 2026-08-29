@@ -261,3 +261,86 @@ describe('certificateService.getIssuedVoidCounts', () => {
     expect(counts).toEqual({ issued: 3, void: 0 });
   });
 });
+
+describe('certificateService.getIssuedLog', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('returns an issued record with student and instructor names joined in', async () => {
+    const { getIssuedLog } = await import('../services/certificateService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: 'cert-1',
+          serial_number: 'CS0000001',
+          status: 'issued',
+          issue_date: '2026-08-01',
+          void_reason: null,
+          student_id: STUDENT_ID,
+          student_name: 'Leo Whitfield',
+          instructor_id: INSTRUCTOR_ID,
+          instructor_name: 'Devon Ashby',
+        },
+      ])
+    );
+
+    const log = await getIssuedLog(TENANT_ID);
+
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      id: 'cert-1',
+      serialNumber: 'CS0000001',
+      status: 'issued',
+      studentName: 'Leo Whitfield',
+      instructorName: 'Devon Ashby',
+    });
+  });
+
+  // A void record has no enrollment_id and no issued_by_instructor_id by
+  // construction (recordVoid inserts both NULL) - the LEFT JOINs correctly
+  // resolve to null student/instructor fields, never a join failure that
+  // drops the row.
+  it('returns a void record with null student and instructor fields', async () => {
+    const { getIssuedLog } = await import('../services/certificateService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: 'cert-2',
+          serial_number: 'CS0000099',
+          status: 'void',
+          issue_date: '2026-08-29',
+          void_reason: 'Damaged during printing',
+          student_id: null,
+          student_name: null,
+          instructor_id: null,
+          instructor_name: null,
+        },
+      ])
+    );
+
+    const log = await getIssuedLog(TENANT_ID);
+
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      id: 'cert-2',
+      status: 'void',
+      voidReason: 'Damaged during printing',
+      studentId: null,
+      studentName: null,
+      instructorId: null,
+      instructorName: null,
+    });
+  });
+
+  it('returns an empty array when nothing has been recorded', async () => {
+    const { getIssuedLog } = await import('../services/certificateService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    const log = await getIssuedLog(TENANT_ID);
+    expect(log).toEqual([]);
+  });
+});
