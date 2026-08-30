@@ -114,7 +114,10 @@ describe('certificateService.recordCertificate', () => {
 
     mockQuery
       .mockResolvedValueOnce(
-        queryResult([{ id: ENROLLMENT_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID, completed: true, assigned_instructor_id: null }])
+        queryResult([{
+          id: ENROLLMENT_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_training', completed: true, assigned_instructor_id: null,
+        }])
       ) // enrollment lookup
       .mockResolvedValueOnce(queryResult([])) // no existing certificate for this enrollment
       .mockResolvedValueOnce(queryResult([])) // serial not in use
@@ -125,6 +128,7 @@ describe('certificateService.recordCertificate', () => {
           tenant_id: TENANT_ID,
           enrollment_id: ENROLLMENT_ID,
           serial_number: 'CS7218767',
+          form_type: 'DL_400D',
           issue_date: '2026-08-01',
           status: 'issued',
           issued_by_instructor_id: INSTRUCTOR_ID,
@@ -141,8 +145,32 @@ describe('certificateService.recordCertificate', () => {
     );
 
     expect(certificate.serialNumber).toBe('CS7218767');
+    expect(certificate.formType).toBe('DL_400D');
     expect(certificate.issuedByInstructorId).toBe(INSTRUCTOR_ID);
     expect(certificate.completionHash).toBe('abc123');
+
+    const [insertSql, insertParams] = mockQuery.mock.calls[4];
+    expect(insertSql).toMatch(/form_type/);
+    expect(insertParams).toContain('DL_400D');
+  });
+
+  it('rejects recording a certificate for a driver_education enrollment (form-type mapping not resolvable yet)', async () => {
+    const { recordCertificate } = await import('../services/certificateService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: ENROLLMENT_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', completed: true, assigned_instructor_id: null,
+        }])
+      )
+      .mockResolvedValueOnce(queryResult([])) // no existing certificate for this enrollment
+      .mockResolvedValueOnce(queryResult([])) // serial not in use
+      .mockResolvedValueOnce(queryResult([])); // default instructor lookup (no completed lesson)
+
+    await expect(
+      recordCertificate(ENROLLMENT_ID, TENANT_ID, { serialNumber: 'CS1', issueDate: '2026-08-01' }, 'user-1')
+    ).rejects.toMatchObject({ statusCode: 400 });
   });
 
   it('rejects recording a certificate for a not-yet-completed enrollment', async () => {
@@ -192,7 +220,7 @@ describe('certificateService.recordVoid', () => {
     resetMockQuery();
   });
 
-  it('records a void certificate with no enrollment', async () => {
+  it('records a void certificate with no enrollment, using the NOT_APPLICABLE form-type sentinel', async () => {
     const { recordVoid } = await import('../services/certificateService');
 
     mockQuery
@@ -203,6 +231,7 @@ describe('certificateService.recordVoid', () => {
           tenant_id: TENANT_ID,
           enrollment_id: null,
           serial_number: 'CS9999999',
+          form_type: 'NOT_APPLICABLE',
           issue_date: '2026-08-01',
           status: 'void',
           void_reason: 'Damaged in storage',
@@ -220,6 +249,11 @@ describe('certificateService.recordVoid', () => {
     expect(certificate.status).toBe('void');
     expect(certificate.enrollmentId).toBeNull();
     expect(certificate.voidReason).toBe('Damaged in storage');
+    expect(certificate.formType).toBe('NOT_APPLICABLE');
+
+    const [insertSql, insertParams] = mockQuery.mock.calls[1];
+    expect(insertSql).toMatch(/form_type/);
+    expect(insertParams).toContain('NOT_APPLICABLE');
   });
 
   it('rejects a duplicate serial number', async () => {

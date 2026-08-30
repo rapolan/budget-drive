@@ -15,7 +15,7 @@
  */
 
 import { query } from '../config/database';
-import { Certificate, Enrollment } from '../types';
+import { Certificate, Enrollment, ProgramType } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -25,6 +25,29 @@ import { calculateAge } from './studentProgressService';
 import crypto from 'crypto';
 
 const logger = createLogger('CertificateService');
+
+// DMV form type a certificate is recorded on, derived from the enrollment's
+// program_type. driver_education splits into classroom (DL_400B) vs online
+// (DL_400C), a distinction program_type alone can't resolve yet - left null
+// until Phase 3 adds that signal, rather than guessing.
+const FORM_TYPE_BY_PROGRAM_TYPE: Record<ProgramType, string | null> = {
+  driver_training: 'DL_400D',
+  driver_education: null,
+};
+
+function resolveFormType(programType: ProgramType): string {
+  const formType = FORM_TYPE_BY_PROGRAM_TYPE[programType];
+  if (!formType) {
+    throw new AppError(`No DMV form type mapping for program type "${programType}" yet`, 400);
+  }
+  return formType;
+}
+
+// A void certificate was never issued to a student - it has no enrollment
+// and no program type, so no real DMV form applies. This sentinel keeps
+// form_type NOT NULL (no silent default) while being honest that a void
+// carries no form-type opinion of its own.
+const VOID_FORM_TYPE = 'NOT_APPLICABLE';
 
 export interface AwaitingCertificateEntry {
   enrollmentId: string;
@@ -281,17 +304,20 @@ export const recordCertificate = async (
     }))
     .digest('hex');
 
+  const formType = resolveFormType(enrollment.programType);
+
   const result = await query(
     `INSERT INTO certificates (
-       id, tenant_id, enrollment_id, serial_number, issue_date,
+       id, tenant_id, enrollment_id, serial_number, form_type, issue_date,
        issued_by_instructor_id, recorded_by, completion_hash
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [
       certificateId,
       tenantId,
       enrollmentId,
       data.serialNumber,
+      formType,
       data.issueDate,
       issuedByInstructorId,
       userId || null,
@@ -341,11 +367,20 @@ export const recordVoid = async (
 
   const result = await query(
     `INSERT INTO certificates (
-       id, tenant_id, enrollment_id, serial_number, issue_date, status,
+       id, tenant_id, enrollment_id, serial_number, form_type, issue_date, status,
        void_reason, issued_by_instructor_id, recorded_by, completion_hash
-     ) VALUES ($1, $2, NULL, $3, $4, 'void', $5, NULL, $6, $7)
+     ) VALUES ($1, $2, NULL, $3, $4, $5, 'void', $6, NULL, $7, $8)
      RETURNING *`,
-    [certificateId, tenantId, data.serialNumber, data.issueDate, data.voidReason, userId || null, completionHash]
+    [
+      certificateId,
+      tenantId,
+      data.serialNumber,
+      VOID_FORM_TYPE,
+      data.issueDate,
+      data.voidReason,
+      userId || null,
+      completionHash,
+    ]
   );
 
   logger.info('Successfully recorded void certificate', { tenantId, certificateId });

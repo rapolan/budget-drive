@@ -409,7 +409,7 @@ INSERT INTO certificates (
     issue_date, issued_by_instructor_id, recorded_by
 ) VALUES (
     gen_random_uuid(), '55654b9d-6d7f-46e0-ade2-be606abfe00a',
-    '40000000-0000-0000-0000-000000000005', 'CS1000001', 'DL_400C', 'issued',
+    '40000000-0000-0000-0000-000000000005', 'CS1000001', 'DL_400D', 'issued',
     CURRENT_DATE - INTERVAL '10 days', '10000000-0000-0000-0000-00000000000a',
     '00000000-0000-0000-0000-000000000001'
 );
