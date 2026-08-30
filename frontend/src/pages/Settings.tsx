@@ -248,8 +248,9 @@ const GeneralSettings: React.FC = () => {
       <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">School Identity</h3>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">School Name</label>
+          <label htmlFor="settings-business-name" className="block text-sm font-medium text-tx-secondary mb-1">School Name</label>
           <input
+            id="settings-business-name"
             type="text"
             value={form.businessName}
             onChange={set('businessName')}
@@ -271,8 +272,9 @@ const GeneralSettings: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Tagline <span className="text-tx-muted font-normal">(optional)</span></label>
+          <label htmlFor="settings-business-tagline" className="block text-sm font-medium text-tx-secondary mb-1">Tagline <span className="text-tx-muted font-normal">(optional)</span></label>
           <input
+            id="settings-business-tagline"
             type="text"
             value={form.businessTagline}
             onChange={set('businessTagline')}
@@ -287,8 +289,9 @@ const GeneralSettings: React.FC = () => {
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Contact Information</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-tx-secondary mb-1">Phone</label>
+            <label htmlFor="settings-support-phone" className="block text-sm font-medium text-tx-secondary mb-1">Phone</label>
             <input
+              id="settings-support-phone"
               type="tel"
               value={form.supportPhone}
               onChange={set('supportPhone')}
@@ -297,8 +300,9 @@ const GeneralSettings: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-tx-secondary mb-1">Email</label>
+            <label htmlFor="settings-support-email" className="block text-sm font-medium text-tx-secondary mb-1">Email</label>
             <input
+              id="settings-support-email"
               type="email"
               value={form.supportEmail}
               onChange={set('supportEmail')}
@@ -308,8 +312,9 @@ const GeneralSettings: React.FC = () => {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Website <span className="text-tx-muted font-normal">(optional)</span></label>
+          <label htmlFor="settings-website-url" className="block text-sm font-medium text-tx-secondary mb-1">Website <span className="text-tx-muted font-normal">(optional)</span></label>
           <input
+            id="settings-website-url"
             type="url"
             value={form.websiteUrl}
             onChange={set('websiteUrl')}
@@ -323,8 +328,9 @@ const GeneralSettings: React.FC = () => {
       <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Physical Address</h3>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Street Address</label>
+          <label htmlFor="settings-address-line1" className="block text-sm font-medium text-tx-secondary mb-1">Street Address</label>
           <input
+            id="settings-address-line1"
             type="text"
             value={form.addressLine1}
             onChange={set('addressLine1')}
@@ -333,8 +339,9 @@ const GeneralSettings: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Suite / Unit <span className="text-tx-muted font-normal">(optional)</span></label>
+          <label htmlFor="settings-address-line2" className="block text-sm font-medium text-tx-secondary mb-1">Suite / Unit <span className="text-tx-muted font-normal">(optional)</span></label>
           <input
+            id="settings-address-line2"
             type="text"
             value={form.addressLine2}
             onChange={set('addressLine2')}
@@ -344,8 +351,9 @@ const GeneralSettings: React.FC = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div className="col-span-1 sm:col-span-1">
-            <label className="block text-sm font-medium text-tx-secondary mb-1">City</label>
+            <label htmlFor="settings-city" className="block text-sm font-medium text-tx-secondary mb-1">City</label>
             <input
+              id="settings-city"
               type="text"
               value={form.city}
               onChange={set('city')}
@@ -354,8 +362,9 @@ const GeneralSettings: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-tx-secondary mb-1">State</label>
+            <label htmlFor="settings-state" className="block text-sm font-medium text-tx-secondary mb-1">State</label>
             <select
+              id="settings-state"
               value={form.state}
               onChange={set('state')}
               className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-surface"
@@ -367,8 +376,9 @@ const GeneralSettings: React.FC = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-tx-secondary mb-1">ZIP Code</label>
+            <label htmlFor="settings-zip-code" className="block text-sm font-medium text-tx-secondary mb-1">ZIP Code</label>
             <input
+              id="settings-zip-code"
               type="text"
               value={form.zipCode}
               onChange={set('zipCode')}
@@ -435,10 +445,11 @@ const GeneralSettings: React.FC = () => {
       <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Training Defaults</h3>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Default Hours Required per Student</label>
+          <label htmlFor="settings-default-hours-required" className="block text-sm font-medium text-tx-secondary mb-1">Default Hours Required per Student</label>
           <p className="text-xs text-tx-muted mb-3">Applies to new enrollments. California requires 6 hours for students under 18.</p>
           <div className="flex items-center gap-3">
             <input
+              id="settings-default-hours-required"
               type="number"
               value={form.defaultHoursRequired}
               onChange={e => setForm(f => ({ ...f, defaultHoursRequired: parseFloat(e.target.value) || 6 }))}
@@ -451,6 +462,7 @@ const GeneralSettings: React.FC = () => {
                 <button
                   key={h}
                   type="button"
+                  aria-pressed={form.defaultHoursRequired === h}
                   onClick={() => setForm(f => ({ ...f, defaultHoursRequired: h }))}
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.defaultHoursRequired === h
@@ -465,10 +477,11 @@ const GeneralSettings: React.FC = () => {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Standard Lesson Length</label>
+          <label htmlFor="settings-standard-lesson-length" className="block text-sm font-medium text-tx-secondary mb-1">Standard Lesson Length</label>
           <p className="text-xs text-tx-muted mb-3">Used to show a minor's required hours as an equivalent lesson count in the Students list.</p>
           <div className="flex items-center gap-3">
             <input
+              id="settings-standard-lesson-length"
               type="number"
               value={form.standardLessonLengthMinutes}
               onChange={e => setForm(f => ({ ...f, standardLessonLengthMinutes: parseInt(e.target.value, 10) || 120 }))}
@@ -481,6 +494,7 @@ const GeneralSettings: React.FC = () => {
                 <button
                   key={m}
                   type="button"
+                  aria-pressed={form.standardLessonLengthMinutes === m}
                   onClick={() => setForm(f => ({ ...f, standardLessonLengthMinutes: m }))}
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.standardLessonLengthMinutes === m
@@ -512,6 +526,7 @@ const GeneralSettings: React.FC = () => {
                 <button
                   key={c}
                   type="button"
+                  aria-pressed={form.defaultLessonCost === c}
                   onClick={() => setForm(f => ({ ...f, defaultLessonCost: c }))}
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.defaultLessonCost === c
@@ -543,6 +558,7 @@ const GeneralSettings: React.FC = () => {
                 <button
                   key={n}
                   type="button"
+                  aria-pressed={form.maxLessonsPerStudentPerDay === n}
                   onClick={() => setForm(f => ({ ...f, maxLessonsPerStudentPerDay: n }))}
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.maxLessonsPerStudentPerDay === n
@@ -562,16 +578,17 @@ const GeneralSettings: React.FC = () => {
       <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Lesson Review &amp; Cancellation Policy</h3>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Lesson Completion Mode</label>
+          <span id="settings-lesson-completion-mode-label" className="block text-sm font-medium text-tx-secondary mb-1">Lesson Completion Mode</span>
           <p className="text-xs text-tx-muted mb-3">
             Manual: staff review and close out each past lesson from the Review Queue. Auto: reserved for a future automated job
             &mdash; selecting it only saves the setting, nothing acts on it yet.
           </p>
-          <div className="flex gap-2">
+          <div role="group" aria-labelledby="settings-lesson-completion-mode-label" className="flex gap-2">
             {(['manual', 'auto'] as const).map(mode => (
               <button
                 key={mode}
                 type="button"
+                aria-pressed={form.lessonCompletionMode === mode}
                 onClick={() => setForm(f => ({ ...f, lessonCompletionMode: mode }))}
                 className={`px-3 py-1 text-xs rounded-full border transition-colors capitalize ${
                   form.lessonCompletionMode === mode
@@ -602,6 +619,7 @@ const GeneralSettings: React.FC = () => {
                 <button
                   key={c}
                   type="button"
+                  aria-pressed={form.cancellationFeeAmount === c}
                   onClick={() => setForm(f => ({ ...f, cancellationFeeAmount: c }))}
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.cancellationFeeAmount === c
@@ -633,6 +651,7 @@ const GeneralSettings: React.FC = () => {
                 <button
                   key={h}
                   type="button"
+                  aria-pressed={form.cancellationFeeWindowHours === h}
                   onClick={() => setForm(f => ({ ...f, cancellationFeeWindowHours: h }))}
                   className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                     form.cancellationFeeWindowHours === h
@@ -647,15 +666,16 @@ const GeneralSettings: React.FC = () => {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Who Collects the Fee</label>
+          <span id="settings-cancellation-fee-payee-label" className="block text-sm font-medium text-tx-secondary mb-1">Who Collects the Fee</span>
           <p className="text-xs text-tx-muted mb-3">
             Instructor: collected in cash and never recorded as school revenue. School: can be converted into a real payment record from the student's fee flag.
           </p>
-          <div className="flex gap-2">
+          <div role="group" aria-labelledby="settings-cancellation-fee-payee-label" className="flex gap-2">
             {(['instructor', 'school'] as const).map(payee => (
               <button
                 key={payee}
                 type="button"
+                aria-pressed={form.cancellationFeePayee === payee}
                 onClick={() => setForm(f => ({ ...f, cancellationFeePayee: payee }))}
                 className={`px-3 py-1 text-xs rounded-full border transition-colors capitalize ${
                   form.cancellationFeePayee === payee
@@ -1296,9 +1316,10 @@ const BrandingSettings: React.FC = () => {
       <div className="border border-edge rounded-lg p-6 space-y-4">
         <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Logo</h3>
         <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Logo URL</label>
+          <label htmlFor="branding-logo-url" className="block text-sm font-medium text-tx-secondary mb-1">Logo URL</label>
           <p className="text-xs text-tx-muted mb-3">Paste a URL to your logo image (PNG or SVG recommended, transparent background).</p>
           <input
+            id="branding-logo-url"
             type="url"
             value={form.logoUrl}
             onChange={set('logoUrl')}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { SettingsPage } from './Settings';
 
 const mockRefreshSettings = vi.fn().mockResolvedValue(undefined);
@@ -353,5 +353,120 @@ describe('Settings - General tab timezone auto-detect suggestion', () => {
 
     expect(screen.queryByText(/suggested, based on your browser/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /use this timezone/i })).not.toBeInTheDocument();
+  });
+});
+
+// Accessibility follow-up flagged during Phase 1 (compliance-records arc):
+// School Identity/Contact/Address inputs had no htmlFor/id association -
+// labels weren't programmatically tied to their controls, so screen
+// readers and getByLabelText couldn't associate them. Fixed across every
+// real input/select in General Settings and Logo URL in Branding; the two
+// button-group-only controls (Lesson Completion Mode, Who Collects the
+// Fee) use role="group" + aria-labelledby instead, the correct pattern
+// for a group of buttons rather than htmlFor pointing at nothing.
+describe('Settings - General tab label association (accessibility)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('every School Identity / Contact Information / Physical Address field is reachable via its label', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    for (const labelText of [
+      /^school name/i,
+      /tagline/i,
+      /^phone/i,
+      /^email/i,
+      /^website/i,
+      /street address/i,
+      /suite \/ unit/i,
+      /^city/i,
+      /^state/i,
+      /zip code/i,
+    ]) {
+      expect(await screen.findByLabelText(labelText)).toBeInTheDocument();
+    }
+  });
+
+  it('Default Hours Required and Standard Lesson Length are reachable via their labels', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    expect(await screen.findByLabelText(/default hours required per student/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/standard lesson length/i)).toBeInTheDocument();
+  });
+
+  it('Lesson Completion Mode renders as a named, accessible button group with pressed state', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const group = await screen.findByRole('group', { name: /lesson completion mode/i });
+    const manual = within(group).getByRole('button', { name: /manual/i });
+    const auto = within(group).getByRole('button', { name: /auto/i });
+
+    expect(manual).toHaveAttribute('aria-pressed', 'true');
+    expect(auto).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(auto);
+    expect(auto).toHaveAttribute('aria-pressed', 'true');
+    expect(manual).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('Who Collects the Fee renders as a named, accessible button group with pressed state', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const group = await screen.findByRole('group', { name: /who collects the fee/i });
+    const instructor = within(group).getByRole('button', { name: /instructor/i });
+    const school = within(group).getByRole('button', { name: /^school/i });
+
+    expect(instructor).toHaveAttribute('aria-pressed', 'true');
+    expect(school).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(school);
+    expect(school).toHaveAttribute('aria-pressed', 'true');
+    expect(instructor).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('quick-select pill buttons for numeric fields announce pressed state', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const sixHours = await screen.findByRole('button', { name: '6h ⭐' });
+    expect(sixHours).toHaveAttribute('aria-pressed', 'true');
+
+    const eightHours = screen.getByRole('button', { name: '8h' });
+    expect(eightHours).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(eightHours);
+    expect(eightHours).toHaveAttribute('aria-pressed', 'true');
+    expect(sixHours).toHaveAttribute('aria-pressed', 'false');
+  });
+});
+
+// Same fix, Branding tab.
+describe('Settings - Branding tab label association (accessibility)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('Logo URL is reachable via its label', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /branding/i }));
+
+    expect(await screen.findByLabelText(/logo url/i)).toBeInTheDocument();
   });
 });
