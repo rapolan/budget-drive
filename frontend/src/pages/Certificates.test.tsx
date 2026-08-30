@@ -14,6 +14,7 @@ vi.mock('@/api', async () => {
       getWorklist: vi.fn(),
       getCounts: vi.fn(),
       getLog: vi.fn(),
+      getDetail: vi.fn(),
       record: vi.fn(),
       recordVoid: vi.fn(),
     },
@@ -227,5 +228,67 @@ describe('Certificates - issued log view toggle', () => {
     renderCertificatesPage();
     await waitFor(() => expect(screen.getByText('Ruby Sandoval')).toBeInTheDocument());
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+// Phase 2 of the compliance-records arc: a "View" action opens the digital
+// certificate view for an issued record. A void was never handed to a
+// student (getCertificateDetail rejects one server-side), so it gets no
+// action at all - nothing to view.
+describe('Certificates - digital certificate view', () => {
+  it('shows a View action for an issued record but not for a void one', async () => {
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        logEntry({ id: 'c1', studentName: 'Ruby Sandoval' }),
+        logEntry({ id: 'c2', status: 'void', studentId: null, studentName: null, instructorId: null, instructorName: null, voidReason: 'Lost' }),
+      ],
+    });
+
+    renderCertificatesPage();
+    await waitFor(() => expect(screen.getByText('Ruby Sandoval')).toBeInTheDocument());
+
+    expect(screen.getAllByRole('button', { name: /^view$/i })).toHaveLength(1);
+  });
+
+  it('opens the certificate view with the assembled document when View is clicked', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [logEntry({ id: 'c1', studentName: 'Ruby Sandoval' })],
+    });
+    (certificatesApi.getDetail as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        id: 'c1',
+        serialNumber: 'CS0000001',
+        formType: 'DL_400D',
+        status: 'issued',
+        issueDateLocal: 'August 1, 2026',
+        school: {
+          businessName: 'Budget Driving School',
+          licenseNumber: 'E1234',
+          addressLine1: '123 Main St',
+          addressLine2: null,
+          city: 'Sacramento',
+          state: 'CA',
+          zipCode: '95814',
+          phone: '916-555-0100',
+        },
+        student: { fullName: 'Ruby Sandoval', dateOfBirthLocal: 'May 10, 2009' },
+        completionDateLocal: 'July 30, 2026',
+        instructor: { fullName: 'Devon Ashby', licenseNumber: 'INS-1' },
+      },
+    });
+
+    renderCertificatesPage();
+    await waitFor(() => expect(screen.getByText('Ruby Sandoval')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /^view$/i }));
+
+    expect(await screen.findByText('Certificate of Completion of Behind-The-Wheel Training')).toBeInTheDocument();
+    expect(screen.getByText('Budget Driving School')).toBeInTheDocument();
+    expect(screen.getByText(/DMV License No\. E1234/)).toBeInTheDocument();
+    expect(screen.getAllByText('Devon Ashby').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Serial No\. CS0000001/)).toBeInTheDocument();
   });
 });

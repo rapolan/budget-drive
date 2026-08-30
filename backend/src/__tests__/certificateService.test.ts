@@ -267,6 +267,87 @@ describe('certificateService.recordVoid', () => {
   });
 });
 
+describe('certificateService.getCertificateDetail', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('assembles school, student, instructor, and dates for an issued certificate, resolved in tenant time', async () => {
+    const { getCertificateDetail } = await import('../services/certificateService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'cert-1',
+          serial_number: 'CS1000001',
+          form_type: 'DL_400D',
+          status: 'issued',
+          issue_date: '2026-08-20',
+          student_name: 'Ruby Sandoval',
+          date_of_birth: '2009-05-10',
+          completed_at: '2026-08-19T00:00:00.000Z',
+          instructor_name: 'Coach Lee',
+          instructor_license_number: 'INS-555',
+        }])
+      ) // certificate detail join
+      .mockResolvedValueOnce(
+        queryResult([{
+          tenant_id: TENANT_ID,
+          timezone: 'America/Los_Angeles',
+          business_name: 'Budget Driving School',
+          license_number: 'E1234',
+          address_line1: '123 Main St',
+          address_line2: null,
+          city: 'Sacramento',
+          state: 'CA',
+          zip_code: '95814',
+          support_phone: '916-555-0100',
+        }])
+      ); // getTenantSettings
+
+    const detail = await getCertificateDetail('cert-1', TENANT_ID);
+
+    expect(detail.serialNumber).toBe('CS1000001');
+    expect(detail.formType).toBe('DL_400D');
+    expect(detail.school.businessName).toBe('Budget Driving School');
+    expect(detail.school.licenseNumber).toBe('E1234');
+    expect(detail.student.fullName).toBe('Ruby Sandoval');
+    expect(detail.student.dateOfBirthLocal).toBe('May 10, 2009');
+    expect(detail.completionDateLocal).toBe('August 19, 2026');
+    expect(detail.issueDateLocal).toBe('August 20, 2026');
+    expect(detail.instructor).toEqual({ fullName: 'Coach Lee', licenseNumber: 'INS-555' });
+  });
+
+  it('rejects viewing a void certificate - it was never issued to a student', async () => {
+    const { getCertificateDetail } = await import('../services/certificateService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: 'cert-void-1',
+        serial_number: 'CS9999999',
+        form_type: 'NOT_APPLICABLE',
+        status: 'void',
+        issue_date: '2026-08-20',
+        student_name: null,
+        date_of_birth: null,
+        completed_at: null,
+        instructor_name: null,
+        instructor_license_number: null,
+      }])
+    );
+
+    await expect(getCertificateDetail('cert-void-1', TENANT_ID)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('rejects an unknown certificate id (404)', async () => {
+    const { getCertificateDetail } = await import('../services/certificateService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    await expect(getCertificateDetail('missing', TENANT_ID)).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
 describe('certificateService.getIssuedVoidCounts', () => {
   beforeEach(() => {
     resetMockQuery();

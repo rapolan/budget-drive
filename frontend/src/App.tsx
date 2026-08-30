@@ -13,6 +13,7 @@ import { VehiclesPage } from '@/pages/Vehicles';
 import { LessonsPage } from '@/pages/Lessons';
 import { ReviewQueuePage } from '@/pages/ReviewQueue';
 import { CertificatesPage } from '@/pages/Certificates';
+import { CertificatePrintPage } from '@/pages/CertificatePrint';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
@@ -178,6 +179,16 @@ function AppRoutes() {
             <AppLayout>
               <CertificatesPage />
             </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      {/* No AppLayout - a bare page for the Print button to open in a new
+          tab, with no sidebar/nav chrome to hide or fight during print. */}
+      <Route
+        path="/certificates/:id/print"
+        element={
+          <ProtectedRoute>
+            <CertificatePrintPage />
           </ProtectedRoute>
         }
       />

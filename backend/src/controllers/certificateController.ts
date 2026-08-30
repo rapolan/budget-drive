@@ -75,6 +75,25 @@ export const getForEnrollments = asyncHandler(async (req: Request, res: Response
 });
 
 /**
+ * @route   GET /api/v1/certificates/:id
+ * @desc    Full assembled content of a single issued certificate (school
+ *          identity, student, instructor, form type, dates) for the
+ *          digital certificate view
+ * @access  Private
+ */
+export const getCertificateDetail = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const detail = await certificateService.getCertificateDetail(id, tenantId);
+
+  res.json({
+    success: true,
+    data: detail,
+  });
+});
+
+/**
  * @route   POST /api/v1/enrollments/:enrollmentId/certificate
  * @desc    Record a certificate against a completed enrollment - callable
  *          from the worklist or directly from any completed enrollment on

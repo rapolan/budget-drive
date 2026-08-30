@@ -18,6 +18,7 @@ router.get('/certificates/worklist', certificateController.getWorklist);
 router.get('/certificates/counts', certificateController.getCounts);
 router.get('/certificates/log', certificateController.getLog);
 router.get('/certificates/for-enrollments', certificateController.getForEnrollments);
+router.get('/certificates/:id', validateUUID('id'), certificateController.getCertificateDetail);
 
 router.post(
   '/enrollments/:enrollmentId/certificate',

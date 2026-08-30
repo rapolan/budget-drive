@@ -27,6 +27,33 @@ export interface CertificateLogEntry {
   instructorName: string | null;
 }
 
+export interface CertificateDetail {
+  id: string;
+  serialNumber: string;
+  formType: string;
+  status: 'issued' | 'void';
+  issueDateLocal: string;
+  school: {
+    businessName: string;
+    licenseNumber: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+    phone: string | null;
+  };
+  student: {
+    fullName: string;
+    dateOfBirthLocal: string | null;
+  };
+  completionDateLocal: string | null;
+  instructor: {
+    fullName: string;
+    licenseNumber: string | null;
+  } | null;
+}
+
 export interface RecordCertificateInput {
   serialNumber: string;
   issueDate: string;
@@ -52,6 +79,11 @@ export const certificatesApi = {
 
   getLog: async () => {
     const response = await apiClient.get<ApiResponse<CertificateLogEntry[]>>('/certificates/log');
+    return response.data;
+  },
+
+  getDetail: async (id: string) => {
+    const response = await apiClient.get<ApiResponse<CertificateDetail>>(`/certificates/${id}`);
     return response.data;
   },
 

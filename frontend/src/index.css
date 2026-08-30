@@ -209,4 +209,17 @@ body {
 .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
 .sidebar-nav:hover::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+/* ─── Printable documents ───────────────────────────────────────────────────
+   Used by CertificatePrintPage's bare page (a dedicated route with no app
+   shell/modal chrome - printing a certificate INSIDE the modal was tried
+   and abandoned: a fixed-position, scroll-clipped modal fights Chromium's
+   print pagination badly enough that content got truncated or split
+   across pages depending on how the CSS was coerced around it). On a bare
+   page there's nothing else to hide, so this just removes the page
+   margins so the document isn't double-inset (its own padding plus the
+   browser's default @page margin). */
+@media print {
+  @page { margin: 0.5in; }
+}
 .sidebar-nav:hover { scrollbar-width: thin; }

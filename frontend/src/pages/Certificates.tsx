@@ -1,9 +1,10 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Award, CheckCircle2, Ban, X, LayoutList, LayoutGrid } from 'lucide-react';
+import { Award, CheckCircle2, Ban, X, LayoutList, LayoutGrid, Eye } from 'lucide-react';
 import { certificatesApi } from '@/api';
 import type { AwaitingCertificateEntry, CertificateLogEntry } from '@/api/certificates';
 import { Button, EmptyState, LoadingSpinner } from '@/components/common';
+import { CertificateView } from '@/components/certificates/CertificateView';
 import { formatShortDate } from '@/utils/timeFormat';
 import { useSessionState } from '@/hooks/useSessionState';
 
@@ -101,6 +102,10 @@ export const CertificatesPage: React.FC = () => {
   }, [log, logInstructorId]);
 
   const activeLogInstructorName = logInstructors.find((i) => i.id === logInstructorId)?.name ?? null;
+
+  // The digital certificate view - only issued records have a document to
+  // show (a void was never handed to a student, see getCertificateDetail).
+  const [viewingCertificateId, setViewingCertificateId] = React.useState<string | null>(null);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['certificates', 'worklist'] });
@@ -329,6 +334,9 @@ export const CertificatesPage: React.FC = () => {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">Issue date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">Instructor</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-edge">
@@ -344,6 +352,18 @@ export const CertificatesPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-tx-secondary">
                       {entry.instructorName ?? <span className="text-tx-muted italic">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {entry.status === 'issued' && (
+                        <button
+                          type="button"
+                          onClick={() => setViewingCertificateId(entry.id)}
+                          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -367,9 +387,26 @@ export const CertificatesPage: React.FC = () => {
                 {entry.instructorName && (
                   <p className="text-xs text-tx-muted mt-1">{entry.instructorName}</p>
                 )}
+                {entry.status === 'issued' && (
+                  <button
+                    type="button"
+                    onClick={() => setViewingCertificateId(entry.id)}
+                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline mt-3"
+                  >
+                    <Eye className="h-4 w-4" />
+                    View certificate
+                  </button>
+                )}
               </div>
             ))}
           </div>
+        )}
+
+        {viewingCertificateId && (
+          <CertificateView
+            certificateId={viewingCertificateId}
+            onClose={() => setViewingCertificateId(null)}
+          />
         )}
       </div>
     </div>

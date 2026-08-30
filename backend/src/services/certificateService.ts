@@ -202,6 +202,121 @@ export const getIssuedLog = async (tenantId: string): Promise<CertificateLogEntr
   }));
 };
 
+export interface CertificateDetail {
+  id: string;
+  serialNumber: string;
+  formType: string;
+  status: 'issued' | 'void';
+  issueDateLocal: string;
+  school: {
+    businessName: string;
+    licenseNumber: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+    phone: string | null;
+  };
+  student: {
+    fullName: string;
+    dateOfBirthLocal: string | null;
+  };
+  completionDateLocal: string | null;
+  instructor: {
+    fullName: string;
+    licenseNumber: string | null;
+  } | null;
+}
+
+/**
+ * Formats a `date` or `timestamp without time zone` column value (already
+ * the tenant's own wall-clock reading by construction - see tenantTime.ts's
+ * "Storage is unchanged" note) as a human-readable date, e.g. "August 20,
+ * 2026". Reads UTC getters directly (matching calculateAge's proven
+ * pattern for date_of_birth) rather than formatInTenantZone, which is for
+ * converting a genuine UTC instant into a target zone - applying it to a
+ * value that's already the tenant's wall-clock time would double-convert
+ * and shift the date by up to a day.
+ */
+function formatWallClockDate(value: Date | string): string {
+  const d = new Date(value);
+  const MONTHS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
+/**
+ * The full assembled content of a single ISSUED certificate, for the
+ * digital certificate view (Phase 2 of the compliance-records arc). A void
+ * certificate was never handed to a student - it has no enrollment, no
+ * completion, no form_type worth rendering (see VOID_FORM_TYPE) - so it has
+ * no document to assemble; callers must not offer a "view" action for one,
+ * and this throws if asked to render one anyway rather than returning a
+ * document with blank/nonsensical fields.
+ *
+ * All dates resolved server-side in the tenant's timezone - the frontend
+ * only ever receives ready-to-render strings, per the tenant-timezone
+ * authority rule (backend/src/utils/tenantTime.ts).
+ */
+export const getCertificateDetail = async (
+  certificateId: string,
+  tenantId: string
+): Promise<CertificateDetail> => {
+  const result = await query(
+    `SELECT
+       c.id, c.serial_number, c.form_type, c.status, c.issue_date,
+       s.full_name AS student_name, s.date_of_birth,
+       e.completed_at,
+       i.full_name AS instructor_name, i.instructor_license_number
+     FROM certificates c
+     LEFT JOIN enrollments e ON e.id = c.enrollment_id
+     LEFT JOIN students s ON s.id = e.student_id
+     LEFT JOIN instructors i ON i.id = c.issued_by_instructor_id
+     WHERE c.id = $1 AND c.tenant_id = $2`,
+    [certificateId, tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Certificate not found', 404);
+  }
+
+  const row = result.rows[0];
+  if (row.status !== 'issued') {
+    throw new AppError('A void certificate has no document to view', 400);
+  }
+
+  const tenantSettings = await getTenantSettings(tenantId);
+
+  return {
+    id: row.id,
+    serialNumber: row.serial_number,
+    formType: row.form_type,
+    status: row.status,
+    issueDateLocal: formatWallClockDate(row.issue_date),
+    school: {
+      businessName: tenantSettings?.businessName ?? '',
+      licenseNumber: tenantSettings?.licenseNumber ?? null,
+      addressLine1: tenantSettings?.addressLine1 ?? null,
+      addressLine2: tenantSettings?.addressLine2 ?? null,
+      city: tenantSettings?.city ?? null,
+      state: tenantSettings?.state ?? null,
+      zipCode: tenantSettings?.zipCode ?? null,
+      phone: tenantSettings?.supportPhone ?? null,
+    },
+    student: {
+      fullName: row.student_name,
+      dateOfBirthLocal: row.date_of_birth ? formatWallClockDate(row.date_of_birth) : null,
+    },
+    completionDateLocal: row.completed_at ? formatWallClockDate(row.completed_at) : null,
+    instructor: row.instructor_name
+      ? { fullName: row.instructor_name, licenseNumber: row.instructor_license_number ?? null }
+      : null,
+  };
+};
+
 /**
  * Resolve a sensible default issuing instructor for an enrollment being
  * recorded - the enrollment's own most recent COMPLETED lesson's
