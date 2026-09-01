@@ -75,6 +75,38 @@ describe('certificateService.getAwaitingCertificateWorklist', () => {
     expect(worklist).toHaveLength(0);
   });
 
+  it('surfaces a completed classroom driver_education enrollment, defaulting the instructor to the home cohort teacher', async () => {
+    const { getAwaitingCertificateWorklist } = await import('../services/certificateService');
+
+    const completedAt = new Date();
+    const dob = new Date(completedAt);
+    dob.setFullYear(dob.getFullYear() - 16);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
+      .mockResolvedValueOnce(
+        queryResult([
+          {
+            enrollment_id: ENROLLMENT_ID,
+            student_id: STUDENT_ID,
+            completed_at: completedAt.toISOString(),
+            student_name: 'Jane Minor',
+            date_of_birth: dob.toISOString(),
+            last_lesson_instructor_id: null, // classroom DE has no lessons
+            cohort_teacher_instructor_id: INSTRUCTOR_ID,
+            assigned_instructor_id: null,
+          },
+        ])
+      )
+      .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID, full_name: 'Ms. Rivera' }]));
+
+    const worklist = await getAwaitingCertificateWorklist(TENANT_ID);
+
+    expect(worklist).toHaveLength(1);
+    expect(worklist[0].suggestedInstructorId).toBe(INSTRUCTOR_ID);
+    expect(worklist[0].suggestedInstructorName).toBe('Ms. Rivera');
+  });
+
   it('falls back to assigned_instructor_id when the enrollment has no completed lesson', async () => {
     const { getAwaitingCertificateWorklist } = await import('../services/certificateService');
 
@@ -154,23 +186,111 @@ describe('certificateService.recordCertificate', () => {
     expect(insertParams).toContain('DL_400D');
   });
 
-  it('rejects recording a certificate for a driver_education enrollment (form-type mapping not resolvable yet)', async () => {
+  it('rejects recording a certificate for a driver_education enrollment with no delivery mode set', async () => {
     const { recordCertificate } = await import('../services/certificateService');
 
     mockQuery
       .mockResolvedValueOnce(
         queryResult([{
           id: ENROLLMENT_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID,
-          program_type: 'driver_education', completed: true, assigned_instructor_id: null,
+          program_type: 'driver_education', de_delivery_mode: null, completed: true, assigned_instructor_id: null,
         }])
       )
       .mockResolvedValueOnce(queryResult([])) // no existing certificate for this enrollment
       .mockResolvedValueOnce(queryResult([])) // serial not in use
-      .mockResolvedValueOnce(queryResult([])); // default instructor lookup (no completed lesson)
+      .mockResolvedValueOnce(queryResult([])) // default instructor lookup: no completed lesson
+      .mockResolvedValueOnce(queryResult([])); // default instructor lookup: no home cohort either
 
     await expect(
       recordCertificate(ENROLLMENT_ID, TENANT_ID, { serialNumber: 'CS1', issueDate: '2026-08-01' }, 'user-1')
     ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('records a classroom driver_education certificate as DL_400B', async () => {
+    const { recordCertificate } = await import('../services/certificateService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: ENROLLMENT_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'classroom', completed: true, assigned_instructor_id: null,
+        }])
+      )
+      .mockResolvedValueOnce(queryResult([])) // no existing certificate for this enrollment
+      .mockResolvedValueOnce(queryResult([])) // serial not in use
+      .mockResolvedValueOnce(queryResult([])) // default instructor lookup: no completed lesson
+      .mockResolvedValueOnce(queryResult([{ teacher_instructor_id: INSTRUCTOR_ID }])) // home cohort's teacher
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'cert-de-1',
+          tenant_id: TENANT_ID,
+          enrollment_id: ENROLLMENT_ID,
+          serial_number: 'CS-DE-1',
+          form_type: 'DL_400B',
+          issue_date: '2026-08-01',
+          status: 'issued',
+          issued_by_instructor_id: INSTRUCTOR_ID,
+          recorded_by: 'user-1',
+          completion_hash: 'def456',
+        }])
+      ); // INSERT
+
+    const certificate = await recordCertificate(
+      ENROLLMENT_ID,
+      TENANT_ID,
+      { serialNumber: 'CS-DE-1', issueDate: '2026-08-01' },
+      'user-1'
+    );
+
+    expect(certificate.formType).toBe('DL_400B');
+    expect(certificate.issuedByInstructorId).toBe(INSTRUCTOR_ID);
+
+    const [insertSql, insertParams] = mockQuery.mock.calls[5];
+    expect(insertSql).toMatch(/form_type/);
+    expect(insertParams).toContain('DL_400B');
+  });
+
+  it('records an online driver_education certificate as DL_400C', async () => {
+    const { recordCertificate } = await import('../services/certificateService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: ENROLLMENT_ID, tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'online', completed: true, assigned_instructor_id: null,
+        }])
+      )
+      .mockResolvedValueOnce(queryResult([])) // no existing certificate for this enrollment
+      .mockResolvedValueOnce(queryResult([])) // serial not in use
+      .mockResolvedValueOnce(queryResult([])) // default instructor lookup: no completed lesson
+      .mockResolvedValueOnce(queryResult([])) // default instructor lookup: no home cohort (online has none)
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'cert-de-2',
+          tenant_id: TENANT_ID,
+          enrollment_id: ENROLLMENT_ID,
+          serial_number: 'CS-DE-2',
+          form_type: 'DL_400C',
+          issue_date: '2026-08-01',
+          status: 'issued',
+          issued_by_instructor_id: null,
+          recorded_by: 'user-1',
+          completion_hash: 'ghi789',
+        }])
+      ); // INSERT
+
+    const certificate = await recordCertificate(
+      ENROLLMENT_ID,
+      TENANT_ID,
+      { serialNumber: 'CS-DE-2', issueDate: '2026-08-01' },
+      'user-1'
+    );
+
+    expect(certificate.formType).toBe('DL_400C');
+
+    const [insertSql, insertParams] = mockQuery.mock.calls[5];
+    expect(insertSql).toMatch(/form_type/);
+    expect(insertParams).toContain('DL_400C');
   });
 
   it('rejects recording a certificate for a not-yet-completed enrollment', async () => {

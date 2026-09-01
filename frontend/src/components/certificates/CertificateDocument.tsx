@@ -1,11 +1,10 @@
 import React from 'react';
 import type { CertificateDetail } from '@/api/certificates';
 
-// DL 400D is the only form type this view expects to render (Phase 2 of
-// the compliance-records arc; DL 400B/C classroom/online driver_education
-// content is Phase 3). Falls back to the raw code for forward-compat.
 const FORM_TYPE_TITLES: Record<string, string> = {
   DL_400D: 'Certificate of Completion of Behind-The-Wheel Training',
+  DL_400B: 'Certificate of Completion of Driver Education (Classroom)',
+  DL_400C: 'Certificate of Completion of Driver Education (Online)',
 };
 
 interface CertificateDocumentProps {

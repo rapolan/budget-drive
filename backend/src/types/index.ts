@@ -69,12 +69,19 @@ export interface TenantSettings {
   enableInstructorPortal: boolean;
   enableSmsNotifications: boolean;
   enableEmailNotifications: boolean;
+  // Off by default. Gates the Classroom nav page and driver_education's
+  // classroom delivery mode (Phase 3 of the compliance-records arc).
+  enableDriverEducation: boolean;
 
   // Student Defaults
   defaultHoursRequired: number;
   standardLessonLengthMinutes: number;
   defaultLessonCost: number;
   maxLessonsPerStudentPerDay: number;
+  // Per-lesson BTW discount for a student with a completed INTERNAL
+  // driver_education enrollment (never an externally-completed one).
+  // Applied automatically and authoritatively at booking time.
+  deDiscountAmount: number;
 
   // Lesson Review & Cancellation Policy
   // 'auto' is stored but has no job behind it yet - only 'manual' review
@@ -217,8 +224,15 @@ export interface Instructor {
   // Licenses
   driversLicenseNumber: string | null;
   driversLicenseExpiration: Date | null;
-  instructorLicenseNumber: string | null;
+  instructorLicenseNumber: string | null; // Driving School Instructor License (BTW credential)
   instructorLicenseExpiration: Date | null;
+
+  // Driver education classroom teacher - a DIFFERENT credential from the
+  // BTW instructor license above (Phase 3); an instructor can hold either,
+  // both, or neither. No expiry-notification pipeline for this credential.
+  isDeTeacher: boolean;
+  deCredentialNumber: string | null;
+  deCredentialExpiration: Date | null;
 
   // Vehicle & Mileage
   providesOwnVehicle: boolean;
@@ -445,8 +459,15 @@ export interface Enrollment {
   externalDeCompletedDate: Date | null;
   externalDeProvider: string | null;
 
-  // driver_education only: manually entered, no lesson tracking this session
+  // driver_education only: manually entered. Still the sole completion
+  // signal for online DE and any classroom DE enrollment predating the
+  // cohort/attendance system (Phase 3) - not removed by it.
   manualCompletedHours: number | null;
+
+  // driver_education only: which DMV form this enrollment resolves to
+  // (classroom -> DL 400B, online -> DL 400C). Null on driver_training
+  // rows and on driver_education rows created before Phase 3.
+  deDeliveryMode: 'classroom' | 'online' | null;
 
   // BSV forward-compatibility - no anchoring code, ledgerTxid always null this session
   completionHash: string | null;
@@ -466,6 +487,56 @@ export interface Enrollment {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// =====================================================
+// DRIVER EDUCATION (CLASSROOM) TYPES
+// =====================================================
+// Phase 3 of the compliance-records arc. Completion is derived entirely
+// from de_attendance - never stored as a per-cohort flag - so a student's
+// completion is the union of attended curriculum days across ANY cohort,
+// which is what makes a cross-cohort make-up representable. See
+// docs/ARCHITECTURE.md for the full design rationale.
+
+export interface DeCohort {
+  id: string;
+  tenantId: string;
+  name: string;
+  teacherInstructorId: string | null;
+  capacity: number;
+  // Light, cosmetic bookkeeping only - never gates completion logic.
+  status: 'scheduled' | 'completed' | 'cancelled';
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DeCohortSession {
+  id: string;
+  tenantId: string;
+  cohortId: string;
+  curriculumDay: 1 | 2 | 3 | 4;
+  sessionDate: Date;
+  startTime: string;
+  endTime: string;
+}
+
+export interface DeCohortEnrollment {
+  id: string;
+  tenantId: string;
+  cohortId: string;
+  enrollmentId: string; // The student's driver_education enrollment
+  joinedAt: Date;
+}
+
+export interface DeAttendanceRecord {
+  id: string;
+  tenantId: string;
+  enrollmentId: string;
+  sessionId: string; // May belong to a DIFFERENT cohort than the student's home one (a make-up)
+  present: boolean;
+  recordedBy: string | null;
+  recordedAt: Date;
 }
 
 // =====================================================
@@ -737,6 +808,10 @@ export interface Lesson {
 
   // Financial
   cost: number;
+  // Set at booking time when the student had a completed INTERNAL
+  // driver_education enrollment; the amount already subtracted from
+  // `cost`, kept for auditability - never a silent price change.
+  deDiscountApplied: number | null;
 
   // Blockchain
   bsvRecordHash: string | null;

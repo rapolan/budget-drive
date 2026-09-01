@@ -15,7 +15,7 @@
  */
 
 import { query } from '../config/database';
-import { Certificate, Enrollment, ProgramType } from '../types';
+import { Certificate, Enrollment } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -26,21 +26,24 @@ import crypto from 'crypto';
 
 const logger = createLogger('CertificateService');
 
-// DMV form type a certificate is recorded on, derived from the enrollment's
-// program_type. driver_education splits into classroom (DL_400B) vs online
-// (DL_400C), a distinction program_type alone can't resolve yet - left null
-// until Phase 3 adds that signal, rather than guessing.
-const FORM_TYPE_BY_PROGRAM_TYPE: Record<ProgramType, string | null> = {
-  driver_training: 'DL_400D',
-  driver_education: null,
-};
-
-function resolveFormType(programType: ProgramType): string {
-  const formType = FORM_TYPE_BY_PROGRAM_TYPE[programType];
-  if (!formType) {
-    throw new AppError(`No DMV form type mapping for program type "${programType}" yet`, 400);
+// DMV form type a certificate is recorded on. driver_training always
+// resolves to DL_400D. driver_education splits by delivery mode (Phase 3):
+// classroom -> DL_400B, online -> DL_400C - a distinction program_type
+// alone can't resolve, hence the second field.
+function resolveFormType(enrollment: Pick<Enrollment, 'programType' | 'deDeliveryMode'>): string {
+  if (enrollment.programType === 'driver_training') {
+    return 'DL_400D';
   }
-  return formType;
+  if (enrollment.deDeliveryMode === 'classroom') {
+    return 'DL_400B';
+  }
+  if (enrollment.deDeliveryMode === 'online') {
+    return 'DL_400C';
+  }
+  throw new AppError(
+    `No DMV form type mapping for program type "${enrollment.programType}" (delivery mode not set)`,
+    400
+  );
 }
 
 // A void certificate was never issued to a student - it has no enrollment
@@ -86,12 +89,19 @@ export const getAwaitingCertificateWorklist = async (
         WHERE l.enrollment_id = e.id AND l.status = 'completed'
         ORDER BY l.date DESC, l.start_time DESC
         LIMIT 1) AS last_lesson_instructor_id,
+       (SELECT dc.teacher_instructor_id FROM de_cohort_enrollments dce
+        JOIN de_cohorts dc ON dc.id = dce.cohort_id
+        WHERE dce.enrollment_id = e.id
+        LIMIT 1) AS cohort_teacher_instructor_id,
        e.assigned_instructor_id
      FROM enrollments e
      JOIN students s ON s.id = e.student_id
      LEFT JOIN certificates c ON c.enrollment_id = e.id
      WHERE e.tenant_id = $1
-       AND e.program_type = 'driver_training'
+       AND (
+         e.program_type = 'driver_training'
+         OR (e.program_type = 'driver_education' AND e.de_delivery_mode IS NOT NULL)
+       )
        AND e.completed = true
        AND c.id IS NULL
      ORDER BY e.completed_at ASC`,
@@ -106,7 +116,10 @@ export const getAwaitingCertificateWorklist = async (
   const instructorIds = Array.from(
     new Set(
       minorRows
-        .map((row: any) => row.last_lesson_instructor_id || row.assigned_instructor_id)
+        .map(
+          (row: any) =>
+            row.last_lesson_instructor_id || row.cohort_teacher_instructor_id || row.assigned_instructor_id
+        )
         .filter((id: string | null) => id !== null)
     )
   ) as string[];
@@ -123,7 +136,8 @@ export const getAwaitingCertificateWorklist = async (
   }
 
   return minorRows.map((row: any) => {
-    const suggestedInstructorId = row.last_lesson_instructor_id || row.assigned_instructor_id || null;
+    const suggestedInstructorId =
+      row.last_lesson_instructor_id || row.cohort_teacher_instructor_id || row.assigned_instructor_id || null;
     return {
       enrollmentId: row.enrollment_id,
       studentId: row.student_id,
@@ -340,6 +354,19 @@ async function resolveDefaultIssuingInstructor(
   if (lessonResult.rows.length > 0) {
     return lessonResult.rows[0].instructor_id;
   }
+  // Classroom driver_education has no lessons - fall back to the
+  // student's home cohort's teacher before the enrollment's generic
+  // assigned_instructor_id, matching the worklist's own default order.
+  const cohortResult = await query(
+    `SELECT dc.teacher_instructor_id FROM de_cohort_enrollments dce
+     JOIN de_cohorts dc ON dc.id = dce.cohort_id
+     WHERE dce.enrollment_id = $1 AND dc.tenant_id = $2
+     LIMIT 1`,
+    [enrollment.id, tenantId]
+  );
+  if (cohortResult.rows.length > 0 && cohortResult.rows[0].teacher_instructor_id) {
+    return cohortResult.rows[0].teacher_instructor_id;
+  }
   return enrollment.assignedInstructorId ?? null;
 }
 
@@ -419,7 +446,7 @@ export const recordCertificate = async (
     }))
     .digest('hex');
 
-  const formType = resolveFormType(enrollment.programType);
+  const formType = resolveFormType(enrollment);
 
   const result = await query(
     `INSERT INTO certificates (

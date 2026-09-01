@@ -341,6 +341,10 @@ export const updateTenantSettings = async (
     fields.push(`enable_multi_payment = $${paramCount++}`);
     values.push(data.enableMultiPayment);
   }
+  if (data.enableDriverEducation !== undefined) {
+    fields.push(`enable_driver_education = $${paramCount++}`);
+    values.push(data.enableDriverEducation);
+  }
 
   // Student Defaults
   if (data.defaultHoursRequired !== undefined) {
@@ -358,6 +362,10 @@ export const updateTenantSettings = async (
   if (data.maxLessonsPerStudentPerDay !== undefined) {
     fields.push(`max_lessons_per_student_per_day = $${paramCount++}`);
     values.push(data.maxLessonsPerStudentPerDay);
+  }
+  if (data.deDiscountAmount !== undefined) {
+    fields.push(`de_discount_amount = $${paramCount++}`);
+    values.push(data.deDiscountAmount);
   }
 
   // Lesson Review & Cancellation Policy
