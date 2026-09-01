@@ -125,34 +125,147 @@ describe('classroomAttendanceService.getClassroomAttendanceSummary', () => {
   });
 });
 
-describe('classroomAttendanceService.getSessionRoster', () => {
+describe('classroomAttendanceService.getCohortRoster', () => {
   beforeEach(() => {
     resetMockQuery();
   });
 
-  it('rejects an unknown session (404)', async () => {
-    const { getSessionRoster } = await import('../services/classroomAttendanceService');
+  it('rejects an unknown cohort (404 - no sessions found)', async () => {
+    const { getCohortRoster } = await import('../services/classroomAttendanceService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // sessions query finds nothing
+
+    await expect(getCohortRoster(COHORT_ID, TENANT_ID)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('returns sessions and an empty student list when nobody is enrolled', async () => {
+    const { getCohortRoster } = await import('../services/classroomAttendanceService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([
+          { id: 's1', curriculum_day: 1, session_date: '2026-10-03' },
+          { id: 's2', curriculum_day: 2, session_date: '2026-10-04' },
+          { id: 's3', curriculum_day: 3, session_date: '2026-10-10' },
+          { id: 's4', curriculum_day: 4, session_date: '2026-10-11' },
+        ])
+      ) // sessions
+      .mockResolvedValueOnce(queryResult([])); // students union query
+
+    const roster = await getCohortRoster(COHORT_ID, TENANT_ID);
+
+    expect(roster.sessions).toHaveLength(4);
+    expect(roster.students).toEqual([]);
+  });
+
+  it('marks a make-up guest attendance entry and computes cohort-agnostic completion', async () => {
+    const { getCohortRoster } = await import('../services/classroomAttendanceService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([
+          { id: 's1', curriculum_day: 1, session_date: '2026-10-03' },
+          { id: 's2', curriculum_day: 2, session_date: '2026-10-04' },
+          { id: 's3', curriculum_day: 3, session_date: '2026-10-10' },
+          { id: 's4', curriculum_day: 4, session_date: '2026-10-11' },
+        ])
+      ) // sessions
+      .mockResolvedValueOnce(
+        queryResult([
+          { enrollment_id: 'enr-home', student_id: 'stu-1', student_name: 'Leo Whitfield' },
+          { enrollment_id: 'enr-guest', student_id: 'stu-2', student_name: 'Mia Torres' },
+        ])
+      ) // students union
+      .mockResolvedValueOnce(
+        queryResult([
+          { enrollment_id: 'enr-home', session_id: 's1', present: true, is_home_cohort: true },
+          { enrollment_id: 'enr-guest', session_id: 's3', present: true, is_home_cohort: false },
+        ])
+      ) // per-session attendance for these 4 sessions
+      .mockResolvedValueOnce(
+        queryResult([
+          { enrollment_id: 'enr-home', curriculum_day: 1 },
+          { enrollment_id: 'enr-guest', curriculum_day: 3 },
+          { enrollment_id: 'enr-guest', curriculum_day: 4 }, // attended elsewhere, still counts
+        ])
+      ); // cohort-agnostic completion query
+
+    const roster = await getCohortRoster(COHORT_ID, TENANT_ID);
+
+    const guest = roster.students.find((s) => s.enrollmentId === 'enr-guest');
+    expect(guest?.attendance['s3']).toEqual({ present: true, isHomeCohort: false });
+    expect(guest?.attendance['s1']).toEqual({ present: false, isHomeCohort: true }); // default, never marked here
+    expect(guest?.attendedCurriculumDayCount).toBe(2); // day 3 (this cohort) + day 4 (elsewhere)
+    expect(guest?.missingCurriculumDays).toEqual([1, 2]);
+
+    const home = roster.students.find((s) => s.enrollmentId === 'enr-home');
+    expect(home?.attendedCurriculumDayCount).toBe(1);
+    expect(home?.missingCurriculumDays).toEqual([2, 3, 4]);
+  });
+
+  // Regression: found via live verification, not this mock layer. Postgres
+  // evaluates `dce.cohort_id = $1` as SQL NULL (not false) when the LEFT
+  // JOIN finds no de_cohort_enrollments row at all (a student with no home
+  // cohort anywhere, not just a different one) - the pg driver then
+  // deserializes that NULL as JS null, not false. The query must COALESCE
+  // it to false so this student still reads as a make-up guest rather than
+  // silently defaulting to isHomeCohort: true on the frontend.
+  it('normalizes a NULL is_home_cohort (no home cohort at all) to false, not null', async () => {
+    const { getCohortRoster } = await import('../services/classroomAttendanceService');
+
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([
+          { id: 's1', curriculum_day: 1, session_date: '2026-10-03' },
+          { id: 's2', curriculum_day: 2, session_date: '2026-10-04' },
+          { id: 's3', curriculum_day: 3, session_date: '2026-10-10' },
+          { id: 's4', curriculum_day: 4, session_date: '2026-10-11' },
+        ])
+      )
+      .mockResolvedValueOnce(queryResult([{ enrollment_id: 'enr-no-home', student_id: 'stu-3', student_name: 'Owen Castillo' }]))
+      // Postgres itself returns false here (COALESCE applied in the SQL) -
+      // this pins that the service must not undo that with `?? true`
+      // logic on its own side.
+      .mockResolvedValueOnce(queryResult([{ enrollment_id: 'enr-no-home', session_id: 's2', present: true, is_home_cohort: false }]))
+      .mockResolvedValueOnce(queryResult([{ enrollment_id: 'enr-no-home', curriculum_day: 2 }]));
+
+    const roster = await getCohortRoster(COHORT_ID, TENANT_ID);
+
+    expect(roster.students[0].attendance['s2']).toEqual({ present: true, isHomeCohort: false });
+  });
+});
+
+describe('classroomAttendanceService.searchMakeUpCandidates', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('excludes students already on this session\'s roster', async () => {
+    const { searchMakeUpCandidates } = await import('../services/classroomAttendanceService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ enrollment_id: 'enr-3', student_id: 'stu-3', student_name: 'Owen Castillo' }])
+    );
+
+    const candidates = await searchMakeUpCandidates(TENANT_ID, 'Owen', ['enr-1', 'enr-2']);
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].studentName).toBe('Owen Castillo');
+
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/program_type = 'driver_education'/);
+    expect(params).toContain(TENANT_ID);
+    expect(params).toContainEqual(['enr-1', 'enr-2']);
+  });
+
+  it('uses a sentinel UUID when no enrollments to exclude, so the NOT ANY clause stays valid SQL', async () => {
+    const { searchMakeUpCandidates } = await import('../services/classroomAttendanceService');
 
     mockQuery.mockResolvedValueOnce(queryResult([]));
 
-    await expect(getSessionRoster(SESSION_ID, TENANT_ID)).rejects.toMatchObject({ statusCode: 404 });
-  });
+    await searchMakeUpCandidates(TENANT_ID, '', []);
 
-  it('returns the roster including a make-up guest marked isHomeCohort=false', async () => {
-    const { getSessionRoster } = await import('../services/classroomAttendanceService');
-
-    mockQuery
-      .mockResolvedValueOnce(queryResult([{ id: SESSION_ID, cohort_id: COHORT_ID }]))
-      .mockResolvedValueOnce(
-        queryResult([
-          { enrollment_id: 'enr-home', student_id: 'stu-1', student_name: 'Leo Whitfield', is_home_cohort: true, present: true },
-          { enrollment_id: 'enr-guest', student_id: 'stu-2', student_name: 'Mia Torres', is_home_cohort: false, present: true },
-        ])
-      );
-
-    const roster = await getSessionRoster(SESSION_ID, TENANT_ID);
-
-    expect(roster).toHaveLength(2);
-    expect(roster.find((r) => r.enrollmentId === 'enr-guest')?.isHomeCohort).toBe(false);
+    const [, params] = mockQuery.mock.calls[0];
+    expect(params[2]).toEqual(['00000000-0000-0000-0000-000000000000']);
   });
 });

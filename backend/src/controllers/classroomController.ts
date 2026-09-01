@@ -101,20 +101,43 @@ export const getCohortAttendanceGaps = asyncHandler(async (req: Request, res: Re
 });
 
 /**
- * @route   GET /api/v1/classroom/sessions/:id/roster
- * @desc    One session's full attendance roster - this cohort's own
- *          enrolled students plus any make-up guests already marked here
+ * @route   GET /api/v1/classroom/cohorts/:id/roster
+ * @desc    A cohort's full roster in one call: its 4 sessions, every
+ *          student who should appear (home-enrolled or a make-up guest),
+ *          their per-session attendance, and their overall (cohort-
+ *          agnostic) completion count - everything the roster grid needs
  * @access  Private
  */
-export const getSessionRoster = asyncHandler(async (req: Request, res: Response) => {
+export const getCohortRoster = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { id } = req.params;
 
-  const roster = await classroomAttendanceService.getSessionRoster(id, tenantId);
+  const roster = await classroomAttendanceService.getCohortRoster(id, tenantId);
 
   res.json({
     success: true,
     data: roster,
+  });
+});
+
+/**
+ * @route   GET /api/v1/classroom/make-up-candidates?q=...&excludeEnrollmentIds=a,b,c
+ * @desc    Students with a driver_education enrollment, name-filtered,
+ *          not already on this session's roster - for the "add make-up
+ *          student" picker
+ * @access  Private
+ */
+export const searchMakeUpCandidates = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const search = typeof req.query.q === 'string' ? req.query.q : '';
+  const excludeRaw = req.query.excludeEnrollmentIds;
+  const excludeEnrollmentIds = typeof excludeRaw === 'string' ? excludeRaw.split(',').filter(Boolean) : [];
+
+  const candidates = await classroomAttendanceService.searchMakeUpCandidates(tenantId, search, excludeEnrollmentIds);
+
+  res.json({
+    success: true,
+    data: candidates,
   });
 });
 

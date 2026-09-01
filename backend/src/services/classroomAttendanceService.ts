@@ -13,7 +13,6 @@
 
 import { query } from '../config/database';
 import { AppError } from '../middleware/errorHandler';
-import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('ClassroomAttendanceService');
@@ -162,62 +161,176 @@ export const getClassroomAttendanceSummaries = async (
   return map;
 };
 
-export interface RosterEntry {
+export interface CohortRosterStudent {
   enrollmentId: string;
   studentId: string;
   studentName: string;
-  isHomeCohort: boolean; // false = a make-up guest at this session
-  present: boolean;
+  // Keyed by the session id (one of this cohort's 4 de_cohort_sessions).
+  // present:false / isHomeCohort:true for a student never marked at that
+  // session but enrolled in this cohort - absent is the default, not an
+  // error state.
+  attendance: Record<string, { present: boolean; isHomeCohort: boolean }>;
+  // Cohort-agnostic completion signal, same as getClassroomAttendanceSummary
+  // - counts every present=true day across ALL this student's attendance,
+  // not just this cohort's sessions, so a make-up elsewhere already
+  // reduces missingCurriculumDays here.
+  attendedCurriculumDayCount: number;
+  missingCurriculumDays: number[];
 }
 
 /**
- * One session's full roster: every student who should appear on this
- * session's attendance checkbox column - the cohort's own enrolled
- * students (isHomeCohort: true) PLUS any make-up guest already marked
- * present/absent here from a different home cohort (isHomeCohort: false).
+ * Everything one cohort's roster view needs in a single call: its 4
+ * sessions (dates/curriculum days) plus every student who should appear
+ * (this cohort's own enrollees, plus any make-up guest already marked at
+ * one of its sessions from a different home cohort), each with their
+ * per-session attendance AND their overall (cohort-agnostic) completion
+ * count - so the UI never has to fetch per-session or compute completion
+ * itself. Replaces N separate per-session roster fetches with one.
  */
-export const getSessionRoster = async (sessionId: string, tenantId: string): Promise<RosterEntry[]> => {
-  const sessionResult = await query(
-    `SELECT id, cohort_id FROM de_cohort_sessions WHERE id = $1 AND tenant_id = $2`,
-    [sessionId, tenantId]
+export const getCohortRoster = async (
+  cohortId: string,
+  tenantId: string
+): Promise<{ sessions: { id: string; curriculumDay: number; sessionDate: string }[]; students: CohortRosterStudent[] }> => {
+  const sessionsResult = await query(
+    `SELECT id, curriculum_day, session_date FROM de_cohort_sessions
+     WHERE cohort_id = $1 AND tenant_id = $2
+     ORDER BY curriculum_day ASC`,
+    [cohortId, tenantId]
   );
-  if (sessionResult.rows.length === 0) {
-    throw new AppError('Session not found', 404);
+  if (sessionsResult.rows.length === 0) {
+    throw new AppError('Cohort not found', 404);
   }
-  const cohortId = sessionResult.rows[0].cohort_id;
+  const sessions = sessionsResult.rows.map((row: { id: string; curriculum_day: number; session_date: string }) => ({
+    id: row.id,
+    curriculumDay: row.curriculum_day,
+    sessionDate: row.session_date,
+  }));
+  const sessionIds = sessions.map((s) => s.id);
 
-  const result = await query(
-    `SELECT
-       e.id AS enrollment_id,
-       e.student_id,
-       s.full_name AS student_name,
-       (dce.cohort_id = $2) AS is_home_cohort,
-       COALESCE(a.present, false) AS present
+  // Every student who should appear on this roster: this cohort's own
+  // enrollees, UNION anyone already marked (present or absent) at one of
+  // this cohort's sessions despite having a different (or no) home cohort.
+  const studentsResult = await query(
+    `SELECT DISTINCT e.id AS enrollment_id, e.student_id, s.full_name AS student_name
      FROM de_cohort_enrollments dce
      JOIN enrollments e ON e.id = dce.enrollment_id
      JOIN students s ON s.id = e.student_id
-     LEFT JOIN de_attendance a ON a.enrollment_id = e.id AND a.session_id = $1
-     WHERE dce.cohort_id = $2 AND dce.tenant_id = $3
+     WHERE dce.cohort_id = $1 AND dce.tenant_id = $2
 
      UNION
 
-     SELECT
-       e.id AS enrollment_id,
-       e.student_id,
-       s.full_name AS student_name,
-       false AS is_home_cohort,
-       a.present AS present
+     SELECT DISTINCT e.id AS enrollment_id, e.student_id, s.full_name AS student_name
      FROM de_attendance a
      JOIN enrollments e ON e.id = a.enrollment_id
      JOIN students s ON s.id = e.student_id
-     WHERE a.session_id = $1 AND a.tenant_id = $3
-       AND a.enrollment_id NOT IN (
-         SELECT dce.enrollment_id FROM de_cohort_enrollments dce WHERE dce.cohort_id = $2
-       )
+     WHERE a.session_id = ANY($3::uuid[]) AND a.tenant_id = $2
 
      ORDER BY student_name ASC`,
-    [sessionId, cohortId, tenantId]
+    [cohortId, tenantId, sessionIds]
   );
 
-  return result.rows.map((row: Record<string, unknown>) => keysToCamel(row)) as unknown as RosterEntry[];
+  if (studentsResult.rows.length === 0) {
+    return { sessions, students: [] };
+  }
+
+  const enrollmentIds = studentsResult.rows.map((row: { enrollment_id: string }) => row.enrollment_id);
+
+  // Per-session attendance for exactly these sessions (not this student's
+  // attendance everywhere - that's the separate completion query below).
+  const sessionAttendanceResult = await query(
+    `SELECT a.enrollment_id, a.session_id, a.present, COALESCE(dce.cohort_id = $1, false) AS is_home_cohort
+     FROM de_attendance a
+     LEFT JOIN de_cohort_enrollments dce ON dce.enrollment_id = a.enrollment_id
+     WHERE a.session_id = ANY($2::uuid[]) AND a.tenant_id = $3 AND a.enrollment_id = ANY($4::uuid[])`,
+    [cohortId, sessionIds, tenantId, enrollmentIds]
+  );
+
+  type SessionAttendanceRow = { enrollment_id: string; session_id: string; present: boolean; is_home_cohort: boolean };
+  const attendanceByEnrollment = new Map<string, Map<string, { present: boolean; isHomeCohort: boolean }>>();
+  for (const row of sessionAttendanceResult.rows as SessionAttendanceRow[]) {
+    const perSession = attendanceByEnrollment.get(row.enrollment_id) ?? new Map();
+    perSession.set(row.session_id, { present: row.present, isHomeCohort: row.is_home_cohort });
+    attendanceByEnrollment.set(row.enrollment_id, perSession);
+  }
+
+  // Cohort-agnostic completion: every present=true curriculum day across
+  // ALL of this student's attendance, not just this cohort's 4 sessions -
+  // a make-up attended at a different cohort already counts here.
+  const completionResult = await query(
+    `SELECT a.enrollment_id, s.curriculum_day
+     FROM de_attendance a
+     JOIN de_cohort_sessions s ON s.id = a.session_id
+     WHERE a.enrollment_id = ANY($1::uuid[]) AND a.tenant_id = $2 AND a.present = true`,
+    [enrollmentIds, tenantId]
+  );
+  type CompletionRow = { enrollment_id: string; curriculum_day: number };
+  const attendedDaysByEnrollment = new Map<string, Set<number>>();
+  for (const row of completionResult.rows as CompletionRow[]) {
+    const days = attendedDaysByEnrollment.get(row.enrollment_id) ?? new Set<number>();
+    days.add(row.curriculum_day);
+    attendedDaysByEnrollment.set(row.enrollment_id, days);
+  }
+
+  const ALL_DAYS = [1, 2, 3, 4];
+  const students: CohortRosterStudent[] = studentsResult.rows.map(
+    (row: { enrollment_id: string; student_id: string; student_name: string }) => {
+      const perSession = attendanceByEnrollment.get(row.enrollment_id) ?? new Map();
+      const attendance: CohortRosterStudent['attendance'] = {};
+      for (const session of sessions) {
+        const entry = perSession.get(session.id);
+        attendance[session.id] = entry ?? { present: false, isHomeCohort: true };
+      }
+
+      const attendedDays = attendedDaysByEnrollment.get(row.enrollment_id) ?? new Set<number>();
+      return {
+        enrollmentId: row.enrollment_id,
+        studentId: row.student_id,
+        studentName: row.student_name,
+        attendance,
+        attendedCurriculumDayCount: attendedDays.size,
+        missingCurriculumDays: ALL_DAYS.filter((d) => !attendedDays.has(d)),
+      };
+    }
+  );
+
+  return { sessions, students };
+};
+
+export interface MakeUpCandidate {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+}
+
+/**
+ * Students with a driver_education enrollment who could be added as a
+ * make-up guest at this specific session - i.e. not already marked at
+ * THIS session (any other enrollment.id already present in
+ * existingEnrollmentIds), name-filtered. Any driver_education enrollment
+ * is eligible regardless of delivery mode or home cohort - the search
+ * doesn't presuppose the student already has a home cohort at all.
+ */
+export const searchMakeUpCandidates = async (
+  tenantId: string,
+  search: string,
+  excludeEnrollmentIds: string[]
+): Promise<MakeUpCandidate[]> => {
+  const result = await query(
+    `SELECT e.id AS enrollment_id, e.student_id, s.full_name AS student_name
+     FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     WHERE e.tenant_id = $1
+       AND e.program_type = 'driver_education'
+       AND s.full_name ILIKE $2
+       AND NOT (e.id = ANY($3::uuid[]))
+     ORDER BY s.full_name ASC
+     LIMIT 10`,
+    [tenantId, `%${search}%`, excludeEnrollmentIds.length > 0 ? excludeEnrollmentIds : ['00000000-0000-0000-0000-000000000000']]
+  );
+
+  return result.rows.map((row: { enrollment_id: string; student_id: string; student_name: string }) => ({
+    enrollmentId: row.enrollment_id,
+    studentId: row.student_id,
+    studentName: row.student_name,
+  }));
 };

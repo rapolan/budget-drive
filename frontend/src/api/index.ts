@@ -15,3 +15,4 @@ export { searchApi } from './search';
 export { feeFlagsApi } from './feeFlags';
 export { enrollmentsApi } from './enrollments';
 export { certificatesApi } from './certificates';
+export { classroomApi } from './classroom';
