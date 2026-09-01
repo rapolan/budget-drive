@@ -24,6 +24,7 @@ import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { resolveTenantTimezone } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
+import { getClassroomAttendanceSummaries } from './classroomAttendanceService';
 import crypto from 'crypto';
 
 const logger = createLogger('EnrollmentService');
@@ -71,6 +72,14 @@ async function attachProgressAndPayments(
     paidByEnrollment.set(row.enrollment_id, parseFloat(row.total_paid));
   }
 
+  // classroom driver_education has no lesson-derived progress at all - its
+  // completion signal is per-curriculum-day attendance instead. Batched
+  // (one query for every classroom-DE enrollment in this set), not N+1.
+  const classroomEnrollmentIds = enrollments
+    .filter(e => e.programType === 'driver_education' && e.deDeliveryMode === 'classroom')
+    .map(e => e.id);
+  const attendanceByEnrollment = await getClassroomAttendanceSummaries(classroomEnrollmentIds, tenantId);
+
   return enrollments.map(enrollment => {
     const lessons = lessonsByEnrollment.get(enrollment.id) ?? [];
 
@@ -103,7 +112,9 @@ async function attachProgressAndPayments(
         })()
       : false;
 
-    return { ...enrollment, progress, paymentSummary, wasMinorAtCompletion };
+    const classroomAttendance = attendanceByEnrollment.get(enrollment.id);
+
+    return { ...enrollment, progress, paymentSummary, wasMinorAtCompletion, classroomAttendance };
   });
 }
 

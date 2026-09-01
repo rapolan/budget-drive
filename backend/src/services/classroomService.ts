@@ -294,3 +294,62 @@ export const getCohortAttendanceGaps = async (
     })
     .filter((entry: CohortGapEntry) => entry.missingCurriculumDays.length > 0);
 };
+
+/**
+ * Joins a student's driver_education enrollment to a cohort as their home
+ * cohort - what the student modal's enrollment flow calls when a student
+ * picks a cohort to join. A student has exactly ONE home cohort (DB-level
+ * UNIQUE on enrollment_id) - this is not the same as attending a session;
+ * attendance (including make-ups at other cohorts) is tracked separately
+ * in de_attendance and is never gated by cohort membership.
+ */
+export const joinCohort = async (
+  cohortId: string,
+  tenantId: string,
+  enrollmentId: string
+): Promise<{ id: string; cohortId: string; enrollmentId: string; joinedAt: Date }> => {
+  if (!enrollmentId) {
+    throw new AppError('enrollmentId is required', 400);
+  }
+
+  const cohort = await getCohortById(cohortId, tenantId);
+  if (!cohort) {
+    throw new AppError('Cohort not found', 404);
+  }
+  if (cohort.status === 'cancelled') {
+    throw new AppError('Cannot join a cancelled cohort', 400);
+  }
+  if (cohort.enrolledCount >= cohort.capacity) {
+    throw new AppError('This cohort is at capacity', 400);
+  }
+
+  const enrollmentResult = await query(
+    `SELECT id, program_type FROM enrollments WHERE id = $1 AND tenant_id = $2`,
+    [enrollmentId, tenantId]
+  );
+  if (enrollmentResult.rows.length === 0) {
+    throw new AppError('Enrollment not found', 404);
+  }
+  if (enrollmentResult.rows[0].program_type !== 'driver_education') {
+    throw new AppError('Only a driver_education enrollment can join a cohort', 400);
+  }
+
+  const existingMembership = await query(
+    `SELECT id FROM de_cohort_enrollments WHERE enrollment_id = $1 AND tenant_id = $2`,
+    [enrollmentId, tenantId]
+  );
+  if (existingMembership.rows.length > 0) {
+    throw new AppError('This enrollment already has a home cohort', 409);
+  }
+
+  logger.info('Joining cohort', { tenantId, cohortId, enrollmentId });
+
+  const result = await query(
+    `INSERT INTO de_cohort_enrollments (tenant_id, cohort_id, enrollment_id)
+     VALUES ($1, $2, $3)
+     RETURNING *`,
+    [tenantId, cohortId, enrollmentId]
+  );
+
+  return keysToCamel(result.rows[0]) as { id: string; cohortId: string; enrollmentId: string; joinedAt: Date };
+};

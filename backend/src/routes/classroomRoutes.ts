@@ -24,5 +24,19 @@ router.get('/classroom/cohorts', classroomController.getCohorts);
 router.get('/classroom/cohorts/:id', validateUUID('id'), classroomController.getCohortById);
 router.patch('/classroom/cohorts/:id', validateUUID('id'), classroomController.updateCohort);
 router.get('/classroom/cohorts/:id/gaps', validateUUID('id'), classroomController.getCohortAttendanceGaps);
+router.post(
+  '/classroom/cohorts/:id/join',
+  validateUUID('id'),
+  validateRequired(['enrollmentId']),
+  classroomController.joinCohort
+);
+
+router.get('/classroom/sessions/:id/roster', validateUUID('id'), classroomController.getSessionRoster);
+router.post(
+  '/classroom/sessions/:id/attendance',
+  validateUUID('id'),
+  validateRequired(['enrollmentId']),
+  classroomController.recordAttendance
+);
 
 export default router;

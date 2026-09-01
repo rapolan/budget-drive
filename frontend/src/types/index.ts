@@ -310,6 +310,10 @@ export interface Enrollment {
   // never computes this boundary itself. False for a non-completed
   // enrollment.
   wasMinorAtCompletion?: boolean;
+  // classroom driver_education only: which curriculum days (1-4) have been
+  // attended, ACROSS ANY cohort. Undefined for driver_training and online
+  // driver_education.
+  classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
 
   createdBy: string | null;
   updatedBy: string | null;

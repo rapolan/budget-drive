@@ -476,6 +476,13 @@ export interface Enrollment {
   progress?: StudentProgress; // Attached by enrollment read paths
   paymentSummary?: EnrollmentPaymentSummary; // Derived from payments, attached by enrollment read paths
   certificateExists?: boolean; // Attached only on the reopen response - enrollment-scoped (certificates.enrollment_id)
+  // classroom driver_education only: which curriculum days (1-4) have a
+  // present=true de_attendance row, ACROSS ANY cohort - never scoped to
+  // one cohort. Undefined for driver_training and online driver_education
+  // (which has no attendance concept at all - manualCompletedHours is its
+  // completion signal instead). Attached by the same enrollment read paths
+  // as progress/paymentSummary.
+  classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
   // Was this person a minor AS OF this enrollment's completion date (not
   // today) - tenant-timezone-aware, computed server-side so the frontend
   // never re-derives this date boundary itself. False (not undefined) for

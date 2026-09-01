@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as classroomService from '../services/classroomService';
+import * as classroomAttendanceService from '../services/classroomAttendanceService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -96,5 +97,64 @@ export const getCohortAttendanceGaps = asyncHandler(async (req: Request, res: Re
   res.json({
     success: true,
     data: gaps,
+  });
+});
+
+/**
+ * @route   GET /api/v1/classroom/sessions/:id/roster
+ * @desc    One session's full attendance roster - this cohort's own
+ *          enrolled students plus any make-up guests already marked here
+ * @access  Private
+ */
+export const getSessionRoster = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const roster = await classroomAttendanceService.getSessionRoster(id, tenantId);
+
+  res.json({
+    success: true,
+    data: roster,
+  });
+});
+
+/**
+ * @route   POST /api/v1/classroom/sessions/:id/attendance
+ * @desc    Mark one student present/absent for one specific session -
+ *          callable from any cohort's roster, not just the student's own
+ *          home cohort (this is how a cross-cohort make-up is recorded)
+ * @access  Private
+ */
+export const recordAttendance = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+
+  await classroomAttendanceService.recordAttendance(id, tenantId, req.body, userId);
+
+  res.json({
+    success: true,
+    message: 'Attendance recorded',
+  });
+});
+
+/**
+ * @route   POST /api/v1/classroom/cohorts/:id/join
+ * @desc    Join a student's driver_education enrollment to a cohort as
+ *          their home cohort (the student modal's enrollment flow) -
+ *          rejects if the cohort is at capacity or the enrollment already
+ *          has a home cohort
+ * @access  Private
+ */
+export const joinCohort = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const cohortEnrollment = await classroomService.joinCohort(id, tenantId, req.body.enrollmentId);
+
+  res.status(201).json({
+    success: true,
+    data: cohortEnrollment,
+    message: 'Joined cohort',
   });
 });

@@ -182,3 +182,86 @@ describe('classroomService.updateCohort', () => {
     expect(params).toContain('cancelled');
   });
 });
+
+describe('classroomService.joinCohort', () => {
+  const ENROLLMENT_ID = 'enrollment-1';
+
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  function mockCohortLookup(overrides: { status?: string; capacity?: number; enrolledCount?: string } = {}) {
+    mockQuery
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: COHORT_ID, tenant_id: TENANT_ID, name: 'Fall Weekend',
+          teacher_instructor_id: null, capacity: overrides.capacity ?? 20,
+          status: overrides.status ?? 'scheduled',
+          created_by: null, created_at: '2026-09-01', updated_at: '2026-09-01',
+          enrolled_count: overrides.enrolledCount ?? '0',
+        }])
+      ) // getCohortById's cohort query
+      .mockResolvedValueOnce(queryResult([])); // getCohortById's sessions query
+  }
+
+  it('rejects joining an unknown cohort (404)', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // cohort not found
+
+    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('rejects joining a cancelled cohort', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockCohortLookup({ status: 'cancelled' });
+
+    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('rejects joining a cohort at capacity', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockCohortLookup({ capacity: 2, enrolledCount: '2' });
+
+    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('rejects joining for a driver_training enrollment', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockCohortLookup();
+    mockQuery.mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_training' }]));
+
+    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('rejects when the enrollment already has a home cohort (409)', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockCohortLookup();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]))
+      .mockResolvedValueOnce(queryResult([{ id: 'existing-membership' }]));
+
+    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('joins the cohort successfully', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockCohortLookup();
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]))
+      .mockResolvedValueOnce(queryResult([])) // no existing membership
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'membership-1', tenant_id: TENANT_ID, cohort_id: COHORT_ID, enrollment_id: ENROLLMENT_ID, joined_at: '2026-09-01' }])
+      );
+
+    const membership = await joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID);
+
+    expect(membership.cohortId).toBe(COHORT_ID);
+    expect(membership.enrollmentId).toBe(ENROLLMENT_ID);
+  });
+});

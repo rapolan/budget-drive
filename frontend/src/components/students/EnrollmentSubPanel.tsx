@@ -188,6 +188,12 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
               <p className="text-sm text-tx-secondary">
                 {enrollment.progress?.displayLabel ?? 'Progress unavailable'}
               </p>
+            ) : enrollment.deDeliveryMode === 'classroom' && enrollment.classroomAttendance ? (
+              <p className="text-sm text-tx-secondary">
+                {enrollment.completed
+                  ? `Completed - ${enrollment.classroomAttendance.attendedCurriculumDays.length}/4 days attended`
+                  : `${enrollment.classroomAttendance.attendedCurriculumDays.length}/4 days attended`}
+              </p>
             ) : (
               <p className="text-sm text-tx-secondary">
                 {enrollment.completed
