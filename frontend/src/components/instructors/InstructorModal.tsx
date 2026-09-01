@@ -38,6 +38,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
     zipCode: '',
     instructorLicenseNumber: '',
     instructorLicenseExpiration: '',
+    isDeTeacher: false,
+    deCredentialNumber: '',
+    deCredentialExpiration: '',
     employmentType: 'w2_employee',
     hireDate: new Date().toISOString().split('T')[0],
     hourlyRate: 0,
@@ -70,6 +73,11 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
         instructorLicenseNumber: instructor.instructorLicenseNumber || '',
         instructorLicenseExpiration: instructor.instructorLicenseExpiration
           ? new Date(instructor.instructorLicenseExpiration).toISOString().split('T')[0]
+          : '',
+        isDeTeacher: instructor.isDeTeacher === true,
+        deCredentialNumber: instructor.deCredentialNumber || '',
+        deCredentialExpiration: instructor.deCredentialExpiration
+          ? new Date(instructor.deCredentialExpiration).toISOString().split('T')[0]
           : '',
         employmentType: instructor.employmentType,
         hireDate: new Date(instructor.hireDate).toISOString().split('T')[0],
@@ -157,6 +165,11 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'number' ? parseFloat(value) || 0 : value,
@@ -350,6 +363,62 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                 />
               </div>
             </div>
+          </div>
+
+          {/* Driver Education Classroom Teacher Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <FileText className="h-4 w-4 text-purple-600" />
+              <h3 className="text-sm font-semibold text-tx-primary">Driver Education Classroom Teacher</h3>
+            </div>
+            <p className="text-xs text-tx-muted mb-4">
+              A separate credential from the Driving School Instructor License above - an instructor may hold either, both, or neither.
+            </p>
+            <div className="flex items-start gap-3 mb-4">
+              <input
+                id="instructor-is-de-teacher"
+                type="checkbox"
+                name="isDeTeacher"
+                checked={formData.isDeTeacher}
+                onChange={handleChange}
+                className="mt-1 h-4 w-4 rounded border-edge-strong text-purple-600 focus:ring-purple-500"
+              />
+              <label htmlFor="instructor-is-de-teacher" className="text-sm font-medium text-tx-secondary">
+                Qualified to teach driver education classes
+              </label>
+            </div>
+            {formData.isDeTeacher && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="instructor-de-credential-number" className="block text-sm font-medium text-tx-secondary">
+                    Credential Number
+                  </label>
+                  <input
+                    id="instructor-de-credential-number"
+                    type="text"
+                    name="deCredentialNumber"
+                    value={formData.deCredentialNumber}
+                    onChange={handleChange}
+                    autoComplete="nope"
+                    className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="instructor-de-credential-expiration" className="block text-sm font-medium text-tx-secondary">
+                    Credential Expiration
+                  </label>
+                  <input
+                    id="instructor-de-credential-expiration"
+                    type="date"
+                    name="deCredentialExpiration"
+                    value={formData.deCredentialExpiration}
+                    onChange={handleChange}
+                    autoComplete="nope"
+                    className="mt-1 w-full rounded-lg border border-edge-strong px-3 py-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Employment Section */}

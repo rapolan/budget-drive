@@ -169,3 +169,60 @@ describe('InstructorModal form fields', () => {
     expect(rateInput.value).toBe('25');
   });
 });
+
+describe('InstructorModal driver education classroom teacher', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hides the credential fields until "Qualified to teach" is checked, then submits them', async () => {
+    (instructorsApi.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: { id: 'instructor-1' },
+    });
+
+    renderModal();
+
+    expect(screen.queryByLabelText(/credential number/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/qualified to teach driver education classes/i));
+
+    expect(screen.getByLabelText(/credential number/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/credential number/i), { target: { value: 'DE-CRED-1' } });
+
+    fireEvent.change(screen.getByPlaceholderText('First'), { target: { value: 'Jane' } });
+    fireEvent.change(screen.getByPlaceholderText('Last'), { target: { value: 'Doe' } });
+    fireEvent.change(screen.getByPlaceholderText('instructor@email.com'), {
+      target: { name: 'email', value: 'jane.doe@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('(555) 123-4567'), { target: { value: '5550100' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /create instructor/i }));
+
+    await waitFor(() => {
+      expect(instructorsApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({ isDeTeacher: true, deCredentialNumber: 'DE-CRED-1' })
+      );
+    });
+  });
+
+  it('pre-fills isDeTeacher and the credential fields when editing an existing DE-flagged instructor', () => {
+    renderModalEditing({
+      id: 'instructor-1',
+      tenantId: 'tenant-1',
+      fullName: 'Ms. Rivera',
+      email: 'rivera@example.com',
+      phone: '5550100',
+      employmentType: 'w2_employee',
+      hireDate: new Date('2026-01-01'),
+      status: 'active',
+      isDeTeacher: true,
+      deCredentialNumber: 'DE-CRED-9',
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    } as Instructor);
+
+    const checkbox = screen.getByLabelText(/qualified to teach driver education classes/i) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect((screen.getByLabelText(/credential number/i) as HTMLInputElement).value).toBe('DE-CRED-9');
+  });
+});

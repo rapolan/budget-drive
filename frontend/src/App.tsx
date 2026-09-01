@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TenantProvider } from '@/contexts/TenantContext';
+import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -14,6 +14,7 @@ import { LessonsPage } from '@/pages/Lessons';
 import { ReviewQueuePage } from '@/pages/ReviewQueue';
 import { CertificatesPage } from '@/pages/Certificates';
 import { CertificatePrintPage } from '@/pages/CertificatePrint';
+import { ClassroomPage } from '@/pages/Classroom';
 import { SchedulingPage } from '@/pages/Scheduling';
 import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
@@ -62,6 +63,21 @@ const AuthenticatedApp: React.FC<{ children: React.ReactNode }> = ({ children })
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <>{children}</>;
   return <TenantProvider>{children}</TenantProvider>;
+};
+
+// Redirects to the dashboard when a feature flag is off - unlike the
+// sidebar, which only hides the nav link, this actually blocks the route
+// itself so a disabled feature isn't reachable-but-broken by direct URL.
+// Must render inside TenantProvider (i.e. inside ProtectedRoute).
+const FeatureFlagRoute: React.FC<{ flag: 'enableDriverEducation'; children: React.ReactNode }> = ({
+  flag,
+  children,
+}) => {
+  const { settings } = useTenant();
+  if (settings && settings[flag] !== true) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
 };
 
 function AppRoutes() {
@@ -189,6 +205,18 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CertificatePrintPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/classroom"
+        element={
+          <ProtectedRoute>
+            <FeatureFlagRoute flag="enableDriverEducation">
+              <AppLayout>
+                <ClassroomPage />
+              </AppLayout>
+            </FeatureFlagRoute>
           </ProtectedRoute>
         }
       />

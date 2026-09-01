@@ -19,6 +19,7 @@ const baseSettings = {
   enableCertificates: false,
   enableBlockchainPayments: false,
   enableFollowUpTracker: false,
+  enableDriverEducation: false,
 } as unknown as TenantSettings;
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -90,5 +91,48 @@ describe('Sidebar - Certificates nav link feature-flag gating', () => {
     renderSidebar();
 
     expect(screen.queryByText('Certificates')).not.toBeInTheDocument();
+  });
+});
+
+describe('Sidebar - Classroom nav link feature-flag gating', () => {
+  beforeEach(() => {
+    cleanup();
+    mockUseTenant.mockReset();
+  });
+
+  it('renders the Classroom link for a school tenant, admin role, with the flag enabled', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, enableDriverEducation: true },
+      tenant: { tenantType: 'school' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('Classroom')).toBeInTheDocument();
+  });
+
+  it('hides the Classroom link when the flag is false (off by default)', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, enableDriverEducation: false },
+      tenant: { tenantType: 'school' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    expect(screen.queryByText('Classroom')).not.toBeInTheDocument();
+  });
+
+  it('hides the Classroom link for an independent (non-school) tenant even with the flag enabled', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, enableDriverEducation: true },
+      tenant: { tenantType: 'independent' },
+      tenantType: 'independent',
+    });
+
+    renderSidebar();
+
+    expect(screen.queryByText('Classroom')).not.toBeInTheDocument();
   });
 });

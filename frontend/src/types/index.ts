@@ -108,6 +108,9 @@ export interface TenantSettings {
   standardLessonLengthMinutes: number;
   defaultLessonCost: number;
   maxLessonsPerStudentPerDay: number;
+  // Per-lesson BTW discount for a student with a completed INTERNAL
+  // driver_education enrollment (never an externally-completed one).
+  deDiscountAmount?: number;
 
   // Lesson Review & Cancellation Policy
   lessonCompletionMode: 'manual' | 'auto';
@@ -126,6 +129,9 @@ export interface TenantSettings {
   enableInstructorPortal?: boolean;
   enableSmsNotifications?: boolean;
   enableEmailNotifications?: boolean;
+  // Off by default. Gates the Classroom nav page and driver_education's
+  // classroom delivery mode (Phase 3 of the compliance-records arc).
+  enableDriverEducation?: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -288,6 +294,11 @@ export interface Enrollment {
 
   manualCompletedHours: number | null;
 
+  // driver_education only: which DMV form this enrollment resolves to.
+  // Null on driver_training rows and on driver_education rows created
+  // before Phase 3.
+  deDeliveryMode: 'classroom' | 'online' | null;
+
   completionHash: string | null;
   ledgerTxid: string | null;
 
@@ -383,6 +394,11 @@ export interface Instructor {
   // docs/BLUEPRINTS.md).
   instructorLicenseNumber?: string;
   instructorLicenseExpiration?: Date;
+  // Driver education classroom teacher - a DIFFERENT credential from the
+  // BTW instructor license above (Phase 3).
+  isDeTeacher?: boolean;
+  deCredentialNumber?: string;
+  deCredentialExpiration?: Date;
   certifications?: string[];
   employmentType: 'w2_employee' | 'independent_contractor';
   hireDate: Date;
@@ -430,6 +446,10 @@ export interface Lesson {
   lessonType: 'behind_wheel' | 'classroom' | 'observation' | 'road_test';
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
   cost: number;
+  // Set at booking time when the student had a completed INTERNAL
+  // driver_education enrollment; the amount already subtracted from
+  // cost, kept for auditability.
+  deDiscountApplied?: number | null;
   pickupAddress?: string | null;
   skillsPracticed?: string[] | null;
   studentPerformance?: string;
@@ -617,6 +637,9 @@ export interface CreateInstructorInput {
   zipCode?: string;
   instructorLicenseNumber?: string;
   instructorLicenseExpiration?: string;
+  isDeTeacher?: boolean;
+  deCredentialNumber?: string;
+  deCredentialExpiration?: string;
   certifications?: string[];
   employmentType?: 'w2_employee' | 'independent_contractor';
   hireDate?: string;

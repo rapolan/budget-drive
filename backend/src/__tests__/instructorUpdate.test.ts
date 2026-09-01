@@ -243,4 +243,42 @@ describe('PUT /api/v1/instructors/:id', () => {
     expect(res.body.data.dateOfBirth).toBe('1985-11-20');
     expect(res.body.data.hireDate).toBe('2019-07-04');
   });
+
+  // Phase 3 of the compliance-records arc: the DE classroom-teacher flag
+  // and credential (a genuinely different credential from the BTW
+  // instructor license, so both must persist independently).
+  it('persists a change to isDeTeacher, deCredentialNumber, and deCredentialExpiration', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: INSTRUCTOR_ID,
+        tenant_id: TENANT_ID,
+        is_de_teacher: true,
+        de_credential_number: 'DE-CRED-42',
+        de_credential_expiration: '2029-12-31',
+      }])
+    );
+
+    const res = await request(app)
+      .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ isDeTeacher: true, deCredentialNumber: 'DE-CRED-42', deCredentialExpiration: '2029-12-31' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updateCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+    );
+    expect(updateCall).toBeDefined();
+    const [sql, params] = updateCall!;
+    expect(sql).toMatch(/is_de_teacher/);
+    expect(sql).toMatch(/de_credential_number/);
+    expect(sql).toMatch(/de_credential_expiration/);
+    expect(params).toContain(true);
+    expect(params).toContain('DE-CRED-42');
+    expect(params).toContain('2029-12-31');
+  });
 });

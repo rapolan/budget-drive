@@ -140,6 +140,8 @@ const GeneralSettings: React.FC = () => {
     cancellationFeeWindowHours: settings?.cancellationFeeWindowHours != null ? Number(settings.cancellationFeeWindowHours) : 24,
     cancellationFeePayee: settings?.cancellationFeePayee || 'instructor',
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
+    enableDriverEducation: settings?.enableDriverEducation === true,
+    deDiscountAmount:    settings?.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
   });
 
   React.useEffect(() => {
@@ -165,6 +167,8 @@ const GeneralSettings: React.FC = () => {
       cancellationFeeWindowHours: settings.cancellationFeeWindowHours != null ? Number(settings.cancellationFeeWindowHours) : 24,
       cancellationFeePayee: settings.cancellationFeePayee || 'instructor',
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
+      enableDriverEducation: settings.enableDriverEducation === true,
+      deDiscountAmount:    settings.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
     });
   }, [settings]);
 
@@ -570,6 +574,40 @@ const GeneralSettings: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Driver Education */}
+      <div className="border border-edge rounded-lg p-6 space-y-4">
+        <h3 className="text-sm font-semibold text-tx-secondary uppercase tracking-wide">Driver Education</h3>
+        <div className="flex items-start gap-3">
+          <input
+            id="settings-enable-driver-education"
+            type="checkbox"
+            checked={form.enableDriverEducation}
+            onChange={e => setForm(f => ({ ...f, enableDriverEducation: e.target.checked }))}
+            className="mt-1 h-4 w-4 rounded border-edge-strong text-primary focus:ring-primary"
+          />
+          <div>
+            <label htmlFor="settings-enable-driver-education" className="block text-sm font-medium text-tx-secondary">Enable classroom driver education tracking</label>
+            <p className="text-xs text-tx-muted mt-1">Adds a Classroom nav page for scheduling classes and tracking attendance toward a DL 400B certificate. Off by default.</p>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-de-discount-amount" className="block text-sm font-medium text-tx-secondary mb-1">Driver Education Discount</label>
+          <p className="text-xs text-tx-muted mb-3">Automatically subtracted from each behind-the-wheel lesson's cost for a student who completed this school's own (internal) driver education.</p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-tx-secondary">$</span>
+            <input
+              id="settings-de-discount-amount"
+              type="number"
+              value={form.deDiscountAmount}
+              onChange={e => setForm(f => ({ ...f, deDiscountAmount: parseFloat(e.target.value) || 0 }))}
+              min="0" step="0.01"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <span className="text-sm text-tx-secondary">off per lesson</span>
           </div>
         </div>
       </div>

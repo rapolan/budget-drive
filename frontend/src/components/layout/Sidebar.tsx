@@ -13,6 +13,7 @@ import {
   DollarSign,
   Bell,
   History,
+  GraduationCap,
   X,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -65,7 +66,10 @@ const allNavigation: NavItem[] = [
   
   // Certificates (school only for now)
   { name: 'Certificates', href: '/certificates', icon: Award, featureFlag: 'enableCertificates', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
-  
+
+  // Driver education classroom tracking (school only, off by default)
+  { name: 'Classroom', href: '/classroom', icon: GraduationCap, featureFlag: 'enableDriverEducation', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
+
   // System
   { name: 'Settings', href: '/settings', icon: Settings, roles: ['owner', 'admin'], group: 'system' },
 ];
@@ -111,6 +115,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     }
     if (item.featureFlag === 'enableCertificates') {
       return settings?.enableCertificates === true;
+    }
+    if (item.featureFlag === 'enableDriverEducation') {
+      return settings?.enableDriverEducation === true;
     }
 
     return true;

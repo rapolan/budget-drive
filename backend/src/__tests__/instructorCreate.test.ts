@@ -116,4 +116,46 @@ describe('POST /api/v1/instructors', () => {
     expect(params).toContain('DSI-123456');
     expect(params).toContain('2029-08-04');
   });
+
+  // Phase 3 of the compliance-records arc: the DE classroom-teacher flag
+  // and credential, deliberately separate columns from the BTW instructor
+  // license above.
+  it('persists isDeTeacher and the DE credential fields', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: 'instructor-1',
+        tenant_id: TENANT_ID,
+        full_name: formPayload.fullName,
+        email: formPayload.email,
+        status: 'active',
+      }])
+    );
+
+    const res = await request(app)
+      .post('/api/v1/instructors')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        ...formPayload,
+        isDeTeacher: true,
+        deCredentialNumber: 'DE-CRED-1',
+        deCredentialExpiration: '2028-01-01',
+      });
+
+    expect(res.status).toBe(201);
+
+    const insertCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO instructors')
+    );
+    expect(insertCall).toBeDefined();
+    const [sql, params] = insertCall!;
+    expect(sql).toMatch(/is_de_teacher/);
+    expect(sql).toMatch(/de_credential_number/);
+    expect(sql).toMatch(/de_credential_expiration/);
+    expect(params).toContain(true);
+    expect(params).toContain('DE-CRED-1');
+    expect(params).toContain('2028-01-01');
+  });
 });

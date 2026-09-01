@@ -66,8 +66,9 @@ export const createInstructor = async (
         address_line1, address_line2, city, state, zip_code,
         employment_type, hire_date, status, hourly_rate,
         instructor_license_number, instructor_license_expiration,
+        is_de_teacher, de_credential_number, de_credential_expiration,
         created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $17)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $20)
       RETURNING *`,
       [
         tenantId,
@@ -86,6 +87,9 @@ export const createInstructor = async (
         data.hourlyRate || null,
         data.instructorLicenseNumber || null,
         data.instructorLicenseExpiration || null,
+        data.isDeTeacher === true,
+        data.deCredentialNumber || null,
+        data.deCredentialExpiration || null,
         userId || null,
       ]
     );
@@ -187,6 +191,18 @@ export const updateInstructor = async (
     if (data.instructorLicenseExpiration !== undefined) {
       fields.push(`instructor_license_expiration = $${paramCount++}`);
       values.push(data.instructorLicenseExpiration);
+    }
+    if (data.isDeTeacher !== undefined) {
+      fields.push(`is_de_teacher = $${paramCount++}`);
+      values.push(data.isDeTeacher);
+    }
+    if (data.deCredentialNumber !== undefined) {
+      fields.push(`de_credential_number = $${paramCount++}`);
+      values.push(data.deCredentialNumber);
+    }
+    if (data.deCredentialExpiration !== undefined) {
+      fields.push(`de_credential_expiration = $${paramCount++}`);
+      values.push(data.deCredentialExpiration);
     }
     if (userId) {
       fields.push(`updated_by = $${paramCount++}`);
