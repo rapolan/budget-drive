@@ -37,6 +37,7 @@ import feeFlagRoutes from './routes/feeFlagRoutes';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
 import calendarFeedService from './services/calendarFeedService';
 import certificateRoutes from './routes/certificateRoutes';
+import classroomRoutes from './routes/classroomRoutes';
 
 // Create Express app
 const app: Application = express();
@@ -164,6 +165,7 @@ app.use(`${API_PREFIX}/notifications`, notificationRoutes);
 app.use(API_PREFIX, dashboardRoutes);
 app.use(API_PREFIX, feeFlagRoutes);
 app.use(API_PREFIX, certificateRoutes);
+app.use(API_PREFIX, classroomRoutes);
 
 // Authenticated calendar feed management (feed/status, feed/setup, regenerate)
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
