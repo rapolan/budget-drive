@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import {
+  mockQuery,
+  resetMockQuery,
+  queryResult,
+  mockGetClient,
+  mockClientQuery,
+  resetMockClient,
+} from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const TENANT_ID = 'tenant-abc';
 const COHORT_ID = 'cohort-1';
@@ -188,6 +195,7 @@ describe('classroomService.joinCohort', () => {
 
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   function mockCohortLookup(overrides: { status?: string; capacity?: number; enrolledCount?: string } = {}) {
@@ -204,64 +212,199 @@ describe('classroomService.joinCohort', () => {
       .mockResolvedValueOnce(queryResult([])); // getCohortById's sessions query
   }
 
-  it('rejects joining an unknown cohort (404)', async () => {
+  it('rejects joining an unknown cohort (404) before ever opening a transaction', async () => {
     const { joinCohort } = await import('../services/classroomService');
 
     mockQuery.mockResolvedValueOnce(queryResult([])); // cohort not found
 
     await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 404 });
+    expect(mockGetClient).not.toHaveBeenCalled();
   });
 
-  it('rejects joining a cancelled cohort', async () => {
+  it('rejects joining a cancelled cohort before ever opening a transaction', async () => {
     const { joinCohort } = await import('../services/classroomService');
 
     mockCohortLookup({ status: 'cancelled' });
 
     await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockGetClient).not.toHaveBeenCalled();
   });
 
-  it('rejects joining a cohort at capacity', async () => {
-    const { joinCohort } = await import('../services/classroomService');
-
-    mockCohortLookup({ capacity: 2, enrolledCount: '2' });
-
-    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
-  });
-
-  it('rejects joining for a driver_training enrollment', async () => {
+  it('rejects joining for a driver_training enrollment before ever opening a transaction', async () => {
     const { joinCohort } = await import('../services/classroomService');
 
     mockCohortLookup();
     mockQuery.mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_training' }]));
 
     await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockGetClient).not.toHaveBeenCalled();
   });
 
-  it('rejects when the enrollment already has a home cohort (409)', async () => {
+  // The capacity check is re-run INSIDE the transaction, against a row
+  // locked with SELECT ... FOR UPDATE - this is what makes it race-safe,
+  // unlike the old plain SELECT-then-INSERT this replaces.
+  it('rejects joining a cohort at capacity, re-checked inside the locked transaction, and rolls back', async () => {
+    const { joinCohort } = await import('../services/classroomService');
+
+    mockCohortLookup({ capacity: 2 });
+    mockQuery.mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ capacity: 2 }])) // SELECT ... FOR UPDATE
+      .mockResolvedValueOnce(queryResult([{ count: '2' }])) // COUNT(*) - already full
+      .mockResolvedValueOnce(queryResult([])); // ROLLBACK
+
+    await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 400 });
+
+    const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+    expect(clientCalls[0]).toBe('BEGIN');
+    expect(clientCalls[1]).toMatch(/FOR UPDATE/);
+    expect(clientCalls[clientCalls.length - 1]).toBe('ROLLBACK');
+  });
+
+  it('rejects when the enrollment already has a home cohort (409), checked inside the transaction, and rolls back', async () => {
     const { joinCohort } = await import('../services/classroomService');
 
     mockCohortLookup();
-    mockQuery
-      .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]))
-      .mockResolvedValueOnce(queryResult([{ id: 'existing-membership' }]));
+    mockQuery.mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ capacity: 20 }])) // SELECT ... FOR UPDATE
+      .mockResolvedValueOnce(queryResult([{ count: '0' }])) // COUNT(*)
+      .mockResolvedValueOnce(queryResult([{ id: 'existing-membership' }])) // existing membership found
+      .mockResolvedValueOnce(queryResult([])); // ROLLBACK
 
     await expect(joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID)).rejects.toMatchObject({ statusCode: 409 });
+
+    const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+    expect(clientCalls[clientCalls.length - 1]).toBe('ROLLBACK');
   });
 
-  it('joins the cohort successfully', async () => {
+  it('joins the cohort successfully inside a committed transaction', async () => {
     const { joinCohort } = await import('../services/classroomService');
 
     mockCohortLookup();
-    mockQuery
-      .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]))
+    mockQuery.mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, program_type: 'driver_education' }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ capacity: 20 }])) // SELECT ... FOR UPDATE
+      .mockResolvedValueOnce(queryResult([{ count: '0' }])) // COUNT(*)
       .mockResolvedValueOnce(queryResult([])) // no existing membership
       .mockResolvedValueOnce(
         queryResult([{ id: 'membership-1', tenant_id: TENANT_ID, cohort_id: COHORT_ID, enrollment_id: ENROLLMENT_ID, joined_at: '2026-09-01' }])
-      );
+      ) // INSERT
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     const membership = await joinCohort(COHORT_ID, TENANT_ID, ENROLLMENT_ID);
 
     expect(membership.cohortId).toBe(COHORT_ID);
     expect(membership.enrollmentId).toBe(ENROLLMENT_ID);
+
+    const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+    expect(clientCalls[0]).toBe('BEGIN');
+    expect(clientCalls[clientCalls.length - 1]).toBe('COMMIT');
+  });
+});
+
+describe('classroomService.searchStudentsForRosterAdd', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  function mockTenantSettings(timezone = 'America/Los_Angeles') {
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, timezone }]));
+  }
+
+  it('returns status "none" for a student with no driver_education enrollment', async () => {
+    const { searchStudentsForRosterAdd } = await import('../services/classroomService');
+
+    mockTenantSettings();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        student_id: 'student-1',
+        student_name: 'Alex Adult',
+        date_of_birth: '1990-01-01',
+        enrollment_id: null,
+        home_cohort_id: null,
+        home_cohort_name: null,
+      }])
+    );
+
+    const results = await searchStudentsForRosterAdd(TENANT_ID, COHORT_ID, 'Alex');
+
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      studentId: 'student-1',
+      status: 'none',
+      enrollmentId: null,
+      isMinor: false,
+    });
+  });
+
+  it('returns status "joinable" for a driver_education enrollment with no home cohort yet', async () => {
+    const { searchStudentsForRosterAdd } = await import('../services/classroomService');
+
+    mockTenantSettings();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        student_id: 'student-2',
+        student_name: 'Jamie Minor',
+        date_of_birth: '2010-01-01',
+        enrollment_id: 'enrollment-2',
+        home_cohort_id: null,
+        home_cohort_name: null,
+      }])
+    );
+
+    const results = await searchStudentsForRosterAdd(TENANT_ID, COHORT_ID, 'Jamie');
+
+    expect(results[0]).toMatchObject({
+      status: 'joinable',
+      enrollmentId: 'enrollment-2',
+      isMinor: true,
+    });
+  });
+
+  it('returns status "this_cohort" when the student already belongs to the cohort being added to', async () => {
+    const { searchStudentsForRosterAdd } = await import('../services/classroomService');
+
+    mockTenantSettings();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        student_id: 'student-3',
+        student_name: 'Sam Same',
+        date_of_birth: '1995-01-01',
+        enrollment_id: 'enrollment-3',
+        home_cohort_id: COHORT_ID,
+        home_cohort_name: 'Fall Weekend',
+      }])
+    );
+
+    const results = await searchStudentsForRosterAdd(TENANT_ID, COHORT_ID, 'Sam');
+
+    expect(results[0]).toMatchObject({ status: 'this_cohort', otherCohortName: null });
+  });
+
+  it('returns status "other_cohort" with the other cohort\'s name when blocked', async () => {
+    const { searchStudentsForRosterAdd } = await import('../services/classroomService');
+
+    mockTenantSettings();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        student_id: 'student-4',
+        student_name: 'Robin Elsewhere',
+        date_of_birth: '1998-01-01',
+        enrollment_id: 'enrollment-4',
+        home_cohort_id: 'cohort-other',
+        home_cohort_name: 'Spring Weekday',
+      }])
+    );
+
+    const results = await searchStudentsForRosterAdd(TENANT_ID, COHORT_ID, 'Robin');
+
+    expect(results[0]).toMatchObject({ status: 'other_cohort', otherCohortName: 'Spring Weekday' });
   });
 });

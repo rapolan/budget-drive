@@ -162,6 +162,27 @@ export const recordAttendance = asyncHandler(async (req: Request, res: Response)
 });
 
 /**
+ * @route   GET /api/v1/classroom/cohorts/:id/roster-candidates?q=...
+ * @desc    Search the tenant's students for the roster's "Add student"
+ *          panel (Existing student tab) - every result carries age/minor
+ *          status and this cohort's-specific DE-enrollment state (none,
+ *          joinable, already in this cohort, or blocked by another cohort)
+ * @access  Private
+ */
+export const searchRosterAddCandidates = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const search = typeof req.query.q === 'string' ? req.query.q : '';
+
+  const candidates = await classroomService.searchStudentsForRosterAdd(tenantId, id, search);
+
+  res.json({
+    success: true,
+    data: candidates,
+  });
+});
+
+/**
  * @route   POST /api/v1/classroom/cohorts/:id/join
  * @desc    Join a student's driver_education enrollment to a cohort as
  *          their home cohort (the student modal's enrollment flow) -

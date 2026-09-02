@@ -25,6 +25,11 @@ router.get('/classroom/cohorts/:id', validateUUID('id'), classroomController.get
 router.patch('/classroom/cohorts/:id', validateUUID('id'), classroomController.updateCohort);
 router.get('/classroom/cohorts/:id/gaps', validateUUID('id'), classroomController.getCohortAttendanceGaps);
 router.get('/classroom/cohorts/:id/roster', validateUUID('id'), classroomController.getCohortRoster);
+router.get(
+  '/classroom/cohorts/:id/roster-candidates',
+  validateUUID('id'),
+  classroomController.searchRosterAddCandidates
+);
 router.post(
   '/classroom/cohorts/:id/join',
   validateUUID('id'),
