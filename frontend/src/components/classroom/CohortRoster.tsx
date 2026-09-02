@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, AlertTriangle } from 'lucide-react';
 import { classroomApi } from '@/api';
 import type { DeCohort } from '@/api/classroom';
-import { LoadingSpinner } from '@/components/common';
+import { Button, LoadingSpinner } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { MakeUpStudentPicker } from './MakeUpStudentPicker';
+import { AddStudentPanel } from './AddStudentPanel';
 
 interface CohortRosterProps {
   cohort: DeCohort;
@@ -23,6 +24,7 @@ interface CohortRosterProps {
 export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpdated }) => {
   const queryClient = useQueryClient();
   const [addingMakeUpForSession, setAddingMakeUpForSession] = React.useState<string | null>(null);
+  const [isAddingStudent, setIsAddingStudent] = React.useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['classroom', 'cohort-roster', cohort.id],
@@ -46,10 +48,24 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
 
   return (
     <div className="rounded-xl border border-edge bg-surface">
-      <div className="p-4 border-b border-edge">
-        <h2 className="text-sm font-semibold text-tx-primary">{cohort.name}</h2>
-        <p className="text-xs text-tx-muted mt-1">{cohort.enrolledCount}/{cohort.capacity} enrolled</p>
+      <div className="p-4 border-b border-edge flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-tx-primary">{cohort.name}</h2>
+          <p className="text-xs text-tx-muted mt-1">{cohort.enrolledCount}/{cohort.capacity} enrolled</p>
+        </div>
+        <Button size="sm" onClick={() => setIsAddingStudent(true)}>
+          <UserPlus className="h-4 w-4" />
+          Add student
+        </Button>
       </div>
+
+      {isAddingStudent && (
+        <AddStudentPanel
+          cohort={cohort}
+          onClose={() => setIsAddingStudent(false)}
+          onAdded={invalidateRoster}
+        />
+      )}
 
       {isLoading && (
         <div className="flex justify-center py-12">

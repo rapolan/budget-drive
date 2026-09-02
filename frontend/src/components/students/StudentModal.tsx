@@ -85,6 +85,14 @@ interface StudentModalProps {
   // There is no separate "Book Again" affordance; prefill-or-not is
   // decided by lesson history alone, not by which button was clicked.
   onBookLesson?: (student: Student, mostRecentLesson: Lesson | null) => void;
+  // Create-mode shortcut for the Classroom roster's "Add student" panel's
+  // "New student" tab - when set, the post-creation success block offers
+  // an explicit "Enroll in [cohortName]" action (never automatic - joining
+  // a cohort is always a deliberate, separate action from creation) that
+  // creates a driver_education/classroom enrollment for the new student
+  // and joins it to this cohort via the same joinCohort call every other
+  // entry point uses.
+  enrollInCohort?: { cohortId: string; cohortName: string };
   prefillFromGuardian?: GuardianPrefill;
   // Opens that guardian's own detail view (Students.tsx's guardian modal) -
   // only meaningful in edit mode, where GuardianSubPanel's rows are real
@@ -98,7 +106,7 @@ interface StudentModalProps {
   initialTab?: 'details' | 'progress' | 'enrollments' | 'history';
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, prefillFromGuardian, onViewGuardian, initialTab }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, enrollInCohort, prefillFromGuardian, onViewGuardian, initialTab }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
@@ -509,6 +517,32 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
     onError: (error: Error & { response?: { data?: { error?: string } } }) => {
       console.error('Create student with guardian error:', error);
+    },
+  });
+
+  // The "New student" tab's shortcut, reached from enrollInCohort - creates
+  // a driver_education/classroom enrollment for the just-created student
+  // and joins it to the pre-set cohort, using the exact same two-call
+  // sequence createEnrollmentMutation above uses (create enrollment, then
+  // a separate explicit joinCohort call) - one enrollment-then-join path,
+  // not a second implementation.
+  const enrollInCohortMutation = useMutation({
+    mutationFn: async (studentId: string) => {
+      const response = await enrollmentsApi.create(studentId, {
+        programType: 'driver_education',
+        deDeliveryMode: 'classroom',
+      });
+      if (response.data && enrollInCohort) {
+        await classroomApi.joinCohort(enrollInCohort.cohortId, response.data.id);
+      }
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
+      if (enrollInCohort) {
+        queryClient.invalidateQueries({ queryKey: ['classroom', 'cohort-roster', enrollInCohort.cohortId] });
+      }
     },
   });
 
@@ -2130,6 +2164,23 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     </div>
                   </div>
+                  {enrollInCohort && enrollInCohortMutation.isSuccess && (
+                    <div className="bg-status-success-bg border border-status-success-border rounded-xl p-4 mb-4 flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-status-success-text flex-shrink-0" />
+                      <p className="text-status-success-text text-sm">
+                        Enrolled in {enrollInCohort.cohortName}
+                      </p>
+                    </div>
+                  )}
+                  {enrollInCohort && enrollInCohortMutation.isError && (
+                    <div className="bg-status-danger-bg rounded-lg px-4 py-3 flex items-start gap-2 mb-4">
+                      <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-status-danger-text">
+                        {(enrollInCohortMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                          || 'Could not enroll this student in the cohort.'}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex justify-end gap-3">
                     <button
                       type="button"
@@ -2149,6 +2200,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       >
                         <Plus className="h-4 w-4" />
                         Book Lesson
+                      </button>
+                    )}
+                    {enrollInCohort && !enrollInCohortMutation.isSuccess && (
+                      <button
+                        type="button"
+                        onClick={() => enrollInCohortMutation.mutate(createdStudent.id)}
+                        disabled={enrollInCohortMutation.isPending}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:opacity-50 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                        {enrollInCohortMutation.isPending ? 'Enrolling...' : `Enroll in ${enrollInCohort.cohortName}`}
                       </button>
                     )}
                   </div>

@@ -87,6 +87,21 @@ export interface MakeUpCandidate {
   studentName: string;
 }
 
+export interface RosterAddCandidate {
+  studentId: string;
+  studentName: string;
+  age: number | null;
+  isMinor: boolean;
+  enrollmentId: string | null;
+  // 'none': no driver_education enrollment yet - use the "New student" tab's
+  // create-then-enroll shortcut instead of joinCohort directly.
+  // 'joinable': has a driver_education enrollment, no home cohort - addable.
+  // 'this_cohort': already enrolled in THIS cohort - disabled.
+  // 'other_cohort': already has a home cohort elsewhere - blocked, see otherCohortName.
+  status: 'none' | 'joinable' | 'this_cohort' | 'other_cohort';
+  otherCohortName: string | null;
+}
+
 export const classroomApi = {
   createCohort: async (data: CreateCohortInput) => {
     const response = await apiClient.post<ApiResponse<DeCohort>>('/classroom/cohorts', data);
@@ -135,6 +150,14 @@ export const classroomApi = {
     const response = await apiClient.get<ApiResponse<MakeUpCandidate[]>>('/classroom/make-up-candidates', {
       params: { q: search, excludeEnrollmentIds: excludeEnrollmentIds.join(',') },
     });
+    return response.data;
+  },
+
+  searchRosterAddCandidates: async (cohortId: string, search: string) => {
+    const response = await apiClient.get<ApiResponse<RosterAddCandidate[]>>(
+      `/classroom/cohorts/${cohortId}/roster-candidates`,
+      { params: { q: search } }
+    );
     return response.data;
   },
 };

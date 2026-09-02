@@ -17,6 +17,8 @@ vi.mock('@/api', async () => {
       getCohortRoster: vi.fn(),
       recordAttendance: vi.fn(),
       searchMakeUpCandidates: vi.fn(),
+      searchRosterAddCandidates: vi.fn(),
+      joinCohort: vi.fn(),
     },
     instructorsApi: {
       ...actual.instructorsApi,
@@ -233,5 +235,19 @@ describe('Classroom page - roster', () => {
         present: true,
       });
     });
+  });
+
+  it('opens the Add student panel from the roster header', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [cohort()] });
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: roster() });
+    (classroomApi.searchRosterAddCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByText('Fall Weekend Class'));
+    await screen.findByText('Leo Whitfield');
+
+    fireEvent.click(screen.getByRole('button', { name: /add student/i }));
+
+    expect(await screen.findByText('Add student to Fall Weekend Class')).toBeInTheDocument();
   });
 });
