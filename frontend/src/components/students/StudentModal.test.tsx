@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
-import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi, feeFlagsApi } from '@/api';
+import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi, feeFlagsApi, classroomApi } from '@/api';
 import type { Student, GuardianCandidate, Lesson, Enrollment } from '@/types';
 
 vi.mock('@/api', async () => {
@@ -34,10 +34,14 @@ vi.mock('@/api', async () => {
     instructorsApi: { getAll: vi.fn().mockResolvedValue({ data: [] }) },
     enrollmentsApi: {
       getForStudent: vi.fn().mockResolvedValue({ data: [] }),
-      create: vi.fn().mockResolvedValue({ data: {} }),
+      create: vi.fn().mockResolvedValue({ data: { id: 'enrollment-new' } }),
       update: vi.fn().mockResolvedValue({ data: {} }),
       complete: vi.fn().mockResolvedValue({ data: {} }),
       reopen: vi.fn().mockResolvedValue({ data: {} }),
+    },
+    classroomApi: {
+      getCohorts: vi.fn().mockResolvedValue({ data: [] }),
+      joinCohort: vi.fn().mockResolvedValue({ data: {} }),
     },
     feeFlagsApi: {
       getOutstandingForStudent: vi.fn().mockResolvedValue({ data: [] }),
@@ -1721,7 +1725,7 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
     expect(screen.getByRole('button', { name: /add driver training enrollment/i })).toBeInTheDocument();
   });
 
-  it('creates a driver_education enrollment via enrollmentsApi.create with the manually entered hours, only after the explicit confirm click', async () => {
+  it('creates an online driver_education enrollment via enrollmentsApi.create with the manually entered hours, only after picking Online and the explicit confirm click', async () => {
     (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [enrollment()],
     });
@@ -1733,19 +1737,104 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
     const addButton = screen.getByRole('button', { name: /add driver education enrollment/i });
     fireEvent.click(addButton);
 
-    // Nothing committed yet - only the form appeared.
+    // Nothing committed yet - only the delivery-mode picker appeared.
     expect(enrollmentsApi.create).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/hours completed/i)).not.toBeInTheDocument();
 
-    const hoursInput = screen.getByLabelText(/hours completed/i);
+    fireEvent.click(screen.getByRole('button', { name: /^online$/i }));
+    const hoursInput = await screen.findByLabelText(/hours completed/i);
     fireEvent.change(hoursInput, { target: { value: '30' } });
     fireEvent.click(screen.getByRole('button', { name: /^add enrollment$/i }));
 
     await waitFor(() =>
       expect(enrollmentsApi.create).toHaveBeenCalledWith('student-1', {
         programType: 'driver_education',
+        deDeliveryMode: 'online',
         manualCompletedHours: 30,
       })
     );
+    expect(classroomApi.joinCohort).not.toHaveBeenCalled();
+  });
+
+  it('creates a classroom driver_education enrollment and joins the picked cohort in a second call', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment()],
+    });
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'cohort-1',
+          tenantId: 'tenant-1',
+          name: 'Fall Weekend Class',
+          teacherInstructorId: null,
+          capacity: 20,
+          status: 'scheduled',
+          createdBy: null,
+          createdAt: '2026-09-01',
+          updatedAt: '2026-09-01',
+          enrolledCount: 5,
+          sessions: [],
+        },
+      ],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    await screen.findByText(/^driver training$/i);
+    fireEvent.click(screen.getByRole('button', { name: /add driver education enrollment/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^classroom$/i }));
+
+    const cohortOption = await screen.findByText('Fall Weekend Class');
+    fireEvent.click(cohortOption);
+
+    fireEvent.click(screen.getByRole('button', { name: /^add enrollment$/i }));
+
+    await waitFor(() =>
+      expect(enrollmentsApi.create).toHaveBeenCalledWith('student-1', {
+        programType: 'driver_education',
+        deDeliveryMode: 'classroom',
+      })
+    );
+    await waitFor(() => expect(classroomApi.joinCohort).toHaveBeenCalledWith('cohort-1', 'enrollment-new'));
+  });
+
+  it('disables "Add enrollment" for driver_education until a delivery mode (and, for classroom, a cohort) is chosen', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [enrollment()],
+    });
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'cohort-1',
+          tenantId: 'tenant-1',
+          name: 'Fall Weekend Class',
+          teacherInstructorId: null,
+          capacity: 20,
+          status: 'scheduled',
+          createdBy: null,
+          createdAt: '2026-09-01',
+          updatedAt: '2026-09-01',
+          enrolledCount: 5,
+          sessions: [],
+        },
+      ],
+    });
+
+    renderModal(editableStudent({ id: 'student-1' }));
+    fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+    await screen.findByText(/^driver training$/i);
+    fireEvent.click(screen.getByRole('button', { name: /add driver education enrollment/i }));
+
+    expect(screen.getByRole('button', { name: /^add enrollment$/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^classroom$/i }));
+    expect(screen.getByRole('button', { name: /^add enrollment$/i })).toBeDisabled();
+
+    const cohortOption = await screen.findByText('Fall Weekend Class');
+    fireEvent.click(cohortOption);
+    expect(screen.getByRole('button', { name: /^add enrollment$/i })).not.toBeDisabled();
   });
 
   it('reopen requires a non-empty reason and calls enrollmentsApi.reopen with the enrollment id and reason', async () => {

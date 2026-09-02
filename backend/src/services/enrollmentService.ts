@@ -301,6 +301,9 @@ export interface CreateEnrollmentInput {
   totalCost?: number;
   // driver_education only, per Constraint D - manually entered, no lesson tracking
   manualCompletedHours?: number;
+  // driver_education only, required at creation (Phase 3) - classroom vs
+  // online, feeds the certificate form-type mapper (certificateService).
+  deDeliveryMode?: 'classroom' | 'online';
 }
 
 /**
@@ -329,6 +332,12 @@ export const createEnrollment = async (
     }
   }
 
+  if (data.programType === 'driver_education') {
+    if (data.deDeliveryMode !== 'classroom' && data.deDeliveryMode !== 'online') {
+      throw new AppError('deDeliveryMode ("classroom" or "online") is required for a driver_education enrollment', 400);
+    }
+  }
+
   const tenantSettings = await getTenantSettings(tenantId);
   const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
   const licenseType = data.licenseType ?? 'car';
@@ -336,8 +345,8 @@ export const createEnrollment = async (
   const result = await query(
     `INSERT INTO enrollments (
        tenant_id, student_id, program_type, hours_required, license_type,
-       assigned_instructor_id, total_cost, manual_completed_hours, created_by, updated_by
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+       assigned_instructor_id, total_cost, manual_completed_hours, de_delivery_mode, created_by, updated_by
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
      RETURNING *`,
     [
       tenantId,
@@ -348,6 +357,7 @@ export const createEnrollment = async (
       data.assignedInstructorId || null,
       data.totalCost ?? null,
       data.manualCompletedHours ?? null,
+      data.deDeliveryMode ?? null,
       userId || null,
     ]
   );

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Plus, CheckCircle, RotateCcw, LogOut, Award, Clock, FileText } from 'lucide-react';
+import { Plus, CheckCircle, RotateCcw, LogOut, Award, Clock, FileText, Users } from 'lucide-react';
 import type { Enrollment, ProgramType, Certificate } from '@/types';
+import type { DeCohort } from '@/api/classroom';
 
 const PROGRAM_LABELS: Record<ProgramType, string> = {
   driver_education: 'Driver Education',
@@ -24,8 +25,17 @@ interface EnrollmentSubPanelProps {
   isAddingProgramType: ProgramType | null;
   onStartAdd: (programType: ProgramType) => void;
   onCancelAdd: () => void;
-  onConfirmAdd: (data: { hoursRequired?: number; manualCompletedHours?: number }) => void;
+  onConfirmAdd: (data: {
+    hoursRequired?: number;
+    manualCompletedHours?: number;
+    deDeliveryMode?: 'classroom' | 'online';
+    joinCohortId?: string;
+  }) => void;
   isAddPending: boolean;
+  // Upcoming (non-cancelled) cohorts with remaining capacity, for the
+  // classroom-delivery "join a class" picker. Cohort CREATION never
+  // happens from here - only from the Classroom page.
+  joinableCohorts: DeCohort[];
   onStartComplete: (enrollmentId: string) => void;
   onStartReopen: (enrollmentId: string) => void;
   completingEnrollmentId: string | null;
@@ -56,6 +66,7 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
   onCancelAdd,
   onConfirmAdd,
   isAddPending,
+  joinableCohorts,
   onStartComplete,
   onStartReopen,
   completingEnrollmentId,
@@ -70,11 +81,15 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
 }) => {
   const [draftHoursRequired, setDraftHoursRequired] = React.useState('');
   const [draftManualHours, setDraftManualHours] = React.useState('');
+  const [draftDeliveryMode, setDraftDeliveryMode] = React.useState<'classroom' | 'online' | null>(null);
+  const [draftCohortId, setDraftCohortId] = React.useState('');
 
   React.useEffect(() => {
     if (isAddingProgramType === null) {
       setDraftHoursRequired('');
       setDraftManualHours('');
+      setDraftDeliveryMode(null);
+      setDraftCohortId('');
     }
   }, [isAddingProgramType]);
 
@@ -241,21 +256,95 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
               />
             </div>
           ) : (
-            <div>
-              <label htmlFor="new-enrollment-manual-hours" className="block text-xs font-medium text-tx-secondary mb-1">
-                Hours completed (manually entered - no lesson tracking for driver education)
-              </label>
-              <input
-                id="new-enrollment-manual-hours"
-                type="number"
-                min="0"
-                step="0.5"
-                value={draftManualHours}
-                onChange={(e) => setDraftManualHours(e.target.value)}
-                className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
-                placeholder="30"
-              />
-            </div>
+            <>
+              {/* Delivery mode decides both the DMV form (DL 400B/C, via
+                  certificateService) and how completion is tracked -
+                  classroom uses real attendance, online stays manual-entry. */}
+              <div>
+                <span id="new-enrollment-delivery-mode-label" className="block text-xs font-medium text-tx-secondary mb-1">Delivery</span>
+                <div role="group" aria-labelledby="new-enrollment-delivery-mode-label" className="flex gap-2">
+                  {(['classroom', 'online'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={draftDeliveryMode === mode}
+                      onClick={() => {
+                        setDraftDeliveryMode(mode);
+                        setDraftCohortId('');
+                      }}
+                      className={`px-3 py-1.5 text-xs rounded-full border transition-colors capitalize ${
+                        draftDeliveryMode === mode
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {draftDeliveryMode === 'classroom' && (
+                <div>
+                  <label htmlFor="new-enrollment-cohort" className="block text-xs font-medium text-tx-secondary mb-1">
+                    Join a class
+                  </label>
+                  {joinableCohorts.length === 0 ? (
+                    <p className="text-xs text-tx-muted italic">
+                      No upcoming classes with open spots. Create one from the Classroom page first.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {joinableCohorts.map((c) => {
+                        const remaining = c.capacity - c.enrolledCount;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setDraftCohortId(c.id)}
+                            className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
+                              draftCohortId === c.id
+                                ? 'border-primary bg-status-info-bg'
+                                : 'border-edge-strong bg-surface hover:bg-surface2'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-tx-primary">{c.name}</span>
+                              <span
+                                className={`flex items-center gap-1 text-xs ${
+                                  remaining <= 0 ? 'text-status-danger-text' : 'text-tx-muted'
+                                }`}
+                              >
+                                <Users className="h-3 w-3" />
+                                {remaining <= 0 ? 'Full' : `${remaining} open`}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {draftDeliveryMode === 'online' && (
+                <div>
+                  <label htmlFor="new-enrollment-manual-hours" className="block text-xs font-medium text-tx-secondary mb-1">
+                    Hours completed (manually entered - no lesson tracking for online driver education)
+                  </label>
+                  <input
+                    id="new-enrollment-manual-hours"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={draftManualHours}
+                    onChange={(e) => setDraftManualHours(e.target.value)}
+                    className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                    placeholder="30"
+                  />
+                </div>
+              )}
+            </>
           )}
           <div className="flex gap-2">
             <button
@@ -271,10 +360,16 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
                 onConfirmAdd(
                   isAddingProgramType === 'driver_training'
                     ? { hoursRequired: draftHoursRequired ? Number(draftHoursRequired) : undefined }
-                    : { manualCompletedHours: draftManualHours ? Number(draftManualHours) : undefined }
+                    : draftDeliveryMode === 'classroom'
+                    ? { deDeliveryMode: 'classroom', joinCohortId: draftCohortId || undefined }
+                    : { deDeliveryMode: 'online', manualCompletedHours: draftManualHours ? Number(draftManualHours) : undefined }
                 )
               }
-              disabled={isAddPending}
+              disabled={
+                isAddPending ||
+                (isAddingProgramType === 'driver_education' &&
+                  (draftDeliveryMode === null || (draftDeliveryMode === 'classroom' && !draftCohortId)))
+              }
               className="px-3 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
             >
               {isAddPending ? 'Adding...' : 'Add enrollment'}

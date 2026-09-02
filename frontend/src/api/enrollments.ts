@@ -8,6 +8,8 @@ export interface CreateEnrollmentInput {
   assignedInstructorId?: string;
   totalCost?: number;
   manualCompletedHours?: number;
+  // driver_education only, required at creation - classroom vs online.
+  deDeliveryMode?: 'classroom' | 'online';
 }
 
 export interface UpdateEnrollmentInput {

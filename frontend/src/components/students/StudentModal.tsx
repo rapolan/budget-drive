@@ -4,7 +4,7 @@ import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
   CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap, DollarSign
 } from 'lucide-react';
-import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi, certificatesApi } from '@/api';
+import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi, certificatesApi, classroomApi } from '@/api';
 import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson, ProgramType } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
@@ -616,11 +616,40 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     queryClient.invalidateQueries({ queryKey: ['students'] });
   };
 
+  // Only fetched while actively adding a driver_education enrollment - the
+  // "join a class" picker's data source. Cohort CREATION never happens
+  // here, only from the Classroom page - this is read-only.
+  const { data: joinableCohortsData } = useQuery({
+    queryKey: ['classroom', 'cohorts'],
+    queryFn: () => classroomApi.getCohorts(),
+    enabled: isAddingProgramType === 'driver_education',
+  });
+  const joinableCohorts = useMemo(
+    () => (joinableCohortsData?.data || []).filter((c) => c.status !== 'cancelled' && c.enrolledCount < c.capacity),
+    [joinableCohortsData]
+  );
+
   const createEnrollmentMutation = useMutation({
-    mutationFn: (data: { programType: ProgramType; hoursRequired?: number; manualCompletedHours?: number }) =>
-      enrollmentsApi.create(student!.id, data),
+    mutationFn: async (data: {
+      programType: ProgramType;
+      hoursRequired?: number;
+      manualCompletedHours?: number;
+      deDeliveryMode?: 'classroom' | 'online';
+      joinCohortId?: string;
+    }) => {
+      const { joinCohortId, ...enrollmentData } = data;
+      const response = await enrollmentsApi.create(student!.id, enrollmentData);
+      // Joining is a second, explicit step against the just-created
+      // enrollment's own id - never implicit, and never bundled into the
+      // enrollment-creation endpoint itself.
+      if (joinCohortId && response.data) {
+        await classroomApi.joinCohort(joinCohortId, response.data.id);
+      }
+      return response;
+    },
     onSuccess: () => {
       invalidateEnrollmentQueries();
+      queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
       setIsAddingProgramType(null);
     },
   });
@@ -2445,6 +2474,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   createEnrollmentMutation.mutate({ programType: isAddingProgramType!, ...data })
                 }
                 isAddPending={createEnrollmentMutation.isPending}
+                joinableCohorts={joinableCohorts}
                 onStartComplete={(enrollmentId) => setCompletingEnrollmentId(enrollmentId)}
                 onStartReopen={(enrollmentId) => setReopeningEnrollmentId(enrollmentId)}
                 completingEnrollmentId={completingEnrollmentId}
