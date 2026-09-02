@@ -92,14 +92,24 @@ export const getStudent = asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * @route   POST /api/v1/students
- * @desc    Create new student
+ * @desc    Create new student. Body may include an optional
+ *          `initialEnrollment: { programType, deDeliveryMode? }` to set up
+ *          the student's first enrollment as driver_education instead of
+ *          the default driver_training - omitted entirely, behavior is
+ *          unchanged from before this field existed.
  * @access  Private
  */
 export const createStudent = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const userId = req.user?.userId;
+  const { initialEnrollment, ...studentData } = req.body;
 
-  const student = await studentService.createStudent(tenantId, req.body, userId);
+  const student = await studentService.createStudent(
+    tenantId,
+    studentData,
+    userId,
+    initialEnrollment
+  );
 
   res.status(201).json({
     success: true,
@@ -111,9 +121,10 @@ export const createStudent = asyncHandler(async (req: Request, res: Response) =>
 /**
  * @route   POST /api/v1/students/with-guardian
  * @desc    Atomically create a student and create-or-link one or more
- *          guardians (body: { student, guardians: [...] }) in a single
- *          transaction - a failure at any step leaves nothing persisted
- *          (no orphaned student, no orphaned guardian)
+ *          guardians (body: { student, guardians: [...], initialEnrollment?
+ *          }) in a single transaction - a failure at any step leaves
+ *          nothing persisted (no orphaned student, no orphaned guardian).
+ *          initialEnrollment has the same shape/default as POST /students'.
  * @access  Private
  */
 export const createStudentWithGuardian = asyncHandler(async (req: Request, res: Response) => {

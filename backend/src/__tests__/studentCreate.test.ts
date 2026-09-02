@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockGetClient, mockClientQuery, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 const TENANT_ID = 'tenant-abc-123';
@@ -51,6 +51,7 @@ const formPayload = {
 describe('POST /api/v1/students', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('creates a student and initial driver_training enrollment when licenseType is omitted from the form payload', async () => {
@@ -60,9 +61,18 @@ describe('POST /api/v1/students', () => {
     const adultDob = new Date();
     adultDob.setFullYear(adultDob.getFullYear() - 25);
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // 1. getTenantSettings (age check, resolves the tenant's timezone)
-      .mockResolvedValueOnce(queryResult([])) // 2. duplicate-email check inside studentService.createStudent
+    // Pre-transaction: getTenantSettings (age check, resolves the tenant's
+    // timezone) - the only plain query() call before createStudent opens
+    // its BEGIN/COMMIT transaction.
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    // Inside the transaction: duplicate-email check, INSERT INTO students,
+    // INSERT INTO enrollments (driver_training, inlined directly - no
+    // separate createEnrollment pre-checks since this bypasses that
+    // function entirely, same as createStudentWithGuardian already did).
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([])) // duplicate-email check
       .mockResolvedValueOnce(
         queryResult([{
           id: 'student-1',
@@ -71,14 +81,15 @@ describe('POST /api/v1/students', () => {
           email: formPayload.email,
           date_of_birth: formPayload.dateOfBirth,
         }])
-      ) // 3. INSERT INTO students
-      .mockResolvedValueOnce(queryResult([{ id: 'student-1' }])) // 4. createEnrollment's student-existence check
-      .mockResolvedValueOnce(queryResult([])) // 5. createEnrollment's getActiveDriverTrainingEnrollment pre-check - none yet
-      .mockResolvedValueOnce(queryResult([])) // 6. createEnrollment's getTenantSettings (default hours)
+      ) // INSERT INTO students
       .mockResolvedValueOnce(
         queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training', license_type: 'car', status: 'active' }])
-      ) // 7. INSERT INTO enrollments
-      // 6-11: the getStudentById re-fetch at the end of createStudent
+      ) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    // Post-COMMIT: the getStudentById re-fetch at the end of createStudent
+    // (plain, non-transactional reads).
+    mockQuery
       .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID, full_name: formPayload.fullName, date_of_birth: formPayload.dateOfBirth }])) // student row
       .mockResolvedValueOnce(queryResult([])) // tenant settings
       .mockResolvedValueOnce(queryResult([])) // guardian counts (minor per DOB above)
@@ -97,7 +108,7 @@ describe('POST /api/v1/students', () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
 
-    const enrollmentInsertCall = mockQuery.mock.calls.find(
+    const enrollmentInsertCall = mockClientQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
     );
     expect(enrollmentInsertCall).toBeDefined();
@@ -106,5 +117,64 @@ describe('POST /api/v1/students', () => {
     // column is NOT NULL with a CHECK constraint, and the form never
     // collects this field.
     expect(params).toContain('car');
+
+    const clientCalls = mockClientQuery.mock.calls.map(([sql]) => sql);
+    expect(clientCalls[0]).toBe('BEGIN');
+    expect(clientCalls[clientCalls.length - 1]).toBe('COMMIT');
+  });
+
+  it('creates a driver_education enrollment instead of driver_training when initialEnrollment is provided', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (pre-transaction)
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([])) // duplicate-email check
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'student-2', tenant_id: TENANT_ID, full_name: formPayload.fullName, date_of_birth: formPayload.dateOfBirth }])
+      ) // INSERT INTO students
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-2', student_id: 'student-2', tenant_id: TENANT_ID, program_type: 'driver_education', de_delivery_mode: 'classroom' }])
+      ) // INSERT INTO enrollments (driver_education, not driver_training)
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: 'student-2', tenant_id: TENANT_ID, full_name: formPayload.fullName, date_of_birth: formPayload.dateOfBirth }])) // student row
+      .mockResolvedValueOnce(queryResult([])) // getTenantSettings (age check)
+      .mockResolvedValueOnce(queryResult([])) // guardian counts (minor per DOB)
+      .mockResolvedValueOnce(queryResult([])) // getGuardiansForStudent (minor)
+      .mockResolvedValueOnce(queryResult([])) // getOutstandingFlagsForStudent
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-2', student_id: 'student-2', tenant_id: TENANT_ID, program_type: 'driver_education', status: 'active', de_delivery_mode: 'classroom', completed: false }])
+      ) // getEnrollmentsForStudent's own SELECT
+      .mockResolvedValueOnce(queryResult([])) // attachProgressAndPayments's getTenantSettings
+      .mockResolvedValueOnce(queryResult([])) // attachProgressAndPayments's lessons query
+      .mockResolvedValueOnce(queryResult([])) // attachProgressAndPayments's payments query
+      .mockResolvedValueOnce(queryResult([])); // getClassroomAttendanceSummaries (this classroom DE enrollment has none yet)
+
+    const res = await request(app)
+      .post('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...formPayload, initialEnrollment: { programType: 'driver_education', deDeliveryMode: 'classroom' } });
+
+    expect(res.status).toBe(201);
+
+    const enrollmentInsertCall = mockClientQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
+    );
+    expect(enrollmentInsertCall).toBeDefined();
+    const [sql, params] = enrollmentInsertCall!;
+    expect(sql).toContain("'driver_education'");
+    expect(sql).not.toContain("'driver_training'");
+    expect(params).toContain('classroom');
+
+    // Only ONE enrollment INSERT ever runs - never both driver_education
+    // AND an auto driver_training enrollment.
+    const enrollmentInserts = mockClientQuery.mock.calls.filter(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
+    );
+    expect(enrollmentInserts).toHaveLength(1);
   });
 });

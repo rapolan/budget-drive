@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { mockQuery, resetMockQuery } from './mocks/database';
+import { mockQuery, resetMockQuery, mockGetClient, mockClientQuery, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 const TENANT_ID = 'tenant-abc-123';
@@ -25,6 +25,7 @@ const basePayload = {
 describe('POST /api/v1/students - date of birth required', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('rejects a missing dateOfBirth before touching the database', async () => {
@@ -61,16 +62,18 @@ describe('POST /api/v1/students - date of birth required', () => {
     mockQuery.mockResolvedValueOnce({
       rows: [{ id: 'tenant-1', default_hours_required: 6 }],
       rowCount: 1,
-    }); // getTenantSettings (age check, reused for hoursRequired default)
-    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // duplicate-email check
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }],
-      rowCount: 1,
-    }); // INSERT INTO students
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'student-1' }], rowCount: 1 }); // createEnrollment's student-existence check
-    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // createEnrollment's getActiveDriverTrainingEnrollment pre-check - none yet
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'tenant-1', default_hours_required: 6 }], rowCount: 1 }); // createEnrollment's getTenantSettings
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'enrollment-1', student_id: 'student-1', program_type: 'driver_training' }], rowCount: 1 }); // INSERT INTO enrollments
+    }); // getTenantSettings (age check, pre-transaction)
+
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // duplicate-email check
+      .mockResolvedValueOnce({
+        rows: [{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }],
+        rowCount: 1,
+      }) // INSERT INTO students
+      .mockResolvedValueOnce({ rows: [{ id: 'enrollment-1', student_id: 'student-1', program_type: 'driver_training' }], rowCount: 1 }) // INSERT INTO enrollments
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // COMMIT
+
     // getStudentById re-fetch at the end of createStudent
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'student-1', tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }], rowCount: 1 }); // student row
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 }); // tenant settings

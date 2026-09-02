@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockGetClient, mockClientQuery, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const TENANT_ID = 'tenant-abc-123';
 const STUDENT_ID = 'student-1';
@@ -9,24 +9,27 @@ const STUDENT_ID = 'student-1';
 describe('students.pickup_address_* columns', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('createStudent inserts the pickup address columns when the toggle is on', async () => {
     const studentService = await import('../services/studentService');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, timezone: 'America/Los_Angeles' }])) // getTenantSettings (age check)
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, timezone: 'America/Los_Angeles' }])); // getTenantSettings (age check, pre-transaction)
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       // no email in this payload - createStudent's duplicate-email check
       // (`if (data.email)`) is skipped entirely, no mock consumed for it
       .mockResolvedValueOnce(
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, full_name: 'Test Student', date_of_birth: '2010-01-01' }])
       ) // INSERT INTO students
-      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // createEnrollment's student-existence check
-      .mockResolvedValueOnce(queryResult([])) // createEnrollment's active-enrollment pre-check
-      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
       .mockResolvedValueOnce(
         queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', license_type: 'car', status: 'active' }])
       ) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }])) // getStudentById re-fetch: student row
       .mockResolvedValueOnce(queryResult([])) // tenant settings
       .mockResolvedValueOnce(queryResult([])) // guardian counts
@@ -51,7 +54,7 @@ describe('students.pickup_address_* columns', () => {
       'user-1'
     );
 
-    const insertCall = mockQuery.mock.calls.find(
+    const insertCall = mockClientQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
     );
     expect(insertCall).toBeDefined();
@@ -68,18 +71,20 @@ describe('students.pickup_address_* columns', () => {
   it('createStudent defaults pickup_address_different_from_home to false when omitted', async () => {
     const studentService = await import('../services/studentService');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, timezone: 'America/Los_Angeles' }]))
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, timezone: 'America/Los_Angeles' }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       // no email in this payload - duplicate-email check skipped
       .mockResolvedValueOnce(
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, full_name: 'Test Student', date_of_birth: '2010-01-01' }])
       )
-      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }]))
-      .mockResolvedValueOnce(queryResult([]))
-      .mockResolvedValueOnce(queryResult([]))
       .mockResolvedValueOnce(
         queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', license_type: 'car', status: 'active' }])
       )
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2010-01-01' }]))
       .mockResolvedValueOnce(queryResult([]))
       .mockResolvedValueOnce(queryResult([]))
@@ -93,7 +98,7 @@ describe('students.pickup_address_* columns', () => {
       'user-1'
     );
 
-    const insertCall = mockQuery.mock.calls.find(
+    const insertCall = mockClientQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
     );
     const [, params] = insertCall!;

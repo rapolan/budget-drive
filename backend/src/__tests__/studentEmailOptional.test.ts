@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockGetClient, mockClientQuery, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 const TENANT_ID = 'tenant-abc-123';
@@ -40,16 +40,19 @@ function adultPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// Full mock sequence for a successful createStudent call: INSERT INTO
-// students, then createEnrollment's student-check/active-check/
-// tenant-settings/INSERT, then the getStudentById re-fetch at the end.
+// Full mock sequence for a successful createStudent call: getTenantSettings
+// (pre-transaction), then INSERT INTO students + INSERT INTO enrollments
+// inside the transaction, then the getStudentById re-fetch at the end.
 function mockCreateStudentSequence(studentId: string) {
-  mockQuery
-    .mockResolvedValueOnce(queryResult([{ id: studentId, tenant_id: TENANT_ID, date_of_birth: MINOR_DOB, email: null }])) // INSERT INTO students
-    .mockResolvedValueOnce(queryResult([{ id: studentId }])) // createEnrollment's student-existence check
-    .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check
-    .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
+  mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings - no row, falls back to default
+
+  mockClientQuery
+    .mockResolvedValueOnce(queryResult([])) // BEGIN
+    .mockResolvedValueOnce(queryResult([{ id: studentId, tenant_id: TENANT_ID, date_of_birth: MINOR_DOB, email: null }])) // INSERT INTO students (no email provided, no duplicate-email check)
     .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: studentId, tenant_id: TENANT_ID, program_type: 'driver_training' }])) // INSERT INTO enrollments
+    .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+  mockQuery
     .mockResolvedValueOnce(queryResult([{ id: studentId, tenant_id: TENANT_ID, date_of_birth: MINOR_DOB, email: null }])) // getStudentById: student row
     .mockResolvedValueOnce(queryResult([])) // tenant settings
     .mockResolvedValueOnce(queryResult([])) // guardian counts
@@ -66,14 +69,13 @@ function mockCreateStudentSequence(studentId: string) {
 describe('student email optional for minors, required for adults', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('creates a minor student with no email', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    // No duplicate-email check runs since email is absent.
-    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings - no row, falls back to default
     mockCreateStudentSequence('student-1');
 
     const res = await request(app)
@@ -82,7 +84,7 @@ describe('student email optional for minors, required for adults', () => {
       .send(minorPayload());
 
     expect(res.status).toBe(201);
-    const insertCall = mockQuery.mock.calls.find(
+    const insertCall = mockClientQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
     );
     expect(insertCall).toBeDefined();
@@ -92,7 +94,6 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
     mockCreateStudentSequence('student-1');
 
     const res1 = await request(app)
@@ -101,7 +102,6 @@ describe('student email optional for minors, required for adults', () => {
       .send(minorPayload({ fullName: 'Sibling One' }));
     expect(res1.status).toBe(201);
 
-    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings
     mockCreateStudentSequence('student-2');
 
     const res2 = await request(app)
@@ -129,9 +129,11 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
-      .mockResolvedValueOnce(queryResult([{ id: 'existing-student' }])); // duplicate-email check finds a match
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (pre-transaction)
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'existing-student' }])) // duplicate-email check finds a match
+      .mockResolvedValueOnce(queryResult([])); // ROLLBACK
 
     const res = await request(app)
       .post('/api/v1/students')
@@ -145,9 +147,11 @@ describe('student email optional for minors, required for adults', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
-      .mockResolvedValueOnce(queryResult([{ id: 'existing-minor' }])); // duplicate-email check finds a match
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (pre-transaction)
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'existing-minor' }])) // duplicate-email check finds a match
+      .mockResolvedValueOnce(queryResult([])); // ROLLBACK
 
     const res = await request(app)
       .post('/api/v1/students')

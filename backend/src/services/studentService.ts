@@ -18,7 +18,6 @@ import { findExactGuardianMatch, getGuardianById } from './guardianService';
 import {
   getDisplayDriverTrainingEnrollmentsBatch,
   getEnrollmentsForStudent,
-  createEnrollment as createEnrollmentRecord,
   computePaymentSummary,
 } from './enrollmentService';
 
@@ -376,46 +375,62 @@ export const createStudent = async (
     learnerPermitExpiration?: Date;
     notes?: string;
   },
-  userId?: string
+  userId?: string,
+  // Every new student starts with exactly one enrollment. Defaults to the
+  // existing driver_training behavior (matches every current caller's
+  // expectation exactly - omit this and nothing changes); passing
+  // { programType: 'driver_education', deDeliveryMode } instead creates a
+  // driver_education enrollment as the student's first one and skips the
+  // driver_training auto-enrollment - it does NOT create both.
+  initialEnrollment: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online' } = { programType: 'driver_training' }
 ): Promise<Student> => {
   logger.info('Creating new student', {
     tenantId,
     fullName: data.fullName,
     email: data.email,
+    initialProgramType: initialEnrollment.programType,
   });
 
+  // Validate: At least one contact method required (student phone OR Parent/Guardian)
+  const hasStudentPhone = data.phone && data.phone.trim().length > 0;
+  const hasParentContact = data.emergencyContactPhone && data.emergencyContactPhone.trim().length > 0;
+
+  if (!hasStudentPhone && !hasParentContact) {
+    throw new AppError('At least one contact phone is required (Student Phone or Parent/Guardian)', 400);
+  }
+
+  // Validate: date of birth is required for new students (existing NULL
+  // rows from before this requirement remain valid - see computeStudentProgress's
+  // needsDateOfBirth fallback - but no new student may be created without one)
+  if (!data.dateOfBirth) {
+    throw new AppError('Date of birth is required', 400);
+  }
+
+  // Validate: email is required for adults (18+); optional for minors,
+  // who often have no email of their own and share a parent's contact.
+  // Can't be a DB CHECK - age changes daily.
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const age = calculateAge(data.dateOfBirth ?? null, timezone);
+  const isAdult = age !== null && age >= 18;
+  if (isAdult && (!data.email || data.email.trim().length === 0)) {
+    throw new AppError('Email is required for adult students (18+)', 400);
+  }
+
+  // Both branches insert the same columns via the same VALUES shape - kept
+  // as one literal INSERT (not two near-duplicates) since the only
+  // difference is which client executes it and what runs alongside it.
+  const client = await getClient();
   try {
-    // Validate: At least one contact method required (student phone OR Parent/Guardian)
-    const hasStudentPhone = data.phone && data.phone.trim().length > 0;
-    const hasParentContact = data.emergencyContactPhone && data.emergencyContactPhone.trim().length > 0;
+    await client.query('BEGIN');
 
-    if (!hasStudentPhone && !hasParentContact) {
-      throw new AppError('At least one contact phone is required (Student Phone or Parent/Guardian)', 400);
-    }
-
-    // Validate: date of birth is required for new students (existing NULL
-    // rows from before this requirement remain valid - see computeStudentProgress's
-    // needsDateOfBirth fallback - but no new student may be created without one)
-    if (!data.dateOfBirth) {
-      throw new AppError('Date of birth is required', 400);
-    }
-
-    // Validate: email is required for adults (18+); optional for minors,
-    // who often have no email of their own and share a parent's contact.
-    // Can't be a DB CHECK - age changes daily.
-    const tenantSettings = await getTenantSettings(tenantId);
-    const timezone = resolveTenantTimezone(tenantSettings?.timezone);
-    const age = calculateAge(data.dateOfBirth ?? null, timezone);
-    const isAdult = age !== null && age >= 18;
-    if (isAdult && (!data.email || data.email.trim().length === 0)) {
-      throw new AppError('Email is required for adult students (18+)', 400);
-    }
-
-    // Check if email already exists for this tenant (only when an email
-    // was actually provided - multiple students may share a null email,
-    // enforced by the partial unique index on (tenant_id, email))
+    // Duplicate-email check runs on the same client so it's serialized with
+    // this transaction's own commit (matches createStudentWithGuardian's
+    // identical TOCTOU-avoidance reasoning) - only when an email was
+    // actually provided (multiple students may share a null email, per the
+    // partial unique index on (tenant_id, email)).
     if (data.email) {
-      const existing = await query(
+      const existing = await client.query(
         'SELECT id FROM students WHERE email = $1 AND tenant_id = $2',
         [data.email, tenantId]
       );
@@ -429,7 +444,7 @@ export const createStudent = async (
       }
     }
 
-    const result = await query(
+    const result = await client.query(
       `INSERT INTO students (
         tenant_id, full_name, first_name, last_name, middle_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
@@ -478,19 +493,38 @@ export const createStudent = async (
 
     const newStudent = keysToCamel(result.rows[0]) as Student;
 
-    // Every new student starts with exactly one driver_training enrollment,
-    // matching Constraint A/D's invariant for existing (backfilled) students.
-    await createEnrollmentRecord(
-      newStudent.id,
-      tenantId,
-      {
-        programType: 'driver_training',
-        hoursRequired: data.hoursRequired,
-        licenseType: data.licenseType,
-        assignedInstructorId: data.assignedInstructorId,
-      },
-      userId
-    );
+    // Every new student starts with exactly one enrollment, on this same
+    // client/transaction - a failure here rolls back the student insert
+    // too (Constraint A: no student may exist without its enrollment).
+    // Mirrors createStudentWithGuardian's identical inline-INSERT
+    // approach rather than calling createEnrollmentRecord, which runs on
+    // the plain (non-transactional) pool client.
+    if (initialEnrollment.programType === 'driver_training') {
+      const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
+      const licenseType = data.licenseType ?? 'car';
+      await client.query(
+        `INSERT INTO enrollments (
+           tenant_id, student_id, program_type, hours_required, license_type, assigned_instructor_id, created_by, updated_by
+         ) VALUES ($1, $2, 'driver_training', $3, $4, $5, $6, $6)`,
+        [tenantId, newStudent.id, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO enrollments (
+           tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, created_by, updated_by
+         ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $6)`,
+        [
+          tenantId,
+          newStudent.id,
+          tenantSettings?.defaultHoursRequired ?? 6,
+          data.licenseType ?? 'car',
+          initialEnrollment.deDeliveryMode,
+          userId || null,
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
 
     logger.info('Successfully created student', {
       tenantId,
@@ -500,11 +534,14 @@ export const createStudent = async (
 
     return (await getStudentById(newStudent.id, tenantId)) as Student;
   } catch (error) {
+    await client.query('ROLLBACK');
     logger.error('Failed to create student', error as Error, {
       tenantId,
       email: data.email,
     });
     throw error;
+  } finally {
+    client.release();
   }
 };
 
@@ -515,6 +552,8 @@ export type CreateStudentWithGuardianEntry =
 export interface CreateStudentWithGuardianInput {
   student: Parameters<typeof createStudent>[1];
   guardians: CreateStudentWithGuardianEntry[]; // 1..N
+  // Same meaning and default as createStudent's own initialEnrollment param.
+  initialEnrollment?: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online' };
 }
 
 /**
@@ -543,11 +582,13 @@ export const createStudentWithGuardian = async (
   userId?: string
 ): Promise<{ student: Student; guardians: Array<{ guardian: Guardian; link: StudentGuardianLink }> }> => {
   const { student: data, guardians } = input;
+  const initialEnrollment = input.initialEnrollment ?? { programType: 'driver_training' as const };
 
   logger.info('Creating new student with guardians', {
     tenantId,
     fullName: data.fullName,
     guardianCount: guardians?.length,
+    initialProgramType: initialEnrollment.programType,
   });
 
   // --- Student validation (identical to createStudent, except the contact-
@@ -720,20 +761,27 @@ export const createStudentWithGuardian = async (
     );
     const newStudent = keysToCamel(studentResult.rows[0]) as Student;
 
-    // Initial driver_training enrollment, on the same client/transaction -
-    // a failure here rolls back the student insert too (Constraint A: no
-    // student may exist without its enrollment).
-    let hoursRequired = data.hoursRequired;
-    if (hoursRequired === undefined) {
-      hoursRequired = tenantSettings?.defaultHoursRequired ?? 6;
-    }
+    // Initial enrollment, on the same client/transaction - a failure here
+    // rolls back the student insert too (Constraint A: no student may
+    // exist without its enrollment). Branches exactly like createStudent's
+    // own initialEnrollment handling above.
+    const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
     const licenseType = data.licenseType ?? 'car';
-    await client.query(
-      `INSERT INTO enrollments (
-         tenant_id, student_id, program_type, hours_required, license_type, assigned_instructor_id, created_by, updated_by
-       ) VALUES ($1, $2, 'driver_training', $3, $4, $5, $6, $6)`,
-      [tenantId, newStudent.id, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
-    );
+    if (initialEnrollment.programType === 'driver_training') {
+      await client.query(
+        `INSERT INTO enrollments (
+           tenant_id, student_id, program_type, hours_required, license_type, assigned_instructor_id, created_by, updated_by
+         ) VALUES ($1, $2, 'driver_training', $3, $4, $5, $6, $6)`,
+        [tenantId, newStudent.id, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO enrollments (
+           tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, created_by, updated_by
+         ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $6)`,
+        [tenantId, newStudent.id, hoursRequired, licenseType, initialEnrollment.deDeliveryMode, userId || null]
+      );
+    }
 
     // Every guardian's insert-or-lookup and link INSERT runs on this same
     // client, inside this same transaction - a loop over one BEGIN/COMMIT,

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockGetClient, mockClientQuery, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
 const TENANT_ID = 'tenant-abc-123';
@@ -20,21 +20,24 @@ function signToken(userId: string, role = 'staff') {
 describe('emergency contact split first/last name fields', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('creates a student with split emergency contact first/last name fields', async () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (pre-transaction)
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, full_name: 'Minor Student', date_of_birth: '2015-01-01' }])
-      ) // INSERT INTO students
-      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // createEnrollment's student-existence check
-      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check
-      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
+      ) // INSERT INTO students (no email provided, so no duplicate-email check)
       .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training' }])) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2015-01-01' }])) // getStudentById: student row
       .mockResolvedValueOnce(queryResult([])) // tenant settings
       .mockResolvedValueOnce(queryResult([])) // guardian counts
@@ -57,7 +60,7 @@ describe('emergency contact split first/last name fields', () => {
       });
 
     expect(res.status).toBe(201);
-    const insertCall = mockQuery.mock.calls.find(
+    const insertCall = mockClientQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
     );
     expect(insertCall).toBeDefined();
@@ -96,13 +99,15 @@ describe('emergency contact split first/last name fields', () => {
     const { default: app } = await import('../app');
     const token = signToken('staff-1');
 
-    mockQuery
-      .mockResolvedValueOnce(queryResult([])) // getTenantSettings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // getTenantSettings (pre-transaction)
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2015-01-01' }])) // INSERT INTO students
-      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // createEnrollment's student-existence check
-      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getActiveDriverTrainingEnrollment pre-check
-      .mockResolvedValueOnce(queryResult([])) // createEnrollment's getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training' }])) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    mockQuery
       .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: '2015-01-01' }])) // getStudentById: student row
       .mockResolvedValueOnce(queryResult([])) // tenant settings
       .mockResolvedValueOnce(queryResult([])) // guardian counts
@@ -118,7 +123,7 @@ describe('emergency contact split first/last name fields', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ fullName: 'Test Student', dateOfBirth: '2015-01-01', phone: '555-0100' });
 
-    const insertCall = mockQuery.mock.calls.find(
+    const insertCall = mockClientQuery.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO students')
     );
     const [sql] = insertCall!;
