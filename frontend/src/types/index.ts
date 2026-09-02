@@ -612,6 +612,13 @@ export interface CreateStudentInput {
   lastContactedAt?: Date;
 
   notes?: string;
+
+  // The student's first enrollment. Omitted (or driver_training) matches
+  // today's default behavior exactly. driver_education creates that
+  // enrollment instead of the automatic driver_training one - never both.
+  initialEnrollment?:
+    | { programType: 'driver_training' }
+    | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online' };
 }
 
 export type CreateStudentWithGuardianEntry =

@@ -13,6 +13,7 @@ vi.mock('@/api', async () => {
       ...actual.classroomApi,
       searchRosterAddCandidates: vi.fn(),
       joinCohort: vi.fn(),
+      getCohorts: vi.fn(),
     },
   };
 });
@@ -159,13 +160,22 @@ describe('AddStudentPanel - Existing student tab', () => {
 });
 
 describe('AddStudentPanel - New student tab', () => {
-  it('opens the create-student modal pre-set to enroll in this cohort', async () => {
+  it('opens the create-student modal pre-set to Driver Education / Classroom / this cohort', async () => {
     (classroomApi.searchRosterAddCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [cohort({ id: 'cohort-1', name: 'Fall Weekend Class', capacity: 20, enrolledCount: 5 })],
+    });
 
     renderPanel();
     fireEvent.click(screen.getByRole('button', { name: /new student/i }));
 
     expect(await screen.findByText(/fill in the details below/i)).toBeInTheDocument();
+    // Driver Education is pre-selected (not the default Behind-the-Wheel).
+    expect(screen.getByRole('button', { name: 'Driver Education' })).toHaveAttribute('aria-pressed', 'true');
+    // The cohort this panel was opened from is pre-selected in the picker.
+    await screen.findByText('Fall Weekend Class');
+    // The submit button reflects both actions in one step.
+    expect(await screen.findByText(/create & enroll in fall weekend class/i)).toBeInTheDocument();
   });
 
   it('blocks the New student tab when the cohort is at capacity', async () => {

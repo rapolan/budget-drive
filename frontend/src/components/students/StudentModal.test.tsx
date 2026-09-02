@@ -229,6 +229,165 @@ describe('StudentModal - create success offers an optional "Book Lesson" action'
   });
 });
 
+describe('StudentModal - program toggle at creation', () => {
+  const createdStudent = {
+    id: 'student-new-2',
+    tenantId: 'tenant-1',
+    fullName: 'Jane Doe',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    email: 'jane.doe@example.com',
+    phone: '5550100',
+    status: 'active',
+    enrollmentDate: new Date('2026-01-01'),
+    totalHoursCompleted: 0,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  } as Student;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: createdStudent });
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'cohort-1',
+          tenantId: 'tenant-1',
+          name: 'Fall Weekend Class',
+          teacherInstructorId: 'instructor-1',
+          capacity: 20,
+          status: 'scheduled',
+          createdBy: null,
+          createdAt: '2026-01-01',
+          updatedAt: '2026-01-01',
+          enrolledCount: 5,
+          sessions: [
+            { id: 's1', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 1, sessionDate: '2026-10-03', startTime: '08:00', endTime: '14:00' },
+            { id: 's2', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 2, sessionDate: '2026-10-04', startTime: '08:00', endTime: '14:00' },
+            { id: 's3', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 3, sessionDate: '2026-10-10', startTime: '08:00', endTime: '14:00' },
+            { id: 's4', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 4, sessionDate: '2026-10-11', startTime: '08:00', endTime: '14:00' },
+          ],
+        },
+      ],
+    });
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'de-enrollment-1', programType: 'driver_education' } as Enrollment],
+    });
+  });
+
+  function fillBasicFields() {
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Jane' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Doe' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], {
+      target: { value: 'jane.doe@example.com' },
+    });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
+  }
+
+  it('defaults to Behind-the-Wheel with no extra fields, matching current behavior', async () => {
+    renderModal(null, {});
+
+    expect(screen.getByRole('button', { name: 'Behind-the-Wheel' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText(/driver education details/i)).not.toBeInTheDocument();
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
+    const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_training' });
+    expect(classroomApi.joinCohort).not.toHaveBeenCalled();
+  });
+
+  it('switching to Driver Education reveals delivery mode, defaulting to Classroom with an inline cohort picker', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+
+    expect(await screen.findByText(/driver education details/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'classroom' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByText('Fall Weekend Class')).toBeInTheDocument();
+    expect(screen.getByText('5/20')).toBeInTheDocument();
+  });
+
+  it('Online delivery shows no cohort picker and creates an online driver_education enrollment', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'online' }));
+
+    expect(screen.queryByText('Fall Weekend Class')).not.toBeInTheDocument();
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
+    const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'online' });
+    expect(classroomApi.joinCohort).not.toHaveBeenCalled();
+  });
+
+  it('picking a cohort under Classroom joins it via joinCohort after creation, and the submit button reflects both actions', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    fireEvent.click(await screen.findByText('Fall Weekend Class'));
+
+    expect(await screen.findByText(/create & enroll in fall weekend class/i)).toBeInTheDocument();
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
+    const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'classroom' });
+
+    await waitFor(() => expect(classroomApi.joinCohort).toHaveBeenCalledWith('cohort-1', 'de-enrollment-1'));
+  });
+
+  it('Classroom with no cohort picked creates the student without joining any cohort - "assign later" stays valid', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    await screen.findByText('Fall Weekend Class'); // Classroom picker visible, nothing selected
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
+    const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'classroom' });
+    expect(classroomApi.joinCohort).not.toHaveBeenCalled();
+  });
+
+  it('a full cohort is disabled in the picker and cannot be selected', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'cohort-full',
+          tenantId: 'tenant-1',
+          name: 'Full Class',
+          teacherInstructorId: null,
+          capacity: 5,
+          status: 'scheduled',
+          createdBy: null,
+          createdAt: '2026-01-01',
+          updatedAt: '2026-01-01',
+          enrolledCount: 5,
+          sessions: [],
+        },
+      ],
+    });
+
+    renderModal(null, {});
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+
+    const fullCohortButton = await screen.findByRole('button', { name: /full class/i });
+    expect(fullCohortButton).toBeDisabled();
+  });
+});
+
 // Create-mode auto-scroll: as each section is completed, the next one
 // scrolls into view instead of requiring the user to scroll manually.
 // scrollIntoView/matchMedia are polyfilled globally in src/test/setup.ts

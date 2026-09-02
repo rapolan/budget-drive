@@ -14,6 +14,7 @@ import { DuplicateGuardianConfirm } from '@/components/guardians/DuplicateGuardi
 import { ModalShell } from '@/components/common/ModalShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
+import { formatShortDate } from '@/utils/timeFormat';
 import { calculateAge } from '@/utils/age';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
@@ -86,13 +87,11 @@ interface StudentModalProps {
   // decided by lesson history alone, not by which button was clicked.
   onBookLesson?: (student: Student, mostRecentLesson: Lesson | null) => void;
   // Create-mode shortcut for the Classroom roster's "Add student" panel's
-  // "New student" tab - when set, the post-creation success block offers
-  // an explicit "Enroll in [cohortName]" action (never automatic - joining
-  // a cohort is always a deliberate, separate action from creation) that
-  // creates a driver_education/classroom enrollment for the new student
-  // and joins it to this cohort via the same joinCohort call every other
-  // entry point uses.
-  enrollInCohort?: { cohortId: string; cohortName: string };
+  // "New student" tab - pre-sets the program toggle to Driver Education /
+  // Classroom / this cohort, so the submit button itself reads "Create &
+  // enroll in [cohortName]" (one action, not a separate post-creation
+  // step). Only meaningful when student is null (create mode).
+  initialEnrollmentPreset?: { cohortId: string; cohortName: string };
   prefillFromGuardian?: GuardianPrefill;
   // Opens that guardian's own detail view (Students.tsx's guardian modal) -
   // only meaningful in edit mode, where GuardianSubPanel's rows are real
@@ -106,7 +105,7 @@ interface StudentModalProps {
   initialTab?: 'details' | 'progress' | 'enrollments' | 'history';
 }
 
-export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, enrollInCohort, prefillFromGuardian, onViewGuardian, initialTab }) => {
+export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, initialEnrollmentPreset, prefillFromGuardian, onViewGuardian, initialTab }) => {
   const queryClient = useQueryClient();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
@@ -265,6 +264,28 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Calculate student age from formData
   const studentAge = calculateAge(formData.dateOfBirth || '');
   const isAdult = studentAge !== null && studentAge >= 18;
+
+  // --- Program toggle (create mode only) - sets up the student's FIRST
+  // enrollment in the same step as creation. Behind-the-Wheel (default)
+  // matches today's behavior exactly (no fields, no change). Driver
+  // Education reveals delivery mode; Classroom additionally reveals an
+  // inline cohort picker (optional - "assign later" stays valid). The
+  // DE-before-BTW prerequisite is operational knowledge the admin handles
+  // on the call, never enforced here.
+  const [initialProgramType, setInitialProgramType] = useState<'driver_training' | 'driver_education'>(
+    initialEnrollmentPreset ? 'driver_education' : 'driver_training'
+  );
+  const [initialDeliveryMode, setInitialDeliveryMode] = useState<'classroom' | 'online' | null>(
+    initialEnrollmentPreset ? 'classroom' : null
+  );
+  const [initialCohortId, setInitialCohortId] = useState<string>(initialEnrollmentPreset?.cohortId ?? '');
+
+  const { data: joinableCohortsForCreateData } = useQuery({
+    queryKey: ['classroom', 'cohorts'],
+    queryFn: () => classroomApi.getCohorts(),
+    enabled: !isEditing && initialProgramType === 'driver_education' && initialDeliveryMode === 'classroom',
+  });
+  const joinableCohortsForCreate = joinableCohortsForCreateData?.data?.filter((c) => c.status !== 'cancelled') ?? [];
 
   // --- Guardian selection ---
   // Constraint C: selecting a candidate or "create new" only sets local
@@ -520,29 +541,28 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
-  // The "New student" tab's shortcut, reached from enrollInCohort - creates
-  // a driver_education/classroom enrollment for the just-created student
-  // and joins it to the pre-set cohort, using the exact same two-call
-  // sequence createEnrollmentMutation above uses (create enrollment, then
-  // a separate explicit joinCohort call) - one enrollment-then-join path,
-  // not a second implementation.
-  const enrollInCohortMutation = useMutation({
-    mutationFn: async (studentId: string) => {
-      const response = await enrollmentsApi.create(studentId, {
-        programType: 'driver_education',
-        deDeliveryMode: 'classroom',
-      });
-      if (response.data && enrollInCohort) {
-        await classroomApi.joinCohort(enrollInCohort.cohortId, response.data.id);
+  // The cohort-join step of the creation-time toggle: the student (with
+  // its driver_education/classroom enrollment) already exists by the time
+  // this runs - joining is a second, explicit step against that
+  // enrollment's own id, via the identical race-safe joinCohort every
+  // other entry point uses (the roster's Existing-student add, the
+  // enrollment sub-panel's "add later" flow). Looks up the new student's
+  // enrollments rather than trusting either create response to already
+  // carry the enrollment id, since createStudentWithGuardian's response
+  // shape doesn't include it (createStudent's does, via getStudentById,
+  // but a single lookup here keeps both create paths identical).
+  const joinCohortAfterCreateMutation = useMutation({
+    mutationFn: async ({ studentId, cohortId }: { studentId: string; cohortId: string }) => {
+      const enrollmentsResponse = await enrollmentsApi.getForStudent(studentId);
+      const deEnrollment = enrollmentsResponse.data?.find((e) => e.programType === 'driver_education');
+      if (!deEnrollment) {
+        throw new Error('driver_education enrollment not found for the newly created student');
       }
-      return response;
+      await classroomApi.joinCohort(cohortId, deEnrollment.id);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
+    onSuccess: (_data, { cohortId }) => {
       queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
-      if (enrollInCohort) {
-        queryClient.invalidateQueries({ queryKey: ['classroom', 'cohort-roster', enrollInCohort.cohortId] });
-      }
+      queryClient.invalidateQueries({ queryKey: ['classroom', 'cohort-roster', cohortId] });
     },
   });
 
@@ -863,8 +883,8 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // staged (Constraint A), never N separate calls. Any guardian still sitting
   // in the picker (not yet staged) is ignored - the user must click
   // "Add Guardian" to stage it first, same as any other staged entry.
-  const submitWithStagedGuardians = async (submitData: CreateStudentInput) => {
-    await createWithGuardianMutation.mutateAsync({
+  const submitWithStagedGuardians = async (submitData: CreateStudentInput): Promise<string | undefined> => {
+    const response = await createWithGuardianMutation.mutateAsync({
       student: submitData,
       guardians: stagedGuardians.map(g =>
         g.mode === 'existing'
@@ -880,6 +900,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
             }
       ),
     });
+    return response.data?.student.id;
   };
 
   // Any failure in the exact-match/create/link sequence below (429 from the
@@ -1030,17 +1051,33 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       .join(' ')
       .trim();
 
-    const submitData = {
+    const submitData: CreateStudentInput = {
       ...formData,
       fullName: generatedFullName,
+      initialEnrollment: isEditing
+        ? undefined
+        : initialProgramType === 'driver_education'
+        ? { programType: 'driver_education', deDeliveryMode: initialDeliveryMode ?? 'classroom' }
+        : { programType: 'driver_training' },
     };
 
+    let newStudentId: string | undefined;
     if (!isEditing && stagedGuardians.length > 0) {
-      await submitWithStagedGuardians(submitData);
+      newStudentId = await submitWithStagedGuardians(submitData);
     } else if (isEditing) {
       await updateMutation.mutateAsync(submitData);
     } else {
-      await createMutation.mutateAsync(submitData);
+      const response = await createMutation.mutateAsync(submitData);
+      newStudentId = response.data?.id;
+    }
+
+    // Cohort join is a second, explicit step against the just-created
+    // student's driver_education enrollment - never bundled into the
+    // creation request itself (matches every other joinCohort entry
+    // point). Only fires when Classroom delivery AND a cohort were both
+    // selected - the cohort is optional ("assign later" stays valid).
+    if (!isEditing && newStudentId && initialProgramType === 'driver_education' && initialDeliveryMode === 'classroom' && initialCohortId) {
+      await joinCohortAfterCreateMutation.mutateAsync({ studentId: newStudentId, cohortId: initialCohortId });
     }
   };
 
@@ -1354,6 +1391,131 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
           {activeTab === 'details' && !showDuplicateConfirm && (
             <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off" data-lpignore="true" data-form-type="other">
+
+              {/* Program toggle - create mode only. Sets up the student's
+                  FIRST enrollment in this same step; the enrollment
+                  sub-panel's "add another enrollment later" stays
+                  available for the other program afterward. */}
+              {!isEditing && (
+                <div className="space-y-3">
+                  <div>
+                    <span id="initial-program-type-label" className="block text-sm font-semibold text-tx-primary uppercase tracking-wide mb-1.5">
+                      Enrolling in
+                    </span>
+                    <div role="group" aria-labelledby="initial-program-type-label" className="flex gap-2">
+                      {([
+                        { value: 'driver_training' as const, label: 'Behind-the-Wheel' },
+                        { value: 'driver_education' as const, label: 'Driver Education' },
+                      ]).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={initialProgramType === option.value}
+                          onClick={() => {
+                            setInitialProgramType(option.value);
+                            if (option.value === 'driver_training') {
+                              setInitialDeliveryMode(null);
+                              setInitialCohortId('');
+                            } else if (!initialDeliveryMode) {
+                              setInitialDeliveryMode('classroom');
+                            }
+                          }}
+                          className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                            initialProgramType === option.value
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {initialProgramType === 'driver_education' && (
+                    <div className="bg-surface2 rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-medium text-tx-primary">Driver Education details</p>
+
+                      <div>
+                        <span id="initial-delivery-mode-label" className="block text-xs font-medium text-tx-secondary mb-1">Delivery</span>
+                        <div role="group" aria-labelledby="initial-delivery-mode-label" className="flex gap-2">
+                          {(['classroom', 'online'] as const).map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              aria-pressed={initialDeliveryMode === mode}
+                              onClick={() => {
+                                setInitialDeliveryMode(mode);
+                                setInitialCohortId('');
+                              }}
+                              className={`px-3 py-1.5 text-xs rounded-full border transition-colors capitalize ${
+                                initialDeliveryMode === mode
+                                  ? 'bg-primary text-white border-primary'
+                                  : 'bg-surface text-tx-secondary border-edge-strong hover:border-blue-400'
+                              }`}
+                            >
+                              {mode}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {initialDeliveryMode === 'classroom' && (
+                        <div>
+                          <label htmlFor="initial-cohort-picker" className="block text-xs font-medium text-tx-secondary mb-1">
+                            Class (optional - assign later if undecided)
+                          </label>
+                          {joinableCohortsForCreate.length === 0 ? (
+                            <p className="text-xs text-tx-muted italic">
+                              No upcoming classes yet. Create one from the Classroom page, or leave unassigned for now.
+                            </p>
+                          ) : (
+                            <div id="initial-cohort-picker" className="space-y-1.5">
+                              {joinableCohortsForCreate.map((c) => {
+                                const remaining = c.capacity - c.enrolledCount;
+                                const isFull = remaining <= 0;
+                                const remainingColorClass =
+                                  remaining <= 0
+                                    ? 'text-status-danger-text'
+                                    : remaining <= 2
+                                    ? 'text-status-warning-text'
+                                    : 'text-status-success-text';
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    disabled={isFull}
+                                    onClick={() => setInitialCohortId(initialCohortId === c.id ? '' : c.id)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      initialCohortId === c.id
+                                        ? 'border-primary bg-status-info-bg'
+                                        : 'border-edge-strong bg-surface hover:bg-surface2'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-medium text-tx-primary">{c.name}</span>
+                                      <span className={`flex items-center gap-1 text-xs ${remainingColorClass}`}>
+                                        <Users className="h-3 w-3" />
+                                        {isFull ? 'Full' : `${c.enrolledCount}/${c.capacity}`}
+                                      </span>
+                                    </div>
+                                    {c.sessions.length > 0 && (
+                                      <p className="text-xs text-tx-muted mt-0.5">
+                                        {formatShortDate(c.sessions[0].sessionDate)} - {formatShortDate(c.sessions[c.sessions.length - 1].sessionDate)}
+                                        {c.teacherInstructorId ? '' : ' - no teacher assigned yet'}
+                                      </p>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Section 1: Basic Info */}
               <div className="space-y-4">
@@ -2139,13 +2301,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </button>
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending || !formData.firstName || !formData.lastName || !hasRequiredContact || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
+                    disabled={createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending || joinCohortAfterCreateMutation.isPending || !formData.firstName || !formData.lastName || !hasRequiredContact || (isAdult && !formData.email) || (!isEditing && !formData.dateOfBirth)}
                     className="px-6 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:bg-surface3 disabled:text-tx-muted disabled:cursor-not-allowed transition-colors"
                   >
-                    {createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending
+                    {createMutation.isPending || createWithGuardianMutation.isPending || updateMutation.isPending || joinCohortAfterCreateMutation.isPending
                       ? 'Saving...'
                       : isEditing
                       ? 'Save Changes'
+                      : !isEditing && initialProgramType === 'driver_education' && initialDeliveryMode === 'classroom' && initialCohortId
+                      ? `Create & enroll in ${joinableCohortsForCreate.find((c) => c.id === initialCohortId)?.name ?? 'class'}`
+                      : !isEditing && initialProgramType === 'driver_education'
+                      ? 'Create & enroll'
                       : 'Create Student'}
                   </button>
                 </div>
@@ -2164,20 +2330,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     </div>
                   </div>
-                  {enrollInCohort && enrollInCohortMutation.isSuccess && (
-                    <div className="bg-status-success-bg border border-status-success-border rounded-xl p-4 mb-4 flex items-center gap-3">
-                      <CheckCircle className="h-5 w-5 text-status-success-text flex-shrink-0" />
-                      <p className="text-status-success-text text-sm">
-                        Enrolled in {enrollInCohort.cohortName}
-                      </p>
-                    </div>
-                  )}
-                  {enrollInCohort && enrollInCohortMutation.isError && (
+                  {joinCohortAfterCreateMutation.isError && (
                     <div className="bg-status-danger-bg rounded-lg px-4 py-3 flex items-start gap-2 mb-4">
                       <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
                       <p className="text-sm text-status-danger-text">
-                        {(enrollInCohortMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
-                          || 'Could not enroll this student in the cohort.'}
+                        {(joinCohortAfterCreateMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                          || 'The student was created, but could not be enrolled in the cohort - assign them from the Classroom page instead.'}
                       </p>
                     </div>
                   )}
@@ -2200,17 +2358,6 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       >
                         <Plus className="h-4 w-4" />
                         Book Lesson
-                      </button>
-                    )}
-                    {enrollInCohort && !enrollInCohortMutation.isSuccess && (
-                      <button
-                        type="button"
-                        onClick={() => enrollInCohortMutation.mutate(createdStudent.id)}
-                        disabled={enrollInCohortMutation.isPending}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary disabled:opacity-50 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                        {enrollInCohortMutation.isPending ? 'Enrolling...' : `Enroll in ${enrollInCohort.cohortName}`}
                       </button>
                     )}
                   </div>

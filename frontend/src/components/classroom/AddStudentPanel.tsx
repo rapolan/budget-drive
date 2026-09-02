@@ -238,7 +238,7 @@ const NewStudentTab: React.FC<TabProps> = ({ cohort, isFull, onClose, onAdded })
   return (
     <StudentModal
       student={null}
-      enrollInCohort={{ cohortId: cohort.id, cohortName: cohort.name }}
+      initialEnrollmentPreset={{ cohortId: cohort.id, cohortName: cohort.name }}
       onClose={() => {
         setModalOpen(false);
         onAdded();
