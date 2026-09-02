@@ -89,17 +89,19 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
 
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{
-        id: 'lesson-1',
-        tenant_id: TENANT_ID,
-        student_id: STUDENT_ID,
-        instructor_id: INSTRUCTOR_ID,
-        vehicle_id: 'car-B',
-        cost: 0,
-        status: 'scheduled',
-      }])
-    ); // insert
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'lesson-1',
+          tenant_id: TENANT_ID,
+          student_id: STUDENT_ID,
+          instructor_id: INSTRUCTOR_ID,
+          vehicle_id: 'car-B',
+          cost: 0,
+          status: 'scheduled',
+        }])
+      ); // insert
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID,
@@ -172,17 +174,19 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
 
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{
-        id: 'lesson-1',
-        tenant_id: TENANT_ID,
-        student_id: STUDENT_ID,
-        instructor_id: INSTRUCTOR_ID,
-        vehicle_id: null,
-        cost: 0,
-        status: 'scheduled',
-      }])
-    ); // insert
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'lesson-1',
+          tenant_id: TENANT_ID,
+          student_id: STUDENT_ID,
+          instructor_id: INSTRUCTOR_ID,
+          vehicle_id: null,
+          cost: 0,
+          status: 'scheduled',
+        }])
+      ); // insert
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID,
@@ -223,17 +227,19 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
 
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{
-        id: 'lesson-1',
-        tenant_id: TENANT_ID,
-        student_id: STUDENT_ID,
-        instructor_id: INSTRUCTOR_ID,
-        vehicle_id: 'vehicle-explicit',
-        cost: 0,
-        status: 'scheduled',
-      }])
-    ); // insert
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'lesson-1',
+          tenant_id: TENANT_ID,
+          student_id: STUDENT_ID,
+          instructor_id: INSTRUCTOR_ID,
+          vehicle_id: 'vehicle-explicit',
+          cost: 0,
+          status: 'scheduled',
+        }])
+      ); // insert
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID,

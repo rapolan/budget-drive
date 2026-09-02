@@ -556,6 +556,15 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
                 className="w-full px-4 py-3 rounded-lg border border-edge focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                 placeholder="50.00"
               />
+              {/* Set at booking time when the student had a completed
+                  internal driver_education enrollment - shown here for
+                  auditability, not editable (it reflects what was applied
+                  when the lesson was created, not a live recalculation). */}
+              {lesson?.deDiscountApplied != null && Number(lesson.deDiscountApplied) > 0 && (
+                <p className="text-xs text-tx-muted mt-1">
+                  ${Number(lesson.deDiscountApplied).toFixed(2)} driver education discount applied at booking
+                </p>
+              )}
             </div>
           </div>
 

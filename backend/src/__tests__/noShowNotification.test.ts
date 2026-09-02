@@ -79,17 +79,19 @@ describe('no-show notification creation', () => {
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
 
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{
-        id: LESSON_ID,
-        tenant_id: TENANT_ID,
-        student_id: STUDENT_ID,
-        instructor_id: INSTRUCTOR_ID,
-        vehicle_id: 'vehicle-explicit',
-        cost: 0,
-        status: 'scheduled',
-      }])
-    ); // insert lesson
+    mockQuery
+      .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: LESSON_ID,
+          tenant_id: TENANT_ID,
+          student_id: STUDENT_ID,
+          instructor_id: INSTRUCTOR_ID,
+          vehicle_id: 'vehicle-explicit',
+          cost: 0,
+          status: 'scheduled',
+        }])
+      ); // insert lesson
 
     mockQuery.mockResolvedValueOnce(queryResult([])); // dismissal UPDATE
 

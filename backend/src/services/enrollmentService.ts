@@ -243,6 +243,29 @@ export const getActiveDriverTrainingEnrollmentsBatch = async (
 };
 
 /**
+ * Whether this student has a COMPLETED driver_education enrollment
+ * recorded in THIS system - the BTW-lesson discount eligibility check
+ * (Phase 3). "Internal" is automatic here, not a separate flag to check:
+ * an externally-completed DE (driver_training's own external_de_completed
+ * column) never creates a driver_education enrollment row at all, so it's
+ * structurally excluded from this query - there is nothing to check.
+ * Delivery mode (classroom vs online) doesn't matter for eligibility,
+ * only that it was completed here.
+ */
+export const hasCompletedInternalDriverEducation = async (
+  studentId: string,
+  tenantId: string
+): Promise<boolean> => {
+  const result = await query(
+    `SELECT 1 FROM enrollments
+     WHERE student_id = $1 AND tenant_id = $2 AND program_type = 'driver_education' AND completed = true
+     LIMIT 1`,
+    [studentId, tenantId]
+  );
+  return result.rows.length > 0;
+};
+
+/**
  * Batch form of "the driver_training enrollment that should drive this
  * student's DISPLAY status/progress" - deliberately distinct from
  * getActiveDriverTrainingEnrollmentsBatch above, which is write-path only

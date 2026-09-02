@@ -18,7 +18,7 @@ import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import * as notificationService from './notificationService';
 import * as feeFlagService from './feeFlagService';
-import { getActiveDriverTrainingEnrollment } from './enrollmentService';
+import { getActiveDriverTrainingEnrollment, hasCompletedInternalDriverEducation } from './enrollmentService';
 import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 
 const logger = createLogger('LessonService');
@@ -448,14 +448,37 @@ export const createLesson = async (
       throw new AppError('Scheduling conflict: ' + conflicts.map((c: any) => c.message).join('; '), 409, conflicts);
     }
 
-    logger.debug('Inserting lesson into database', { tenantId });
+    // BTW discount: authoritative, not advisory - recomputed and applied
+    // server-side against whatever cost the client sent (the booking
+    // wizard's defaultLessonCost is only ever a UI prefill, never
+    // enforced - see enrollmentService.ts's computePaymentSummary comment).
+    // "Internal" DE is structural (see hasCompletedInternalDriverEducation)
+    // - an externally-completed DE never creates a driver_education
+    // enrollment row, so it's automatically excluded, no flag to check.
+    // Deliberately checked here, right before the INSERT, rather than
+    // earlier alongside the other validations - every early-exit path
+    // above (student/instructor/vehicle not found, scheduling conflict)
+    // must stay unaffected by this feature.
+    let deDiscountApplied: number | null = null;
+    const requestedCost = data.cost || 0;
+    const hasInternalDe = await hasCompletedInternalDriverEducation(data.studentId, tenantId);
+    if (hasInternalDe) {
+      const tenantSettings = await getTenantSettings(tenantId);
+      const discountAmount = Number(tenantSettings?.deDiscountAmount) || 0;
+      if (discountAmount > 0) {
+        deDiscountApplied = Math.min(discountAmount, requestedCost);
+      }
+    }
+    const finalCost = deDiscountApplied ? requestedCost - deDiscountApplied : requestedCost;
+
+    logger.debug('Inserting lesson into database', { tenantId, deDiscountApplied });
     const result = await query(
       `INSERT INTO lessons (
         tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time,
-        duration, lesson_number, lesson_type, cost, status, pickup_address, notes,
+        duration, lesson_number, lesson_type, cost, de_discount_applied, status, pickup_address, notes,
         created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'scheduled', $12, $13, $14, $14)
-      RETURNING *, $15 AS student_id`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled', $13, $14, $15, $15)
+      RETURNING *, $16 AS student_id`,
       [
         tenantId,
         activeEnrollment.id,
@@ -467,7 +490,8 @@ export const createLesson = async (
         duration,
         data.lessonNumber || null,
         data.lessonType || 'behind_wheel',
-        data.cost || 0,
+        finalCost,
+        deDiscountApplied,
         data.pickupAddress || null,
         data.notes || null,
         userId || null,
