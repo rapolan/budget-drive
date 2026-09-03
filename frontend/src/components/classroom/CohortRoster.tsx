@@ -7,6 +7,13 @@ import { Button, LoadingSpinner } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { MakeUpStudentPicker } from './MakeUpStudentPicker';
 import { AddStudentPanel } from './AddStudentPanel';
+import { StudentModal } from '@/components/students/StudentModal';
+
+// Which "add a student to this cohort" surface is active - never more than
+// one at a time, and never nested inside another (StudentModal owns its
+// own full-size ModalShell, so it must be a sibling of AddStudentPanel's
+// ModalShell, not a child rendered inside it).
+type AddStudentMode = 'closed' | 'panel' | 'new-student';
 
 interface CohortRosterProps {
   cohort: DeCohort;
@@ -24,7 +31,7 @@ interface CohortRosterProps {
 export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpdated }) => {
   const queryClient = useQueryClient();
   const [addingMakeUpForSession, setAddingMakeUpForSession] = React.useState<string | null>(null);
-  const [isAddingStudent, setIsAddingStudent] = React.useState(false);
+  const [addStudentMode, setAddStudentMode] = React.useState<AddStudentMode>('closed');
 
   const { data, isLoading } = useQuery({
     queryKey: ['classroom', 'cohort-roster', cohort.id],
@@ -53,17 +60,29 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
           <h2 className="text-sm font-semibold text-tx-primary">{cohort.name}</h2>
           <p className="text-xs text-tx-muted mt-1">{cohort.enrolledCount}/{cohort.capacity} enrolled</p>
         </div>
-        <Button size="sm" onClick={() => setIsAddingStudent(true)}>
+        <Button size="sm" onClick={() => setAddStudentMode('panel')}>
           <UserPlus className="h-4 w-4" />
           Add student
         </Button>
       </div>
 
-      {isAddingStudent && (
+      {addStudentMode === 'panel' && (
         <AddStudentPanel
           cohort={cohort}
-          onClose={() => setIsAddingStudent(false)}
+          onClose={() => setAddStudentMode('closed')}
           onAdded={invalidateRoster}
+          onSwitchToNewStudent={() => setAddStudentMode('new-student')}
+        />
+      )}
+
+      {addStudentMode === 'new-student' && (
+        <StudentModal
+          student={null}
+          initialEnrollmentPreset={{ cohortId: cohort.id, cohortName: cohort.name }}
+          onClose={() => {
+            setAddStudentMode('closed');
+            invalidateRoster();
+          }}
         />
       )}
 

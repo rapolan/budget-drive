@@ -13,7 +13,6 @@ vi.mock('@/api', async () => {
       ...actual.classroomApi,
       searchRosterAddCandidates: vi.fn(),
       joinCohort: vi.fn(),
-      getCohorts: vi.fn(),
     },
   };
 });
@@ -66,12 +65,18 @@ function renderPanel(cohortOverrides: Partial<DeCohort> = {}) {
   });
   const onClose = vi.fn();
   const onAdded = vi.fn();
+  const onSwitchToNewStudent = vi.fn();
   render(
     <QueryClientProvider client={queryClient}>
-      <AddStudentPanel cohort={cohort(cohortOverrides)} onClose={onClose} onAdded={onAdded} />
+      <AddStudentPanel
+        cohort={cohort(cohortOverrides)}
+        onClose={onClose}
+        onAdded={onAdded}
+        onSwitchToNewStudent={onSwitchToNewStudent}
+      />
     </QueryClientProvider>
   );
-  return { onClose, onAdded };
+  return { onClose, onAdded, onSwitchToNewStudent };
 }
 
 beforeEach(() => {
@@ -159,30 +164,29 @@ describe('AddStudentPanel - Existing student tab', () => {
   });
 });
 
-describe('AddStudentPanel - New student tab', () => {
-  it('opens the create-student modal pre-set to Driver Education / Classroom / this cohort', async () => {
-    (classroomApi.searchRosterAddCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
-    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [cohort({ id: 'cohort-1', name: 'Fall Weekend Class', capacity: 20, enrolledCount: 5 })],
-    });
+// AddStudentPanel itself no longer renders StudentModal (that would nest
+// one ModalShell inside another, clamping the full create form to this
+// panel's smaller max-w-lg width - see CohortRoster.tsx). Clicking "New
+// student" here only hands off to the caller, which is responsible for
+// closing this panel and opening StudentModal as a sibling at its own
+// full size - covered by CohortRoster's own tests (Classroom.test.tsx).
+describe('AddStudentPanel - New student tab hand-off', () => {
+  it('calls onSwitchToNewStudent instead of rendering the create form itself', async () => {
+    const { onSwitchToNewStudent } = renderPanel();
 
-    renderPanel();
     fireEvent.click(screen.getByRole('button', { name: /new student/i }));
 
-    expect(await screen.findByText(/fill in the details below/i)).toBeInTheDocument();
-    // Driver Education is pre-selected (not the default Behind-the-Wheel).
-    expect(screen.getByRole('button', { name: 'Driver Education' })).toHaveAttribute('aria-pressed', 'true');
-    // The cohort this panel was opened from is pre-selected in the picker.
-    await screen.findByText('Fall Weekend Class');
-    // The submit button reflects both actions in one step.
-    expect(await screen.findByText(/create & enroll in fall weekend class/i)).toBeInTheDocument();
+    expect(onSwitchToNewStudent).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/fill in the details below/i)).not.toBeInTheDocument();
   });
 
-  it('blocks the New student tab when the cohort is at capacity', async () => {
-    renderPanel({ capacity: 5, enrolledCount: 5 });
-    fireEvent.click(screen.getByRole('button', { name: /new student/i }));
+  it('disables the New student tab when the cohort is at capacity', async () => {
+    const { onSwitchToNewStudent } = renderPanel({ capacity: 5, enrolledCount: 5 });
 
-    expect(await screen.findByText(/new students can't be enrolled here/i)).toBeInTheDocument();
-    expect(screen.queryByText(/fill in the details below/i)).not.toBeInTheDocument();
+    const newStudentButton = screen.getByRole('button', { name: /new student/i });
+    expect(newStudentButton).toBeDisabled();
+
+    fireEvent.click(newStudentButton);
+    expect(onSwitchToNewStudent).not.toHaveBeenCalled();
   });
 });

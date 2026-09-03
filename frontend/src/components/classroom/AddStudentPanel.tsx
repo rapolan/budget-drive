@@ -4,27 +4,33 @@ import { X, UserPlus } from 'lucide-react';
 import { classroomApi } from '@/api';
 import type { DeCohort, RosterAddCandidate } from '@/api/classroom';
 import { ModalShell, LoadingSpinner } from '@/components/common';
-import { StudentModal } from '@/components/students/StudentModal';
 import { useDebounce } from '@/hooks/useDebounce';
 
 interface AddStudentPanelProps {
   cohort: DeCohort;
   onClose: () => void;
   onAdded: () => void;
+  // Switching to the "New student" tab hands off to the caller instead of
+  // rendering StudentModal in here - StudentModal has its own ModalShell
+  // (max-w-2xl, sized for the full create form), and nesting it inside
+  // this panel's own smaller ModalShell (max-w-lg, sized for the search
+  // picker) clamped the create form to the picker's width. Exactly one
+  // ModalShell may be mounted for the create form, so the caller (which
+  // owns this panel's mount point) closes this panel and opens
+  // StudentModal as a sibling, not a child.
+  onSwitchToNewStudent: () => void;
 }
-
-type Tab = 'existing' | 'new';
 
 /**
  * The Classroom roster's "Add student" entry point - lets an admin enroll a
  * student into this cohort without leaving the page. Two tabs:
- * "Existing student" searches the tenant's students and joins them via the
- * same race-safe classroomService.joinCohort every other entry point uses;
- * "New student" opens the existing create-student modal (never a second
- * form) pre-set to enroll the new student into this cohort on creation.
+ * "Existing student" (rendered here) searches the tenant's students and
+ * joins them via the same race-safe classroomService.joinCohort every
+ * other entry point uses. "New student" hands off to the caller via
+ * onSwitchToNewStudent - the actual create-student modal is a sibling of
+ * this panel, never nested inside it (see onSwitchToNewStudent above).
  */
-export const AddStudentPanel: React.FC<AddStudentPanelProps> = ({ cohort, onClose, onAdded }) => {
-  const [tab, setTab] = React.useState<Tab>('existing');
+export const AddStudentPanel: React.FC<AddStudentPanelProps> = ({ cohort, onClose, onAdded, onSwitchToNewStudent }) => {
   const remainingSpots = cohort.capacity - cohort.enrolledCount;
   const isFull = remainingSpots <= 0;
 
@@ -44,28 +50,23 @@ export const AddStudentPanel: React.FC<AddStudentPanelProps> = ({ cohort, onClos
         </p>
 
         <div className="flex gap-1 border-b border-edge mb-4">
-          {(['existing', 'new'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                tab === t
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-tx-muted hover:text-tx-secondary'
-              }`}
-            >
-              {t === 'existing' ? 'Existing student' : 'New student'}
-            </button>
-          ))}
+          <button
+            type="button"
+            className="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors border-primary text-primary"
+          >
+            Existing student
+          </button>
+          <button
+            type="button"
+            onClick={onSwitchToNewStudent}
+            disabled={isFull}
+            className="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors border-transparent text-tx-muted hover:text-tx-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            New student
+          </button>
         </div>
 
-        {tab === 'existing' && (
-          <ExistingStudentTab cohort={cohort} isFull={isFull} onAdded={onAdded} onClose={onClose} />
-        )}
-        {tab === 'new' && (
-          <NewStudentTab cohort={cohort} isFull={isFull} onAdded={onAdded} onClose={onClose} />
-        )}
+        <ExistingStudentTab cohort={cohort} isFull={isFull} onAdded={onAdded} onClose={onClose} />
       </div>
     </ModalShell>
   );
@@ -205,45 +206,3 @@ const CandidateRow: React.FC<{
   );
 };
 
-const NewStudentTab: React.FC<TabProps> = ({ cohort, isFull, onClose, onAdded }) => {
-  const [modalOpen, setModalOpen] = React.useState(true);
-
-  if (isFull) {
-    return (
-      <div className="py-6">
-        <p className="text-sm text-status-danger-text mb-4">
-          This class is at capacity - new students can't be enrolled here until a spot opens up.
-        </p>
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-tx-secondary border border-edge rounded-lg hover:bg-surface2 transition-all"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!modalOpen) {
-    return (
-      <div className="py-6 text-sm text-tx-muted">
-        Closed. <button type="button" onClick={() => setModalOpen(true)} className="text-primary hover:underline">Reopen the create-student form</button>.
-      </div>
-    );
-  }
-
-  return (
-    <StudentModal
-      student={null}
-      initialEnrollmentPreset={{ cohortId: cohort.id, cohortName: cohort.name }}
-      onClose={() => {
-        setModalOpen(false);
-        onAdded();
-        onClose();
-      }}
-    />
-  );
-};
