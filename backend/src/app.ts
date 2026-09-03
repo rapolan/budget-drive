@@ -135,11 +135,23 @@ app.get(`${API_PREFIX}/calendar-feed/:token.ics`, async (req: Request, res: Resp
     );
 
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    // "inline" (not "attachment") - this endpoint is the SUBSCRIPTION url
+    // (Google/Apple "add calendar from URL"), which needs the response
+    // treated as a live resource the client re-fetches on its own
+    // schedule, not a one-time file to download and save. "attachment"
+    // forces a browser download prompt instead of letting the calendar
+    // app add it as a subscription.
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${instructor.fullName.replace(/[^a-zA-Z0-9]/g, '_')}_lessons.ics"`
+      `inline; filename="${instructor.fullName.replace(/[^a-zA-Z0-9]/g, '_')}_lessons.ics"`
     );
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    // A short max-age (matching the feed's own X-PUBLISHED-TTL/
+    // REFRESH-INTERVAL hints, both PT1H) lets intermediate caches/CDNs and
+    // any client that respects HTTP caching avoid hammering this endpoint,
+    // without the multi-day staleness a long max-age would risk - the
+    // previous no-store actively fought caching for no benefit, since nothing
+    // here is sensitive or user-specific in a way that requires disabling it.
+    res.setHeader('Cache-Control', 'private, max-age=300');
     return res.send(icsContent);
   } catch (error: any) {
     console.error('Error generating calendar feed:', error);

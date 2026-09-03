@@ -146,9 +146,17 @@ export const generateICSFeed = async (
   const tenantSettings = await getTenantSettings(tenantId);
   const timezone = resolveTenantTimezone(tenantSettings?.timezone);
 
-  // Get upcoming lessons for this instructor, including student contact info
+  // Get upcoming lessons for this instructor, including student contact info.
+  // 'cancelled' is included deliberately (see the STATUS:CANCELLED emission
+  // below) - excluding it here would silently drop the row from the feed
+  // instead of telling the subscribed calendar client to remove it, which
+  // some clients (notably ones that cache aggressively) leave behind as a
+  // "ghost" event. 'no_show' stays visible as a normal event: the
+  // instructor was actually there and that time was spent/blocked
+  // regardless of whether the student showed, so the calendar should keep
+  // reflecting that reality - only 'cancelled' emits STATUS:CANCELLED.
   const lessonsResult = await query(
-    `SELECT 
+    `SELECT
       l.id,
       l.date,
       l.start_time,
@@ -168,7 +176,7 @@ export const generateICSFeed = async (
      JOIN students s ON e.student_id = s.id
      WHERE l.instructor_id = $1
      AND l.tenant_id = $2
-     AND l.status IN ('scheduled', 'completed')
+     AND l.status IN ('scheduled', 'completed', 'cancelled', 'no_show')
      AND l.date >= CURRENT_DATE - INTERVAL '7 days'
      ORDER BY l.date, l.start_time`,
     [instructorId, tenantId]
@@ -183,6 +191,15 @@ export const generateICSFeed = async (
   // viewer's own local time, without needing us to re-derive tzdata for
   // 400+ possible zones). X-WR-TIMEZONE is purely informational (a label
   // some clients show), so it's set to the tenant's real zone.
+  // Refresh hints: a subscription feed is pull-only - the client decides
+  // when to re-poll, and with no hint Google in particular may only poll
+  // once a day, so a cancellation could sit stale on the instructor's
+  // calendar until tomorrow. X-PUBLISHED-TTL (the de facto standard,
+  // originated by Apple/iCal, widely honored) and REFRESH-INTERVAL (the
+  // newer RFC 7986 equivalent) both say "please re-check within an hour" -
+  // emitting both maximizes client support. This is still only a hint:
+  // exact timing is up to the client, so "prompt" here means observed
+  // within roughly an hour for clients that honor it, not instant.
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -191,6 +208,8 @@ export const generateICSFeed = async (
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeICS(instructorName)}'s Driving Lessons`,
     `X-WR-TIMEZONE:${timezone}`,
+    'X-PUBLISHED-TTL:PT1H',
+    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
   ];
 
   // Add each lesson as an event
@@ -252,6 +271,11 @@ export const generateICSFeed = async (
 
     // Pickup address goes into LOCATION field (clickable map link in Google/Apple Calendar)
     const location = lesson.pickup_address || '';
+    // The SAME uid is kept for a cancelled lesson (not omitted, not a new
+    // id) - this is what lets a subscribed client match the existing event
+    // on its calendar and remove it, rather than just never seeing a new
+    // one appear. no_show gets CONFIRMED like a normal lesson (see the
+    // query comment above).
     const uid = `lesson-${lesson.id}@budgetdrivingschool.com`;
     const status = lesson.status === 'cancelled' ? 'CANCELLED' : 'CONFIRMED';
 
