@@ -169,6 +169,9 @@ describe('POST /api/v1/students', () => {
     expect(sql).toContain("'driver_education'");
     expect(sql).not.toContain("'driver_training'");
     expect(params).toContain('classroom');
+    // California classroom DE is 30 hours, never the BTW 6-hour default -
+    // no tenant_settings row here, so the hardcoded ?? 30 fallback applies.
+    expect(params).toContain(30);
 
     // Only ONE enrollment INSERT ever runs - never both driver_education
     // AND an auto driver_training enrollment.
@@ -176,5 +179,50 @@ describe('POST /api/v1/students', () => {
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
     );
     expect(enrollmentInserts).toHaveLength(1);
+  });
+
+  it('uses the tenant-configured default_de_hours_required instead of 30 when set', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, default_de_hours_required: 24 }])); // getTenantSettings (pre-transaction)
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([])) // duplicate-email check
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'student-3', tenant_id: TENANT_ID, full_name: formPayload.fullName, date_of_birth: formPayload.dateOfBirth }])
+      ) // INSERT INTO students
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-3', student_id: 'student-3', tenant_id: TENANT_ID, program_type: 'driver_education', de_delivery_mode: 'online' }])
+      ) // INSERT INTO enrollments
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: 'student-3', tenant_id: TENANT_ID, full_name: formPayload.fullName, date_of_birth: formPayload.dateOfBirth }]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-3', student_id: 'student-3', tenant_id: TENANT_ID, program_type: 'driver_education', status: 'active', de_delivery_mode: 'online', completed: false }])
+      )
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]))
+      .mockResolvedValueOnce(queryResult([]));
+
+    const res = await request(app)
+      .post('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...formPayload, initialEnrollment: { programType: 'driver_education', deDeliveryMode: 'online' } });
+
+    expect(res.status).toBe(201);
+
+    const enrollmentInsertCall = mockClientQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO enrollments')
+    );
+    const [, params] = enrollmentInsertCall!;
+    expect(params).toContain(24);
+    expect(params).not.toContain(30);
   });
 });

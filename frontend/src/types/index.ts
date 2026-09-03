@@ -111,6 +111,10 @@ export interface TenantSettings {
   // Per-lesson BTW discount for a student with a completed INTERNAL
   // driver_education enrollment (never an externally-completed one).
   deDiscountAmount?: number;
+  // Mirrors defaultHoursRequired but for driver_education (California
+  // classroom DE is 30 hours) - vestigial for display only, DE completion
+  // is never gated on this value.
+  defaultDeHoursRequired?: number;
 
   // Lesson Review & Cancellation Policy
   lessonCompletionMode: 'manual' | 'auto';

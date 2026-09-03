@@ -88,6 +88,48 @@ describe('enrollmentService.createEnrollment - deDeliveryMode', () => {
     expect(enrollment.deDeliveryMode).toBe('online');
   });
 
+  it('uses the DE-specific hours default (30), never the BTW default_hours_required, when hoursRequired is omitted', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student exists
+      // No default_de_hours_required column in this row - the ?? 30
+      // fallback applies. default_hours_required (6, the BTW figure) must
+      // never leak into a DE enrollment's hours_required.
+      .mockResolvedValueOnce(queryResult([{ default_hours_required: 6 }])) // tenant settings
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-4', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'classroom', hours_required: 30,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, { programType: 'driver_education', deDeliveryMode: 'classroom' });
+
+    const [, params] = mockQuery.mock.calls[2];
+    expect(params).toContain(30);
+    expect(params).not.toContain(6);
+  });
+
+  it('uses the tenant-configured default_de_hours_required over the hardcoded 30 when set', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }]))
+      .mockResolvedValueOnce(queryResult([{ default_hours_required: 6, default_de_hours_required: 20 }]))
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-5', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'online', hours_required: 20,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, { programType: 'driver_education', deDeliveryMode: 'online' });
+
+    const [, params] = mockQuery.mock.calls[2];
+    expect(params).toContain(20);
+  });
+
   it('does not require deDeliveryMode for driver_training', async () => {
     const { createEnrollment } = await import('../services/enrollmentService');
 

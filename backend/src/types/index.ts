@@ -82,6 +82,12 @@ export interface TenantSettings {
   // driver_education enrollment (never an externally-completed one).
   // Applied automatically and authoritatively at booking time.
   deDiscountAmount: number;
+  // Mirrors defaultHoursRequired's pattern but for driver_education
+  // (California classroom DE is a 30-hour course). Vestigial for display -
+  // DE completion is attendance-driven (classroom) or manual-hours-driven
+  // (online), never gated on this value - it exists for data honesty, not
+  // because anything currently reads it.
+  defaultDeHoursRequired: number;
 
   // Lesson Review & Cancellation Policy
   // 'auto' is stored but has no job behind it yet - only 'manual' review

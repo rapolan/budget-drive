@@ -516,7 +516,7 @@ export const createStudent = async (
         [
           tenantId,
           newStudent.id,
-          tenantSettings?.defaultHoursRequired ?? 6,
+          tenantSettings?.defaultDeHoursRequired ?? 30,
           data.licenseType ?? 'car',
           initialEnrollment.deDeliveryMode,
           userId || null,
@@ -765,9 +765,9 @@ export const createStudentWithGuardian = async (
     // rolls back the student insert too (Constraint A: no student may
     // exist without its enrollment). Branches exactly like createStudent's
     // own initialEnrollment handling above.
-    const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
     const licenseType = data.licenseType ?? 'car';
     if (initialEnrollment.programType === 'driver_training') {
+      const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
       await client.query(
         `INSERT INTO enrollments (
            tenant_id, student_id, program_type, hours_required, license_type, assigned_instructor_id, created_by, updated_by
@@ -779,7 +779,7 @@ export const createStudentWithGuardian = async (
         `INSERT INTO enrollments (
            tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, created_by, updated_by
          ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $6)`,
-        [tenantId, newStudent.id, hoursRequired, licenseType, initialEnrollment.deDeliveryMode, userId || null]
+        [tenantId, newStudent.id, tenantSettings?.defaultDeHoursRequired ?? 30, licenseType, initialEnrollment.deDeliveryMode, userId || null]
       );
     }
 

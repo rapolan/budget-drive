@@ -287,6 +287,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   });
   const joinableCohortsForCreate = joinableCohortsForCreateData?.data?.filter((c) => c.status !== 'cancelled') ?? [];
 
+  // Gates the program-specific fields below (permit, training hours,
+  // address required-ness): true only while creating a new student with
+  // Driver Education selected. A DE student has no learner's permit yet -
+  // they earn it BY completing DE, which is the prerequisite for BTW - so
+  // permit/hours fields (BTW-only concepts) never show here. Editing an
+  // existing student always shows the full field set regardless of which
+  // program(s) they're enrolled in, since edit mode isn't tied to a
+  // single "which program am I creating" choice the way create mode is.
+  const isDriverEducationCreate = !isEditing && initialProgramType === 'driver_education';
+
   // --- Guardian selection ---
   // Constraint C: selecting a candidate or "create new" only sets local
   // state here - the actual link/create only happens on explicit
@@ -1615,34 +1625,62 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-tx-secondary mb-1.5">Training Hours</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        name="hoursRequired"
-                        title="Training hours required"
-                        value={formData.hoursRequired}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hoursRequired: parseFloat(e.target.value) || 0 }))}
-                        min="0"
-                        step="0.5"
-                        className="w-20 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                      />
-                      <span className="text-sm text-tx-muted">hrs</span>
-                      {studentAge !== null && (
-                        <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-status-info-bg text-primary' : 'bg-status-warning-bg text-status-warning-text'}`}>
-                          {isAdult ? `Adult (${studentAge})` : `Minor (${studentAge})`}
-                        </span>
-                      )}
-                    </div>
+                    {/* Training hours is a Behind-the-Wheel concept (the
+                        6-hour requirement) - never shown while creating a
+                        Driver Education student, who has no hours-required
+                        field of this kind. The age badge stays visible
+                        either way; it's just context, not a BTW-specific
+                        input. */}
+                    {isDriverEducationCreate ? (
+                      studentAge !== null && (
+                        <div className="flex items-center h-full pt-6">
+                          <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-status-info-bg text-primary' : 'bg-status-warning-bg text-status-warning-text'}`}>
+                            {isAdult ? `Adult (${studentAge})` : `Minor (${studentAge})`}
+                          </span>
+                        </div>
+                      )
+                    ) : (
+                      <>
+                        <label className="block text-sm font-medium text-tx-secondary mb-1.5">Training Hours</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            name="hoursRequired"
+                            title="Training hours required"
+                            value={formData.hoursRequired}
+                            onChange={(e) => setFormData(prev => ({ ...prev, hoursRequired: parseFloat(e.target.value) || 0 }))}
+                            min="0"
+                            step="0.5"
+                            className="w-20 px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                          />
+                          <span className="text-sm text-tx-muted">hrs</span>
+                          {studentAge !== null && (
+                            <span className={`text-xs px-2 py-1 rounded ${isAdult ? 'bg-status-info-bg text-primary' : 'bg-status-warning-bg text-status-warning-text'}`}>
+                              {isAdult ? `Adult (${studentAge})` : `Minor (${studentAge})`}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Section 2: Address */}
+              {/* Section 2: Address. Not required to submit on either
+                  program (matches existing behavior - no required
+                  attribute has ever been set here); Driver Education gets
+                  an explicit "(optional)" hint since BTW is the program
+                  that actually uses this address for pickup/proximity, so
+                  a DE admin can safely skip it rather than wonder. Still
+                  fully present and fillable for DE - recorded if known,
+                  just never blocking submission. */}
               <div ref={addressSectionRef} className="space-y-4 pt-4 border-t border-edge">
                 <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-tx-muted" />
                   Home Address
+                  {isDriverEducationCreate && (
+                    <span className="text-xs font-normal text-tx-muted normal-case">(optional)</span>
+                  )}
                 </h3>
 
                 <div className="space-y-3">
@@ -1982,24 +2020,45 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                             placeholder="Last"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            type="email"
-                            value={newGuardianFields.email}
-                            onChange={(e) => setNewGuardianFields(prev => ({ ...prev, email: e.target.value }))}
-                            autoComplete="new-password"
-                            className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                            placeholder="email@example.com"
-                          />
-                          <input
-                            type="tel"
-                            value={newGuardianFields.phone}
-                            onChange={(e) => setNewGuardianFields(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
-                            autoComplete="new-password"
-                            className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                            placeholder="(555) 123-4567"
-                          />
-                        </div>
+
+                        {/* Progressive reveal: phone/email stay hidden
+                            until the admin actually starts entering this
+                            guardian (a first or last name typed) - keeps
+                            the block light until engaged, matching the
+                            create-form's overall progressive-disclosure
+                            style (Emergency Contact section below does the
+                            same). Once revealed, grouped under one label
+                            so it reads as "this guardian's contact info,"
+                            not two unrelated fields. This is the SAME
+                            newGuardianFields state the submit path already
+                            sends to createWithGuardian/linkGuardian - no
+                            parallel data path - so once captured, it's
+                            exactly what feeds student.primaryGuardian and
+                            the "(Guardian)" contact-fallback display
+                            elsewhere in the app (getStudentContactDisplay). */}
+                        {(newGuardianFields.firstName.trim() || newGuardianFields.lastName.trim()) && (
+                          <div className="space-y-1.5">
+                            <span className="block text-xs font-medium text-tx-secondary">Guardian's contact info</span>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="email"
+                                value={newGuardianFields.email}
+                                onChange={(e) => setNewGuardianFields(prev => ({ ...prev, email: e.target.value }))}
+                                autoComplete="new-password"
+                                className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                                placeholder="email@example.com"
+                              />
+                              <input
+                                type="tel"
+                                value={newGuardianFields.phone}
+                                onChange={(e) => setNewGuardianFields(prev => ({ ...prev, phone: formatPhoneNumber(e.target.value) }))}
+                                autoComplete="new-password"
+                                className="px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                                placeholder="(555) 123-4567"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Item 2: inline match hint. Purely a rendering of
                             what the backend candidate endpoint returns
@@ -2217,55 +2276,68 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 )}
               </div>
 
-              {/* Section 4: Permit & Notes */}
+              {/* Section 4: Permit & Notes. The learner's-permit fields are
+                  a Behind-the-Wheel concept - a Driver Education student
+                  doesn't have a permit yet, they earn one BY completing DE
+                  (the permit is then the prerequisite for enrolling in
+                  BTW). Hidden entirely while creating a DE student; the
+                  learner_permit_* columns stay NULL, which is correct (no
+                  permit yet), not a missing value. When that student later
+                  adds a BTW enrollment from the enrollment sub-panel, that
+                  flow is where the permit gets captured - not here. Notes
+                  stays visible for both programs. */}
               <div className="space-y-4 pt-4 border-t border-edge">
-                <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-tx-muted" />
-                  Learner's Permit
-                  <span className="text-xs font-normal text-tx-muted normal-case">(optional)</span>
-                </h3>
+                {!isDriverEducationCreate && (
+                  <>
+                    <h3 className="text-sm font-semibold text-tx-primary uppercase tracking-wide flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-tx-muted" />
+                      Learner's Permit
+                      <span className="text-xs font-normal text-tx-muted normal-case">(optional)</span>
+                    </h3>
 
-                {/* items-start: Issue date/Expiration are each wrapped in a
-                    div with a caption span below the input, taller than the
-                    bare Permit # input's own cell - without this, grid's
-                    default align-items: stretch stretches the Permit #
-                    input's height to match those taller cells, making it
-                    look oversized next to its own sibling date fields. */}
-                <div className="grid grid-cols-3 gap-2 items-start">
-                  <input
-                    type="text"
-                    name="permit_number_input"
-                    value={formData.learnerPermitNumber}
-                    onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitNumber: e.target.value }))}
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                    placeholder="Permit #"
-                  />
-                  <div>
-                    <input
-                      type="date"
-                      name="permit_issue_input"
-                      value={formData.learnerPermitIssueDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitIssueDate: e.target.value }))}
-                      title="Issue Date"
-                      autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                    />
-                    <span className="text-xs text-tx-muted">Issue date</span>
-                  </div>
-                  <div>
-                    <input
-                      type="date"
-                      name="permit_expiry_input"
-                      value={formData.learnerPermitExpiration}
-                      onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitExpiration: e.target.value }))}
-                      title="Expiration Date"
-                      autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
-                    />
-                    <span className="text-xs text-tx-muted">Expiration</span>
-                  </div>
-                </div>
+                    {/* items-start: Issue date/Expiration are each wrapped in a
+                        div with a caption span below the input, taller than the
+                        bare Permit # input's own cell - without this, grid's
+                        default align-items: stretch stretches the Permit #
+                        input's height to match those taller cells, making it
+                        look oversized next to its own sibling date fields. */}
+                    <div className="grid grid-cols-3 gap-2 items-start">
+                      <input
+                        type="text"
+                        name="permit_number_input"
+                        value={formData.learnerPermitNumber}
+                        onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitNumber: e.target.value }))}
+                        autoComplete="new-password"
+                        className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        placeholder="Permit #"
+                      />
+                      <div>
+                        <input
+                          type="date"
+                          name="permit_issue_input"
+                          value={formData.learnerPermitIssueDate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitIssueDate: e.target.value }))}
+                          title="Issue Date"
+                          autoComplete="new-password"
+                          className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        />
+                        <span className="text-xs text-tx-muted">Issue date</span>
+                      </div>
+                      <div>
+                        <input
+                          type="date"
+                          name="permit_expiry_input"
+                          value={formData.learnerPermitExpiration}
+                          onChange={(e) => setFormData(prev => ({ ...prev, learnerPermitExpiration: e.target.value }))}
+                          title="Expiration Date"
+                          autoComplete="new-password"
+                          className="w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm"
+                        />
+                        <span className="text-xs text-tx-muted">Expiration</span>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-tx-secondary mb-1.5">Notes</label>

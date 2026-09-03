@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { StudentModal } from './StudentModal';
 import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi, feeFlagsApi, classroomApi } from '@/api';
@@ -385,6 +385,96 @@ describe('StudentModal - program toggle at creation', () => {
 
     const fullCohortButton = await screen.findByRole('button', { name: /full class/i });
     expect(fullCohortButton).toBeDisabled();
+  });
+
+  // Program-appropriate fields: a Driver Education student has no
+  // learner's permit yet (they earn one BY completing DE - the permit is
+  // then the prerequisite for BTW) and training hours is a BTW-only
+  // concept (the fixed 30-hour DE requirement isn't a per-student input).
+  it('Behind-the-Wheel (default) shows the learner\'s permit fields and training hours', () => {
+    renderModal(null, {});
+
+    expect(screen.getByText("Learner's Permit")).toBeInTheDocument();
+    expect(document.querySelector('input[name="permit_number_input"]')).toBeInTheDocument();
+    expect(document.querySelector('input[name="permit_issue_input"]')).toBeInTheDocument();
+    expect(document.querySelector('input[name="permit_expiry_input"]')).toBeInTheDocument();
+    expect(screen.getByText('Training Hours')).toBeInTheDocument();
+    expect(document.querySelector('input[name="hoursRequired"]')).toBeInTheDocument();
+  });
+
+  it('Driver Education hides the learner\'s permit fields and the training-hours input entirely', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    await screen.findByText(/driver education details/i);
+
+    expect(screen.queryByText("Learner's Permit")).not.toBeInTheDocument();
+    expect(document.querySelector('input[name="permit_number_input"]')).not.toBeInTheDocument();
+    expect(document.querySelector('input[name="permit_issue_input"]')).not.toBeInTheDocument();
+    expect(document.querySelector('input[name="permit_expiry_input"]')).not.toBeInTheDocument();
+    expect(screen.queryByText('Training Hours')).not.toBeInTheDocument();
+    expect(document.querySelector('input[name="hoursRequired"]')).not.toBeInTheDocument();
+
+    // Notes stays visible for both programs - only the BTW-specific permit
+    // block and hours input are gated, not the whole section.
+    expect(document.querySelector('textarea[name="student_notes_input"]')).toBeInTheDocument();
+  });
+
+  it('DE creation still submits successfully with permit fields never having existed on the form', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    await screen.findByText(/driver education details/i);
+    fireEvent.click(await screen.findByRole('button', { name: 'online' }));
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
+    const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    // No permit fields were ever rendered/edited - they stay at their
+    // untouched initial empty-string default, which the backend persists
+    // as NULL (correct: no permit yet), not a missing/omitted value.
+    expect(submittedData.learnerPermitNumber).toBe('');
+  });
+
+  // Home address: optional for DE (still present/fillable, never blocks
+  // submission), unchanged/as-today for BTW (also never blocks submission
+  // today - no required attribute has ever been set on these fields; DE
+  // gets an explicit "(optional)" hint so the admin isn't left guessing).
+  it('Behind-the-Wheel shows the Home Address heading with no "(optional)" hint', () => {
+    renderModal(null, {});
+
+    const heading = screen.getByText('Home Address').closest('h3')!;
+    expect(within(heading).queryByText('(optional)')).not.toBeInTheDocument();
+  });
+
+  it('Driver Education shows an explicit "(optional)" hint on Home Address, and address stays fillable', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    await screen.findByText(/driver education details/i);
+
+    const heading = screen.getByText('Home Address').closest('h3')!;
+    expect(within(heading).getByText('(optional)')).toBeInTheDocument();
+
+    // Still present and fillable - not removed, just not required.
+    const streetInput = document.querySelector('input[name="student_street_input"]') as HTMLInputElement;
+    expect(streetInput).toBeInTheDocument();
+    expect(streetInput).not.toBeRequired();
+  });
+
+  it('DE creation submits successfully with no address entered at all', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    await screen.findByText(/driver education details/i);
+    fireEvent.click(await screen.findByRole('button', { name: 'online' }));
+
+    fillBasicFields(); // deliberately no address fields filled
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
   });
 });
 
@@ -892,6 +982,100 @@ describe('StudentModal - guardian type-ahead (Constraint B)', () => {
   });
 });
 
+// The "New Guardian" block starts light (name only) and expands to reveal
+// phone/email once the admin actually begins entering this guardian - not
+// upfront. Once revealed, phone/email are grouped under one label so they
+// read as "this guardian's contact info," not two unrelated fields. This
+// is the SAME newGuardianFields state the submit path already sends to
+// createWithGuardian/linkGuardian, so the captured values are exactly
+// what feeds student.primaryGuardian and the "(Guardian)" contact-fallback
+// display elsewhere (getStudentContactDisplay) - no parallel data path.
+describe('StudentModal - guardian progressive reveal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (guardiansApi.findCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (guardiansApi.findExactMatch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('shows only name fields when the New Guardian block first opens - phone/email are hidden', async () => {
+    renderModal();
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    expect(newGuardianSection.querySelector('input[placeholder="First"]')).toBeInTheDocument();
+    expect(newGuardianSection.querySelector('input[placeholder="Last"]')).toBeInTheDocument();
+    expect(newGuardianSection.querySelector('input[placeholder="email@example.com"]')).not.toBeInTheDocument();
+    expect(newGuardianSection.querySelector('input[type="tel"]')).not.toBeInTheDocument();
+    expect(screen.queryByText("Guardian's contact info")).not.toBeInTheDocument();
+  });
+
+  it('typing a first name reveals phone and email, grouped under one label', async () => {
+    renderModal();
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'J' } });
+
+    expect(screen.getByText("Guardian's contact info")).toBeInTheDocument();
+    expect(newGuardianSection.querySelector('input[placeholder="email@example.com"]')).toBeInTheDocument();
+    expect(newGuardianSection.querySelector('input[type="tel"]')).toBeInTheDocument();
+  });
+
+  it('typing a last name (with no first name) also reveals phone and email', async () => {
+    renderModal();
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    fireEvent.change(lastNameInput, { target: { value: 'Doe' } });
+
+    expect(newGuardianSection.querySelector('input[placeholder="email@example.com"]')).toBeInTheDocument();
+    expect(newGuardianSection.querySelector('input[type="tel"]')).toBeInTheDocument();
+  });
+
+  it('captured guardian phone/email are sent through the same createWithGuardian call - the existing data path, not a new one', async () => {
+    (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { student: { id: 'student-1', fullName: 'New Student' }, guardians: [{ guardian: { id: 'g1' }, link: { id: 'link-1' } }] },
+    });
+
+    renderModal();
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'New' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
+
+    const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'Pat' } });
+    const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
+    fireEvent.change(lastNameInput, { target: { value: 'Guardian' } });
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
+    fireEvent.change(emailInput, { target: { value: 'pat.guardian@example.com' } });
+    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
+    fireEvent.change(phoneInput, { target: { value: '5559998888' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
+    await waitFor(() => expect(screen.queryByText(/no guardians linked yet/i)).not.toBeInTheDocument());
+
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.createWithGuardian).toHaveBeenCalledTimes(1));
+    const call = (studentsApi.createWithGuardian as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.guardians[0]).toMatchObject({
+      mode: 'new',
+      firstName: 'Pat',
+      lastName: 'Guardian',
+      email: 'pat.guardian@example.com',
+      phone: '(555) 999-8888',
+    });
+  });
+
+  it('the red asterisk for a minor still shows on the Guardian heading', () => {
+    renderModal();
+    fireEvent.change(document.getElementsByName('student_dob_input')[0], { target: { value: '2015-01-01' } });
+
+    const heading = screen.getByText('Guardian').closest('h3')!;
+    expect(within(heading).getByText('*')).toBeInTheDocument();
+  });
+});
+
 // Constraint A: creating a student with one or more guardians must go
 // through the single atomic endpoint, never create() followed by separate
 // link calls - not even for multiple staged guardians (item 4).
@@ -987,9 +1171,12 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
     const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
-    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: 'Guardian' } });
     fireEvent.change(lastNameInput, { target: { value: 'Contact' } });
+
+    // Phone/email are progressively revealed only once a name is entered -
+    // re-query after the name change reveals them.
+    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
     fireEvent.change(phoneInput, { target: { value: '5551234567' } });
 
     fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
@@ -1031,9 +1218,10 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
     const lastNameInput = newGuardianSection.querySelector('input[placeholder="Last"]') as HTMLInputElement;
-    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: 'Guardian' } });
     fireEvent.change(lastNameInput, { target: { value: 'Contact' } });
+
+    const phoneInput = newGuardianSection.querySelector('input[type="tel"]') as HTMLInputElement;
     fireEvent.change(phoneInput, { target: { value: '5551234567' } });
     fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
 
@@ -1163,8 +1351,9 @@ describe('StudentModal - atomic create with guardian (Constraint A)', () => {
 
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
-    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: 'Some' } });
+
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: 'some.person@example.com' } });
 
     fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));
@@ -1201,7 +1390,12 @@ describe('StudentModal - duplicate guardian confirm (Constraint C)', () => {
     fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '2015-01-01' } });
 
     // Fields-first (item 1): the new-guardian fields are already open.
+    // Phone/email are only revealed once a name is entered - type a name
+    // first so the email field exists to query.
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const guardianFirstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    fireEvent.change(guardianFirstNameInput, { target: { value: 'Guardian' } });
+
     const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: email } });
   }
@@ -1597,6 +1791,9 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
     fireEvent.click(screen.getByRole('button', { name: /add guardian/i }));
 
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
+    const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
+    fireEvent.change(firstNameInput, { target: { value: 'Ana' } });
+
     const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: 'ana@example.com' } });
 
@@ -1625,8 +1822,9 @@ describe('StudentModal - guardian sub-panel in edit mode', () => {
 
     const newGuardianSection = screen.getByText('New Guardian').closest('div')!.parentElement!;
     const firstNameInput = newGuardianSection.querySelector('input[placeholder="First"]') as HTMLInputElement;
-    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(firstNameInput, { target: { value: 'Some' } });
+
+    const emailInput = newGuardianSection.querySelector('input[placeholder="email@example.com"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: 'some.person@example.com' } });
 
     fireEvent.click(screen.getByRole('button', { name: /^add guardian$/i }));

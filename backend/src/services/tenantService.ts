@@ -367,6 +367,10 @@ export const updateTenantSettings = async (
     fields.push(`de_discount_amount = $${paramCount++}`);
     values.push(data.deDiscountAmount);
   }
+  if (data.defaultDeHoursRequired !== undefined) {
+    fields.push(`default_de_hours_required = $${paramCount++}`);
+    values.push(data.defaultDeHoursRequired);
+  }
 
   // Lesson Review & Cancellation Policy
   if (data.lessonCompletionMode !== undefined) {

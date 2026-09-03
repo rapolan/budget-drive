@@ -142,6 +142,7 @@ const GeneralSettings: React.FC = () => {
     timezone:            settings?.timezone || DEFAULT_TIMEZONE,
     enableDriverEducation: settings?.enableDriverEducation === true,
     deDiscountAmount:    settings?.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
+    defaultDeHoursRequired: settings?.defaultDeHoursRequired != null ? Number(settings.defaultDeHoursRequired) : 30,
   });
 
   React.useEffect(() => {
@@ -169,6 +170,7 @@ const GeneralSettings: React.FC = () => {
       timezone:            settings.timezone || DEFAULT_TIMEZONE,
       enableDriverEducation: settings.enableDriverEducation === true,
       deDiscountAmount:    settings.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
+      defaultDeHoursRequired: settings.defaultDeHoursRequired != null ? Number(settings.defaultDeHoursRequired) : 30,
     });
   }, [settings]);
 
@@ -478,6 +480,21 @@ const GeneralSettings: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-default-de-hours-required" className="block text-sm font-medium text-tx-secondary mb-1">Default Hours Required per Driver Education Enrollment</label>
+          <p className="text-xs text-tx-muted mb-3">Applies to new driver_education enrollments. California requires 30 hours of classroom instruction.</p>
+          <div className="flex items-center gap-3">
+            <input
+              id="settings-default-de-hours-required"
+              type="number"
+              value={form.defaultDeHoursRequired}
+              onChange={e => setForm(f => ({ ...f, defaultDeHoursRequired: parseFloat(e.target.value) || 30 }))}
+              min="1" max="100" step="0.5"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <span className="text-sm text-tx-secondary">hours</span>
           </div>
         </div>
         <div>

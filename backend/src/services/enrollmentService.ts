@@ -362,7 +362,16 @@ export const createEnrollment = async (
   }
 
   const tenantSettings = await getTenantSettings(tenantId);
-  const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
+  // California classroom DE is a 30-hour course, distinct from BTW's
+  // 6-hour default - driver_education never falls back to
+  // defaultHoursRequired (see tenant_settings.default_de_hours_required).
+  // Vestigial for display (DE completion is attendance/manual-hours
+  // driven, never gated on this value) but kept honest regardless.
+  const hoursRequired = data.hoursRequired ?? (
+    data.programType === 'driver_education'
+      ? tenantSettings?.defaultDeHoursRequired ?? 30
+      : tenantSettings?.defaultHoursRequired ?? 6
+  );
   const licenseType = data.licenseType ?? 'car';
 
   const result = await query(
