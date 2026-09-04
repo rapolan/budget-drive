@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { StudentStatusBadge } from './StudentStatusBadge';
-import type { StatusInfo } from '@/utils/studentStatus';
+import type { StatusInfo, DeStatusInfo, DisplayStatus } from '@/utils/studentStatus';
 
 afterEach(cleanup);
 
@@ -87,5 +87,66 @@ describe('StudentStatusBadge', () => {
     expect(badge?.className).toContain('whitespace-nowrap');
     expect(badge?.className).toContain('px-2.5');
     expect(badge?.className).toContain('py-1');
+  });
+});
+
+// The discriminated union getDisplayStatus returns - the DE variant has no
+// "needs attention" urgency concept, just complete (green) vs in-progress
+// (neutral blue/info) vs no enrollment (muted gray).
+describe('StudentStatusBadge - DisplayStatus (DE) variant', () => {
+  function deStatus(overrides: Partial<DeStatusInfo> = {}): DisplayStatus {
+    return {
+      kind: 'de',
+      info: {
+        status: 'enrolled',
+        displayStatus: '2/4 days attended',
+        ...overrides,
+      },
+    };
+  }
+
+  it('renders an in-progress DE status with neutral blue/info tokens', () => {
+    const { container } = render(
+      <StudentStatusBadge statusInfo={deStatus()} readyToComplete={false} />
+    );
+    expect(screen.getByText('2/4 days attended')).toBeInTheDocument();
+    expect(container.querySelector('.bg-status-info-bg')).toBeInTheDocument();
+  });
+
+  it('renders a completed DE status with green/success tokens', () => {
+    const { container } = render(
+      <StudentStatusBadge
+        statusInfo={deStatus({ status: 'completed', displayStatus: 'DE Completed' })}
+        readyToComplete={false}
+      />
+    );
+    expect(screen.getByText('DE Completed')).toBeInTheDocument();
+    expect(container.querySelector('.bg-status-success-bg')).toBeInTheDocument();
+  });
+
+  it('renders no_enrollment with muted gray tokens, not amber', () => {
+    const { container } = render(
+      <StudentStatusBadge
+        statusInfo={deStatus({ status: 'no_enrollment', displayStatus: 'No DE Enrollment' })}
+        readyToComplete={false}
+      />
+    );
+    expect(screen.getByText('No DE Enrollment')).toBeInTheDocument();
+    expect(container.querySelector('.bg-surface2')).toBeInTheDocument();
+    expect(container.querySelector('.bg-status-warning-bg')).not.toBeInTheDocument();
+  });
+
+  it('renders the BTW variant of DisplayStatus identically to a plain StatusInfo', () => {
+    const union: DisplayStatus = { kind: 'btw', info: statusInfo({ status: 'scheduled', displayStatus: 'Scheduled (2)' }) };
+    const { container } = render(
+      <StudentStatusBadge statusInfo={union} readyToComplete={false} />
+    );
+    expect(screen.getByText('Scheduled (2)')).toBeInTheDocument();
+    expect(container.querySelector('.bg-status-success-bg')).toBeInTheDocument();
+  });
+
+  it('readyToComplete still overrides a DE union with the gold treatment', () => {
+    render(<StudentStatusBadge statusInfo={deStatus()} readyToComplete={true} />);
+    expect(screen.getByText('Ready to Complete')).toBeInTheDocument();
   });
 });

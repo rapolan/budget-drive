@@ -12,7 +12,7 @@ import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
-import { computeStudentStatus, getFollowupReason } from '@/utils/studentStatus';
+import { computeStudentStatus, getFollowupReason, computeDeStatus, getDisplayStatus, type ProgramFilter } from '@/utils/studentStatus';
 import { getStudentContactDisplay } from '@/utils/studentContact';
 import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
@@ -53,6 +53,7 @@ export const StudentsPage: React.FC = () => {
   const [activeView, setActiveView] = useSessionState<ActiveView>('students-active-view', 'students', isActiveView);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
   const [viewMode, setViewMode] = useSessionState<ViewMode>('students-view-mode', 'table', isViewMode);
   const [isModalOpen, setIsModalOpen] = useState(false);
   // Which tab StudentModal opens on - 'progress' for the list's "Waive"
@@ -350,6 +351,26 @@ export const StudentsPage: React.FC = () => {
     return computeStudentStatus(student, lessons, statusNow, student.activeEnrollment ?? null);
   };
 
+  // DE's parallel status track (item 1 of the program-aware Students page -
+  // see docs/ARCHITECTURE.md) - a student's driver_education enrollment
+  // status, computed from the SAME batch-attached deEnrollment field the
+  // Program column and filter below also read.
+  const getStudentDeStatus = (student: Student) => computeDeStatus(student.deEnrollment);
+
+  // Single dispatcher: which status track a row shows depends on the
+  // active program filter, not just the student's own enrollments -
+  // 'all' resolves to the furthest-along program (BTW if present, else DE).
+  const getStudentDisplayStatus = (student: Student) =>
+    getDisplayStatus(student, programFilter, getStudentStatus(student), getStudentDeStatus(student));
+
+  // Program filter predicates (item 3) - read only fields already
+  // batch-attached to Student (activeEnrollment, deEnrollment), zero extra
+  // queries. A student satisfying both still yields exactly one row from
+  // .filter() below - never duplicated, by construction (one student
+  // object, one boolean check).
+  const hasBtw = (student: Student): boolean => student.activeEnrollment !== null && student.activeEnrollment !== undefined;
+  const hasDe = (student: Student): boolean => !!student.deEnrollment;
+
   // Composite "needs attention" reasons for the Students page's OWN
   // filtering/counting/row-flags (item 2). Deliberately NOT folded into
   // computeStudentStatus itself, which stays a pure function shared with
@@ -387,6 +408,17 @@ export const StudentsPage: React.FC = () => {
 
   const studentNeedsAnyAttention = (student: Student): boolean =>
     getNeedsAttentionReasons(student).length > 0;
+
+  // Program column (item 4) - "DE", "BTW", or "DE·BTW". Reads only the
+  // already-attached activeEnrollment/deEnrollment fields.
+  const getProgramBadgeLabel = (student: Student): string => {
+    const de = hasDe(student);
+    const btw = hasBtw(student);
+    if (de && btw) return 'DE·BTW';
+    if (btw) return 'BTW';
+    if (de) return 'DE';
+    return '—';
+  };
 
   // Shared amber flag pill (item 2) - same tokens/shape as the existing
   // Needs Guardian/Outstanding Fee badges already used elsewhere in this
@@ -448,6 +480,17 @@ export const StudentsPage: React.FC = () => {
 
     return counts;
   }, [data?.data, lessonsData?.data, noShowStudentIds]);
+
+  // Program filter counts (item 3/4) - read only the already-attached
+  // activeEnrollment/deEnrollment fields, no extra queries.
+  const programCounts = React.useMemo(() => {
+    const students = data?.data || [];
+    return {
+      all: students.length,
+      btw: students.filter(hasBtw).length,
+      de: students.filter(hasDe).length,
+    };
+  }, [data?.data]);
 
   // Calculate additional stats for dashboard cards
   const stats = useMemo(() => {
@@ -538,18 +581,31 @@ export const StudentsPage: React.FC = () => {
   const filteredAndSortedStudents = useMemo(() => {
     // First, filter
     const filtered = data?.data?.filter((student) => {
+      // Program filter (item 3) - "All" = every student, one row each; a
+      // dual-program student passes both hasBtw and hasDe checks but is
+      // still filtered by ONE boolean per student, never duplicated.
+      if (programFilter === 'btw' && !hasBtw(student)) return false;
+      if (programFilter === 'de' && !hasDe(student)) return false;
+
       const statusInfo = getStudentStatus(student);
 
       // Status filter. needs_attention is the overlay (item 2) - "has any
       // attention reason", cross-cutting base status - never the plain
       // base-status equality check the other chips use. turning_18 has no
-      // chip but stays reachable via Dashboard's deep-link.
-      if (statusFilter === 'needs_attention') {
-        if (!studentNeedsAnyAttention(student)) return false;
-      } else if (statusFilter === 'turning_18') {
-        if (!needsTurning18Alert(student)) return false;
-      } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
-        return false;
+      // chip but stays reachable via Dashboard's deep-link. These BTW-status
+      // chips only apply meaningfully when the displayed row is showing BTW
+      // status - a DE-filtered view has its own (currently unfiltered by
+      // sub-status) list, so the status chips are left as-is here and simply
+      // have no effect when programFilter === 'de' (item 3's scope is the
+      // program filter alone, not a redesign of the status chips).
+      if (programFilter !== 'de') {
+        if (statusFilter === 'needs_attention') {
+          if (!studentNeedsAnyAttention(student)) return false;
+        } else if (statusFilter === 'turning_18') {
+          if (!needsTurning18Alert(student)) return false;
+        } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
+          return false;
+        }
       }
 
       // Search filter
@@ -591,7 +647,7 @@ export const StudentsPage: React.FC = () => {
     });
 
     return sorted;
-  }, [data?.data, lessonsData?.data, statusFilter, searchTerm, sortBy, noShowStudentIds]);
+  }, [data?.data, lessonsData?.data, statusFilter, programFilter, searchTerm, sortBy, noShowStudentIds]);
 
   // Keep old variable name for backward compatibility in the JSX
   const filteredStudents = filteredAndSortedStudents;
@@ -826,6 +882,34 @@ export const StudentsPage: React.FC = () => {
             </button>
           </div>
         </div>
+        {/* Program filter (All / Behind-the-Wheel / Driver Education) -
+            matches the existing status-filter chip pattern, placed above
+            it. "All" = every student; BTW/DE each show only students with
+            that program's enrollment, one row per student regardless of
+            how many programs they're enrolled in. */}
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:mr-2">
+          <FilterButton
+            label="Every Program"
+            isActive={programFilter === 'all'}
+            onClick={() => setProgramFilter('all')}
+            count={programCounts.all}
+            variant="default"
+          />
+          <FilterButton
+            label="Behind-the-Wheel"
+            isActive={programFilter === 'btw'}
+            onClick={() => setProgramFilter('btw')}
+            count={programCounts.btw}
+            variant="default"
+          />
+          <FilterButton
+            label="Driver Education"
+            isActive={programFilter === 'de'}
+            onClick={() => setProgramFilter('de')}
+            count={programCounts.de}
+            variant="default"
+          />
+        </div>
         {/* Exactly 6 working-state chips (item 1) - new_this_month is now
             stat-card-only (item 3); turning_18/no_show_followup/
             needs_guardian are gone as chips, folded into Needs Attention
@@ -952,6 +1036,12 @@ export const StudentsPage: React.FC = () => {
           ) : (
             filteredStudents?.map((student) => {
               const statusInfo = getStudentStatus(student);
+              const displayStatus = getStudentDisplayStatus(student);
+              const displayReason = displayStatus.kind === 'de'
+                ? displayStatus.info.reason
+                : displayStatus.info.status === 'needs_attention'
+                ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
+                : displayStatus.info.reason;
 
               return (
                 <div
@@ -967,23 +1057,24 @@ export const StudentsPage: React.FC = () => {
                         {getInitials(student)}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-tx-primary truncate">{getDisplayName(student)}</h3>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-semibold text-tx-primary truncate">{getDisplayName(student)}</h3>
+                          <span className="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none bg-surface3 text-tx-secondary" title="Program(s) enrolled">
+                            {getProgramBadgeLabel(student)}
+                          </span>
+                        </div>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <StudentStatusBadge
-                            statusInfo={statusInfo}
-                            readyToComplete={isReadyToMarkComplete(student, lessonsData?.data || [])}
-                            title={statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
-                              : statusInfo.reason}
+                            statusInfo={displayStatus}
+                            readyToComplete={displayStatus.kind === 'btw' && isReadyToMarkComplete(student, lessonsData?.data || [])}
+                            title={displayReason}
                           />
                           {renderAttentionFlags(student)}
                         </div>
                         {/* Status reason - visible on cards */}
-                        {statusInfo.reason && (
+                        {displayReason && (
                           <p className="text-xs text-tx-muted mt-1 truncate">
-                            {statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
-                              : statusInfo.reason}
+                            {displayReason}
                           </p>
                         )}
                       </div>
@@ -992,7 +1083,10 @@ export const StudentsPage: React.FC = () => {
 
                   {/* Progress */}
                   <div className="mb-4">
-                    <StudentProgressBar progress={student.progress} />
+                    <StudentProgressBar
+                      progress={student.progress}
+                      deStatus={displayStatus.kind === 'de' ? displayStatus.info : undefined}
+                    />
                   </div>
 
                   {/* Contact Info - falls back to the linked guardian's
@@ -1133,6 +1227,9 @@ export const StudentsPage: React.FC = () => {
                   Contact
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
+                  Program
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                   Status
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
@@ -1146,13 +1243,13 @@ export const StudentsPage: React.FC = () => {
             <tbody className="divide-y divide-white/20 bg-transparent">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12">
+                  <td colSpan={6} className="py-12">
                     <LoadingSpinner />
                   </td>
                 </tr>
               ) : filteredStudents?.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-2">
+                  <td colSpan={6} className="py-2">
                     <EmptyState
                       icon={<Users className="h-12 w-12" />}
                       title="No students found"
@@ -1179,6 +1276,12 @@ export const StudentsPage: React.FC = () => {
               ) : (
                 filteredStudents?.map((student) => {
                   const statusInfo = getStudentStatus(student);
+                  const displayStatus = getStudentDisplayStatus(student);
+                  const displayReason = displayStatus.kind === 'de'
+                    ? displayStatus.info.reason
+                    : displayStatus.info.status === 'needs_attention'
+                    ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
+                    : displayStatus.info.reason;
 
                   return (
                     <React.Fragment key={student.id}>
@@ -1345,15 +1448,19 @@ export const StudentsPage: React.FC = () => {
                           );
                         })()}
                       </td>
+                      {/* Program - "DE", "BTW", or "DE·BTW" (item 4) */}
+                      <td className="px-6 py-4">
+                        <span className="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none bg-surface3 text-tx-secondary" title="Program(s) enrolled">
+                          {getProgramBadgeLabel(student)}
+                        </span>
+                      </td>
                       {/* Status - hover for reason */}
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <StudentStatusBadge
-                            statusInfo={statusInfo}
-                            readyToComplete={isReadyToMarkComplete(student, lessonsData?.data || [])}
-                            title={statusInfo.status === 'needs_attention'
-                              ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
-                              : statusInfo.reason}
+                            statusInfo={displayStatus}
+                            readyToComplete={displayStatus.kind === 'btw' && isReadyToMarkComplete(student, lessonsData?.data || [])}
+                            title={displayReason}
                           />
                           {renderAttentionFlags(student)}
                         </div>
@@ -1361,7 +1468,10 @@ export const StudentsPage: React.FC = () => {
                       {/* Progress with visual bar */}
                       <td className="px-6 py-4">
                         <div className="w-32">
-                          <StudentProgressBar progress={student.progress} />
+                          <StudentProgressBar
+                            progress={student.progress}
+                            deStatus={displayStatus.kind === 'de' ? displayStatus.info : undefined}
+                          />
                         </div>
                       </td>
                       {/* History - Hidden on mobile */}
@@ -1387,7 +1497,7 @@ export const StudentsPage: React.FC = () => {
                         actions themselves moved under the name to fix. */}
                     {completingStudentId === student.id && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
+                        <td colSpan={6} className="px-6 py-3 bg-status-success-bg border-t border-status-success-border">
                           <div className="max-w-sm space-y-2" onClick={(e) => e.stopPropagation()}>
                             <p className="text-sm text-status-success-text">
                               Mark {student.fullName} complete?
@@ -1433,7 +1543,7 @@ export const StudentsPage: React.FC = () => {
           <div className="text-sm text-tx-secondary">
             <span className="font-medium">{filteredStudents?.length || 0}</span> of{' '}
             <span className="font-medium">{data.pagination.total}</span> students
-            {statusFilter !== 'all' && (
+            {(statusFilter !== 'all' || programFilter !== 'all') && (
               <span className="text-tx-muted ml-1">
                 (filtered)
               </span>

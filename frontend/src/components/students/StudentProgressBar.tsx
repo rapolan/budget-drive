@@ -1,8 +1,16 @@
 import React from 'react';
 import type { StudentProgress } from '@/types';
+import type { DeStatusInfo } from '@/utils/studentStatus';
 
 interface StudentProgressBarProps {
   progress: StudentProgress | undefined;
+  // When the row is displaying DE status (program filter = de, or filter
+  // = all with no BTW enrollment - see getDisplayStatus), render the DE
+  // status text as a plain label instead of the BTW hours/lessons bar. DE's
+  // 4-day linear track doesn't fit a percent-complete bar the way BTW's
+  // hours/lessons do, so this renders no bar at all, just the same text
+  // StudentStatusBadge already shows.
+  deStatus?: DeStatusInfo;
 }
 
 // The single progress-rendering component for the Students list (Constraint
@@ -10,7 +18,17 @@ interface StudentProgressBarProps {
 // with no per-view variation in label, color, or percentage visibility.
 // It only reads fields already computed by computeStudentProgress
 // (Constraint A) - it never derives a required-lesson count or a percent.
-export const StudentProgressBar: React.FC<StudentProgressBarProps> = ({ progress }) => {
+export const StudentProgressBar: React.FC<StudentProgressBarProps> = ({ progress, deStatus }) => {
+  if (deStatus) {
+    return (
+      <div className="flex items-center text-sm">
+        <span className={`font-medium ${deStatus.status === 'no_enrollment' ? 'text-tx-muted italic' : 'text-tx-primary'}`}>
+          {deStatus.displayStatus}
+        </span>
+      </div>
+    );
+  }
+
   // undefined progress means the student has no active driver_training
   // enrollment right now (their prior one completed, no new one started) -
   // a common, legitimate state, not missing data. Same muted empty-state

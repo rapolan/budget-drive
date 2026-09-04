@@ -1,18 +1,26 @@
 import React from 'react';
 import { Star } from 'lucide-react';
-import type { StatusInfo, ComputedStatus } from '@/utils/studentStatus';
+import type { StatusInfo, ComputedStatus, DeStatusInfo, DeComputedStatus, DisplayStatus } from '@/utils/studentStatus';
 
 interface StudentStatusBadgeProps {
-  statusInfo: StatusInfo;
+  // Either a plain BTW StatusInfo (existing callers, untouched) or the
+  // discriminated union getDisplayStatus returns - lets one component
+  // render both tracks rather than growing a second badge component.
+  statusInfo: StatusInfo | DisplayStatus;
   // Whether this student has met their program requirement but the
   // enrollment isn't marked complete yet (isReadyToMarkComplete's own
   // Constraint-A-respecting check in Students.tsx) - overrides the base
   // status color/label with the gold "Ready to complete" treatment,
   // regardless of what computeStudentStatus itself returned (e.g. a
   // student who just finished their last lesson is still technically
-  // "Scheduled" or "Ready to Book" underneath).
+  // "Scheduled" or "Ready to Book" underneath). Never true for a DE row -
+  // "ready to complete" is a BTW-only concept (hours/hoursRequired).
   readyToComplete: boolean;
   title?: string;
+}
+
+function isDisplayStatusUnion(info: StatusInfo | DisplayStatus): info is DisplayStatus {
+  return 'kind' in info;
 }
 
 // Color communicates urgency, not category:
@@ -49,6 +57,20 @@ function statusClasses(status: ComputedStatus, displayStatus: string): string {
   }
 }
 
+// DE has no "needs attention" urgency concept - just a simple two-state
+// treatment: green once complete, neutral blue/info while in progress
+// (mirrors ready_to_book's "calm, neutral" tone, since a DE track in
+// progress is exactly that - no alerting concept exists for it).
+function deStatusClasses(status: DeComputedStatus): string {
+  if (status === 'completed') {
+    return 'bg-status-success-bg text-status-success-text';
+  }
+  if (status === 'no_enrollment') {
+    return 'bg-surface2 text-tx-muted';
+  }
+  return 'bg-status-info-bg text-status-info-text';
+}
+
 // Uniform pill sizing: whitespace-nowrap so no label (e.g. "Ready to
 // Complete") ever wraps to two lines inside a condensed bubble, and the
 // same padding/height across every state so the column doesn't look
@@ -62,6 +84,23 @@ export const StudentStatusBadge: React.FC<StudentStatusBadgeProps> = ({ statusIn
       <span className={`${BADGE_CLASSES} bg-gold-bg text-gold-text cursor-help`} title={title ?? 'Requirement met - ready to mark complete'}>
         <Star className="h-3 w-3 flex-shrink-0" fill="currentColor" />
         Ready to Complete
+      </span>
+    );
+  }
+
+  if (isDisplayStatusUnion(statusInfo)) {
+    if (statusInfo.kind === 'de') {
+      const info: DeStatusInfo = statusInfo.info;
+      return (
+        <span className={`${BADGE_CLASSES} ${deStatusClasses(info.status)} cursor-help`} title={title ?? info.reason}>
+          {info.displayStatus}
+        </span>
+      );
+    }
+    const info: StatusInfo = statusInfo.info;
+    return (
+      <span className={`${BADGE_CLASSES} ${statusClasses(info.status, info.displayStatus)} cursor-help`} title={title ?? info.reason}>
+        {info.displayStatus}
       </span>
     );
   }
