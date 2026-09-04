@@ -10,7 +10,7 @@
  * - inactive: Dropped, suspended, or 60+ days no activity
  */
 
-import type { Student, Lesson, ActiveEnrollmentSummary } from '@/types';
+import type { Student, Lesson, ActiveEnrollmentSummary, DeEnrollmentSummary } from '@/types';
 import { formatLocalDate, parseLocalDate } from './timeFormat';
 
 export type ComputedStatus = 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive';
@@ -378,4 +378,96 @@ export function getFollowupReason(
   }
 
   return 'Needs scheduling';
+}
+
+/**
+ * Driver Education (DE) status - a PARALLEL, deliberately separate track
+ * from ComputedStatus/StatusInfo above, not a case folded into that union.
+ * A DE program is linear (unassigned -> enrolled -> attending -> complete),
+ * not a booking workflow, so BTW's lesson/permit/60-day-gap concepts have
+ * no meaning here. Forcing DE into ComputedStatus would grow every switch
+ * over it with dead branches - see docs/ARCHITECTURE.md's Students-page
+ * section for the full rationale.
+ *
+ * Text is a direct port of what EnrollmentSubPanel.tsx already renders for
+ * a DE enrollment's progress line - reused wording, not a new calculation,
+ * and reads the SAME classroomAttendance data the Classroom roster and
+ * EnrollmentSubPanel already read.
+ */
+export type DeComputedStatus = 'no_enrollment' | 'unassigned' | 'enrolled' | 'completed';
+
+export interface DeStatusInfo {
+  status: DeComputedStatus;
+  displayStatus: string;
+  reason?: string;
+}
+
+export function computeDeStatus(deEnrollment: DeEnrollmentSummary | null | undefined): DeStatusInfo {
+  if (!deEnrollment) {
+    return {
+      status: 'no_enrollment',
+      displayStatus: 'No DE Enrollment',
+      reason: 'No driver_education enrollment',
+    };
+  }
+
+  if (deEnrollment.deDeliveryMode === 'classroom' && deEnrollment.classroomAttendance) {
+    const attended = deEnrollment.classroomAttendance.attendedCurriculumDays.length;
+    if (deEnrollment.completed) {
+      return {
+        status: 'completed',
+        displayStatus: 'DE Completed',
+        reason: `Completed - ${attended}/4 days attended`,
+      };
+    }
+    return {
+      status: attended > 0 ? 'enrolled' : 'unassigned',
+      displayStatus: `${attended}/4 days attended`,
+      reason: deEnrollment.cohortName ? `Enrolled in ${deEnrollment.cohortName}` : 'Not yet assigned to a cohort',
+    };
+  }
+
+  // Online delivery (or classroom with no attendance data yet, e.g. not
+  // assigned to a cohort) - manual-hours driven, same wording as
+  // EnrollmentSubPanel's online branch.
+  const hours = deEnrollment.manualCompletedHours ?? 0;
+  if (deEnrollment.completed) {
+    return {
+      status: 'completed',
+      displayStatus: 'DE Completed',
+      reason: `Completed - ${deEnrollment.manualCompletedHours ?? '?'} hours`,
+    };
+  }
+  return {
+    status: hours > 0 ? 'enrolled' : 'unassigned',
+    displayStatus: `${hours} hours logged`,
+    reason: 'Manually entered - DE hours logged so far',
+  };
+}
+
+export type ProgramFilter = 'all' | 'btw' | 'de';
+
+export type DisplayStatus =
+  | { kind: 'btw'; info: StatusInfo }
+  | { kind: 'de'; info: DeStatusInfo };
+
+/**
+ * Single dispatcher between the two status tracks - the one call site
+ * Students.tsx uses in place of the old assume-BTW getStudentStatus call.
+ * 'all' resolves to the FURTHEST-ALONG program's status: a BTW enrollment
+ * implies DE is already behind the student (programs are sequential,
+ * DE -> BTW), so BTW status is the meaningful one to show; otherwise DE
+ * status (or "No DE Enrollment" for a student in neither program).
+ */
+export function getDisplayStatus(
+  student: Pick<Student, 'activeEnrollment'>,
+  programFilter: ProgramFilter,
+  btwStatus: StatusInfo,
+  deStatus: DeStatusInfo
+): DisplayStatus {
+  if (programFilter === 'de') return { kind: 'de', info: deStatus };
+  if (programFilter === 'btw') return { kind: 'btw', info: btwStatus };
+  return student.activeEnrollment !== null && student.activeEnrollment !== undefined
+    ? { kind: 'btw', info: btwStatus }
+    : { kind: 'de', info: deStatus };
 }

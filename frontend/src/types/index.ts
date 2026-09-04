@@ -211,6 +211,17 @@ export interface Student {
   // `progress` (a computed hours/lessons view, not a grab-bag). null means
   // no active driver_training enrollment right now - handle it explicitly.
   activeEnrollment?: ActiveEnrollmentSummary | null;
+  // This student's driver_education enrollment (at most one, ever),
+  // attached alongside activeEnrollment on every list/detail read - lets
+  // the Students page distinguish "no BTW enrollment" from "DE student,
+  // never touched BTW" instead of assuming every student is a BTW
+  // student. null means no DE enrollment exists.
+  deEnrollment?: DeEnrollmentSummary | null;
+  // "Enroll in BTW" eligibility signal (soft guidance, not a hard gate) -
+  // true when this student has a COMPLETED driver_education enrollment
+  // with us. Attached only on the single-student detail read, not the
+  // list.
+  hasCompletedInternalDe?: boolean;
   // Derived (not stored) payment summary for the active driver_training
   // enrollment - mirrors `progress`'s shape/rationale, computed fresh from
   // payments.amount each read. Undefined (not null) when there's no active
@@ -264,6 +275,21 @@ export interface ActiveEnrollmentSummary {
   completed: boolean;
   completionReason: string | null;
   withdrawnReason: string | null;
+}
+
+// Program-aware Students list: a student's driver_education enrollment
+// summary, batch-attached alongside activeEnrollment - mirrors the
+// backend's DeEnrollmentSummary exactly. classroomAttendance is the SAME
+// attendance-derived source EnrollmentSubPanel already reads, never a
+// second completion calculation.
+export interface DeEnrollmentSummary {
+  id: string;
+  status: 'active' | 'completed' | 'inactive' | 'suspended' | 'withdrawn';
+  completed: boolean;
+  deDeliveryMode: 'classroom' | 'online' | null;
+  manualCompletedHours: number | null;
+  classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
+  cohortName: string | null;
 }
 
 export interface Enrollment {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { studentNeedsFollowup, getFollowupReason, computeStudentStatus } from './studentStatus';
-import type { Student, Lesson, ActiveEnrollmentSummary } from '@/types';
+import { studentNeedsFollowup, getFollowupReason, computeStudentStatus, computeDeStatus, getDisplayStatus } from './studentStatus';
+import type { Student, Lesson, ActiveEnrollmentSummary, DeEnrollmentSummary } from '@/types';
 
 // studentStatus.ts's `now` parameter is required, never defaulted (a
 // caller-supplied instant, matching what a real caller would pass in as
@@ -304,5 +304,137 @@ describe('computeStudentStatus - terminal states always win over the 60+-day-ina
     expect(info.status).toBe('inactive');
     expect(info.displayStatus).toBe('Inactive');
     expect(info.reason).toMatch(/no activity for 70 days/i);
+  });
+});
+
+describe('computeDeStatus', () => {
+  it('returns no_enrollment for a student with no DE enrollment (null)', () => {
+    const info = computeDeStatus(null);
+    expect(info.status).toBe('no_enrollment');
+    expect(info.displayStatus).toBe('No DE Enrollment');
+  });
+
+  it('returns no_enrollment for undefined the same as null', () => {
+    const info = computeDeStatus(undefined);
+    expect(info.status).toBe('no_enrollment');
+  });
+
+  it('a classroom enrollment with partial attendance shows "X/4 days attended", not completed', () => {
+    const de: DeEnrollmentSummary = {
+      id: 'de-1',
+      status: 'active',
+      completed: false,
+      deDeliveryMode: 'classroom',
+      manualCompletedHours: null,
+      classroomAttendance: { attendedCurriculumDays: [1, 3], isComplete: false },
+      cohortName: 'Fall Weekend Class',
+    };
+    const info = computeDeStatus(de);
+    expect(info.status).toBe('enrolled');
+    expect(info.displayStatus).toBe('2/4 days attended');
+    expect(info.reason).toMatch(/Fall Weekend Class/);
+  });
+
+  it('a classroom enrollment assigned but with zero attendance yet is "unassigned", not "enrolled"', () => {
+    const de: DeEnrollmentSummary = {
+      id: 'de-1',
+      status: 'active',
+      completed: false,
+      deDeliveryMode: 'classroom',
+      manualCompletedHours: null,
+      classroomAttendance: { attendedCurriculumDays: [], isComplete: false },
+      cohortName: null,
+    };
+    const info = computeDeStatus(de);
+    expect(info.status).toBe('unassigned');
+    expect(info.displayStatus).toBe('0/4 days attended');
+    expect(info.reason).toMatch(/not yet assigned/i);
+  });
+
+  it('a completed classroom enrollment shows "DE Completed" with the attendance count in the reason', () => {
+    const de: DeEnrollmentSummary = {
+      id: 'de-1',
+      status: 'completed',
+      completed: true,
+      deDeliveryMode: 'classroom',
+      manualCompletedHours: null,
+      classroomAttendance: { attendedCurriculumDays: [1, 2, 3, 4], isComplete: true },
+      cohortName: 'Fall Weekend Class',
+    };
+    const info = computeDeStatus(de);
+    expect(info.status).toBe('completed');
+    expect(info.displayStatus).toBe('DE Completed');
+    expect(info.reason).toBe('Completed - 4/4 days attended');
+  });
+
+  it('an online enrollment with hours logged shows "X hours logged", not completed', () => {
+    const de: DeEnrollmentSummary = {
+      id: 'de-1',
+      status: 'active',
+      completed: false,
+      deDeliveryMode: 'online',
+      manualCompletedHours: 12,
+      cohortName: null,
+    };
+    const info = computeDeStatus(de);
+    expect(info.status).toBe('enrolled');
+    expect(info.displayStatus).toBe('12 hours logged');
+  });
+
+  it('a completed online enrollment shows "DE Completed" with hours in the reason', () => {
+    const de: DeEnrollmentSummary = {
+      id: 'de-1',
+      status: 'completed',
+      completed: true,
+      deDeliveryMode: 'online',
+      manualCompletedHours: 30,
+      cohortName: null,
+    };
+    const info = computeDeStatus(de);
+    expect(info.status).toBe('completed');
+    expect(info.reason).toBe('Completed - 30 hours');
+  });
+});
+
+describe('getDisplayStatus', () => {
+  const btwInfo = computeStudentStatus(BASE_STUDENT, [], NOW, BASE_ENROLLMENT);
+  const completeDe: DeEnrollmentSummary = {
+    id: 'de-1',
+    status: 'completed',
+    completed: true,
+    deDeliveryMode: 'online',
+    manualCompletedHours: 30,
+    cohortName: null,
+  };
+  const deInfo = computeDeStatus(completeDe);
+
+  it('programFilter "de" always returns DE status, regardless of BTW enrollment presence', () => {
+    const withBtw = { activeEnrollment: BASE_ENROLLMENT };
+    const result = getDisplayStatus(withBtw, 'de', btwInfo, deInfo);
+    expect(result.kind).toBe('de');
+  });
+
+  it('programFilter "btw" always returns BTW status, regardless of DE enrollment presence', () => {
+    const noBtw = { activeEnrollment: null };
+    const result = getDisplayStatus(noBtw, 'btw', btwInfo, deInfo);
+    expect(result.kind).toBe('btw');
+  });
+
+  it('programFilter "all" resolves to BTW status when the student has a BTW enrollment - furthest-along wins', () => {
+    const withBtw = { activeEnrollment: BASE_ENROLLMENT };
+    const result = getDisplayStatus(withBtw, 'all', btwInfo, deInfo);
+    expect(result.kind).toBe('btw');
+  });
+
+  it('programFilter "all" resolves to DE status when the student has no BTW enrollment', () => {
+    const noBtw = { activeEnrollment: null };
+    const result = getDisplayStatus(noBtw, 'all', btwInfo, deInfo);
+    expect(result.kind).toBe('de');
+  });
+
+  it('programFilter "all" resolves to DE status when activeEnrollment is undefined (not just null)', () => {
+    const undefinedBtw = { activeEnrollment: undefined };
+    const result = getDisplayStatus(undefinedBtw, 'all', btwInfo, deInfo);
+    expect(result.kind).toBe('de');
   });
 });
