@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Enrollment, ApiResponse, ProgramType } from '@/types';
+import type { Enrollment, ApiResponse, ProgramType, Student } from '@/types';
 
 export interface CreateEnrollmentInput {
   programType: ProgramType;
@@ -24,6 +24,22 @@ export interface UpdateEnrollmentInput {
   manualCompletedHours?: number | null;
 }
 
+export interface EnrollInBtwInput {
+  hoursRequired?: number;
+  licenseType?: 'car' | 'motorcycle' | 'commercial';
+  assignedInstructorId?: string;
+  permit?: {
+    number?: string;
+    issueDate?: string;
+    expiration?: string;
+  };
+  // Presence = "record DE completed elsewhere" was checked.
+  externalDeCompleted?: {
+    date?: string;
+    provider?: string;
+  };
+}
+
 export const enrollmentsApi = {
   getForStudent: async (studentId: string) => {
     const response = await apiClient.get<ApiResponse<Enrollment[]>>(`/students/${studentId}/enrollments`);
@@ -32,6 +48,17 @@ export const enrollmentsApi = {
 
   create: async (studentId: string, data: CreateEnrollmentInput) => {
     const response = await apiClient.post<ApiResponse<Enrollment>>(`/students/${studentId}/enrollments`, data);
+    return response.data;
+  },
+
+  // Directional DE -> BTW: creates the driver_training enrollment and,
+  // atomically, optionally updates the permit and/or records DE completed
+  // elsewhere (the escape hatch). Never available in reverse.
+  enrollInBtw: async (studentId: string, data: EnrollInBtwInput) => {
+    const response = await apiClient.post<ApiResponse<{ student: Student; enrollment: Enrollment }>>(
+      `/students/${studentId}/enroll-in-btw`,
+      data
+    );
     return response.data;
   },
 

@@ -351,3 +351,17 @@ export const createEnrollmentForStudent = asyncHandler(async (req: Request, res:
     message: 'Enrollment created successfully',
   });
 });
+
+export const enrollInBtw = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+
+  const result = await enrollmentService.enrollInBtw(id, tenantId, req.body, userId);
+
+  res.status(201).json({
+    success: true,
+    data: result,
+    message: 'Enrolled in Behind-the-Wheel successfully',
+  });
+});

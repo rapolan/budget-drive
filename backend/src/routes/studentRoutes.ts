@@ -93,6 +93,15 @@ router.post(
   studentController.createEnrollmentForStudent
 );
 
+// Directional DE -> BTW enrollment: creates the driver_training enrollment
+// and, atomically, optionally updates the permit and/or records DE
+// completed elsewhere (the escape hatch) - see enrollmentService.enrollInBtw.
+router.post(
+  '/students/:id/enroll-in-btw',
+  validateUUID('id'),
+  studentController.enrollInBtw
+);
+
 // Get guardians linked to a student
 router.get(
   '/students/:id/guardians',

@@ -16,7 +16,7 @@
  * years later).
  */
 
-import { query } from '../config/database';
+import { query, getClient } from '../config/database';
 import { Enrollment, EnrollmentPaymentSummary, Student, Lesson, ProgramType, DeEnrollmentSummary } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
@@ -371,6 +371,133 @@ export const getDeEnrollmentsBatch = async (
     });
   }
   return map;
+};
+
+export interface EnrollInBtwInput {
+  hoursRequired?: number;
+  licenseType?: 'car' | 'motorcycle' | 'commercial';
+  assignedInstructorId?: string;
+  permit?: {
+    number?: string;
+    issueDate?: Date;
+    expiration?: Date;
+  };
+  // Presence = the escape hatch was checked (a DE-elsewhere transfer
+  // student). Written onto the NEW driver_training enrollment, since
+  // externalDeCompleted only exists on a driver_training row and none
+  // exists yet for a DE-only student at the moment this is called.
+  externalDeCompleted?: {
+    date?: Date;
+    provider?: string;
+  };
+}
+
+/**
+ * Directional DE -> BTW enrollment (see docs/ARCHITECTURE.md's Students-page
+ * section). Up to three writes - the new driver_training enrollment, an
+ * optional permit update on the student record, and an optional
+ * external-DE-completion stamp on the new enrollment (the transfer-student
+ * escape hatch) - all in ONE transaction, modeled on createStudent's exact
+ * BEGIN/COMMIT shape. A failure at any step must never leave an enrollment
+ * with no permit recorded, or a permit change with no enrollment.
+ *
+ * Eligibility (internal OR external DE completion) is soft guidance,
+ * enforced only in the UI (EnrollmentSubPanel) - this function does not
+ * hard-block an admin who knows better. The only hard pre-check is the
+ * existing driver_training uniqueness rule createEnrollment already
+ * enforces (at most one ACTIVE driver_training enrollment per student).
+ */
+export const enrollInBtw = async (
+  studentId: string,
+  tenantId: string,
+  data: EnrollInBtwInput,
+  userId?: string
+): Promise<{ student: Student; enrollment: Enrollment }> => {
+  logger.info('Enrolling student in BTW', { tenantId, studentId });
+
+  const studentCheck = await query('SELECT id FROM students WHERE id = $1 AND tenant_id = $2', [studentId, tenantId]);
+  if (studentCheck.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+
+  const existingActive = await getActiveDriverTrainingEnrollment(studentId, tenantId);
+  if (existingActive) {
+    throw new AppError('Student already has an active driver_training enrollment', 400);
+  }
+
+  const tenantSettings = await getTenantSettings(tenantId);
+  const hoursRequired = data.hoursRequired ?? tenantSettings?.defaultHoursRequired ?? 6;
+  const licenseType = data.licenseType ?? 'car';
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    if (data.permit && (data.permit.number !== undefined || data.permit.issueDate !== undefined || data.permit.expiration !== undefined)) {
+      const fields: string[] = [];
+      const values: unknown[] = [];
+      let paramCount = 1;
+      if (data.permit.number !== undefined) {
+        fields.push(`learner_permit_number = $${paramCount++}`);
+        values.push(data.permit.number === '' ? null : data.permit.number);
+      }
+      if (data.permit.issueDate !== undefined) {
+        fields.push(`learner_permit_issue_date = $${paramCount++}`);
+        values.push(data.permit.issueDate);
+      }
+      if (data.permit.expiration !== undefined) {
+        fields.push(`learner_permit_expiration = $${paramCount++}`);
+        values.push(data.permit.expiration);
+      }
+      fields.push(`updated_by = $${paramCount++}`);
+      values.push(userId || null);
+      values.push(studentId, tenantId);
+      await client.query(
+        `UPDATE students SET ${fields.join(', ')} WHERE id = $${paramCount++} AND tenant_id = $${paramCount}`,
+        values
+      );
+    }
+
+    const enrollmentResult = await client.query(
+      `INSERT INTO enrollments (
+         tenant_id, student_id, program_type, hours_required, license_type,
+         assigned_instructor_id, created_by, updated_by
+       ) VALUES ($1, $2, 'driver_training', $3, $4, $5, $6, $6)
+       RETURNING *`,
+      [tenantId, studentId, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
+    );
+    const newEnrollment = keysToCamel(enrollmentResult.rows[0]) as Enrollment;
+
+    if (data.externalDeCompleted) {
+      await client.query(
+        `UPDATE enrollments
+         SET external_de_completed = true, external_de_completed_date = $1, external_de_provider = $2, updated_by = $3
+         WHERE id = $4 AND tenant_id = $5`,
+        [
+          data.externalDeCompleted.date ?? null,
+          data.externalDeCompleted.provider ?? null,
+          userId || null,
+          newEnrollment.id,
+          tenantId,
+        ]
+      );
+    }
+
+    const studentResult = await client.query('SELECT * FROM students WHERE id = $1 AND tenant_id = $2', [studentId, tenantId]);
+    const updatedStudent = keysToCamel(studentResult.rows[0]) as Student;
+
+    await client.query('COMMIT');
+
+    logger.info('Successfully enrolled student in BTW', { tenantId, studentId, enrollmentId: newEnrollment.id });
+
+    return { student: updatedStudent, enrollment: newEnrollment };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Failed to enroll student in BTW', error as Error, { tenantId, studentId });
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export interface CreateEnrollmentInput {
