@@ -85,6 +85,7 @@ describe('needsGuardian attachment', () => {
           { id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active', hours_required: 6, completed: false },
         ])
       ) // active driver_training enrollments batch - only STUDENT_ID has one
+      .mockResolvedValueOnce(queryResult([])) // getDeEnrollmentsBatch - no DE enrollment
       .mockResolvedValueOnce(queryResult([])) // batched lessons for that enrollment
       .mockResolvedValueOnce(queryResult([])) // batched payments for that enrollment
       .mockResolvedValueOnce(queryResult([{ student_id: STUDENT_ID, count: '1' }])) // batched guardian counts - one call for both
@@ -92,7 +93,7 @@ describe('needsGuardian attachment', () => {
       .mockResolvedValueOnce(queryResult([])); // batched primary guardians - one call for both
 
     const { students } = await studentService.getAllStudents(TENANT_ID, 1, 50);
-    expect(mockQuery).toHaveBeenCalledTimes(9);
+    expect(mockQuery).toHaveBeenCalledTimes(10);
     expect(students.find(s => s.id === STUDENT_ID)?.needsGuardian).toBe(false);
     expect(students.find(s => s.id === STUDENT_ID_2)?.needsGuardian).toBe(true);
   });

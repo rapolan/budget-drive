@@ -368,6 +368,20 @@ export interface Student {
   // null means no active driver_training enrollment exists right now -
   // callers must handle that explicitly, not read through to `undefined`.
   activeEnrollment?: ActiveEnrollmentSummary | null;
+  // Program-aware Students list: this student's driver_education
+  // enrollment, if any - attached alongside activeEnrollment so the
+  // frontend can tell "no BTW enrollment" apart from "DE student, never
+  // touched BTW" instead of assuming every student is a BTW student.
+  // null means no driver_education enrollment exists (not "not loaded").
+  deEnrollment?: DeEnrollmentSummary | null;
+  // "Enroll in BTW" eligibility signal - true if this student has a
+  // COMPLETED driver_education enrollment recorded in this system
+  // ("internal" - see enrollmentService.hasCompletedInternalDriverEducation
+  // for the same concept, used elsewhere for the BTW discount). Attached
+  // only on the single-student detail read (getStudentById), not the
+  // list - soft guidance for EnrollmentSubPanel's "Enroll in BTW" action,
+  // never a hard gate.
+  hasCompletedInternalDe?: boolean;
   // Derived (not stored) payment summary for the active driver_training
   // enrollment - mirrors `progress`'s shape/rationale, computed fresh from
   // payments.amount each read. Undefined (not null) when there's no active
@@ -430,6 +444,22 @@ export interface ActiveEnrollmentSummary {
   completed: boolean;
   completionReason: string | null;
   withdrawnReason: string | null;
+}
+
+// Attached to Student.deEnrollment (program-aware Students list) - a
+// student has at most one driver_education enrollment ever, so unlike
+// ActiveEnrollmentSummary this doesn't need to express "which one is
+// currently active/displayed". classroomAttendance is the exact same
+// batched attendance-derived data the Classroom roster reads, never a
+// second completion calculation.
+export interface DeEnrollmentSummary {
+  id: string;
+  status: 'active' | 'completed' | 'inactive' | 'suspended' | 'withdrawn';
+  completed: boolean;
+  deDeliveryMode: 'classroom' | 'online' | null;
+  manualCompletedHours: number | null;
+  classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
+  cohortName: string | null;
 }
 
 export interface Enrollment {

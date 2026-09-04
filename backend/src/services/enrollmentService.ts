@@ -17,7 +17,7 @@
  */
 
 import { query } from '../config/database';
-import { Enrollment, EnrollmentPaymentSummary, Student, Lesson, ProgramType } from '../types';
+import { Enrollment, EnrollmentPaymentSummary, Student, Lesson, ProgramType, DeEnrollmentSummary } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -312,6 +312,63 @@ export const getDisplayDriverTrainingEnrollmentsBatch = async (
   for (const row of result.rows) {
     const enrollment = keysToCamel(row) as Enrollment;
     map.set(enrollment.studentId, enrollment);
+  }
+  return map;
+};
+
+// Program-aware Students list: a student's driver_education enrollment
+// summary (at most one ever - EnrollmentSubPanel's canAddDriverEducation
+// gate gives DE exactly one enrollment per student, so unlike
+// getDisplayDriverTrainingEnrollmentsBatch above there's no sequential-
+// reenrollment case to resolve and no DISTINCT ON tie-break needed).
+// classroomAttendance is attached via the SAME batched
+// getClassroomAttendanceSummaries source the Classroom roster and
+// EnrollmentSubPanel already read - never a second completion
+// calculation. cohortName comes along for free via a cheap LEFT JOIN
+// (null when classroom but not yet assigned to a cohort, or when
+// delivery is online). DeEnrollmentSummary itself lives in ../types
+// (alongside ActiveEnrollmentSummary) since it's attached to Student.
+
+export const getDeEnrollmentsBatch = async (
+  studentIds: string[],
+  tenantId: string
+): Promise<Map<string, DeEnrollmentSummary>> => {
+  const map = new Map<string, DeEnrollmentSummary>();
+  if (studentIds.length === 0) return map;
+
+  const result = await query(
+    `SELECT e.id, e.student_id, e.status, e.completed, e.de_delivery_mode,
+            e.manual_completed_hours, c.name AS cohort_name
+     FROM enrollments e
+     LEFT JOIN de_cohort_enrollments dce ON dce.enrollment_id = e.id AND dce.tenant_id = e.tenant_id
+     LEFT JOIN de_cohorts c ON c.id = dce.cohort_id
+     WHERE e.student_id = ANY($1::uuid[]) AND e.tenant_id = $2 AND e.program_type = 'driver_education'`,
+    [studentIds, tenantId]
+  );
+
+  const classroomEnrollmentIds = result.rows
+    .filter((row: { de_delivery_mode: string | null }) => row.de_delivery_mode === 'classroom')
+    .map((row: { id: string }) => row.id);
+  const attendanceByEnrollment = await getClassroomAttendanceSummaries(classroomEnrollmentIds, tenantId);
+
+  for (const row of result.rows as {
+    id: string;
+    student_id: string;
+    status: Enrollment['status'];
+    completed: boolean;
+    de_delivery_mode: 'classroom' | 'online' | null;
+    manual_completed_hours: string | null;
+    cohort_name: string | null;
+  }[]) {
+    map.set(row.student_id, {
+      id: row.id,
+      status: row.status,
+      completed: row.completed,
+      deDeliveryMode: row.de_delivery_mode,
+      manualCompletedHours: row.manual_completed_hours !== null ? parseFloat(row.manual_completed_hours) : null,
+      classroomAttendance: attendanceByEnrollment.get(row.id),
+      cohortName: row.cohort_name,
+    });
   }
   return map;
 };

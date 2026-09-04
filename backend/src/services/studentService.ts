@@ -17,6 +17,7 @@ import { getOutstandingFlagsForStudentsBatch, getOutstandingFlagsForStudent } fr
 import { findExactGuardianMatch, getGuardianById } from './guardianService';
 import {
   getDisplayDriverTrainingEnrollmentsBatch,
+  getDeEnrollmentsBatch,
   getEnrollmentsForStudent,
   computePaymentSummary,
 } from './enrollmentService';
@@ -64,6 +65,11 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
   const studentIds = students.map(s => s.id);
   const activeEnrollments = await getDisplayDriverTrainingEnrollmentsBatch(studentIds, tenantId);
   const enrollmentIds = Array.from(activeEnrollments.values()).map(e => e.id);
+  // Program-aware list (see docs/ARCHITECTURE.md's Students-page section):
+  // a student's DE enrollment, batched the same way as the BTW one above -
+  // one extra query, not N+1. Lets the frontend show DE-appropriate status
+  // instead of assuming every student is a BTW student.
+  const deEnrollments = await getDeEnrollmentsBatch(studentIds, tenantId);
 
   const lessonsResult = enrollmentIds.length > 0
     ? await query(
@@ -170,6 +176,7 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
       progress,
       needsGuardian,
       activeEnrollment,
+      deEnrollment: deEnrollments.get(student.id) ?? null,
       paymentSummary,
       hasOutstandingFee,
       outstandingFeeAmount,
@@ -304,6 +311,16 @@ export const getStudentById = async (
       .slice()
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
+  // "Enroll in BTW" eligibility signal (soft guidance, not a hard gate -
+  // see enrollInBtw): derived for free from the enrollments list already
+  // fetched above, rather than a second query via the single-purpose
+  // hasCompletedInternalDriverEducation primitive (that DB round trip
+  // exists for callers, like the BTW-discount check, that don't already
+  // have this list in memory).
+  const hasCompletedInternalDe = enrollments.some(
+    e => e.programType === 'driver_education' && e.completed
+  );
+
   return {
     ...student,
     progress: activeDriverTraining?.progress,
@@ -320,6 +337,7 @@ export const getStudentById = async (
           withdrawnReason: activeDriverTraining.withdrawnReason,
         }
       : null,
+    hasCompletedInternalDe,
     hasOutstandingFee: outstandingFees.length > 0,
     outstandingFeeAmount: outstandingFees.reduce((sum, f) => sum + Number(f.amount), 0),
     primaryGuardian: primaryGuardianRecord
