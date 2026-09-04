@@ -55,6 +55,32 @@ interface EnrollmentSubPanelProps {
   // inactive, or suspended alike).
   onGenerateTranscript: (enrollmentId: string) => void;
   generatingTranscriptEnrollmentId: string | null;
+
+  // "Enroll in BTW" (item 5, directional DE -> BTW only) - a distinct row
+  // shown when the student has no active driver_training enrollment,
+  // regardless of whether canAddDriverTraining is also true (it always is
+  // in that case - this row REPLACES the generic "Add driver training
+  // enrollment" link, it doesn't duplicate it). Eligibility (internal OR
+  // external DE completion) is soft guidance, never a hard gate - an admin
+  // can still act with the escape hatch even when neither is true yet.
+  hasCompletedInternalDe: boolean;
+  // The most recently added driver_training enrollment's own external-DE
+  // fields, if the student has one (e.g. reopened) - a second signal
+  // alongside hasCompletedInternalDe. Undefined when no such enrollment
+  // exists yet, which is the common case this row exists for.
+  mostRecentExternalDeCompleted?: boolean;
+  isEnrollingBtw: boolean;
+  onStartEnrollInBtw: () => void;
+  onCancelEnrollInBtw: () => void;
+  onConfirmEnrollInBtw: (data: {
+    hoursRequired?: number;
+    permit?: { number?: string; issueDate?: string; expiration?: string };
+    externalDeCompleted?: { date?: string; provider?: string };
+  }) => void;
+  isEnrollInBtwPending: boolean;
+  // Prefills the permit sub-form with the student's current permit, if any
+  // - the fields stay editable afterward on the student record either way.
+  currentPermit: { number?: string; issueDate?: string; expiration?: string };
 }
 
 export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
@@ -78,6 +104,14 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
   certificatesByEnrollmentId,
   onGenerateTranscript,
   generatingTranscriptEnrollmentId,
+  hasCompletedInternalDe,
+  mostRecentExternalDeCompleted,
+  isEnrollingBtw,
+  onStartEnrollInBtw,
+  onCancelEnrollInBtw,
+  onConfirmEnrollInBtw,
+  isEnrollInBtwPending,
+  currentPermit,
 }) => {
   const [draftHoursRequired, setDraftHoursRequired] = React.useState('');
   const [draftManualHours, setDraftManualHours] = React.useState('');
@@ -92,6 +126,33 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
       setDraftCohortId('');
     }
   }, [isAddingProgramType]);
+
+  const isDeEligible = hasCompletedInternalDe || !!mostRecentExternalDeCompleted;
+  const [btwPermitNumber, setBtwPermitNumber] = React.useState('');
+  const [btwPermitIssueDate, setBtwPermitIssueDate] = React.useState('');
+  const [btwPermitExpiration, setBtwPermitExpiration] = React.useState('');
+  const [btwRecordExternalDe, setBtwRecordExternalDe] = React.useState(false);
+  const [btwExternalDeDate, setBtwExternalDeDate] = React.useState('');
+  const [btwExternalDeProvider, setBtwExternalDeProvider] = React.useState('');
+  const [btwHoursRequired, setBtwHoursRequired] = React.useState('');
+
+  React.useEffect(() => {
+    if (isEnrollingBtw) {
+      setBtwPermitNumber(currentPermit.number ?? '');
+      setBtwPermitIssueDate(currentPermit.issueDate ?? '');
+      setBtwPermitExpiration(currentPermit.expiration ?? '');
+      setBtwRecordExternalDe(false);
+      setBtwExternalDeDate('');
+      setBtwExternalDeProvider('');
+      setBtwHoursRequired('');
+    }
+  }, [isEnrollingBtw, currentPermit.number, currentPermit.issueDate, currentPermit.expiration]);
+
+  // The escape hatch itself flips eligibility on for THIS submission -
+  // checking "record DE completed elsewhere" travels with the same
+  // enrollInBtw call, so the button doesn't need to wait for a page
+  // refresh to unlock.
+  const isEnrollInBtwEnabled = isDeEligible || btwRecordExternalDe;
 
   return (
     <div className="space-y-3">
@@ -378,28 +439,170 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
         </div>
       )}
 
-      {!isAddingProgramType && (canAddDriverEducation || canAddDriverTraining) && (
+      {/* "Enroll in BTW" (item 5) - REPLACES the generic driver_training
+          add-link with a distinct row, same visual weight as the
+          enrollment cards above, whenever the student has no active
+          driver_training enrollment. Directional only: no reverse
+          "Enroll in DE" row ever appears here. */}
+      {!isAddingProgramType && !isEnrollingBtw && canAddDriverTraining && (
+        <div className="bg-surface2 rounded-lg p-4 flex items-center justify-between gap-3">
+          <div>
+            <span className="font-medium text-tx-primary">Behind-the-Wheel</span>
+            <span className="text-sm text-tx-muted ml-2">Not enrolled</span>
+            {!isDeEligible && (
+              <p className="text-xs text-tx-muted mt-0.5">Requires DE completion</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onStartEnrollInBtw}
+            className={`flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 ${
+              isDeEligible
+                ? 'bg-primary text-white hover:brightness-90'
+                : 'text-tx-secondary hover:bg-surface3'
+            }`}
+          >
+            <Plus className="h-4 w-4" />
+            Enroll in BTW
+          </button>
+        </div>
+      )}
+
+      {isEnrollingBtw && (
+        <div className="bg-surface border border-edge-strong rounded-lg p-4 space-y-3">
+          <p className="text-sm font-medium text-tx-primary">Enroll in Behind-the-Wheel</p>
+
+          {!isDeEligible && (
+            <div className="bg-surface2 rounded-lg p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm text-tx-primary">
+                <input
+                  type="checkbox"
+                  checked={btwRecordExternalDe}
+                  onChange={(e) => setBtwRecordExternalDe(e.target.checked)}
+                />
+                Record DE completed elsewhere
+              </label>
+              {btwRecordExternalDe && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="btw-external-de-date" className="block text-xs font-medium text-tx-secondary mb-1">Completion date</label>
+                    <input
+                      id="btw-external-de-date"
+                      type="date"
+                      value={btwExternalDeDate}
+                      onChange={(e) => setBtwExternalDeDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="btw-external-de-provider" className="block text-xs font-medium text-tx-secondary mb-1">Provider</label>
+                    <input
+                      id="btw-external-de-provider"
+                      type="text"
+                      value={btwExternalDeProvider}
+                      onChange={(e) => setBtwExternalDeProvider(e.target.value)}
+                      className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                      placeholder="School name"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="btw-hours-required" className="block text-xs font-medium text-tx-secondary mb-1">Hours required</label>
+            <input
+              id="btw-hours-required"
+              type="number"
+              min="0"
+              step="0.5"
+              value={btwHoursRequired}
+              onChange={(e) => setBtwHoursRequired(e.target.value)}
+              className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+              placeholder="6"
+            />
+          </div>
+
+          {/* Permit capture - optional-but-prompted, never required; these
+              fields stay editable on the student record afterward either way. */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <label htmlFor="btw-permit-number" className="block text-xs font-medium text-tx-secondary mb-1">Permit number</label>
+              <input
+                id="btw-permit-number"
+                type="text"
+                value={btwPermitNumber}
+                onChange={(e) => setBtwPermitNumber(e.target.value)}
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+              />
+            </div>
+            <div>
+              <label htmlFor="btw-permit-issue-date" className="block text-xs font-medium text-tx-secondary mb-1">Issue date</label>
+              <input
+                id="btw-permit-issue-date"
+                type="date"
+                value={btwPermitIssueDate}
+                onChange={(e) => setBtwPermitIssueDate(e.target.value)}
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+              />
+            </div>
+            <div>
+              <label htmlFor="btw-permit-expiration" className="block text-xs font-medium text-tx-secondary mb-1">Expiration</label>
+              <input
+                id="btw-permit-expiration"
+                type="date"
+                value={btwPermitExpiration}
+                onChange={(e) => setBtwPermitExpiration(e.target.value)}
+                className="w-full px-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancelEnrollInBtw}
+              className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onConfirmEnrollInBtw({
+                  hoursRequired: btwHoursRequired ? Number(btwHoursRequired) : undefined,
+                  permit: (btwPermitNumber || btwPermitIssueDate || btwPermitExpiration)
+                    ? {
+                        number: btwPermitNumber || undefined,
+                        issueDate: btwPermitIssueDate || undefined,
+                        expiration: btwPermitExpiration || undefined,
+                      }
+                    : undefined,
+                  externalDeCompleted: btwRecordExternalDe
+                    ? { date: btwExternalDeDate || undefined, provider: btwExternalDeProvider || undefined }
+                    : undefined,
+                })
+              }
+              disabled={isEnrollInBtwPending || !isEnrollInBtwEnabled}
+              className="px-3 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+            >
+              {isEnrollInBtwPending ? 'Enrolling...' : 'Enroll in BTW'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isAddingProgramType && !isEnrollingBtw && canAddDriverEducation && (
         <div className="flex flex-wrap gap-3 pt-1">
-          {canAddDriverTraining && (
-            <button
-              type="button"
-              onClick={() => onStartAdd('driver_training')}
-              className="flex items-center gap-1.5 text-sm text-primary hover:text-primary font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              Add driver training enrollment
-            </button>
-          )}
-          {canAddDriverEducation && (
-            <button
-              type="button"
-              onClick={() => onStartAdd('driver_education')}
-              className="flex items-center gap-1.5 text-sm text-primary hover:text-primary font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              Add driver education enrollment
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onStartAdd('driver_education')}
+            className="flex items-center gap-1.5 text-sm text-primary hover:text-primary font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            Add driver education enrollment
+          </button>
         </div>
       )}
     </div>

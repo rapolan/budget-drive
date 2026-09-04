@@ -175,6 +175,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     e => e.programType === 'driver_training' && e.status === 'active'
   );
 
+  // "Enroll in BTW" eligibility (item 5) - hasCompletedInternalDe only
+  // exists on the detail-endpoint Student, not the list-response prop (see
+  // the comment above) - fetched lazily, same enablement as enrollments.
+  const { data: studentDetailData } = useQuery({
+    queryKey: ['students', student?.id, 'detail'],
+    queryFn: () => studentsApi.getById(student!.id),
+    enabled: isEditing && activeTab === 'enrollments' && !!student,
+  });
+  const hasCompletedInternalDe = studentDetailData?.data?.hasCompletedInternalDe ?? false;
+
   const studentLessons = lessonsData?.data?.filter(l => l.studentId === student?.id) || [];
   const instructors = instructorsData?.data || [];
 
@@ -715,6 +725,21 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       invalidateEnrollmentQueries();
       queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
       setIsAddingProgramType(null);
+    },
+  });
+
+  // Directional DE -> BTW (item 5) - a distinct action from the generic
+  // "Add driver training enrollment" flow above: it can carry a permit and
+  // an external-DE-completion stamp, written atomically server-side in one
+  // transaction (enrollmentsApi.enrollInBtw / enrollInBtw service function).
+  const [isEnrollingBtw, setIsEnrollingBtw] = useState(false);
+  const enrollInBtwMutation = useMutation({
+    mutationFn: (data: Parameters<typeof enrollmentsApi.enrollInBtw>[1]) =>
+      enrollmentsApi.enrollInBtw(student!.id, data),
+    onSuccess: () => {
+      invalidateEnrollmentQueries();
+      queryClient.invalidateQueries({ queryKey: ['students', student?.id, 'detail'] });
+      setIsEnrollingBtw(false);
     },
   });
 
@@ -2773,6 +2798,27 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 certificatesByEnrollmentId={certificatesByEnrollmentId}
                 onGenerateTranscript={(enrollmentId) => generateTranscriptMutation.mutate(enrollmentId)}
                 generatingTranscriptEnrollmentId={generatingTranscriptEnrollmentId}
+                hasCompletedInternalDe={hasCompletedInternalDe}
+                mostRecentExternalDeCompleted={
+                  enrollments
+                    .filter(e => e.programType === 'driver_training')
+                    .sort((a, b) => new Date(b.enrollmentDate).getTime() - new Date(a.enrollmentDate).getTime())[0]
+                    ?.externalDeCompleted
+                }
+                isEnrollingBtw={isEnrollingBtw}
+                onStartEnrollInBtw={() => setIsEnrollingBtw(true)}
+                onCancelEnrollInBtw={() => setIsEnrollingBtw(false)}
+                onConfirmEnrollInBtw={(data) => enrollInBtwMutation.mutate(data)}
+                isEnrollInBtwPending={enrollInBtwMutation.isPending}
+                currentPermit={{
+                  number: student?.learnerPermitNumber,
+                  issueDate: student?.learnerPermitIssueDate
+                    ? new Date(student.learnerPermitIssueDate).toISOString().slice(0, 10)
+                    : undefined,
+                  expiration: student?.learnerPermitExpiration
+                    ? new Date(student.learnerPermitExpiration).toISOString().slice(0, 10)
+                    : undefined,
+                }}
               />
 
               {/* Complete confirm - mirrors the Progress tab's turning-18

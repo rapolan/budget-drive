@@ -14,6 +14,7 @@ vi.mock('@/api', async () => {
       ...actual.studentsApi,
       create: vi.fn(),
       createWithGuardian: vi.fn(),
+      getById: vi.fn().mockResolvedValue({ data: { hasCompletedInternalDe: false } }),
     },
     guardiansApi: {
       ...actual.guardiansApi,
@@ -38,6 +39,7 @@ vi.mock('@/api', async () => {
       update: vi.fn().mockResolvedValue({ data: {} }),
       complete: vi.fn().mockResolvedValue({ data: {} }),
       reopen: vi.fn().mockResolvedValue({ data: {} }),
+      enrollInBtw: vi.fn().mockResolvedValue({ data: { student: {}, enrollment: { id: 'enrollment-btw-new' } } }),
     },
     classroomApi: {
       getCohorts: vi.fn().mockResolvedValue({ data: [] }),
@@ -2053,7 +2055,7 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
     };
   }
 
-  it('offers only "add driver education" when an active driver_training enrollment already exists', async () => {
+  it('offers only "add driver education" (no "Enroll in BTW" row) when an active driver_training enrollment already exists', async () => {
     (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [enrollment()],
     });
@@ -2067,10 +2069,10 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
     await screen.findByText(/^driver training$/i);
 
     expect(screen.getByRole('button', { name: /add driver education enrollment/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /add driver training enrollment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /enroll in btw/i })).not.toBeInTheDocument();
   });
 
-  it('offers "add driver training" (the returning-student case) once the only driver_training enrollment has completed', async () => {
+  it('offers the "Enroll in BTW" row (item 5, replacing the old generic link) once the only driver_training enrollment has completed', async () => {
     (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [enrollment({ status: 'completed', completed: true, completionReason: 'Passed road test' })],
     });
@@ -2079,7 +2081,125 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
     fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
 
     await screen.findByText(/^driver training$/i);
-    expect(screen.getByRole('button', { name: /add driver training enrollment/i })).toBeInTheDocument();
+    expect(screen.getByText('Behind-the-Wheel')).toBeInTheDocument();
+    expect(screen.getByText('Not enrolled')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /enroll in btw/i })).toBeInTheDocument();
+  });
+
+  describe('"Enroll in BTW" (item 5, directional DE -> BTW)', () => {
+    it('shows "Requires DE completion" and a disabled confirm button when the student has not completed DE, internally or externally', async () => {
+      (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+      (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { hasCompletedInternalDe: false } });
+
+      renderModal(editableStudent({ id: 'student-1' }));
+      fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+      await screen.findByText('Behind-the-Wheel');
+      expect(screen.getByText('Requires DE completion')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /enroll in btw/i }));
+      await screen.findByText('Enroll in Behind-the-Wheel');
+
+      expect(screen.getByRole('button', { name: /^enroll in btw$/i })).toBeDisabled();
+    });
+
+    it('enables the confirm button once the internal-DE-completion signal is true, without checking the escape hatch', async () => {
+      (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+      (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { hasCompletedInternalDe: true } });
+
+      renderModal(editableStudent({ id: 'student-1' }));
+      fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+      await screen.findByText('Behind-the-Wheel');
+      await waitFor(() => expect(screen.queryByText('Requires DE completion')).not.toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /enroll in btw/i }));
+      await screen.findByText('Enroll in Behind-the-Wheel');
+
+      expect(screen.getByRole('button', { name: /^enroll in btw$/i })).not.toBeDisabled();
+    });
+
+    it('the escape hatch ("record DE completed elsewhere") enables the confirm button for THIS submission, even when DE-incomplete', async () => {
+      (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+      (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { hasCompletedInternalDe: false } });
+
+      renderModal(editableStudent({ id: 'student-1' }));
+      fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+      await screen.findByText('Behind-the-Wheel');
+      fireEvent.click(screen.getByRole('button', { name: /enroll in btw/i }));
+      await screen.findByText('Enroll in Behind-the-Wheel');
+
+      const confirmButton = screen.getByRole('button', { name: /^enroll in btw$/i });
+      expect(confirmButton).toBeDisabled();
+
+      fireEvent.click(screen.getByLabelText(/record de completed elsewhere/i));
+      expect(confirmButton).not.toBeDisabled();
+    });
+
+    it('submits enrollInBtw with permit fields and the escape-hatch external-DE fields together, then closes the form', async () => {
+      (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+      (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { hasCompletedInternalDe: false } });
+
+      renderModal(editableStudent({ id: 'student-1', learnerPermitNumber: undefined }));
+      fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+      await screen.findByText('Behind-the-Wheel');
+      fireEvent.click(screen.getByRole('button', { name: /enroll in btw/i }));
+      await screen.findByText('Enroll in Behind-the-Wheel');
+
+      fireEvent.click(screen.getByLabelText(/record de completed elsewhere/i));
+      fireEvent.change(screen.getByLabelText(/provider/i), { target: { value: 'Other Driving School' } });
+      fireEvent.change(screen.getByLabelText(/permit number/i), { target: { value: 'X999' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /^enroll in btw$/i }));
+
+      await waitFor(() =>
+        expect(enrollmentsApi.enrollInBtw).toHaveBeenCalledWith(
+          'student-1',
+          expect.objectContaining({
+            permit: expect.objectContaining({ number: 'X999' }),
+            externalDeCompleted: expect.objectContaining({ provider: 'Other Driving School' }),
+          })
+        )
+      );
+
+      await waitFor(() => expect(screen.queryByText('Enroll in Behind-the-Wheel')).not.toBeInTheDocument());
+    });
+
+    it('submits with no permit and no external-DE fields when the student is already DE-eligible and none are filled in', async () => {
+      (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+      (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { hasCompletedInternalDe: true } });
+
+      renderModal(editableStudent({ id: 'student-1', learnerPermitNumber: undefined }));
+      fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+      await screen.findByText('Behind-the-Wheel');
+      fireEvent.click(screen.getByRole('button', { name: /enroll in btw/i }));
+      await screen.findByText('Enroll in Behind-the-Wheel');
+
+      fireEvent.click(screen.getByRole('button', { name: /^enroll in btw$/i }));
+
+      await waitFor(() =>
+        expect(enrollmentsApi.enrollInBtw).toHaveBeenCalledWith(
+          'student-1',
+          expect.objectContaining({ permit: undefined, externalDeCompleted: undefined })
+        )
+      );
+    });
+
+    it('no reverse "Enroll in DE" affordance ever appears on a BTW enrollment', async () => {
+      (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [enrollment({ programType: 'driver_training', status: 'active' })],
+      });
+
+      renderModal(editableStudent({ id: 'student-1' }));
+      fireEvent.click(screen.getByRole('button', { name: /^enrollments$/i }));
+
+      await screen.findByText(/^driver training$/i);
+      expect(screen.queryByRole('button', { name: /enroll in de/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /enroll in btw/i })).not.toBeInTheDocument();
+    });
   });
 
   it('creates an online driver_education enrollment via enrollmentsApi.create with the manually entered hours, only after picking Online and the explicit confirm click', async () => {
