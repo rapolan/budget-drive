@@ -161,8 +161,8 @@ describe('Students list - needsGuardian flagging folds into Needs Attention', ()
 
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        emptyStudent({ id: 'minor-1', fullName: 'Minor No Guardian', needsGuardian: true }),
-        emptyStudent({ id: 'adult-1', fullName: 'Adult Fine', needsGuardian: false }),
+        emptyStudent({ id: 'minor-1', fullName: 'Minor No Guardian', needsGuardian: true, activeEnrollment: readyToBookEnrollment }),
+        emptyStudent({ id: 'adult-1', fullName: 'Adult Fine', needsGuardian: false, activeEnrollment: readyToBookEnrollment }),
       ],
       pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
     });
@@ -212,10 +212,16 @@ describe('Students list - filter bar is exactly 6 chips', () => {
   });
 
   it('"New This Month" is a stat card, not a filter chip - no filter narrows to it', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
     renderStudentsPage();
     await waitFor(() => expect(screen.getByText('Solo Student')).toBeInTheDocument());
 
-    expect(screen.getByText('New This Month')).toBeInTheDocument();
+    // "New This Month" is a Behind-the-Wheel-only card (the All tab has no
+    // cards at all - see the program-tabs describe block below).
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Behind-the-Wheel/ }));
+
+    await waitFor(() => expect(screen.getByText('New This Month')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /new this month/i })).not.toBeInTheDocument();
   });
 });
@@ -957,11 +963,13 @@ describe('Students list - fee actions (Paid / Waive) under the name', () => {
   });
 });
 
-// Program-aware Students page (see docs/ARCHITECTURE.md's Students-page
-// section): the program filter (All/BTW/DE) reads only the already-attached
+// Program-aware Students page, restructured as Notion-style tabs (see
+// docs/ARCHITECTURE.md's Students-page section): switching the
+// Behind-the-Wheel/Driver Education/All tab swaps cards, status filters,
+// and columns together. Tabs read only the already-attached
 // activeEnrollment/deEnrollment fields, and a dual-program student must
-// appear exactly once per filter view it matches - never duplicated.
-describe('Students list - program filter (item 3)', () => {
+// appear exactly once per tab it matches - never duplicated.
+describe('Students list - program tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
@@ -985,9 +993,33 @@ describe('Students list - program filter (item 3)', () => {
     deDeliveryMode: 'online' as const,
     manualCompletedHours: 10,
     cohortName: null,
+    awaitingCertificate: false,
   };
 
-  it('"Every Program" shows every student, one row each', async () => {
+  it('defaults to the "All" tab on first load - the landing view never hides a student behind an unchosen program', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
+        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
+      ],
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    expect(screen.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true');
+    // Both a BTW-only and a DE-only student are visible without clicking
+    // any tab - the default never narrows by program.
+    expect(screen.getByText('DE Only Student')).toBeInTheDocument();
+    // All has no stat cards - "Scheduled" still exists as a status chip
+    // (the 6 BTW-shaped chips are shared with All), so check for the
+    // BTW-only "New This Month" card specifically instead.
+    expect(screen.queryByText('New This Month')).not.toBeInTheDocument();
+  });
+
+  it('"All" tab shows every student, one row each', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
         emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
@@ -998,6 +1030,10 @@ describe('Students list - program filter (item 3)', () => {
     });
 
     renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^All/ }));
 
     await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
     expect(screen.getAllByText('DE Only Student')).toHaveLength(1);
@@ -1005,97 +1041,8 @@ describe('Students list - program filter (item 3)', () => {
     expect(screen.getAllByText('Dual Program Student')).toHaveLength(1);
   });
 
-  it('"Behind-the-Wheel" filter shows only students with a BTW enrollment', async () => {
+  it('the "All" tab renders no stat cards, but keeps the 6 BTW-shaped status chips', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
-    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
-        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
-      ],
-      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
-    });
-
-    renderStudentsPage();
-    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /^Behind-the-Wheel/ }));
-
-    expect(screen.getByText('BTW Only Student')).toBeInTheDocument();
-    expect(screen.queryByText('DE Only Student')).not.toBeInTheDocument();
-  });
-
-  it('"Driver Education" filter shows only students with a DE enrollment', async () => {
-    const { default: userEvent } = await import('@testing-library/user-event');
-    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
-        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
-      ],
-      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
-    });
-
-    renderStudentsPage();
-    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /^Driver Education/ }));
-
-    expect(screen.getByText('DE Only Student')).toBeInTheDocument();
-    expect(screen.queryByText('BTW Only Student')).not.toBeInTheDocument();
-  });
-
-  it('a dual-program student appears in both the BTW and DE filtered views, still one row each time', async () => {
-    const { default: userEvent } = await import('@testing-library/user-event');
-    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [emptyStudent({ id: 'both', fullName: 'Dual Program Student', activeEnrollment: btwEnrollment, deEnrollment })],
-      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
-    });
-
-    renderStudentsPage();
-    await waitFor(() => expect(screen.getByText('Dual Program Student')).toBeInTheDocument());
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /^Behind-the-Wheel/ }));
-    expect(screen.getAllByText('Dual Program Student')).toHaveLength(1);
-
-    await user.click(screen.getByRole('button', { name: /^Driver Education/ }));
-    expect(screen.getAllByText('Dual Program Student')).toHaveLength(1);
-  });
-
-  it('the Program column shows "DE·BTW" for a dual-program student, "DE" and "BTW" for single-program students', async () => {
-    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
-        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
-        emptyStudent({ id: 'both', fullName: 'Dual Program Student', activeEnrollment: btwEnrollment, deEnrollment }),
-      ],
-      pagination: { page: 1, limit: 50, total: 3, totalPages: 1 },
-    });
-
-    renderStudentsPage();
-    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
-
-    expect(within(screen.getByText('DE Only Student').closest('tr')!).getByText('DE')).toBeInTheDocument();
-    expect(within(screen.getByText('BTW Only Student').closest('tr')!).getByText('BTW')).toBeInTheDocument();
-    expect(within(screen.getByText('Dual Program Student').closest('tr')!).getByText('DE·BTW')).toBeInTheDocument();
-  });
-
-  it('a DE-only student shows DE status ("X/4 days" or hours), not BTW\'s "No Active Enrollment" text', async () => {
-    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment })],
-      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
-    });
-
-    renderStudentsPage();
-    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
-
-    const row = screen.getByText('DE Only Student').closest('tr')!;
-    expect(within(row).getAllByText('10 hours logged').length).toBeGreaterThan(0);
-    expect(within(row).queryByText(/no active enrollment/i)).not.toBeInTheDocument();
-  });
-
-  it('a BTW student shows BTW status under "Every Program", not DE status', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null })],
       pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
@@ -1104,7 +1051,224 @@ describe('Students list - program filter (item 3)', () => {
     renderStudentsPage();
     await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
 
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^All/ }));
+
+    await waitFor(() => expect(screen.queryByText('New This Month')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /^Needs Attention/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Inactive/ })).toBeInTheDocument();
+  });
+
+  it('"Behind-the-Wheel" tab shows only students with a BTW enrollment', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
+        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
+      ],
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Behind-the-Wheel/ }));
+
+    await waitFor(() => expect(screen.queryByText('DE Only Student')).not.toBeInTheDocument());
+    expect(screen.getByText('BTW Only Student')).toBeInTheDocument();
+  });
+
+  it('"Driver Education" tab shows only students with a DE enrollment, its own cards, and its own status chips', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
+        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
+      ],
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+
+    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
+    expect(screen.queryByText('BTW Only Student')).not.toBeInTheDocument();
+
+    // BTW's cards and chips are gone (neither "Scheduled" the card label
+    // nor the chip exists on the DE tab).
+    expect(screen.queryByText('New This Month')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Ready to Book/ })).not.toBeInTheDocument();
+
+    // DE's own 4 cards and matching status chips are shown instead - each
+    // label appears twice (card + chip), so assert presence via getAllBy.
+    expect(screen.getAllByText('In a Class').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Unassigned').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Awaiting Cert').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /^In a Class/ })).toBeInTheDocument();
+  });
+
+  it('a dual-program student appears in both the BTW and DE tabs, still one row each time', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'both', fullName: 'Dual Program Student', activeEnrollment: btwEnrollment, deEnrollment })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Dual Program Student')).toBeInTheDocument());
+    expect(screen.getAllByText('Dual Program Student')).toHaveLength(1);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+    await waitFor(() => expect(screen.getAllByText('Dual Program Student')).toHaveLength(1));
+  });
+
+  it('the Program column shows "DE·BTW" for a dual-program student, "DE" and "BTW" for single-program students', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
+        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
+        emptyStudent({ id: 'both', fullName: 'Dual Program Student', activeEnrollment: btwEnrollment, deEnrollment }),
+      ],
+      pagination: { page: 1, limit: 50, total: 3, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^All/ }));
+    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
+
+    expect(within(screen.getByText('DE Only Student').closest('tr')!).getByText('DE')).toBeInTheDocument();
+    expect(within(screen.getByText('BTW Only Student').closest('tr')!).getByText('BTW')).toBeInTheDocument();
+    expect(within(screen.getByText('Dual Program Student').closest('tr')!).getByText('DE·BTW')).toBeInTheDocument();
+  });
+
+  it('a DE-only student shows DE status and a Class column, not BTW\'s "No Active Enrollment" text or a Progress bar', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+    await waitFor(() => expect(screen.getByText('DE Only Student')).toBeInTheDocument());
+
+    const row = screen.getByText('DE Only Student').closest('tr')!;
+    expect(within(row).getAllByText('10 hours logged').length).toBeGreaterThan(0);
+    expect(within(row).queryByText(/no active enrollment/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Class')).toBeInTheDocument(); // column header
+  });
+
+  it('a BTW student shows BTW status under "All", not DE status', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^All/ }));
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
     const row = screen.getByText('BTW Only Student').closest('tr')!;
     expect(within(row).getByText(/ready to book/i)).toBeInTheDocument();
+  });
+
+  it('per-tab status-filter selection persists independently across a BTW -> DE -> BTW round trip', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({ id: 'de-only', fullName: 'DE Only Student', activeEnrollment: null, deEnrollment }),
+        emptyStudent({ id: 'btw-only', fullName: 'BTW Only Student', activeEnrollment: btwEnrollment, deEnrollment: null }),
+      ],
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('BTW Only Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /^Needs Attention/ }));
+
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Unassigned/ })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: /^Unassigned/ }));
+
+    await user.click(screen.getByRole('tab', { name: /^Behind-the-Wheel/ }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Needs Attention/ }).className).toMatch(/bg-status-warning-solid/);
+    });
+
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Unassigned/ }).className).toMatch(/bg-status-warning-solid/);
+    });
+  });
+
+  it('clicking a DE card sets the DE status filter and narrows the list', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const unassignedDe = { ...deEnrollment, id: 'de-unassigned', deDeliveryMode: 'classroom' as const, cohortName: null };
+    const inClassDe = { ...deEnrollment, id: 'de-in-class', deDeliveryMode: 'classroom' as const, cohortName: 'Fall Class' };
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        emptyStudent({ id: 'unassigned', fullName: 'Unassigned Student', activeEnrollment: null, deEnrollment: unassignedDe }),
+        emptyStudent({ id: 'in-class', fullName: 'In Class Student', activeEnrollment: null, deEnrollment: inClassDe }),
+      ],
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('In Class Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+    await waitFor(() => expect(screen.getAllByText('Unassigned').length).toBeGreaterThan(0));
+
+    // "Unassigned" renders twice (card label + status chip) - the card is
+    // the clickable <div>, found via its cursor-pointer container.
+    const unassignedCard = screen.getAllByText('Unassigned')
+      .map((el) => el.closest('div.cursor-pointer'))
+      .find((el): el is HTMLElement => el !== null);
+    await user.click(unassignedCard!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Unassigned Student')).toBeInTheDocument();
+      expect(screen.queryByText('In Class Student')).not.toBeInTheDocument();
+    });
+  });
+
+  it('a completed DE minor with no certificate shows under the "Awaiting Cert" card and chip', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const awaitingCertDe = { ...deEnrollment, id: 'de-awaiting', completed: true, awaitingCertificate: true };
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'awaiting', fullName: 'Awaiting Cert Student', activeEnrollment: null, deEnrollment: awaitingCertDe })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Awaiting Cert Student')).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: /^Driver Education/ }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Awaiting Cert/ }).textContent).toContain('1');
+    });
+
+    await user.click(screen.getByRole('button', { name: /^Awaiting Cert/ }));
+    await waitFor(() => expect(screen.getByText('Awaiting Cert Student')).toBeInTheDocument());
   });
 });

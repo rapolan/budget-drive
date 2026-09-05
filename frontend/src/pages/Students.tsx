@@ -12,12 +12,12 @@ import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
-import { computeStudentStatus, getFollowupReason, computeDeStatus, getDisplayStatus, type ProgramFilter } from '@/utils/studentStatus';
+import { computeStudentStatus, getFollowupReason, computeDeStatus, getDisplayStatus, classifyDeCard, type ProgramTab, type DeCardFilter } from '@/utils/studentStatus';
 import { getStudentContactDisplay } from '@/utils/studentContact';
 import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
 import { needsTurning18Alert } from '@/utils/turning18';
-import { EmptyState, LoadingSpinner, FilterButton, BackButton, ModalShell } from '@/components/common';
+import { EmptyState, LoadingSpinner, FilterButton, BackButton, ModalShell, Tabs } from '@/components/common';
 import { AuditColumn } from '@/components/common/AuditColumn';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -25,19 +25,27 @@ import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
 import { parseLocalDate } from '@/utils/timeFormat';
 
-// The visible filter bar is exactly 6 chips: all/scheduled/ready_to_book/
-// needs_attention/completed/inactive (item 1). turning_18 stays a valid
-// value with no chip - reachable only via Dashboard's "Turning 18" deep-
-// link (see the location.state effect above) - needsTurning18Alert and its
-// StudentModal track-decision workflow are unrelated to this cleanup and
-// stay exactly as they are. no_show_followup/needs_guardian are gone
-// entirely as filter values (folded into needs_attention, item 2).
-type StatusFilter = 'all' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18';
+// The BTW/All status-filter bar is exactly 6 chips: all/scheduled/
+// ready_to_book/needs_attention/completed/inactive. turning_18 stays a
+// valid value with no chip - reachable only via Dashboard's "Turning 18"
+// deep-link (see the location.state effect below) - needsTurning18Alert
+// and its StudentModal track-decision workflow are unrelated to this
+// cleanup and stay exactly as they are. no_show_followup/needs_guardian
+// are gone entirely as filter values (folded into needs_attention).
+type BtwStatusFilter = 'all' | 'scheduled' | 'ready_to_book' | 'needs_attention' | 'completed' | 'inactive' | 'turning_18';
+// The Driver Education tab's own status filter, mirroring classifyDeCard's
+// bucket names plus 'all'.
+type DeStatusFilter = 'all' | DeCardFilter;
 type ViewMode = 'table' | 'cards';
 type SortOption = 'name' | 'enrollment_newest' | 'enrollment_oldest' | 'last_lesson' | 'progress';
 type ActiveView = 'students' | 'guardians';
 const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 const isActiveView = (v: string): v is ActiveView => v === 'students' || v === 'guardians';
+const isProgramTab = (v: string): v is ProgramTab => v === 'all' || v === 'btw' || v === 'de';
+const BTW_STATUS_FILTER_VALUES: BtwStatusFilter[] = ['all', 'scheduled', 'ready_to_book', 'needs_attention', 'completed', 'inactive', 'turning_18'];
+const isBtwStatusFilter = (v: string): v is BtwStatusFilter => (BTW_STATUS_FILTER_VALUES as string[]).includes(v);
+const DE_STATUS_FILTER_VALUES: DeStatusFilter[] = ['all', 'in_class', 'unassigned', 'completed', 'awaiting_cert', 'online_in_progress', 'no_enrollment'];
+const isDeStatusFilter = (v: string): v is DeStatusFilter => (DE_STATUS_FILTER_VALUES as string[]).includes(v);
 
 export const StudentsPage: React.FC = () => {
   const location = useLocation();
@@ -52,8 +60,25 @@ export const StudentsPage: React.FC = () => {
   useSwipeNavigation();
   const [activeView, setActiveView] = useSessionState<ActiveView>('students-active-view', 'students', isActiveView);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
+  // Program is a Notion-style tab (a complete view), not a filter chip -
+  // switching it swaps cards, status filters, and columns together. Each
+  // tab remembers its own status-filter selection independently (the
+  // Notion feel): BTW and All share one filter value-space/session key
+  // (decision: 'All' resolves each row's furthest-along status, which is
+  // a BTW-shaped ComputedStatus whenever it resolves to 'btw' at all), DE
+  // has its own via classifyDeCard's buckets.
+  // Default 'all': the landing view must show every student, including
+  // DE-only and not-yet-enrolled ones - a program tab is a deliberate
+  // narrowing the admin chooses, never something the default should hide
+  // students behind (see docs/ARCHITECTURE.md's Students-page section).
+  const [programTab, setProgramTab] = useSessionState<ProgramTab>('students-program-tab', 'all', isProgramTab);
+  const [btwStatusFilter, setBtwStatusFilter] = useSessionState<BtwStatusFilter>('students-status-filter-btw', 'all', isBtwStatusFilter);
+  const [deStatusFilter, setDeStatusFilter] = useSessionState<DeStatusFilter>('students-status-filter-de', 'all', isDeStatusFilter);
+  const statusFilter = programTab === 'de' ? deStatusFilter : btwStatusFilter;
+  const setStatusFilterForTab = (tab: ProgramTab, value: BtwStatusFilter | DeStatusFilter) => {
+    if (tab === 'de') setDeStatusFilter(value as DeStatusFilter);
+    else setBtwStatusFilter(value as BtwStatusFilter);
+  };
   const [viewMode, setViewMode] = useSessionState<ViewMode>('students-view-mode', 'table', isViewMode);
   const [isModalOpen, setIsModalOpen] = useState(false);
   // Which tab StudentModal opens on - 'progress' for the list's "Waive"
@@ -81,11 +106,14 @@ export const StudentsPage: React.FC = () => {
   const [guardianPrefill, setGuardianPrefill] = useState<GuardianPrefill | undefined>(undefined);
   const queryClient = useQueryClient();
   const tableRef = useRef<HTMLDivElement>(null);
+  // Same check scrollToTable's own reduced-motion fallback uses below -
+  // read fresh each render (no module-level caching) so the tab-switch
+  // cross-fade below is skipped entirely, not just shortened, when set.
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Scroll to table with smooth animation (fallback to instant for reduced motion)
   const scrollToTable = () => {
     if (tableRef.current) {
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       tableRef.current.scrollIntoView({ 
         behavior: prefersReducedMotion ? 'auto' : 'smooth',
         block: 'start'
@@ -93,26 +121,33 @@ export const StudentsPage: React.FC = () => {
     }
   };
 
-  // Handle stat card click - set filter and scroll to table
-  const handleStatCardClick = (filter: StatusFilter) => {
-    setStatusFilter(filter);
+  // Handle stat card click - set the CURRENT tab's own filter and scroll
+  // to table. BTW/DE cards call this with their own tab's value space.
+  const handleStatCardClick = (filter: BtwStatusFilter | DeStatusFilter) => {
+    setStatusFilterForTab(programTab, filter);
     // Small delay to allow filter to apply before scrolling
     setTimeout(scrollToTable, 100);
   };
 
-  // Check for filter from navigation state. no_show_followup and
-  // needs_guardian no longer have their own filter/chip (item 2 folds both
-  // into the Needs Attention overlay) - a deep-link to either now lands on
-  // needs_attention instead, where the student still shows up via their
-  // own row flag. turning_18 has no visible chip but keeps its own filter
-  // value (see statusCounts.turning_18) so Dashboard's "Turning 18" alert
-  // still lands on a correctly-filtered list.
+  // Check for filter from navigation state. Every value Dashboard can send
+  // here (needs_attention/turning_18/no_show_followup/needs_guardian) is a
+  // BTW-only concept, so the deep-link also forces the BTW tab active -
+  // firing while the DE tab happened to be showing would otherwise land on
+  // an empty-looking DE-filtered view instead of the intended alert list.
+  // no_show_followup and needs_guardian no longer have their own filter/
+  // chip (folded into the Needs Attention overlay) - a deep-link to either
+  // now lands on needs_attention instead, where the student still shows up
+  // via their own row flag. turning_18 has no visible chip but keeps its
+  // own filter value (see statusCounts.turning_18) so Dashboard's
+  // "Turning 18" alert still lands on a correctly-filtered list.
   useEffect(() => {
     if (location.state?.filter === 'needs_attention' || location.state?.filter === 'turning_18') {
-      setStatusFilter(location.state.filter);
+      setProgramTab('btw');
+      setStatusFilterForTab('btw', location.state.filter);
       setTimeout(scrollToTable, 100);
     } else if (location.state?.filter === 'no_show_followup' || location.state?.filter === 'needs_guardian') {
-      setStatusFilter('needs_attention');
+      setProgramTab('btw');
+      setStatusFilterForTab('btw', 'needs_attention');
       setTimeout(scrollToTable, 100);
     }
   }, [location.state]);
@@ -358,16 +393,43 @@ export const StudentsPage: React.FC = () => {
   const getStudentDeStatus = (student: Student) => computeDeStatus(student.deEnrollment);
 
   // Single dispatcher: which status track a row shows depends on the
-  // active program filter, not just the student's own enrollments -
+  // active program tab, not just the student's own enrollments -
   // 'all' resolves to the furthest-along program (BTW if present, else DE).
   const getStudentDisplayStatus = (student: Student) =>
-    getDisplayStatus(student, programFilter, getStudentStatus(student), getStudentDeStatus(student));
+    getDisplayStatus(student, programTab, getStudentStatus(student), getStudentDeStatus(student));
 
-  // Program filter predicates (item 3) - read only fields already
-  // batch-attached to Student (activeEnrollment, deEnrollment), zero extra
-  // queries. A student satisfying both still yields exactly one row from
-  // .filter() below - never duplicated, by construction (one student
-  // object, one boolean check).
+  // Shared once-per-row computation of the display status + the reason
+  // text shown in its tooltip/subtext - previously duplicated verbatim
+  // between the card and table render paths.
+  const getStudentDisplayInfo = (student: Student) => {
+    let displayStatus = getStudentDisplayStatus(student);
+    // On the All tab specifically, getDisplayStatus falls back to the DE
+    // track for a student with no BTW enrollment - but "No DE Enrollment"
+    // reads as if this student SHOULD have DE and doesn't, when they may
+    // simply have no enrollment in EITHER program yet (a just-created
+    // student, or a genuine data gap). Relabel that one case to a
+    // program-neutral "Not Enrolled" - the BTW and DE tabs are untouched,
+    // since there a student who lacks that specific program's enrollment
+    // IS exactly what "No DE Enrollment"/"No Active Enrollment" describes.
+    if (programTab === 'all' && displayStatus.kind === 'de' && displayStatus.info.status === 'no_enrollment') {
+      displayStatus = {
+        kind: 'de',
+        info: { ...displayStatus.info, displayStatus: 'Not Enrolled', reason: 'No program enrollment yet' },
+      };
+    }
+    const displayReason = displayStatus.kind === 'de'
+      ? displayStatus.info.reason
+      : displayStatus.info.status === 'needs_attention'
+      ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
+      : displayStatus.info.reason;
+    return { displayStatus, displayReason };
+  };
+
+  // Program predicates - read only fields already batch-attached to
+  // Student (activeEnrollment, deEnrollment), zero extra queries. A
+  // student satisfying both still yields exactly one row from .filter()
+  // below - never duplicated, by construction (one student object, one
+  // boolean check).
   const hasBtw = (student: Student): boolean => student.activeEnrollment !== null && student.activeEnrollment !== undefined;
   const hasDe = (student: Student): boolean => !!student.deEnrollment;
 
@@ -481,7 +543,7 @@ export const StudentsPage: React.FC = () => {
     return counts;
   }, [data?.data, lessonsData?.data, noShowStudentIds]);
 
-  // Program filter counts (item 3/4) - read only the already-attached
+  // Program tab counts - read only the already-attached
   // activeEnrollment/deEnrollment fields, no extra queries.
   const programCounts = React.useMemo(() => {
     const students = data?.data || [];
@@ -490,6 +552,26 @@ export const StudentsPage: React.FC = () => {
       btw: students.filter(hasBtw).length,
       de: students.filter(hasDe).length,
     };
+  }, [data?.data]);
+
+  // Driver Education tab's stat-card counts, over the unfiltered list -
+  // same pattern as statusCounts above. classifyDeCard is the single
+  // source of truth for which bucket a DE enrollment falls into, shared
+  // with filteredAndSortedStudents' DE status-filter predicate below, so
+  // the two can never disagree.
+  const deCardCounts = React.useMemo(() => {
+    const counts: Record<DeCardFilter, number> = {
+      in_class: 0,
+      unassigned: 0,
+      completed: 0,
+      awaiting_cert: 0,
+      online_in_progress: 0,
+      no_enrollment: 0,
+    };
+    data?.data?.forEach((student) => {
+      counts[classifyDeCard(student.deEnrollment)]++;
+    });
+    return counts;
   }, [data?.data]);
 
   // Calculate additional stats for dashboard cards
@@ -581,30 +663,35 @@ export const StudentsPage: React.FC = () => {
   const filteredAndSortedStudents = useMemo(() => {
     // First, filter
     const filtered = data?.data?.filter((student) => {
-      // Program filter (item 3) - "All" = every student, one row each; a
-      // dual-program student passes both hasBtw and hasDe checks but is
-      // still filtered by ONE boolean per student, never duplicated.
-      if (programFilter === 'btw' && !hasBtw(student)) return false;
-      if (programFilter === 'de' && !hasDe(student)) return false;
+      // Program tab - "All" = every student, one row each; a dual-program
+      // student passes both hasBtw and hasDe checks but is still filtered
+      // by ONE boolean per student, never duplicated.
+      if (programTab === 'btw' && !hasBtw(student)) return false;
+      if (programTab === 'de' && !hasDe(student)) return false;
 
-      const statusInfo = getStudentStatus(student);
+      if (programTab === 'de') {
+        // Driver Education tab: its own 5-bucket status filter
+        // (classifyDeCard), completely independent of BTW's 6 chips.
+        const deFilter = statusFilter as DeStatusFilter;
+        if (deFilter !== 'all' && classifyDeCard(student.deEnrollment) !== deFilter) return false;
+      } else {
+        // BTW and All tabs share the same 6-chip BTW-shaped filter. For
+        // All, each row's status is resolved via getDisplayStatus (the
+        // furthest-along program) - a BTW chip (e.g. "Scheduled") only
+        // matches rows whose furthest-along program IS BTW and in that
+        // state; a DE-only row is correctly excluded from any specific
+        // BTW chip but stays included under "All".
+        const btwFilter = statusFilter as BtwStatusFilter;
+        const resolved = programTab === 'all'
+          ? getStudentDisplayStatus(student)
+          : { kind: 'btw' as const, info: getStudentStatus(student) };
 
-      // Status filter. needs_attention is the overlay (item 2) - "has any
-      // attention reason", cross-cutting base status - never the plain
-      // base-status equality check the other chips use. turning_18 has no
-      // chip but stays reachable via Dashboard's deep-link. These BTW-status
-      // chips only apply meaningfully when the displayed row is showing BTW
-      // status - a DE-filtered view has its own (currently unfiltered by
-      // sub-status) list, so the status chips are left as-is here and simply
-      // have no effect when programFilter === 'de' (item 3's scope is the
-      // program filter alone, not a redesign of the status chips).
-      if (programFilter !== 'de') {
-        if (statusFilter === 'needs_attention') {
-          if (!studentNeedsAnyAttention(student)) return false;
-        } else if (statusFilter === 'turning_18') {
+        if (btwFilter === 'needs_attention') {
+          if (resolved.kind !== 'btw' || !studentNeedsAnyAttention(student)) return false;
+        } else if (btwFilter === 'turning_18') {
           if (!needsTurning18Alert(student)) return false;
-        } else if (statusFilter !== 'all' && statusInfo.status !== statusFilter) {
-          return false;
+        } else if (btwFilter !== 'all') {
+          if (resolved.kind !== 'btw' || resolved.info.status !== btwFilter) return false;
         }
       }
 
@@ -647,7 +734,7 @@ export const StudentsPage: React.FC = () => {
     });
 
     return sorted;
-  }, [data?.data, lessonsData?.data, statusFilter, programFilter, searchTerm, sortBy, noShowStudentIds]);
+  }, [data?.data, lessonsData?.data, statusFilter, programTab, searchTerm, sortBy, noShowStudentIds]);
 
   // Keep old variable name for backward compatibility in the JSX
   const filteredStudents = filteredAndSortedStudents;
@@ -732,12 +819,36 @@ export const StudentsPage: React.FC = () => {
 
       {activeView === 'students' && (
       <>
-      {/* Stats Cards */}
+      {/* Program tabs - Notion-style views. Behind-the-Wheel / Driver
+          Education / All each swap their own cards + status filters +
+          columns as one coherent presentation, not a filter narrowing an
+          always-BTW-shaped page. */}
+      <Tabs
+        aria-label="Program"
+        items={[
+          { value: 'btw', label: 'Behind-the-Wheel', count: programCounts.btw },
+          { value: 'de', label: 'Driver Education', count: programCounts.de },
+          { value: 'all', label: 'All', count: programCounts.all },
+        ]}
+        activeValue={programTab}
+        onChange={setProgramTab}
+      />
+
+      {/* Everything below the tabs swaps together on tab change - a fast,
+          clean cross-fade (~180ms), skipped entirely for
+          prefers-reduced-motion (the same window.matchMedia check
+          scrollToTable already uses in this file). The key={programTab}
+          is what actually drives the fade: React remounts this subtree on
+          tab change, restarting the CSS animation from opacity 0. */}
+      <div key={programTab} className={prefersReducedMotion ? '' : 'animate-tab-fade-in'} style={{ display: 'contents' }}>
+
+      {/* Stats Cards - swap per tab; All has none (a plain roster). */}
+      {programTab === 'btw' && (
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* New Students This Month - informational only (item 3), not a
-            filter. Its actual tasks already live in Ready to Book (no
-            lessons yet) and Needs Attention (needs guardian), so there's
-            nothing distinct here to filter down to. */}
+        {/* New Students This Month - informational only, not a filter.
+            Its actual tasks already live in Ready to Book (no lessons
+            yet) and Needs Attention (needs guardian), so there's nothing
+            distinct here to filter down to. */}
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4">
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-info-bg rounded-lg transition-colors">
@@ -773,10 +884,9 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Scheduled - Students with upcoming lessons. Green/success (item 5
-            swap - was blue/info): "on track, all set", matching the status
-            column's "scheduled" treatment (StudentStatusBadge /
-            computeStudentStatus). */}
+        {/* Scheduled - Students with upcoming lessons. Green/success:
+            "on track, all set", matching the status column's "scheduled"
+            treatment (StudentStatusBadge / computeStudentStatus). */}
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('scheduled')}>
           <div className="flex items-center justify-between">
@@ -795,10 +905,9 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Ready to Book - Students needing their next lesson. Blue/info
-            (item 5 swap - was green/success): "neutral, between lessons",
-            matching the status column's "ready_to_book" treatment (the calm
-            between-lessons state). */}
+        {/* Ready to Book - Students needing their next lesson. Blue/info:
+            "neutral, between lessons", matching the status column's
+            "ready_to_book" treatment (the calm between-lessons state). */}
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
              onClick={() => handleStatCardClick('ready_to_book')}>
           <div className="flex items-center justify-between">
@@ -857,8 +966,71 @@ export const StudentsPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Status Filter & Sort */}
+      {/* Driver Education cards - In a Class / Unassigned / Completed /
+          Awaiting Cert. online_in_progress/no_enrollment are real,
+          counted buckets (reachable via the "All" DE status chip below)
+          but deliberately have no dedicated card - neither "in a class"
+          nor "unassigned" describes an online student. */}
+      {programTab === 'de' && (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
+             onClick={() => handleStatCardClick('in_class')}>
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-status-info-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-tx-primary">{deCardCounts.in_class}</p>
+            <p className="text-sm text-tx-muted">In a Class</p>
+          </div>
+        </div>
+
+        <div className="bg-surface rounded-xl shadow-sm border border-status-warning-border p-4 hover:shadow-md transition-shadow cursor-pointer group"
+             onClick={() => handleStatCardClick('unassigned')}>
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <AlertCircle className="h-5 w-5 text-status-warning-text" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-tx-primary">{deCardCounts.unassigned}</p>
+            <p className="text-sm text-tx-muted">Unassigned</p>
+          </div>
+        </div>
+
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4 hover:shadow-md transition-shadow cursor-pointer group"
+             onClick={() => handleStatCardClick('completed')}>
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-surface3 rounded-lg group-hover:brightness-95 transition-colors">
+              <GraduationCap className="h-5 w-5 text-tx-secondary" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-tx-primary">{deCardCounts.completed}</p>
+            <p className="text-sm text-tx-muted">Completed</p>
+          </div>
+        </div>
+
+        <div className="bg-surface rounded-xl shadow-sm border border-status-warning-border p-4 hover:shadow-md transition-shadow cursor-pointer group"
+             onClick={() => handleStatCardClick('awaiting_cert')}>
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-status-warning-bg rounded-lg group-hover:brightness-95 transition-colors">
+              <AlertCircle className="h-5 w-5 text-status-warning-text" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-tx-primary">{deCardCounts.awaiting_cert}</p>
+            <p className="text-sm text-tx-muted">Awaiting Cert</p>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Status Filter & Sort - chip set swaps per tab; sort/view-toggle
+          shell is shared. */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl bg-surface p-4 shadow-sm border border-edge">
         <div className="flex items-center justify-between sm:justify-start gap-3">
           <span className="text-sm font-medium text-tx-secondary">Filter:</span>
@@ -882,126 +1054,169 @@ export const StudentsPage: React.FC = () => {
             </button>
           </div>
         </div>
-        {/* Exactly 6 working-state chips (item 1) - new_this_month is now
-            stat-card-only (item 3); turning_18/no_show_followup/
-            needs_guardian are gone as chips, folded into Needs Attention
-            (item 2) or, for turning_18, kept reachable only via Dashboard's
-            deep-link (no chip - see the StatusFilter/location.state notes
-            above). Color swap (item 5): Scheduled is now
-            success/green ("on track, all set"), Ready to Book is now
-            info/blue ("neutral, between lessons") - was the reverse. */}
-        <div className="flex flex-wrap gap-2 flex-1">
-          <FilterButton
-            label="All"
-            isActive={statusFilter === 'all'}
-            onClick={() => setStatusFilter('all')}
-            count={statusCounts.all}
-            variant="default"
-          />
-          <FilterButton
-            label="Scheduled"
-            isActive={statusFilter === 'scheduled'}
-            onClick={() => setStatusFilter('scheduled')}
-            count={statusCounts.scheduled}
-            variant="success"
-          />
-          <FilterButton
-            label="Ready to Book"
-            isActive={statusFilter === 'ready_to_book'}
-            onClick={() => setStatusFilter('ready_to_book')}
-            count={statusCounts.ready_to_book}
-            variant="info"
-          />
-          <FilterButton
-            label="Needs Attention"
-            isActive={statusFilter === 'needs_attention'}
-            onClick={() => setStatusFilter('needs_attention')}
-            count={statusCounts.needs_attention}
-            variant="warning"
-          />
-          <FilterButton
-            label="Completed"
-            isActive={statusFilter === 'completed'}
-            onClick={() => setStatusFilter('completed')}
-            count={statusCounts.completed}
-            variant="default"
-          />
-          <FilterButton
-            label="Inactive"
-            isActive={statusFilter === 'inactive'}
-            onClick={() => setStatusFilter('inactive')}
-            count={statusCounts.inactive}
-            variant="default"
-          />
-          {/* Sort dropdown */}
-          <div className="flex items-center gap-2 ml-auto border-l pl-3">
-            <ArrowUpDown className="h-4 w-4 text-tx-muted" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              title="Sort students by"
-              aria-label="Sort students by"
-              className="text-sm border-none bg-transparent text-tx-secondary focus:ring-0 cursor-pointer pr-6"
-            >
-              <option value="name">Name A-Z</option>
-              <option value="enrollment_newest">Newest First</option>
-              <option value="enrollment_oldest">Oldest First</option>
-              <option value="last_lesson">Longest Since Lesson</option>
-              <option value="progress">Closest to Done</option>
-            </select>
+        {programTab === 'de' ? (
+          <div className="flex flex-wrap gap-2 flex-1">
+            <FilterButton
+              label="All"
+              isActive={statusFilter === 'all'}
+              onClick={() => setStatusFilterForTab('de', 'all')}
+              count={programCounts.de}
+              variant="default"
+            />
+            <FilterButton
+              label="In a Class"
+              isActive={statusFilter === 'in_class'}
+              onClick={() => setStatusFilterForTab('de', 'in_class')}
+              count={deCardCounts.in_class}
+              variant="info"
+            />
+            <FilterButton
+              label="Unassigned"
+              isActive={statusFilter === 'unassigned'}
+              onClick={() => setStatusFilterForTab('de', 'unassigned')}
+              count={deCardCounts.unassigned}
+              variant="warning"
+            />
+            <FilterButton
+              label="Completed"
+              isActive={statusFilter === 'completed'}
+              onClick={() => setStatusFilterForTab('de', 'completed')}
+              count={deCardCounts.completed}
+              variant="default"
+            />
+            <FilterButton
+              label="Awaiting Cert"
+              isActive={statusFilter === 'awaiting_cert'}
+              onClick={() => setStatusFilterForTab('de', 'awaiting_cert')}
+              count={deCardCounts.awaiting_cert}
+              variant="warning"
+            />
+            {/* Sort dropdown */}
+            <div className="flex items-center gap-2 ml-auto border-l pl-3">
+              <ArrowUpDown className="h-4 w-4 text-tx-muted" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                title="Sort students by"
+                aria-label="Sort students by"
+                className="text-sm border-none bg-transparent text-tx-secondary focus:ring-0 cursor-pointer pr-6"
+              >
+                <option value="name">Name A-Z</option>
+                <option value="enrollment_newest">Newest First</option>
+                <option value="enrollment_oldest">Oldest First</option>
+                <option value="last_lesson">Longest Since Lesson</option>
+                <option value="progress">Closest to Done</option>
+              </select>
+            </div>
+            {/* Desktop view toggle */}
+            <div className="hidden sm:flex items-center gap-1 border-l pl-3">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+                title="Table view"
+              >
+                <LayoutList className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+                title="Card view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          {/* Desktop view toggle */}
-          <div className="hidden sm:flex items-center gap-1 border-l pl-3">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
-              title="Table view"
-            >
-              <LayoutList className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
-              title="Card view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
+        ) : (
+          // BTW and All tabs share the same 6-chip BTW-shaped filter -
+          // exactly 6 working-state chips (new_this_month is stat-card-
+          // only; turning_18/no_show_followup/needs_guardian are gone as
+          // chips, folded into Needs Attention or, for turning_18, kept
+          // reachable only via Dashboard's deep-link). Color swap:
+          // Scheduled is success/green ("on track, all set"), Ready to
+          // Book is info/blue ("neutral, between lessons").
+          <div className="flex flex-wrap gap-2 flex-1">
+            <FilterButton
+              label="All"
+              isActive={statusFilter === 'all'}
+              onClick={() => setStatusFilterForTab(programTab, 'all')}
+              count={statusCounts.all}
+              variant="default"
+            />
+            <FilterButton
+              label="Scheduled"
+              isActive={statusFilter === 'scheduled'}
+              onClick={() => setStatusFilterForTab(programTab, 'scheduled')}
+              count={statusCounts.scheduled}
+              variant="success"
+            />
+            <FilterButton
+              label="Ready to Book"
+              isActive={statusFilter === 'ready_to_book'}
+              onClick={() => setStatusFilterForTab(programTab, 'ready_to_book')}
+              count={statusCounts.ready_to_book}
+              variant="info"
+            />
+            <FilterButton
+              label="Needs Attention"
+              isActive={statusFilter === 'needs_attention'}
+              onClick={() => setStatusFilterForTab(programTab, 'needs_attention')}
+              count={statusCounts.needs_attention}
+              variant="warning"
+            />
+            <FilterButton
+              label="Completed"
+              isActive={statusFilter === 'completed'}
+              onClick={() => setStatusFilterForTab(programTab, 'completed')}
+              count={statusCounts.completed}
+              variant="default"
+            />
+            <FilterButton
+              label="Inactive"
+              isActive={statusFilter === 'inactive'}
+              onClick={() => setStatusFilterForTab(programTab, 'inactive')}
+              count={statusCounts.inactive}
+              variant="default"
+            />
+            {/* Sort dropdown */}
+            <div className="flex items-center gap-2 ml-auto border-l pl-3">
+              <ArrowUpDown className="h-4 w-4 text-tx-muted" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                title="Sort students by"
+                aria-label="Sort students by"
+                className="text-sm border-none bg-transparent text-tx-secondary focus:ring-0 cursor-pointer pr-6"
+              >
+                <option value="name">Name A-Z</option>
+                <option value="enrollment_newest">Newest First</option>
+                <option value="enrollment_oldest">Oldest First</option>
+                <option value="last_lesson">Longest Since Lesson</option>
+                <option value="progress">Closest to Done</option>
+              </select>
+            </div>
+            {/* Desktop view toggle */}
+            <div className="hidden sm:flex items-center gap-1 border-l pl-3">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+                title="Table view"
+              >
+                <LayoutList className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'cards' ? 'bg-primary/10 text-primary' : 'text-tx-muted hover:text-tx-secondary'}`}
+                title="Card view"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Program filter (All / Behind-the-Wheel / Driver Education) - its
-          own row, below the status-filter bar and above the list, matching
-          the existing filter-chip styling (same FilterButton component) so
-          it reads as part of the same visual family. "All" = every
-          student; BTW/DE each show only students with that program's
-          enrollment, one row per student regardless of how many programs
-          they're enrolled in. Layout only - filter logic, the "status
-          follows the filter" dispatch, and counts are unchanged. */}
-      <div className="flex flex-wrap gap-2">
-        <FilterButton
-          label="Every Program"
-          isActive={programFilter === 'all'}
-          onClick={() => setProgramFilter('all')}
-          count={programCounts.all}
-          variant="default"
-        />
-        <FilterButton
-          label="Behind-the-Wheel"
-          isActive={programFilter === 'btw'}
-          onClick={() => setProgramFilter('btw')}
-          count={programCounts.btw}
-          variant="default"
-        />
-        <FilterButton
-          label="Driver Education"
-          isActive={programFilter === 'de'}
-          onClick={() => setProgramFilter('de')}
-          count={programCounts.de}
-          variant="default"
-        />
+        )}
       </div>
 
       {/* Students List - scroll target */}
@@ -1040,12 +1255,7 @@ export const StudentsPage: React.FC = () => {
           ) : (
             filteredStudents?.map((student) => {
               const statusInfo = getStudentStatus(student);
-              const displayStatus = getStudentDisplayStatus(student);
-              const displayReason = displayStatus.kind === 'de'
-                ? displayStatus.info.reason
-                : displayStatus.info.status === 'needs_attention'
-                ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
-                : displayStatus.info.reason;
+              const { displayStatus, displayReason } = getStudentDisplayInfo(student);
 
               return (
                 <div
@@ -1085,12 +1295,23 @@ export const StudentsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Progress */}
+                  {/* Progress - the DE tab repurposes this into a Class
+                      line (cohort name) since the Status badge above
+                      already shows DE status text; a second copy of it
+                      here would be redundant. BTW/All keep the progress
+                      bar, including All's existing DE-row handling via
+                      StudentProgressBar's optional deStatus prop. */}
                   <div className="mb-4">
-                    <StudentProgressBar
-                      progress={student.progress}
-                      deStatus={displayStatus.kind === 'de' ? displayStatus.info : undefined}
-                    />
+                    {programTab === 'de' ? (
+                      <p className="text-sm text-tx-secondary">
+                        Class: {student.deEnrollment?.cohortName ?? '—'}
+                      </p>
+                    ) : (
+                      <StudentProgressBar
+                        progress={student.progress}
+                        deStatus={displayStatus.kind === 'de' ? displayStatus.info : undefined}
+                      />
+                    )}
                   </div>
 
                   {/* Contact Info - falls back to the linked guardian's
@@ -1237,7 +1458,7 @@ export const StudentsPage: React.FC = () => {
                   Status
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary">
-                  Progress
+                  {programTab === 'de' ? 'Class' : 'Progress'}
                 </th>
                 <th className="pl-6 pr-2 py-4 text-left text-xs font-semibold uppercase tracking-wider text-tx-secondary hidden lg:table-cell">
                   History
@@ -1280,12 +1501,7 @@ export const StudentsPage: React.FC = () => {
               ) : (
                 filteredStudents?.map((student) => {
                   const statusInfo = getStudentStatus(student);
-                  const displayStatus = getStudentDisplayStatus(student);
-                  const displayReason = displayStatus.kind === 'de'
-                    ? displayStatus.info.reason
-                    : displayStatus.info.status === 'needs_attention'
-                    ? getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null)
-                    : displayStatus.info.reason;
+                  const { displayStatus, displayReason } = getStudentDisplayInfo(student);
 
                   return (
                     <React.Fragment key={student.id}>
@@ -1469,14 +1685,21 @@ export const StudentsPage: React.FC = () => {
                           {renderAttentionFlags(student)}
                         </div>
                       </td>
-                      {/* Progress with visual bar */}
+                      {/* Progress - repurposed into a Class column on the
+                          DE tab (see the card view's identical note above) */}
                       <td className="px-6 py-4">
-                        <div className="w-32">
-                          <StudentProgressBar
-                            progress={student.progress}
-                            deStatus={displayStatus.kind === 'de' ? displayStatus.info : undefined}
-                          />
-                        </div>
+                        {programTab === 'de' ? (
+                          <span className="text-sm text-tx-secondary">
+                            {student.deEnrollment?.cohortName ?? '—'}
+                          </span>
+                        ) : (
+                          <div className="w-32">
+                            <StudentProgressBar
+                              progress={student.progress}
+                              deStatus={displayStatus.kind === 'de' ? displayStatus.info : undefined}
+                            />
+                          </div>
+                        )}
                       </td>
                       {/* History - Hidden on mobile */}
                       <td className="pl-6 pr-2 py-4 whitespace-nowrap hidden lg:table-cell">
@@ -1540,6 +1763,7 @@ export const StudentsPage: React.FC = () => {
       </div>
       )}
       </div>
+      </div>
 
       {/* Pagination */}
       {data?.pagination && data.pagination.totalPages > 1 && (
@@ -1547,7 +1771,7 @@ export const StudentsPage: React.FC = () => {
           <div className="text-sm text-tx-secondary">
             <span className="font-medium">{filteredStudents?.length || 0}</span> of{' '}
             <span className="font-medium">{data.pagination.total}</span> students
-            {(statusFilter !== 'all' || programFilter !== 'all') && (
+            {(statusFilter !== 'all' || programTab !== 'all') && (
               <span className="text-tx-muted ml-1">
                 (filtered)
               </span>

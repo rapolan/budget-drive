@@ -223,3 +223,17 @@ body {
   @page { margin: 0.5in; }
 }
 .sidebar-nav:hover { scrollbar-width: thin; }
+
+/* ─── Program-tab cross-fade (Students page) ────────────────────────────────
+   A subtle, fast content swap when switching program tabs (Behind-the-
+   Wheel / Driver Education / All) - Notion-style, not a pronounced
+   animation. Applied via a key={programTab}-remounted wrapper, so this
+   restarts from opacity 0 on every tab change; omitted entirely (not just
+   shortened) when prefers-reduced-motion is set. */
+@keyframes tab-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-tab-fade-in {
+  animation: tab-fade-in 180ms ease-out;
+}
