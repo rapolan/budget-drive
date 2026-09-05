@@ -882,34 +882,6 @@ export const StudentsPage: React.FC = () => {
             </button>
           </div>
         </div>
-        {/* Program filter (All / Behind-the-Wheel / Driver Education) -
-            matches the existing status-filter chip pattern, placed above
-            it. "All" = every student; BTW/DE each show only students with
-            that program's enrollment, one row per student regardless of
-            how many programs they're enrolled in. */}
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:mr-2">
-          <FilterButton
-            label="Every Program"
-            isActive={programFilter === 'all'}
-            onClick={() => setProgramFilter('all')}
-            count={programCounts.all}
-            variant="default"
-          />
-          <FilterButton
-            label="Behind-the-Wheel"
-            isActive={programFilter === 'btw'}
-            onClick={() => setProgramFilter('btw')}
-            count={programCounts.btw}
-            variant="default"
-          />
-          <FilterButton
-            label="Driver Education"
-            isActive={programFilter === 'de'}
-            onClick={() => setProgramFilter('de')}
-            count={programCounts.de}
-            variant="default"
-          />
-        </div>
         {/* Exactly 6 working-state chips (item 1) - new_this_month is now
             stat-card-only (item 3); turning_18/no_show_followup/
             needs_guardian are gone as chips, folded into Needs Attention
@@ -998,6 +970,38 @@ export const StudentsPage: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Program filter (All / Behind-the-Wheel / Driver Education) - its
+          own row, below the status-filter bar and above the list, matching
+          the existing filter-chip styling (same FilterButton component) so
+          it reads as part of the same visual family. "All" = every
+          student; BTW/DE each show only students with that program's
+          enrollment, one row per student regardless of how many programs
+          they're enrolled in. Layout only - filter logic, the "status
+          follows the filter" dispatch, and counts are unchanged. */}
+      <div className="flex flex-wrap gap-2">
+        <FilterButton
+          label="Every Program"
+          isActive={programFilter === 'all'}
+          onClick={() => setProgramFilter('all')}
+          count={programCounts.all}
+          variant="default"
+        />
+        <FilterButton
+          label="Behind-the-Wheel"
+          isActive={programFilter === 'btw'}
+          onClick={() => setProgramFilter('btw')}
+          count={programCounts.btw}
+          variant="default"
+        />
+        <FilterButton
+          label="Driver Education"
+          isActive={programFilter === 'de'}
+          onClick={() => setProgramFilter('de')}
+          count={programCounts.de}
+          variant="default"
+        />
       </div>
 
       {/* Students List - scroll target */}
