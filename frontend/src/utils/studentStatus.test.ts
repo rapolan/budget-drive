@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { studentNeedsFollowup, getFollowupReason, computeStudentStatus, computeDeStatus, getDisplayStatus } from './studentStatus';
+import { studentNeedsFollowup, getFollowupReason, computeStudentStatus, computeDeStatus, getDisplayStatus, classifyDeCard } from './studentStatus';
 import type { Student, Lesson, ActiveEnrollmentSummary, DeEnrollmentSummary } from '@/types';
 
 // studentStatus.ts's `now` parameter is required, never defaulted (a
@@ -328,6 +328,7 @@ describe('computeDeStatus', () => {
       manualCompletedHours: null,
       classroomAttendance: { attendedCurriculumDays: [1, 3], isComplete: false },
       cohortName: 'Fall Weekend Class',
+      awaitingCertificate: false,
     };
     const info = computeDeStatus(de);
     expect(info.status).toBe('enrolled');
@@ -344,6 +345,7 @@ describe('computeDeStatus', () => {
       manualCompletedHours: null,
       classroomAttendance: { attendedCurriculumDays: [], isComplete: false },
       cohortName: null,
+      awaitingCertificate: false,
     };
     const info = computeDeStatus(de);
     expect(info.status).toBe('unassigned');
@@ -360,6 +362,7 @@ describe('computeDeStatus', () => {
       manualCompletedHours: null,
       classroomAttendance: { attendedCurriculumDays: [1, 2, 3, 4], isComplete: true },
       cohortName: 'Fall Weekend Class',
+      awaitingCertificate: false,
     };
     const info = computeDeStatus(de);
     expect(info.status).toBe('completed');
@@ -375,6 +378,7 @@ describe('computeDeStatus', () => {
       deDeliveryMode: 'online',
       manualCompletedHours: 12,
       cohortName: null,
+      awaitingCertificate: false,
     };
     const info = computeDeStatus(de);
     expect(info.status).toBe('enrolled');
@@ -389,6 +393,7 @@ describe('computeDeStatus', () => {
       deDeliveryMode: 'online',
       manualCompletedHours: 30,
       cohortName: null,
+      awaitingCertificate: false,
     };
     const info = computeDeStatus(de);
     expect(info.status).toBe('completed');
@@ -405,6 +410,7 @@ describe('getDisplayStatus', () => {
     deDeliveryMode: 'online',
     manualCompletedHours: 30,
     cohortName: null,
+    awaitingCertificate: false,
   };
   const deInfo = computeDeStatus(completeDe);
 
@@ -436,5 +442,53 @@ describe('getDisplayStatus', () => {
     const undefinedBtw = { activeEnrollment: undefined };
     const result = getDisplayStatus(undefinedBtw, 'all', btwInfo, deInfo);
     expect(result.kind).toBe('de');
+  });
+});
+
+describe('classifyDeCard', () => {
+  function deEnrollment(overrides: Partial<DeEnrollmentSummary> = {}): DeEnrollmentSummary {
+    return {
+      id: 'de-1',
+      status: 'active',
+      completed: false,
+      deDeliveryMode: 'classroom',
+      manualCompletedHours: null,
+      cohortName: null,
+      awaitingCertificate: false,
+      ...overrides,
+    };
+  }
+
+  it('classifies null/undefined as no_enrollment', () => {
+    expect(classifyDeCard(null)).toBe('no_enrollment');
+    expect(classifyDeCard(undefined)).toBe('no_enrollment');
+  });
+
+  it('classifies a completed enrollment with no awaiting-certificate flag as completed', () => {
+    expect(classifyDeCard(deEnrollment({ completed: true, awaitingCertificate: false }))).toBe('completed');
+  });
+
+  it('classifies a completed classroom enrollment with awaitingCertificate=true as awaiting_cert, not completed', () => {
+    expect(classifyDeCard(deEnrollment({ completed: true, deDeliveryMode: 'classroom', awaitingCertificate: true }))).toBe('awaiting_cert');
+  });
+
+  it('classifies a completed online enrollment with awaitingCertificate=true as awaiting_cert too - not classroom-only', () => {
+    expect(classifyDeCard(deEnrollment({ completed: true, deDeliveryMode: 'online', awaitingCertificate: true }))).toBe('awaiting_cert');
+  });
+
+  it('classifies a not-completed classroom enrollment with a cohort as in_class', () => {
+    expect(classifyDeCard(deEnrollment({ completed: false, deDeliveryMode: 'classroom', cohortName: 'Fall Class' }))).toBe('in_class');
+  });
+
+  it('classifies a not-completed classroom enrollment with no cohort as unassigned', () => {
+    expect(classifyDeCard(deEnrollment({ completed: false, deDeliveryMode: 'classroom', cohortName: null }))).toBe('unassigned');
+  });
+
+  it('classifies a not-completed online enrollment as online_in_progress', () => {
+    expect(classifyDeCard(deEnrollment({ completed: false, deDeliveryMode: 'online' }))).toBe('online_in_progress');
+  });
+
+  it('falls back to online_in_progress for a not-completed enrollment with no delivery mode resolved yet', () => {
+    expect(classifyDeCard(deEnrollment({ completed: false, deDeliveryMode: null }))).toBe('online_in_progress');
   });
 });

@@ -445,7 +445,12 @@ export function computeDeStatus(deEnrollment: DeEnrollmentSummary | null | undef
   };
 }
 
-export type ProgramFilter = 'all' | 'btw' | 'de';
+// Renamed from ProgramFilter - the Students page reframed program as a
+// Notion-style tab (a view), not a filter chip layered on top of an
+// always-BTW-shaped page. Same three values, same semantics (which
+// program's presentation is active) - only the name changed to match
+// what it actually drives.
+export type ProgramTab = 'all' | 'btw' | 'de';
 
 export type DisplayStatus =
   | { kind: 'btw'; info: StatusInfo }
@@ -461,13 +466,49 @@ export type DisplayStatus =
  */
 export function getDisplayStatus(
   student: Pick<Student, 'activeEnrollment'>,
-  programFilter: ProgramFilter,
+  programTab: ProgramTab,
   btwStatus: StatusInfo,
   deStatus: DeStatusInfo
 ): DisplayStatus {
-  if (programFilter === 'de') return { kind: 'de', info: deStatus };
-  if (programFilter === 'btw') return { kind: 'btw', info: btwStatus };
+  if (programTab === 'de') return { kind: 'de', info: deStatus };
+  if (programTab === 'btw') return { kind: 'btw', info: btwStatus };
   return student.activeEnrollment !== null && student.activeEnrollment !== undefined
     ? { kind: 'btw', info: btwStatus }
     : { kind: 'de', info: deStatus };
+}
+
+// A SEPARATE, independent classification of the same DeEnrollmentSummary
+// input computeDeStatus reads - this answers "which card/status-filter
+// bucket does this enrollment belong to" (for the Students page's Driver
+// Education tab), not "what text should the status badge show"
+// (computeDeStatus's job). Both read the same data, so they can never
+// disagree about the underlying facts, only about which of these two
+// independent questions is being answered.
+//
+// 'online_in_progress' exists so an online DE student mid-program isn't
+// silently dropped from every DE-tab count - it just has no dedicated
+// stat card (the page fixes exactly 4: In a Class / Unassigned /
+// Completed / Awaiting Cert, since neither "in a class" nor "unassigned"
+// describes an online student), reachable only via the DE tab's "All"
+// status-filter chip.
+export type DeCardFilter = 'in_class' | 'unassigned' | 'completed' | 'awaiting_cert' | 'online_in_progress' | 'no_enrollment';
+
+/**
+ * awaitingCertificate takes priority over the plain `completed` bucket -
+ * a completed-but-uncertified DE minor is actionable admin work (a DL
+ * 400B/C still needs recording), so it gets its own bucket/card rather
+ * than being folded into "Completed" where the missing certificate would
+ * be invisible until someone opens the record.
+ */
+export function classifyDeCard(deEnrollment: DeEnrollmentSummary | null | undefined): DeCardFilter {
+  if (!deEnrollment) return 'no_enrollment';
+  if (deEnrollment.completed) {
+    return deEnrollment.awaitingCertificate ? 'awaiting_cert' : 'completed';
+  }
+  if (deEnrollment.deDeliveryMode === 'classroom') {
+    return deEnrollment.cohortName !== null ? 'in_class' : 'unassigned';
+  }
+  // Online, or classroom with no delivery mode resolved yet (a pre-Phase-3
+  // row) - neither has a cohort concept, so both fall back here.
+  return 'online_in_progress';
 }
