@@ -17,7 +17,7 @@
  */
 
 import { query, getClient } from '../config/database';
-import { Enrollment, EnrollmentPaymentSummary, Student, Lesson, ProgramType, DeEnrollmentSummary } from '../types';
+import { Enrollment, EnrollmentPaymentSummary, Student, Lesson, ProgramType } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -329,19 +329,44 @@ export const getDisplayDriverTrainingEnrollmentsBatch = async (
 // delivery is online). DeEnrollmentSummary itself lives in ../types
 // (alongside ActiveEnrollmentSummary) since it's attached to Student.
 
+// Internal-only shape for getDeEnrollmentsBatch's raw batch row - carries
+// completedAt/certificateExists so the caller (studentService.attachProgress,
+// which already has each student's dateOfBirth/timezone in scope) can
+// compute the age-as-of-completion "awaiting certificate" check itself,
+// the same wasMinorAtCompletion pattern attachProgressAndPayments already
+// uses above. These two raw fields never leave this service as-is - the
+// public DeEnrollmentSummary type (../types) exposes only the derived
+// `awaitingCertificate: boolean`, never a raw date or certificate id.
+interface DeEnrollmentBatchRow {
+  id: string;
+  status: Enrollment['status'];
+  completed: boolean;
+  completedAt: Date | null;
+  deDeliveryMode: 'classroom' | 'online' | null;
+  manualCompletedHours: number | null;
+  classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
+  cohortName: string | null;
+  certificateExists: boolean;
+}
+
 export const getDeEnrollmentsBatch = async (
   studentIds: string[],
   tenantId: string
-): Promise<Map<string, DeEnrollmentSummary>> => {
-  const map = new Map<string, DeEnrollmentSummary>();
+): Promise<Map<string, DeEnrollmentBatchRow>> => {
+  const map = new Map<string, DeEnrollmentBatchRow>();
   if (studentIds.length === 0) return map;
 
+  // The LEFT JOIN certificates / c.id IS NULL shape mirrors
+  // certificateService.getAwaitingCertificateWorklist's own eligibility
+  // check exactly - reused here, not reimplemented, so the Students list's
+  // DE "Awaiting Cert" card can never disagree with the worklist itself.
   const result = await query(
-    `SELECT e.id, e.student_id, e.status, e.completed, e.de_delivery_mode,
-            e.manual_completed_hours, c.name AS cohort_name
+    `SELECT e.id, e.student_id, e.status, e.completed, e.completed_at, e.de_delivery_mode,
+            e.manual_completed_hours, c.name AS cohort_name, cert.id AS certificate_id
      FROM enrollments e
      LEFT JOIN de_cohort_enrollments dce ON dce.enrollment_id = e.id AND dce.tenant_id = e.tenant_id
      LEFT JOIN de_cohorts c ON c.id = dce.cohort_id
+     LEFT JOIN certificates cert ON cert.enrollment_id = e.id
      WHERE e.student_id = ANY($1::uuid[]) AND e.tenant_id = $2 AND e.program_type = 'driver_education'`,
     [studentIds, tenantId]
   );
@@ -356,18 +381,22 @@ export const getDeEnrollmentsBatch = async (
     student_id: string;
     status: Enrollment['status'];
     completed: boolean;
+    completed_at: Date | null;
     de_delivery_mode: 'classroom' | 'online' | null;
     manual_completed_hours: string | null;
     cohort_name: string | null;
+    certificate_id: string | null;
   }[]) {
     map.set(row.student_id, {
       id: row.id,
       status: row.status,
       completed: row.completed,
+      completedAt: row.completed_at,
       deDeliveryMode: row.de_delivery_mode,
       manualCompletedHours: row.manual_completed_hours !== null ? parseFloat(row.manual_completed_hours) : null,
       classroomAttendance: attendanceByEnrollment.get(row.id),
       cohortName: row.cohort_name,
+      certificateExists: row.certificate_id !== null,
     });
   }
   return map;

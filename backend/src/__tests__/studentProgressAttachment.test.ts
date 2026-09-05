@@ -555,6 +555,156 @@ describe('GET /api/v1/students - progress attachment', () => {
   });
 });
 
+// attachProgress's DE awaiting-certificate flag - the age-as-of-completion
+// check mirrors enrollmentService's own wasMinorAtCompletion pattern (see
+// docs/ARCHITECTURE.md's Students-page section), computed here from the
+// raw completedAt/certificateExists getDeEnrollmentsBatch now returns.
+describe('GET /api/v1/students - DE awaiting-certificate flag', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  const DE_ENROLLMENT_ID = '99999999-9999-9999-9999-999999999999';
+
+  function mockListSequence(deEnrollmentRow: Record<string, unknown> | null, dateOfBirthIso: string) {
+    mockQuery.mockResolvedValueOnce(queryResult([{ count: '1' }])); // count
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: STUDENT_ID, tenant_id: TENANT_ID, date_of_birth: dateOfBirthIso }])
+    ); // student rows
+    mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
+    mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
+    mockQuery.mockResolvedValueOnce(queryResult(deEnrollmentRow ? [deEnrollmentRow] : [])); // getDeEnrollmentsBatch
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
+    mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians
+  }
+
+  it('sets deEnrollment.awaitingCertificate=true for a completed DE enrollment, minor at completion, no certificate', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    // Born so they were 16 as of completedAt (2026-01-01) but would be an
+    // adult by today if age were (wrongly) evaluated as-of-today.
+    mockListSequence(
+      {
+        id: DE_ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'completed',
+        completed: true,
+        completed_at: '2026-01-01T00:00:00.000Z',
+        de_delivery_mode: 'online',
+        manual_completed_hours: '30',
+        cohort_name: null,
+        certificate_id: null,
+      },
+      '2009-06-01T00:00:00.000Z'
+    );
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].deEnrollment.awaitingCertificate).toBe(true);
+  });
+
+  it('sets deEnrollment.awaitingCertificate=false when a certificate already exists', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockListSequence(
+      {
+        id: DE_ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'completed',
+        completed: true,
+        completed_at: '2026-01-01T00:00:00.000Z',
+        de_delivery_mode: 'online',
+        manual_completed_hours: '30',
+        cohort_name: null,
+        certificate_id: 'cert-1',
+      },
+      '2009-06-01T00:00:00.000Z'
+    );
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].deEnrollment.awaitingCertificate).toBe(false);
+  });
+
+  it('sets deEnrollment.awaitingCertificate=false for an adult at completion even with no certificate', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    // Born so they were already 18+ as of completedAt.
+    mockListSequence(
+      {
+        id: DE_ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'completed',
+        completed: true,
+        completed_at: '2026-01-01T00:00:00.000Z',
+        de_delivery_mode: 'online',
+        manual_completed_hours: '30',
+        cohort_name: null,
+        certificate_id: null,
+      },
+      '2000-01-01T00:00:00.000Z'
+    );
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].deEnrollment.awaitingCertificate).toBe(false);
+  });
+
+  it('sets deEnrollment.awaitingCertificate=false for a non-completed DE enrollment', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockListSequence(
+      {
+        id: DE_ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'active',
+        completed: false,
+        completed_at: null,
+        de_delivery_mode: 'online',
+        manual_completed_hours: '12',
+        cohort_name: null,
+        certificate_id: null,
+      },
+      '2009-06-01T00:00:00.000Z'
+    );
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].deEnrollment.awaitingCertificate).toBe(false);
+  });
+
+  it('leaves deEnrollment null (no crash) when the student has no DE enrollment at all', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockListSequence(null, '2009-06-01T00:00:00.000Z');
+
+    const res = await request(app)
+      .get('/api/v1/students')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].deEnrollment).toBeNull();
+  });
+});
+
 // getStudentById (the single-student detail read) resolves its display
 // enrollment independently, in-memory from getEnrollmentsForStudent's
 // already-fetched list - same bug, same fix, separate code path (see

@@ -52,9 +52,11 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
           student_id: STUDENT_ID,
           status: 'active',
           completed: false,
+          completed_at: null,
           de_delivery_mode: 'classroom',
           manual_completed_hours: null,
           cohort_name: 'Fall Weekend Class',
+          certificate_id: null,
         }])
       ) // DE enrollments batch
       .mockResolvedValueOnce(
@@ -70,10 +72,12 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
       id: ENROLLMENT_ID,
       status: 'active',
       completed: false,
+      completedAt: null,
       deDeliveryMode: 'classroom',
       manualCompletedHours: null,
       classroomAttendance: { attendedCurriculumDays: [1, 2], isComplete: false },
       cohortName: 'Fall Weekend Class',
+      certificateExists: false,
     });
   });
 
@@ -86,9 +90,11 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
         student_id: STUDENT_ID,
         status: 'active',
         completed: false,
+        completed_at: null,
         de_delivery_mode: 'online',
         manual_completed_hours: '18',
         cohort_name: null,
+        certificate_id: null,
       }])
     ); // DE enrollments batch - no classroom rows, so no attendance query follows
 
@@ -98,10 +104,12 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
       id: ENROLLMENT_ID,
       status: 'active',
       completed: false,
+      completedAt: null,
       deDeliveryMode: 'online',
       manualCompletedHours: 18,
       classroomAttendance: undefined,
       cohortName: null,
+      certificateExists: false,
     });
     expect(mockQuery).toHaveBeenCalledTimes(1);
   });
@@ -116,9 +124,11 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
           student_id: STUDENT_ID,
           status: 'active',
           completed: true,
+          completed_at: '2026-01-01T00:00:00.000Z',
           de_delivery_mode: 'classroom',
           manual_completed_hours: null,
           cohort_name: 'Fall Weekend Class',
+          certificate_id: null,
         }])
       )
       .mockResolvedValueOnce(
@@ -148,18 +158,22 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
             student_id: STUDENT_ID,
             status: 'active',
             completed: false,
+            completed_at: null,
             de_delivery_mode: 'online',
             manual_completed_hours: '5',
             cohort_name: null,
+            certificate_id: null,
           },
           {
             id: ENROLLMENT_ID_2,
             student_id: STUDENT_ID_2,
             status: 'completed',
             completed: true,
+            completed_at: '2026-02-01T00:00:00.000Z',
             de_delivery_mode: 'classroom',
             manual_completed_hours: null,
             cohort_name: 'Spring Class',
+            certificate_id: null,
           },
         ])
       )
@@ -177,5 +191,74 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
     expect(result.size).toBe(2);
     expect(result.get(STUDENT_ID)?.deDeliveryMode).toBe('online');
     expect(result.get(STUDENT_ID_2)?.classroomAttendance?.isComplete).toBe(true);
+  });
+
+  it('reports certificateExists=true when a certificate row exists for the enrollment', async () => {
+    const { getDeEnrollmentsBatch } = await import('../services/enrollmentService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'completed',
+        completed: true,
+        completed_at: '2026-01-01T00:00:00.000Z',
+        de_delivery_mode: 'online',
+        manual_completed_hours: '30',
+        cohort_name: null,
+        certificate_id: 'cert-1',
+      }])
+    );
+
+    const result = await getDeEnrollmentsBatch([STUDENT_ID], TENANT_ID);
+
+    expect(result.get(STUDENT_ID)?.certificateExists).toBe(true);
+    expect(result.get(STUDENT_ID)?.completedAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('reports certificateExists=false and completedAt=null for a not-yet-completed enrollment with no certificate', async () => {
+    const { getDeEnrollmentsBatch } = await import('../services/enrollmentService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'active',
+        completed: false,
+        completed_at: null,
+        de_delivery_mode: 'online',
+        manual_completed_hours: '5',
+        cohort_name: null,
+        certificate_id: null,
+      }])
+    );
+
+    const result = await getDeEnrollmentsBatch([STUDENT_ID], TENANT_ID);
+
+    expect(result.get(STUDENT_ID)?.certificateExists).toBe(false);
+    expect(result.get(STUDENT_ID)?.completedAt).toBeNull();
+  });
+
+  it('reports certificateExists=false for a completed enrollment with no certificate row yet', async () => {
+    const { getDeEnrollmentsBatch } = await import('../services/enrollmentService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'completed',
+        completed: true,
+        completed_at: '2026-03-01T00:00:00.000Z',
+        de_delivery_mode: 'online',
+        manual_completed_hours: '30',
+        cohort_name: null,
+        certificate_id: null,
+      }])
+    );
+
+    const result = await getDeEnrollmentsBatch([STUDENT_ID], TENANT_ID);
+
+    expect(result.get(STUDENT_ID)?.certificateExists).toBe(false);
+    expect(result.get(STUDENT_ID)?.completedAt).toBe('2026-03-01T00:00:00.000Z');
   });
 });

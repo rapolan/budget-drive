@@ -5,7 +5,7 @@
  */
 
 import { query, getClient } from '../config/database';
-import { Student, Lesson, Guardian } from '../types';
+import { Student, Lesson, Guardian, DeEnrollmentSummary } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
@@ -171,12 +171,37 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
 
     const primaryGuardian = primaryGuardiansByStudent.get(student.id);
 
+    const deRow = deEnrollments.get(student.id) ?? null;
+    // Certificate-worklist eligibility mirror (same wasMinorAtCompletion
+    // pattern enrollmentService.attachProgressAndPayments already uses):
+    // age is evaluated AS OF the enrollment's own completedAt, not today,
+    // so the Students list's DE "Awaiting Cert" card can never disagree
+    // with the certificates worklist or the student-record badge.
+    const deAwaitingCertificate = deRow?.completed && deRow.completedAt
+      ? (() => {
+          const ageAtCompletion = calculateAge(student.dateOfBirth, timezone, new Date(deRow.completedAt as Date));
+          return (ageAtCompletion === null || ageAtCompletion < 18) && !deRow.certificateExists;
+        })()
+      : false;
+    const deEnrollment: DeEnrollmentSummary | null = deRow
+      ? {
+          id: deRow.id,
+          status: deRow.status,
+          completed: deRow.completed,
+          deDeliveryMode: deRow.deDeliveryMode,
+          manualCompletedHours: deRow.manualCompletedHours,
+          classroomAttendance: deRow.classroomAttendance,
+          cohortName: deRow.cohortName,
+          awaitingCertificate: deAwaitingCertificate,
+        }
+      : null;
+
     return {
       ...student,
       progress,
       needsGuardian,
       activeEnrollment,
-      deEnrollment: deEnrollments.get(student.id) ?? null,
+      deEnrollment,
       paymentSummary,
       hasOutstandingFee,
       outstandingFeeAmount,

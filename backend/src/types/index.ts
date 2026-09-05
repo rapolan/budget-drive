@@ -460,6 +460,12 @@ export interface DeEnrollmentSummary {
   manualCompletedHours: number | null;
   classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
   cohortName: string | null;
+  // A completed DE enrollment whose student was a minor AS OF completion
+  // (not today) with no certificate recorded yet - same eligibility check
+  // certificateService.getAwaitingCertificateWorklist already runs,
+  // batched onto the list here instead of a second worklist call. Always
+  // false for a non-completed enrollment.
+  awaitingCertificate: boolean;
 }
 
 export interface Enrollment {
