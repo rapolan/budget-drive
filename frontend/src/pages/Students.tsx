@@ -839,8 +839,14 @@ export const StudentsPage: React.FC = () => {
           prefers-reduced-motion (the same window.matchMedia check
           scrollToTable already uses in this file). The key={programTab}
           is what actually drives the fade: React remounts this subtree on
-          tab change, restarting the CSS animation from opacity 0. */}
-      <div key={programTab} className={prefersReducedMotion ? '' : 'animate-tab-fade-in'} style={{ display: 'contents' }}>
+          tab change, restarting the CSS animation from opacity 0. This is
+          a REAL block (no display:contents) carrying its own space-y-6 -
+          the same rhythm the outer container used for these sections
+          before this wrapper existed; display:contents was removing this
+          div from the box tree and, with it, the space-y-* adjacent-
+          sibling selector's ability to space its children (cards/filter
+          row/table), leaving them cramped together. */}
+      <div key={programTab} className={`space-y-6 ${prefersReducedMotion ? '' : 'animate-tab-fade-in'}`}>
 
       {/* Stats Cards - swap per tab; All has none (a plain roster). */}
       {programTab === 'btw' && (
