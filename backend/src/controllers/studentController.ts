@@ -365,3 +365,139 @@ export const enrollInBtw = asyncHandler(async (req: Request, res: Response) => {
     message: 'Enrolled in Behind-the-Wheel successfully',
   });
 });
+
+/**
+ * @route   GET /api/v1/students/archive-worklist
+ * @desc    Live-computed archive-eligibility worklist (Phase 4)
+ * @access  Private
+ */
+export const getArchiveWorklist = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const entries = await studentService.getArchiveReadyWorklist(tenantId);
+
+  res.json({
+    success: true,
+    data: entries,
+    count: entries.length,
+  });
+});
+
+/**
+ * @route   GET /api/v1/students/archive-held
+ * @desc    Students currently held out of the archive worklist
+ * @access  Private
+ */
+export const getHeldStudents = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const entries = await studentService.getHeldStudents(tenantId);
+
+  res.json({
+    success: true,
+    data: entries,
+    count: entries.length,
+  });
+});
+
+/**
+ * @route   GET /api/v1/students/archive
+ * @desc    Sealed archive, newest-first (year/month grouping done client-side)
+ * @access  Private
+ */
+export const getArchivedStudents = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const entries = await studentService.getArchivedStudents(tenantId);
+
+  res.json({
+    success: true,
+    data: entries,
+    count: entries.length,
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/archive
+ * @desc    Seal a student's record - the worklist's per-row action, the
+ *          bulk "Archive all eligible" action, and manual "Archive early"
+ *          all call this same endpoint.
+ * @access  Private
+ */
+export const archiveStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+
+  if (!userId) {
+    throw new AppError('User context required', 401);
+  }
+
+  const student = await studentService.archiveStudent(id, tenantId, userId);
+
+  res.json({
+    success: true,
+    data: student,
+    message: 'Student archived successfully',
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/archive-hold
+ * @desc    Hold a student out of the archive worklist (no auto-expiry)
+ * @access  Private
+ */
+export const holdStudentFromArchive = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  if (!userId) {
+    throw new AppError('User context required', 401);
+  }
+
+  await studentService.holdStudentFromArchive(id, tenantId, userId, reason);
+
+  res.json({
+    success: true,
+    message: 'Student held from archive',
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/archive-hold/clear
+ * @desc    Clear a hold - student becomes re-evaluable, not re-archived
+ * @access  Private
+ */
+export const clearArchiveHold = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  await studentService.clearArchiveHold(id, tenantId);
+
+  res.json({
+    success: true,
+    message: 'Archive hold cleared',
+  });
+});
+
+/**
+ * @route   POST /api/v1/students/:id/restore
+ * @desc    Restore an archived student to the working view. Confirm-guarded
+ *          on the frontend; archive_hash/archive_ledger_txid are left in
+ *          place as a historical seal record.
+ * @access  Private
+ */
+export const restoreStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const student = await studentService.restoreStudent(id, tenantId);
+
+  res.json({
+    success: true,
+    data: student,
+    message: 'Student restored successfully',
+  });
+});

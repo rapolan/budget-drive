@@ -4,13 +4,14 @@
  * CRITICAL: All queries filtered by tenant_id for multi-tenant security
  */
 
+import crypto from 'crypto';
 import { query, getClient } from '../config/database';
 import { Student, Lesson, Guardian, DeEnrollmentSummary } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
-import { resolveTenantTimezone } from '../utils/tenantTime';
+import { resolveTenantTimezone, tenantToday, daysBetweenTenantDates } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { countGuardiansForStudentsBatch, getGuardiansForStudentsBatch, getGuardiansForStudent, StudentGuardianLink } from './studentGuardianService';
 import { getOutstandingFlagsForStudentsBatch, getOutstandingFlagsForStudent } from './feeFlagService';
@@ -232,9 +233,13 @@ export const getAllStudents = async (
   try {
     const offset = (page - 1) * limit;
 
-    // Get total count
+    // Get total count. archived_at IS NULL is the entire "exclude from
+    // working views" mechanism (Phase 4 archive) - an archived student
+    // stays fully intact in the DB and remains reachable via
+    // getStudentById/searchPeople (neither filters on it), just off this
+    // default list.
     const countResult = await query(
-      'SELECT COUNT(*) FROM students WHERE tenant_id = $1',
+      'SELECT COUNT(*) FROM students WHERE tenant_id = $1 AND archived_at IS NULL',
       [tenantId]
     );
     const total = parseInt(countResult.rows[0].count);
@@ -248,7 +253,7 @@ export const getAllStudents = async (
        FROM students s
        LEFT JOIN users cu ON cu.id = s.created_by
        LEFT JOIN users uu ON uu.id = s.updated_by
-       WHERE s.tenant_id = $1
+       WHERE s.tenant_id = $1 AND s.archived_at IS NULL
        ORDER BY s.created_at DESC
        LIMIT $2 OFFSET $3`,
       [tenantId, limit, offset]
@@ -1148,4 +1153,445 @@ export const getStudentsByInstructor = async (
   );
 
   return attachProgress(result.rows.map(keysToCamel) as Student[], tenantId);
+};
+
+// =====================================================
+// ARCHIVE (Phase 4 of docs/compliance-records-build-plan.md)
+// =====================================================
+
+export interface ArchiveReadyEntry {
+  studentId: string;
+  studentName: string;
+  reason: 'permit_expired' | 'inactivity' | 'de_year_end';
+  // The date the reason is anchored to - permit expiration date,
+  // last-activity date, or DE completedAt - so the worklist can show
+  // "why" concretely instead of just a label.
+  reasonDate: string;
+  programTypes: Array<'driver_training' | 'driver_education'>;
+}
+
+/**
+ * Archive-eligibility worklist - live-computed on every call, the same
+ * pattern dashboardService.getInstructorsWithExpiringLicenses uses (fetch
+ * tenant settings/timezone, compute todayStr, compare fresh - zero
+ * persisted "pending" state). Never writes anything; archiving itself is
+ * always a separate, explicit admin action (archiveStudent below) - this
+ * function only ever answers "who is eligible right now and why."
+ *
+ * A student is eligible when EVERY enrollment they have is either
+ * completed-and-at-rest by its own program's rule, or doesn't exist - a
+ * student with even one active/incomplete-but-not-stalled enrollment is
+ * never eligible. Held students (archive_held) are excluded entirely; see
+ * getHeldStudents for the review list that keeps holds from disappearing
+ * unaccounted-for.
+ */
+export const getArchiveReadyWorklist = async (tenantId: string): Promise<ArchiveReadyEntry[]> => {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const todayStr = tenantToday(timezone);
+  const graceDays = tenantSettings?.archiveInactivityGraceDays ?? 90;
+
+  const candidatesResult = await query(
+    `SELECT s.id AS student_id, s.full_name AS student_name,
+       s.learner_permit_expiration,
+       e.id AS enrollment_id, e.program_type, e.completed, e.completed_at
+     FROM students s
+     JOIN enrollments e ON e.student_id = s.id
+     WHERE s.tenant_id = $1 AND s.archived_at IS NULL AND s.archive_held = false`,
+    [tenantId]
+  );
+
+  type CandidateRow = {
+    student_id: string;
+    student_name: string;
+    learner_permit_expiration: Date | null;
+    enrollment_id: string;
+    program_type: 'driver_training' | 'driver_education';
+    completed: boolean;
+    completed_at: Date | null;
+  };
+
+  const byStudent = new Map<string, { studentName: string; permitExpiration: Date | null; enrollments: CandidateRow[] }>();
+  for (const row of candidatesResult.rows as CandidateRow[]) {
+    const existing = byStudent.get(row.student_id);
+    if (existing) {
+      existing.enrollments.push(row);
+    } else {
+      byStudent.set(row.student_id, {
+        studentName: row.student_name,
+        permitExpiration: row.learner_permit_expiration,
+        enrollments: [row],
+      });
+    }
+  }
+
+  // Batched "most recent lesson date per driver_training enrollment" -
+  // one query for every candidate BTW enrollment, not N+1
+  // (getMostRecentLessonForStudent is per-student; this scans the whole
+  // candidate set at once, matching this codebase's established batched-
+  // query convention over per-item stitching).
+  const btwEnrollmentIds = Array.from(byStudent.values())
+    .flatMap((s) => s.enrollments)
+    .filter((e) => e.program_type === 'driver_training' && e.completed)
+    .map((e) => e.enrollment_id);
+
+  const lastLessonByEnrollment = new Map<string, string>();
+  if (btwEnrollmentIds.length > 0) {
+    const lastLessonResult = await query(
+      `SELECT enrollment_id, MAX(date) AS last_date
+       FROM lessons
+       WHERE enrollment_id = ANY($1::uuid[]) AND tenant_id = $2
+       GROUP BY enrollment_id`,
+      [btwEnrollmentIds, tenantId]
+    );
+    for (const row of lastLessonResult.rows as { enrollment_id: string; last_date: Date }[]) {
+      lastLessonByEnrollment.set(row.enrollment_id, row.last_date.toISOString().split('T')[0]);
+    }
+  }
+
+  const entries: ArchiveReadyEntry[] = [];
+
+  for (const [studentId, student] of byStudent.entries()) {
+    // Every enrollment must independently clear its own program's
+    // at-rest rule for the student to be eligible - one active or
+    // "incomplete, not stalled" enrollment blocks the whole student.
+    let eligible = true;
+    let reason: ArchiveReadyEntry['reason'] | null = null;
+    let reasonDate: string | null = null;
+    const programTypes = new Set<'driver_training' | 'driver_education'>();
+
+    for (const enrollment of student.enrollments) {
+      programTypes.add(enrollment.program_type);
+
+      if (!enrollment.completed) {
+        // An incomplete enrollment of either program blocks archiving
+        // outright - "stalled, may renew and return" stays active,
+        // never surfaced here regardless of permit/inactivity.
+        eligible = false;
+        break;
+      }
+
+      if (enrollment.program_type === 'driver_training') {
+        const permitExpiration = student.permitExpiration
+          ? student.permitExpiration.toISOString().split('T')[0]
+          : null;
+
+        if (permitExpiration && daysBetweenTenantDates(permitExpiration, todayStr) > 0) {
+          reason = 'permit_expired';
+          reasonDate = permitExpiration;
+          continue;
+        }
+
+        if (!permitExpiration) {
+          const lastActivity =
+            lastLessonByEnrollment.get(enrollment.enrollment_id) ??
+            (enrollment.completed_at ? enrollment.completed_at.toISOString().split('T')[0] : null);
+
+          if (lastActivity && daysBetweenTenantDates(lastActivity, todayStr) >= graceDays) {
+            reason = reason ?? 'inactivity';
+            reasonDate = reasonDate ?? lastActivity;
+            continue;
+          }
+        }
+
+        eligible = false;
+        break;
+      }
+
+      // driver_education: pure calendar-year rollover - eligible once
+      // tenantToday's year is later than completed_at's year, not a
+      // rolling 365-day clock (matches the archive browse view's own
+      // year -> month grouping - a whole year's completions seal together).
+      const completedYear = enrollment.completed_at ? enrollment.completed_at.getUTCFullYear() : null;
+      const todayYear = parseInt(todayStr.slice(0, 4), 10);
+      if (completedYear !== null && todayYear > completedYear) {
+        reason = reason ?? 'de_year_end';
+        reasonDate = reasonDate ?? (enrollment.completed_at as Date).toISOString().split('T')[0];
+        continue;
+      }
+
+      eligible = false;
+      break;
+    }
+
+    if (eligible && reason && reasonDate) {
+      entries.push({
+        studentId,
+        studentName: student.studentName,
+        reason,
+        reasonDate,
+        programTypes: Array.from(programTypes),
+      });
+    }
+  }
+
+  return entries.sort((a, b) => a.reasonDate.localeCompare(b.reasonDate));
+};
+
+export interface HeldStudentEntry {
+  studentId: string;
+  studentName: string;
+  archiveHoldReason: string | null;
+  archiveHeldAt: string | null;
+  archiveHeldByName: string | null;
+}
+
+/**
+ * The "Held" review list - every currently-held student, visible so a
+ * hold (deliberately permanent, no auto-expiry - see the archive_held
+ * migration comment) can be periodically reviewed and cleared rather than
+ * silently accumulating forgotten.
+ */
+export const getHeldStudents = async (tenantId: string): Promise<HeldStudentEntry[]> => {
+  const result = await query(
+    `SELECT s.id AS student_id, s.full_name AS student_name, s.archive_hold_reason,
+       s.archive_held_at, u.full_name AS archive_held_by_name
+     FROM students s
+     LEFT JOIN users u ON u.id = s.archive_held_by
+     WHERE s.tenant_id = $1 AND s.archive_held = true
+     ORDER BY s.archive_held_at DESC`,
+    [tenantId]
+  );
+
+  return result.rows.map((row) => ({
+    studentId: row.student_id,
+    studentName: row.student_name,
+    archiveHoldReason: row.archive_hold_reason,
+    archiveHeldAt: row.archive_held_at ? row.archive_held_at.toISOString() : null,
+    archiveHeldByName: row.archive_held_by_name,
+  }));
+};
+
+/**
+ * Hold a student out of the archive-eligibility worklist - a known
+ * returner. No auto-expiry by design (see migration 027's comment); stays
+ * held until clearArchiveHold is called explicitly, kept visible via
+ * getHeldStudents.
+ */
+export const holdStudentFromArchive = async (
+  studentId: string,
+  tenantId: string,
+  userId: string,
+  reason: string
+): Promise<void> => {
+  const result = await query(
+    `UPDATE students
+     SET archive_held = true, archive_hold_reason = $1, archive_held_at = now(), archive_held_by = $2
+     WHERE id = $3 AND tenant_id = $4
+     RETURNING id`,
+    [reason, userId, studentId, tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+};
+
+/**
+ * Clear a hold - the student becomes re-evaluable on the next worklist
+ * load. Does NOT archive them itself; whether they then appear on the
+ * worklist depends entirely on whether their own trigger still applies.
+ */
+export const clearArchiveHold = async (studentId: string, tenantId: string): Promise<void> => {
+  const result = await query(
+    `UPDATE students
+     SET archive_held = false, archive_hold_reason = NULL, archive_held_at = NULL, archive_held_by = NULL
+     WHERE id = $1 AND tenant_id = $2
+     RETURNING id`,
+    [studentId, tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+};
+
+/**
+ * Seals a student's record: computes a no-PII SHA-256 archive_hash over
+ * every enrollment's provable facts and sets archived_at. One code path
+ * for all three callers (the worklist's per-row Archive action, the bulk
+ * "Archive all eligible" action, and the manual "Archive early" action) -
+ * they differ only in how they arrive at `studentId`, never in what
+ * sealing does.
+ *
+ * Requires at least one completed enrollment (400 otherwise - nothing to
+ * seal); does NOT re-check the eligibility trigger itself, since "Archive
+ * early" is explicitly allowed to seal before the trigger would naturally
+ * fire (this is intentional per the spec, not a missing guard).
+ *
+ * A restore (archived_at -> NULL) leaves archive_hash/archive_ledger_txid
+ * untouched - "this was sealed once" is a historical fact, mirroring
+ * reopenEnrollment's own "never clears completion_hash" precedent. If the
+ * student is later re-archived (after re-completing something new), this
+ * function OVERWRITES archive_hash with a fresh one and resets
+ * archive_ledger_txid to NULL, since a new hash needs its own (future,
+ * unbuilt) anchor - the row holds only the latest seal, an honest history
+ * of the record's most recent final state.
+ */
+export const archiveStudent = async (
+  studentId: string,
+  tenantId: string,
+  userId: string
+): Promise<Student> => {
+  const studentResult = await query(
+    `SELECT * FROM students WHERE id = $1 AND tenant_id = $2`,
+    [studentId, tenantId]
+  );
+  if (studentResult.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+  const studentRow = keysToCamel(studentResult.rows[0]) as Student;
+
+  const enrollments = await getEnrollmentsForStudent(studentId, tenantId, { dateOfBirth: studentRow.dateOfBirth });
+  const completedEnrollments = enrollments.filter((e) => e.completed);
+  if (completedEnrollments.length === 0) {
+    throw new AppError('Student has no completed enrollment to archive', 400);
+  }
+
+  const tenantSettings = await getTenantSettings(tenantId);
+
+  const enrollmentPayloads = [];
+  for (const enrollment of completedEnrollments) {
+    const certificatesResult = await query(
+      `SELECT serial_number FROM certificates WHERE enrollment_id = $1 AND tenant_id = $2 ORDER BY serial_number`,
+      [enrollment.id, tenantId]
+    );
+    const certificateSerials = certificatesResult.rows.map((r) => r.serial_number);
+
+    if (enrollment.programType === 'driver_training') {
+      const lessonsResult = await query(
+        `SELECT date, duration, instructor_id FROM lessons
+         WHERE enrollment_id = $1 AND tenant_id = $2 AND status = 'completed'
+         ORDER BY date, start_time`,
+        [enrollment.id, tenantId]
+      );
+      enrollmentPayloads.push({
+        enrollmentId: enrollment.id,
+        programType: enrollment.programType,
+        totalHours: enrollment.hoursRequired,
+        completedAt: enrollment.completedAt,
+        lessons: lessonsResult.rows.map((r) => ({
+          date: r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date,
+          durationMinutes: Number(r.duration) * 60,
+          instructorId: r.instructor_id,
+        })),
+        certificateSerials,
+      });
+    } else {
+      const cohortResult = await query(
+        `SELECT dc.id AS cohort_id, dc.teacher_instructor_id
+         FROM de_cohort_enrollments dce
+         JOIN de_cohorts dc ON dc.id = dce.cohort_id
+         WHERE dce.enrollment_id = $1 AND dce.tenant_id = $2`,
+        [enrollment.id, tenantId]
+      );
+      const attendanceResult = await query(
+        `SELECT DISTINCT s.curriculum_day
+         FROM de_attendance a
+         JOIN de_cohort_sessions s ON s.id = a.session_id
+         WHERE a.enrollment_id = $1 AND a.tenant_id = $2 AND a.present = true
+         ORDER BY s.curriculum_day`,
+        [enrollment.id, tenantId]
+      );
+
+      enrollmentPayloads.push({
+        enrollmentId: enrollment.id,
+        programType: enrollment.programType,
+        totalHours: enrollment.manualCompletedHours ?? enrollment.hoursRequired,
+        completedAt: enrollment.completedAt,
+        cohort: cohortResult.rows[0]
+          ? {
+              cohortId: cohortResult.rows[0].cohort_id,
+              teacherInstructorId: cohortResult.rows[0].teacher_instructor_id,
+              attendedCurriculumDays: attendanceResult.rows.map((r) => r.curriculum_day),
+            }
+          : null,
+        certificateSerials,
+      });
+    }
+  }
+
+  const hashPayload = {
+    studentId,
+    enrollments: enrollmentPayloads,
+    schoolLicenseNumber: tenantSettings?.licenseNumber ?? null,
+    archiveDate: tenantToday(resolveTenantTimezone(tenantSettings?.timezone)),
+  };
+
+  const archiveHash = crypto.createHash('sha256').update(JSON.stringify(hashPayload)).digest('hex');
+
+  const result = await query(
+    `UPDATE students
+     SET archived_at = now(), archived_by = $1, archive_hash = $2, archive_ledger_txid = NULL
+     WHERE id = $3 AND tenant_id = $4
+     RETURNING *`,
+    [userId, archiveHash, studentId, tenantId]
+  );
+
+  logger.info('Archived student', { tenantId, studentId, enrollmentCount: completedEnrollments.length });
+
+  return keysToCamel(result.rows[0]) as Student;
+};
+
+/**
+ * Restore an archived student back to the working view. Deliberately
+ * leaves archive_hash/archive_ledger_txid in place - "this record was
+ * sealed once" is a historical fact that survives a restore, exactly
+ * mirroring reopenEnrollment's own "never clears completion_hash"
+ * precedent. If the student is re-archived later, archiveStudent
+ * overwrites both with a fresh seal.
+ */
+export const restoreStudent = async (studentId: string, tenantId: string): Promise<Student> => {
+  const result = await query(
+    `UPDATE students
+     SET archived_at = NULL
+     WHERE id = $1 AND tenant_id = $2
+     RETURNING *`,
+    [studentId, tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+
+  return keysToCamel(result.rows[0]) as Student;
+};
+
+export interface ArchivedStudentEntry {
+  studentId: string;
+  studentName: string;
+  archivedAt: string;
+  archiveHash: string | null;
+  archiveLedgerTxid: string | null;
+  programTypes: Array<'driver_training' | 'driver_education'>;
+}
+
+/**
+ * The sealed archive, for the browse view's year -> month grouping.
+ * Grouping itself happens on the frontend (matching this codebase's
+ * existing convention of shipping a flat, sorted list and letting the
+ * page do date-bucket presentation - see Certificates.tsx's log) - this
+ * just returns every archived student, newest-sealed-first.
+ */
+export const getArchivedStudents = async (tenantId: string): Promise<ArchivedStudentEntry[]> => {
+  const result = await query(
+    `SELECT s.id AS student_id, s.full_name AS student_name, s.archived_at,
+       s.archive_hash, s.archive_ledger_txid,
+       array_agg(DISTINCT e.program_type) AS program_types
+     FROM students s
+     LEFT JOIN enrollments e ON e.student_id = s.id
+     WHERE s.tenant_id = $1 AND s.archived_at IS NOT NULL
+     GROUP BY s.id
+     ORDER BY s.archived_at DESC`,
+    [tenantId]
+  );
+
+  return result.rows.map((row) => ({
+    studentId: row.student_id,
+    studentName: row.student_name,
+    archivedAt: row.archived_at.toISOString(),
+    archiveHash: row.archive_hash,
+    archiveLedgerTxid: row.archive_ledger_txid,
+    programTypes: (row.program_types || []).filter((p: string | null) => p !== null),
+  }));
 };

@@ -115,6 +115,11 @@ export interface TenantSettings {
   // classroom DE is 30 hours) - vestigial for display only, DE completion
   // is never gated on this value.
   defaultDeHoursRequired?: number;
+  // Phase 4 archive trigger's BTW fallback: days of no lesson activity
+  // (since the enrollment's most recent lesson, or completed_at if none)
+  // before a completed BTW student with no permit on file becomes
+  // archive-eligible. Editable in Settings' Training Defaults section.
+  archiveInactivityGraceDays?: number;
 
   // Lesson Review & Cancellation Policy
   lessonCompletionMode: 'manual' | 'auto';
@@ -250,6 +255,25 @@ export interface Student {
     email: string | null;
     phone: string | null;
   };
+
+  // Archive (Phase 4 of docs/compliance-records-build-plan.md) - a soft,
+  // reversible flag. null/false means active/working. Excluded from
+  // GET /students' default list but never from GET /students/:id or
+  // GET /search/people - archived means "out of the daily working view,"
+  // never "hidden" or "deleted."
+  archivedAt?: string | null;
+  archivedBy?: string | null;
+  // No-PII seal hash - see backend studentService.archiveStudent. Always
+  // null until archived; left in place across a restore.
+  archiveHash?: string | null;
+  archiveLedgerTxid?: string | null;
+  // "Hold active" override - excludes this student from the archive
+  // worklist with no auto-expiry, reviewed via the Archive page's "Held"
+  // tab rather than a timer.
+  archiveHeld?: boolean;
+  archiveHoldReason?: string | null;
+  archiveHeldAt?: string | null;
+  archiveHeldBy?: string | null;
 }
 
 // =====================================================

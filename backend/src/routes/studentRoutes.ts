@@ -34,6 +34,23 @@ router.get(
   studentController.getAllStudents
 );
 
+// Archive (Phase 4) - literal paths registered before the dynamic
+// /students/:id route below, same ordering reason as status/instructor above.
+router.get(
+  '/students/archive-worklist',
+  studentController.getArchiveWorklist
+);
+
+router.get(
+  '/students/archive-held',
+  studentController.getHeldStudents
+);
+
+router.get(
+  '/students/archive',
+  studentController.getArchivedStudents
+);
+
 // Create new student
 // email is deliberately omitted here - its requirement is conditional on
 // age (adults only), which a presence-only route validator can't express;
@@ -100,6 +117,37 @@ router.post(
   '/students/:id/enroll-in-btw',
   validateUUID('id'),
   studentController.enrollInBtw
+);
+
+// Seal a student's record (Phase 4 archive) - the worklist's per-row
+// action, bulk "Archive all eligible", and manual "Archive early" all
+// call this same endpoint.
+router.post(
+  '/students/:id/archive',
+  validateUUID('id'),
+  studentController.archiveStudent
+);
+
+// Hold a student out of the archive worklist - no auto-expiry, reviewed
+// via GET /students/archive-held.
+router.post(
+  '/students/:id/archive-hold',
+  validateUUID('id'),
+  validateRequired(['reason']),
+  studentController.holdStudentFromArchive
+);
+
+router.post(
+  '/students/:id/archive-hold/clear',
+  validateUUID('id'),
+  studentController.clearArchiveHold
+);
+
+// Restore an archived student - confirm-guarded on the frontend.
+router.post(
+  '/students/:id/restore',
+  validateUUID('id'),
+  studentController.restoreStudent
 );
 
 // Get guardians linked to a student

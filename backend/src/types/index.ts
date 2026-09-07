@@ -35,9 +35,8 @@ export interface TenantSettings {
   businessTagline: string | null;
   // DMV-issued driving school license number (e.g. "E1234") - Phase 1 of
   // the compliance-records arc (docs/compliance-records-build-plan.md).
-  // Nullable: not every tenant has one on file yet. Nothing consumes this
-  // yet (certificates/transcripts/archive are later phases) - pure
-  // storage and editing this phase.
+  // Nullable: not every tenant has one on file yet. Consumed by certificate
+  // documents (Phase 2) and the archive seal hash (Phase 4).
   licenseNumber: string | null;
   logoUrl: string | null;
   faviconUrl: string | null;
@@ -88,6 +87,13 @@ export interface TenantSettings {
   // (online), never gated on this value - it exists for data honesty, not
   // because anything currently reads it.
   defaultDeHoursRequired: number;
+  // Phase 4 archive trigger's BTW fallback: how many days of no lesson
+  // activity (since the enrollment's most recent lesson, or since
+  // completed_at if none) makes a completed BTW student archive-eligible
+  // when they have no learner_permit_expiration on file to key off of
+  // instead (e.g. an adult). Tenant-configurable since it's a low-stakes,
+  // fully reversible threshold (restore is one click).
+  archiveInactivityGraceDays: number;
 
   // Lesson Review & Cancellation Policy
   // 'auto' is stored but has no job behind it yet - only 'manual' review
@@ -419,6 +425,28 @@ export interface Student {
     email: string | null;
     phone: string | null;
   };
+
+  // Archive (Phase 4 of docs/compliance-records-build-plan.md) - a soft,
+  // reversible flag. null means active/working; a timestamp means sealed.
+  // Excluded from GET /students' default list (studentService.getAllStudents)
+  // but never from GET /students/:id or GET /search/people - archived means
+  // "out of the daily working view," never "hidden" or "deleted."
+  archivedAt: Date | null;
+  archivedBy: string | null;
+  // No-PII SHA-256 seal over the record's provable facts - see
+  // studentService.archiveStudent. ledger_txid mirrors
+  // enrollments.completion_hash/ledger_txid's forward-compat posture
+  // exactly (docs/BLOCKCHAIN.md): written nowhere yet, always null today.
+  archiveHash: string | null;
+  archiveLedgerTxid: string | null;
+  // Manual "hold active" override - excludes this student from the
+  // archive-eligibility worklist with no auto-expiry (see
+  // studentService.getArchiveReadyWorklist). Surfaced on a dedicated
+  // "Held" review list so a hold can't silently accumulate forgotten.
+  archiveHeld: boolean;
+  archiveHoldReason: string | null;
+  archiveHeldAt: Date | null;
+  archiveHeldBy: string | null;
 }
 
 // =====================================================

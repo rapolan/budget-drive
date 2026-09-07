@@ -371,6 +371,10 @@ export const updateTenantSettings = async (
     fields.push(`default_de_hours_required = $${paramCount++}`);
     values.push(data.defaultDeHoursRequired);
   }
+  if (data.archiveInactivityGraceDays !== undefined) {
+    fields.push(`archive_inactivity_grace_days = $${paramCount++}`);
+    values.push(data.archiveInactivityGraceDays);
+  }
 
   // Lesson Review & Cancellation Policy
   if (data.lessonCompletionMode !== undefined) {
