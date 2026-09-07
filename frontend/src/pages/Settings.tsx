@@ -143,6 +143,7 @@ const GeneralSettings: React.FC = () => {
     enableDriverEducation: settings?.enableDriverEducation === true,
     deDiscountAmount:    settings?.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
     defaultDeHoursRequired: settings?.defaultDeHoursRequired != null ? Number(settings.defaultDeHoursRequired) : 30,
+    archiveInactivityGraceDays: settings?.archiveInactivityGraceDays != null ? Number(settings.archiveInactivityGraceDays) : 90,
   });
 
   React.useEffect(() => {
@@ -171,6 +172,7 @@ const GeneralSettings: React.FC = () => {
       enableDriverEducation: settings.enableDriverEducation === true,
       deDiscountAmount:    settings.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
       defaultDeHoursRequired: settings.defaultDeHoursRequired != null ? Number(settings.defaultDeHoursRequired) : 30,
+      archiveInactivityGraceDays: settings.archiveInactivityGraceDays != null ? Number(settings.archiveInactivityGraceDays) : 90,
     });
   }, [settings]);
 
@@ -495,6 +497,21 @@ const GeneralSettings: React.FC = () => {
               className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <span className="text-sm text-tx-secondary">hours</span>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-archive-inactivity-grace-days" className="block text-sm font-medium text-tx-secondary mb-1">Archive Inactivity Grace Period</label>
+          <p className="text-xs text-tx-muted mb-3">A completed Behind-the-Wheel student with no learner's permit on file becomes archive-eligible after this many days of no lesson activity.</p>
+          <div className="flex items-center gap-3">
+            <input
+              id="settings-archive-inactivity-grace-days"
+              type="number"
+              value={form.archiveInactivityGraceDays}
+              onChange={e => setForm(f => ({ ...f, archiveInactivityGraceDays: parseInt(e.target.value, 10) || 90 }))}
+              min="1" max="3650" step="1"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <span className="text-sm text-tx-secondary">days</span>
           </div>
         </div>
         <div>

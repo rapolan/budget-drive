@@ -13,6 +13,7 @@ import { VehiclesPage } from '@/pages/Vehicles';
 import { LessonsPage } from '@/pages/Lessons';
 import { ReviewQueuePage } from '@/pages/ReviewQueue';
 import { CertificatesPage } from '@/pages/Certificates';
+import { ArchivePage } from '@/pages/Archive';
 import { CertificatePrintPage } from '@/pages/CertificatePrint';
 import { ClassroomPage } from '@/pages/Classroom';
 import { SchedulingPage } from '@/pages/Scheduling';
@@ -205,6 +206,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CertificatePrintPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/archive"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <ArchivePage />
+            </AppLayout>
           </ProtectedRoute>
         }
       />

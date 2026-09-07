@@ -14,6 +14,7 @@ import {
   Bell,
   History,
   GraduationCap,
+  Archive,
   X,
 } from 'lucide-react';
 import { useTenant } from '@/contexts/TenantContext';
@@ -69,6 +70,10 @@ const allNavigation: NavItem[] = [
 
   // Driver education classroom tracking (school only, off by default)
   { name: 'Classroom', href: '/classroom', icon: GraduationCap, featureFlag: 'enableDriverEducation', tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
+
+  // Archive (Phase 4 of the compliance-records arc) - core compliance
+  // retention, not optional, so no feature flag unlike Certificates/Classroom.
+  { name: 'Archive', href: '/archive', icon: Archive, tenantTypes: ['school'], roles: ['owner', 'admin', 'staff'], group: 'operations' },
 
   // System
   { name: 'Settings', href: '/settings', icon: Settings, roles: ['owner', 'admin'], group: 'system' },
