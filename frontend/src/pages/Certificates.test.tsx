@@ -38,6 +38,7 @@ function logEntry(overrides: Partial<CertificateLogEntry> = {}): CertificateLogE
     id: 'cert-1',
     serialNumber: 'CS0000001',
     status: 'issued',
+    formType: 'DL_400D',
     issueDate: '2026-08-01T00:00:00.000Z',
     voidReason: null,
     studentId: 'student-1',

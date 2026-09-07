@@ -10,6 +10,25 @@ export interface AwaitingCertificateEntry {
   suggestedInstructorName: string | null;
 }
 
+// Driver Education's "ready for issuance" worklist entry - see
+// certificateService.getDeReadyForIssuanceWorklist. readyReason picks
+// which action the row offers: 'attendance_complete' (classroom, 4/4
+// days, not yet completed) gets the combined "Complete & issue"
+// action; 'completed' (online's manual completion, or a classroom
+// student completed via the plain Mark complete fallback) gets the
+// ordinary record-certificate form, same as the BTW worklist.
+export interface DeReadyForIssuanceEntry {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  deDeliveryMode: 'classroom' | 'online';
+  readyReason: 'attendance_complete' | 'completed';
+  readyAt: string;
+  suggestedInstructorId: string | null;
+  suggestedInstructorName: string | null;
+  cohortName: string | null;
+}
+
 export interface CertificateCounts {
   issued: number;
   void: number;
@@ -19,6 +38,10 @@ export interface CertificateLogEntry {
   id: string;
   serialNumber: string;
   status: 'issued' | 'void';
+  // Always present (VOID_FORM_TYPE for a void) - the program-tab filter's
+  // discriminator against this ONE unified log (DE: DL_400B/DL_400C, BTW:
+  // DL_400D).
+  formType: string;
   issueDate: string;
   voidReason: string | null;
   studentId: string | null;
@@ -66,9 +89,20 @@ export interface RecordVoidInput {
   issueDate: string;
 }
 
+export interface CompleteAndIssueDeCertificateInput {
+  serialNumber: string;
+  issueDate: string;
+  issuedByInstructorId?: string | null;
+}
+
 export const certificatesApi = {
   getWorklist: async () => {
     const response = await apiClient.get<ApiResponse<AwaitingCertificateEntry[]>>('/certificates/worklist');
+    return response.data;
+  },
+
+  getDeWorklist: async () => {
+    const response = await apiClient.get<ApiResponse<DeReadyForIssuanceEntry[]>>('/certificates/de-worklist');
     return response.data;
   },
 
@@ -103,6 +137,16 @@ export const certificatesApi = {
   record: async (enrollmentId: string, data: RecordCertificateInput) => {
     const response = await apiClient.post<ApiResponse<Certificate>>(
       `/enrollments/${enrollmentId}/certificate`,
+      data
+    );
+    return response.data;
+  },
+
+  // Classroom DE's combined action - marks the enrollment complete
+  // (requires 4/4 attendance) and records the certificate atomically.
+  completeAndIssueDeCertificate: async (enrollmentId: string, data: CompleteAndIssueDeCertificateInput) => {
+    const response = await apiClient.post<ApiResponse<{ enrollment: unknown; certificate: Certificate }>>(
+      `/enrollments/${enrollmentId}/complete-and-issue-de-certificate`,
       data
     );
     return response.data;

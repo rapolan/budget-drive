@@ -160,7 +160,21 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
         const isDriverTraining = enrollment.programType === 'driver_training';
         const certificate = certificatesByEnrollmentId[enrollment.id];
         const awaitingCertificate =
-          isDriverTraining && enrollment.completed && !certificate && !!enrollment.wasMinorAtCompletion;
+          enrollment.completed && !certificate && !!enrollment.wasMinorAtCompletion;
+        // DE completion is now completable from here too (it wasn't
+        // before - "Mark complete" was BTW-only, leaving DE with no UI
+        // completion path at all). Classroom DE is gated on 4/4
+        // curriculum-day attendance (the same signal the certificate
+        // worklist's combined "Complete & issue" action requires) so an
+        // admin can't bypass the attendance requirement through this
+        // plain button; online DE has no attendance concept, so it's
+        // available whenever active, same as BTW.
+        const isClassroomDe = enrollment.programType === 'driver_education' && enrollment.deDeliveryMode === 'classroom';
+        const canMarkComplete = enrollment.status === 'active' && !enrollment.completed && (
+          isDriverTraining ||
+          (enrollment.programType === 'driver_education' && enrollment.deDeliveryMode === 'online') ||
+          (isClassroomDe && !!enrollment.classroomAttendance?.isComplete)
+        );
         return (
           <div key={enrollment.id} className="bg-surface2 rounded-lg p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -197,12 +211,13 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
               </div>
 
               <div className="flex items-center gap-2 flex-shrink-0">
-                {isDriverTraining && enrollment.status === 'active' && (
+                {canMarkComplete && (
                   <button
                     type="button"
                     onClick={() => onStartComplete(enrollment.id)}
                     disabled={completingEnrollmentId === enrollment.id}
                     className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg text-status-success-text hover:bg-status-success-bg disabled:opacity-50"
+                    title={isClassroomDe ? 'All 4 curriculum days attended' : undefined}
                   >
                     <CheckCircle className="h-3.5 w-3.5" />
                     Mark complete
