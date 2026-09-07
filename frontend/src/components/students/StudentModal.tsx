@@ -668,6 +668,43 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     },
   });
 
+  // Archive early (Phase 4) - seals a completed record now, before the
+  // eligibility worklist's own trigger would naturally fire. Closes the
+  // modal since an archived student no longer belongs in the working
+  // Students list this modal was opened from.
+  const [showArchiveEarlyConfirm, setShowArchiveEarlyConfirm] = useState(false);
+  const archiveEarlyMutation = useMutation({
+    mutationFn: () => studentsApi.archive(student!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['archive'] });
+      onClose();
+    },
+  });
+
+  // Hold active (Phase 4) - excludes this student from the archive
+  // worklist with no auto-expiry; a required reason keeps a later review
+  // (the Archive page's Held tab) meaningful rather than a bare flag.
+  const [showArchiveHoldForm, setShowArchiveHoldForm] = useState(false);
+  const [archiveHoldReason, setArchiveHoldReason] = useState('');
+  const archiveHoldMutation = useMutation({
+    mutationFn: () => studentsApi.archiveHold(student!.id, archiveHoldReason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['archive'] });
+      setShowArchiveHoldForm(false);
+      setArchiveHoldReason('');
+    },
+  });
+
+  const clearArchiveHoldMutation = useMutation({
+    mutationFn: () => studentsApi.clearArchiveHold(student!.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['archive'] });
+    },
+  });
+
   // Enrollments tab (Item 4) - add / complete / reopen. "Add" is always an
   // explicit two-step action: a click reveals the form (isAddingProgramType),
   // nothing is sent until the form's own "Add enrollment" button is clicked.
@@ -2745,6 +2782,116 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                   </a>
                 )}
               </div>
+
+              {/* Archive (Phase 4) - manual overrides. Archive early seals
+                  a completed record now, before the eligibility worklist's
+                  own trigger fires. Hold active keeps a known returner off
+                  that worklist, with no auto-expiry - reviewed on the
+                  Archive page's Held tab instead of a silent timer. */}
+              {!student.archivedAt && enrollments.some((e) => e.completed) && (
+                <div className="border-t border-edge pt-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-tx-secondary">Archive</p>
+
+                  {student.archiveHeld ? (
+                    <div className="bg-status-warning-bg border border-status-warning-border rounded-lg p-4 space-y-2">
+                      <p className="text-sm font-medium text-status-warning-text">
+                        Held from the archive worklist{student.archiveHoldReason ? `: ${student.archiveHoldReason}` : ''}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => clearArchiveHoldMutation.mutate()}
+                        disabled={clearArchiveHoldMutation.isPending}
+                        className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors disabled:opacity-50"
+                      >
+                        Clear hold
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {!showArchiveEarlyConfirm && !showArchiveHoldForm && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowArchiveEarlyConfirm(true)}
+                            className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                          >
+                            Archive early
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowArchiveHoldForm(true)}
+                            className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                          >
+                            Hold active
+                          </button>
+                        </>
+                      )}
+
+                      {showArchiveEarlyConfirm && (
+                        <div className="w-full bg-status-warning-bg border border-status-warning-border rounded-lg p-4 space-y-2">
+                          <p className="text-sm font-medium text-status-warning-text">
+                            Seal {student.fullName}'s record now? This removes them from the working Students list -
+                            fully reversible via Restore on the Archive page.
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowArchiveEarlyConfirm(false)}
+                              className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => archiveEarlyMutation.mutate()}
+                              disabled={archiveEarlyMutation.isPending}
+                              className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                            >
+                              {archiveEarlyMutation.isPending ? 'Archiving...' : 'Confirm archive'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {showArchiveHoldForm && (
+                        <div className="w-full bg-status-warning-bg border border-status-warning-border rounded-lg p-4 space-y-2">
+                          <label className="block text-xs font-medium text-status-warning-text" htmlFor="archive-hold-reason">
+                            Reason for holding (required)
+                          </label>
+                          <input
+                            id="archive-hold-reason"
+                            type="text"
+                            value={archiveHoldReason}
+                            onChange={(e) => setArchiveHoldReason(e.target.value)}
+                            placeholder="e.g. Family said they're returning in the fall"
+                            className="w-full px-3 py-2 border border-status-warning-border rounded-lg text-sm bg-surface"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowArchiveHoldForm(false);
+                                setArchiveHoldReason('');
+                              }}
+                              className="px-3 py-2 text-sm font-medium bg-surface border border-edge-strong rounded-lg hover:bg-surface2 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => archiveHoldMutation.mutate()}
+                              disabled={!archiveHoldReason.trim() || archiveHoldMutation.isPending}
+                              className="px-3 py-2 text-sm font-medium bg-status-warning-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
+                            >
+                              Confirm hold
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

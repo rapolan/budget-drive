@@ -15,6 +15,9 @@ vi.mock('@/api', async () => {
       create: vi.fn(),
       createWithGuardian: vi.fn(),
       getById: vi.fn().mockResolvedValue({ data: { hasCompletedInternalDe: false } }),
+      archive: vi.fn(),
+      archiveHold: vi.fn(),
+      clearArchiveHold: vi.fn(),
     },
     guardiansApi: {
       ...actual.guardiansApi,
@@ -2528,5 +2531,105 @@ describe('StudentModal - persistent actions bar (Item 2)', () => {
     renderModal(editableStudent(), { initialTab: 'progress' });
 
     expect(await screen.findByText(/\$50\.00 - No-show/i)).toBeInTheDocument();
+  });
+});
+
+// Phase 4 archive: manual overrides live on the Progress tab, gated on
+// having at least one completed enrollment (nothing to seal otherwise)
+// and hidden entirely once the student is already archived.
+describe('StudentModal - Archive manual overrides (Progress tab)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows "Archive early" and "Hold active" once a completed enrollment exists', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'enrollment-1', programType: 'driver_training', completed: true } as Enrollment],
+    });
+
+    renderModal(editableStudent(), { initialTab: 'progress' });
+
+    expect(await screen.findByRole('button', { name: /archive early/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /hold active/i })).toBeInTheDocument();
+  });
+
+  it('does not show archive actions when the student has no completed enrollment', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'enrollment-1', programType: 'driver_training', completed: false } as Enrollment],
+    });
+
+    renderModal(editableStudent(), { initialTab: 'progress' });
+
+    await waitFor(() => expect(enrollmentsApi.getForStudent).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /archive early/i })).not.toBeInTheDocument();
+  });
+
+  it('"Archive early" requires a confirm click before calling the archive endpoint', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'enrollment-1', programType: 'driver_training', completed: true } as Enrollment],
+    });
+    (studentsApi.archive as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+
+    renderModal(editableStudent({ id: 'student-1' }), { initialTab: 'progress' });
+
+    await userEvent.click(await screen.findByRole('button', { name: /archive early/i }));
+    expect(studentsApi.archive).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: /confirm archive/i }));
+    await waitFor(() => expect(studentsApi.archive).toHaveBeenCalledWith('student-1'));
+  });
+
+  it('"Hold active" requires a reason before the confirm button is enabled', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'enrollment-1', programType: 'driver_training', completed: true } as Enrollment],
+    });
+    (studentsApi.archiveHold as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+
+    renderModal(editableStudent({ id: 'student-1' }), { initialTab: 'progress' });
+
+    await userEvent.click(await screen.findByRole('button', { name: /hold active/i }));
+    const confirmButton = screen.getByRole('button', { name: /confirm hold/i });
+    expect(confirmButton).toBeDisabled();
+
+    await userEvent.type(screen.getByPlaceholderText(/family said/i), 'Returning in the fall');
+    await userEvent.click(confirmButton);
+
+    await waitFor(() =>
+      expect(studentsApi.archiveHold).toHaveBeenCalledWith('student-1', 'Returning in the fall')
+    );
+  });
+
+  it('shows a "Clear hold" action instead when the student is already held', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'enrollment-1', programType: 'driver_training', completed: true } as Enrollment],
+    });
+    (studentsApi.clearArchiveHold as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+
+    renderModal(
+      editableStudent({ id: 'student-1', archiveHeld: true, archiveHoldReason: 'Returning in spring' }),
+      { initialTab: 'progress' }
+    );
+
+    expect(await screen.findByText(/returning in spring/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /clear hold/i }));
+
+    await waitFor(() => expect(studentsApi.clearArchiveHold).toHaveBeenCalledWith('student-1'));
+  });
+
+  it('hides every archive action once the student is already archived', async () => {
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'enrollment-1', programType: 'driver_training', completed: true } as Enrollment],
+    });
+
+    renderModal(editableStudent({ id: 'student-1', archivedAt: '2026-01-01T00:00:00.000Z' }), {
+      initialTab: 'progress',
+    });
+
+    await waitFor(() => expect(enrollmentsApi.getForStudent).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /archive early/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /hold active/i })).not.toBeInTheDocument();
   });
 });
