@@ -93,4 +93,30 @@ describe('GET /api/v1/search/people', () => {
     const results = await searchService.searchPeople(TENANT_ID, 'Doe');
     expect(results[0].name).toBe('Doe');
   });
+
+  // Phase 4 archive: this query has never excluded archived students (no
+  // status filter of any kind) - searching an archived student's name
+  // must still find them, tagged, never silently dropped.
+  it('an archived student still surfaces, carrying archivedAt so the UI can tag them', async () => {
+    const searchService = await import('../services/searchService');
+    const archivedAt = '2026-01-15T00:00:00.000Z';
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ type: 'student', id: 'student-1', name: 'Ada Chen', email: null, phone: null, archived_at: archivedAt }])
+    );
+
+    const results = await searchService.searchPeople(TENANT_ID, 'Ada');
+
+    expect(results[0].archivedAt).toBe(new Date(archivedAt).toISOString());
+  });
+
+  it('a guardian result never carries an archivedAt value', async () => {
+    const searchService = await import('../services/searchService');
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ type: 'guardian', id: 'guardian-1', name: 'Jane Doe', email: null, phone: null, archived_at: null }])
+    );
+
+    const results = await searchService.searchPeople(TENANT_ID, 'Jane');
+
+    expect(results[0].archivedAt).toBeNull();
+  });
 });

@@ -753,6 +753,33 @@ describe('Students page - unified search', () => {
     await waitFor(() => expect(guardiansApi.getById).toHaveBeenCalledWith('guardian-1'));
     expect(await screen.findByRole('button', { name: /save changes/i })).toBeInTheDocument();
   });
+
+  // Phase 4 archive: an archived student must still be findable by name,
+  // clearly tagged but fully present in results - "archived" never means
+  // "hidden" in search, only "off the default working list."
+  it('tags an archived student result "Archived" but still lets it be clicked into', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (searchApi.people as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        { type: 'student', id: 'archived-1', name: 'Ada Chen', email: null, phone: null, archivedAt: '2026-01-15T00:00:00.000Z' },
+      ],
+    });
+    (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: emptyStudent({ id: 'archived-1', fullName: 'Ada Chen' }),
+    });
+
+    renderStudentsPage();
+    await waitFor(() => expect(screen.getByText('Jessica Park')).toBeInTheDocument());
+
+    const searchInput = screen.getByPlaceholderText(/search students and guardians/i);
+    await userEvent.type(searchInput, 'Ada');
+
+    expect(await screen.findByText('Ada Chen')).toBeInTheDocument();
+    expect(screen.getByText('Archived')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Ada Chen'));
+    await waitFor(() => expect(studentsApi.getById).toHaveBeenCalledWith('archived-1'));
+  });
 });
 
 // Regression: Postgres numeric columns (lessons.duration) come back through

@@ -437,6 +437,9 @@ export interface PersonSearchResult {
   name: string;
   email: string | null;
   phone: string | null;
+  // Archived students still surface in search results, fully present,
+  // just tagged - archived never means "lost." Always null for a guardian.
+  archivedAt: string | null;
 }
 
 export interface Instructor {

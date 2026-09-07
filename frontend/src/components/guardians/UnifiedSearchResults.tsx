@@ -72,6 +72,11 @@ export const UnifiedSearchResults: React.FC<UnifiedSearchResultsProps> = ({
                 >
                   {result.type === 'student' ? 'Student' : 'Guardian'}
                 </span>
+                {result.archivedAt && (
+                  <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 bg-status-warning-bg text-status-warning-text">
+                    Archived
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-xs text-tx-muted mt-0.5">
                 {result.email && (

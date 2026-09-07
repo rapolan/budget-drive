@@ -15,6 +15,11 @@ export interface PersonSearchResult {
   name: string;
   email: string | null;
   phone: string | null;
+  // Archived students still surface here (this query has never excluded
+  // them - see the WHERE clauses below, neither filters on archived_at)
+  // so a name search never means "lost." Always null for a guardian row -
+  // archiving is a student-record concept.
+  archivedAt: string | null;
 }
 
 export const searchPeople = async (
@@ -22,7 +27,7 @@ export const searchPeople = async (
   term: string
 ): Promise<PersonSearchResult[]> => {
   const result = await query(
-    `SELECT 'student' AS type, id, full_name AS name, email, phone
+    `SELECT 'student' AS type, id, full_name AS name, email, phone, archived_at
      FROM students
      WHERE tenant_id = $1
        AND (full_name ILIKE '%' || $2 || '%' OR email ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%')
@@ -31,7 +36,7 @@ export const searchPeople = async (
 
      SELECT 'guardian' AS type, id,
        TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS name,
-       email, phone
+       email, phone, NULL AS archived_at
      FROM guardians
      WHERE tenant_id = $1
        AND (
@@ -52,5 +57,6 @@ export const searchPeople = async (
     name: row.name,
     email: row.email,
     phone: row.phone,
+    archivedAt: row.archived_at ? new Date(row.archived_at).toISOString() : null,
   }));
 };
