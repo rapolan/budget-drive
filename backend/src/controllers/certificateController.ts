@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as certificateService from '../services/certificateService';
+import { completeAndIssueDeCertificate as completeAndIssueDeCertificateService } from '../services/enrollmentService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -17,6 +18,24 @@ import { getTenantId } from '../middleware/tenantContext';
 export const getWorklist = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const worklist = await certificateService.getAwaitingCertificateWorklist(tenantId);
+
+  res.json({
+    success: true,
+    data: worklist,
+  });
+});
+
+/**
+ * @route   GET /api/v1/certificates/de-worklist
+ * @desc    Driver Education's "ready for issuance" worklist - completed DE
+ *          enrollments with no certificate yet, plus classroom DE
+ *          enrollments that have reached 4/4 curriculum-day attendance but
+ *          aren't marked complete yet (readyReason discriminates the two)
+ * @access  Private
+ */
+export const getDeWorklist = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const worklist = await certificateService.getDeReadyForIssuanceWorklist(tenantId);
 
   res.json({
     success: true,
@@ -111,6 +130,27 @@ export const recordCertificate = asyncHandler(async (req: Request, res: Response
     success: true,
     data: certificate,
     message: 'Certificate recorded',
+  });
+});
+
+/**
+ * @route   POST /api/v1/enrollments/:enrollmentId/complete-and-issue-de-certificate
+ * @desc    Classroom DE's combined atomic action - marks the enrollment
+ *          complete (requires 4/4 curriculum-day attendance) and records
+ *          the certificate in one transaction
+ * @access  Private
+ */
+export const completeAndIssueDeCertificate = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user?.userId;
+  const { enrollmentId } = req.params;
+
+  const result = await completeAndIssueDeCertificateService(enrollmentId, tenantId, req.body, userId);
+
+  res.status(201).json({
+    success: true,
+    data: result,
+    message: 'Enrollment completed and certificate recorded',
   });
 });
 

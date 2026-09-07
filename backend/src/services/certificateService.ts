@@ -22,6 +22,7 @@ import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { resolveTenantTimezone } from '../utils/tenantTime';
 import { calculateAge } from './studentProgressService';
+import { getClassroomAttendanceSummaries } from './classroomAttendanceService';
 import crypto from 'crypto';
 
 const logger = createLogger('CertificateService');
@@ -29,8 +30,12 @@ const logger = createLogger('CertificateService');
 // DMV form type a certificate is recorded on. driver_training always
 // resolves to DL_400D. driver_education splits by delivery mode (Phase 3):
 // classroom -> DL_400B, online -> DL_400C - a distinction program_type
-// alone can't resolve, hence the second field.
-function resolveFormType(enrollment: Pick<Enrollment, 'programType' | 'deDeliveryMode'>): string {
+// alone can't resolve, hence the second field. Exported for reuse by
+// enrollmentService.completeAndIssueDeCertificate, which inlines its own
+// certificate INSERT (see that function's doc comment for why it can't
+// just call recordCertificate directly) but must resolve the same form
+// type recordCertificate would, not a second calculation.
+export function resolveFormType(enrollment: Pick<Enrollment, 'programType' | 'deDeliveryMode'>): string {
   if (enrollment.programType === 'driver_training') {
     return 'DL_400D';
   }
@@ -149,6 +154,206 @@ export const getAwaitingCertificateWorklist = async (
   });
 };
 
+export interface DeReadyForIssuanceEntry {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  deDeliveryMode: 'classroom' | 'online';
+  // 'attendance_complete': classroom, 4/4 curriculum days attended, NOT
+  // yet marked complete - the "Complete & issue certificate" combined
+  // action applies (enrollmentService.completeAndIssueDeCertificate).
+  // 'completed': already completed (online's plain manual completion, or
+  // a classroom student completed via the ordinary "Mark complete"
+  // fallback) with no certificate yet - the plain recordCertificate path
+  // applies, exactly like the BTW worklist.
+  readyReason: 'attendance_complete' | 'completed';
+  // The date to default the issue-date field to: completedAt for the
+  // 'completed' case (mirrors the BTW worklist's own default-to-
+  // completion-date behavior); the most recent attended session's date
+  // for 'attendance_complete', since there is no completedAt yet.
+  readyAt: Date;
+  suggestedInstructorId: string | null;
+  suggestedInstructorName: string | null;
+  cohortName: string | null;
+}
+
+/**
+ * Driver Education's "ready for issuance" worklist - DE is immediate
+ * issuance (the school issues the certificate right when a cohort
+ * finishes), not the paper-sheet reconciliation the BTW worklist models,
+ * so this is a genuinely different query, not a filtered view of
+ * getAwaitingCertificateWorklist. Two ways a DE enrollment lands here,
+ * discriminated by `readyReason` (see above) - reuses the exact same
+ * completion signals the rest of the app already computes, never a new
+ * one: classroom completion is getClassroomAttendanceSummary's isComplete
+ * (4/4 days, the Phase 3 attendance source of truth), and the plain
+ * completed-with-no-cert case is the identical shape
+ * getAwaitingCertificateWorklist already uses for BTW. Minors-as-of-
+ * readiness only, same §340.27 surfacing convention as the BTW worklist -
+ * recordCertificate/completeAndIssueDeCertificate are both callable
+ * regardless of age; this is a pure surfacing rule.
+ */
+export const getDeReadyForIssuanceWorklist = async (
+  tenantId: string
+): Promise<DeReadyForIssuanceEntry[]> => {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
+  // Branch 1: completed DE enrollments (any delivery mode) with no
+  // certificate yet - identical shape to the BTW worklist's own query,
+  // scoped to driver_education.
+  const completedResult = await query(
+    `SELECT
+       e.id AS enrollment_id,
+       e.student_id,
+       e.de_delivery_mode,
+       e.completed_at AS ready_at,
+       s.full_name AS student_name,
+       s.date_of_birth,
+       (SELECT dc.teacher_instructor_id FROM de_cohort_enrollments dce
+        JOIN de_cohorts dc ON dc.id = dce.cohort_id
+        WHERE dce.enrollment_id = e.id
+        LIMIT 1) AS cohort_teacher_instructor_id,
+       (SELECT dc.name FROM de_cohort_enrollments dce
+        JOIN de_cohorts dc ON dc.id = dce.cohort_id
+        WHERE dce.enrollment_id = e.id
+        LIMIT 1) AS cohort_name,
+       e.assigned_instructor_id
+     FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     LEFT JOIN certificates c ON c.enrollment_id = e.id
+     WHERE e.tenant_id = $1
+       AND e.program_type = 'driver_education'
+       AND e.de_delivery_mode IS NOT NULL
+       AND e.completed = true
+       AND c.id IS NULL`,
+    [tenantId]
+  );
+
+  // Branch 2: classroom DE enrollments with 4/4 attendance, not yet
+  // completed (so NOT already covered by branch 1) - the
+  // attendance-complete case the combined action handles.
+  const classroomCandidatesResult = await query(
+    `SELECT
+       e.id AS enrollment_id,
+       e.student_id,
+       s.full_name AS student_name,
+       s.date_of_birth,
+       (SELECT dc.teacher_instructor_id FROM de_cohort_enrollments dce
+        JOIN de_cohorts dc ON dc.id = dce.cohort_id
+        WHERE dce.enrollment_id = e.id
+        LIMIT 1) AS cohort_teacher_instructor_id,
+       (SELECT dc.name FROM de_cohort_enrollments dce
+        JOIN de_cohorts dc ON dc.id = dce.cohort_id
+        WHERE dce.enrollment_id = e.id
+        LIMIT 1) AS cohort_name,
+       e.assigned_instructor_id
+     FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     WHERE e.tenant_id = $1
+       AND e.program_type = 'driver_education'
+       AND e.de_delivery_mode = 'classroom'
+       AND e.completed = false`,
+    [tenantId]
+  );
+
+  type RawRow = {
+    enrollment_id: string;
+    student_id: string;
+    de_delivery_mode?: 'classroom' | 'online';
+    ready_at?: Date;
+    student_name: string;
+    date_of_birth: Date | null;
+    cohort_teacher_instructor_id: string | null;
+    cohort_name: string | null;
+    assigned_instructor_id: string | null;
+  };
+
+  const classroomEnrollmentIds = (classroomCandidatesResult.rows as RawRow[]).map((row) => row.enrollment_id);
+  const attendanceByEnrollment = await getClassroomAttendanceSummaries(classroomEnrollmentIds, tenantId);
+
+  // Most recent attended session's date, for the attendance-complete
+  // case's readyAt default (no completedAt exists yet) - one small query,
+  // only for the enrollments that actually reached 4/4.
+  const readyClassroomIds = (classroomCandidatesResult.rows as RawRow[])
+    .filter((row) => attendanceByEnrollment.get(row.enrollment_id)?.isComplete)
+    .map((row) => row.enrollment_id);
+
+  const lastSessionDateByEnrollment = new Map<string, Date>();
+  if (readyClassroomIds.length > 0) {
+    const lastSessionResult = await query(
+      `SELECT a.enrollment_id, MAX(s.session_date) AS last_session_date
+       FROM de_attendance a
+       JOIN de_cohort_sessions s ON s.id = a.session_id
+       WHERE a.enrollment_id = ANY($1::uuid[]) AND a.tenant_id = $2 AND a.present = true
+       GROUP BY a.enrollment_id`,
+      [readyClassroomIds, tenantId]
+    );
+    for (const row of lastSessionResult.rows as { enrollment_id: string; last_session_date: Date }[]) {
+      lastSessionDateByEnrollment.set(row.enrollment_id, row.last_session_date);
+    }
+  }
+
+  const completedEntries = (completedResult.rows as RawRow[]).map((row) => ({
+    row,
+    readyReason: 'completed' as const,
+    deDeliveryMode: row.de_delivery_mode as 'classroom' | 'online',
+    readyAt: row.ready_at as Date,
+  }));
+
+  const attendanceCompleteEntries = (classroomCandidatesResult.rows as RawRow[])
+    .filter((row) => attendanceByEnrollment.get(row.enrollment_id)?.isComplete)
+    .map((row) => ({
+      row,
+      readyReason: 'attendance_complete' as const,
+      deDeliveryMode: 'classroom' as const,
+      readyAt: lastSessionDateByEnrollment.get(row.enrollment_id) ?? new Date(),
+    }));
+
+  const allEntries = [...completedEntries, ...attendanceCompleteEntries];
+
+  const minorEntries = allEntries.filter(({ row, readyAt }) => {
+    const age = calculateAge(row.date_of_birth, timezone, new Date(readyAt));
+    return age === null || age < 18;
+  });
+
+  const instructorIds = Array.from(
+    new Set(
+      minorEntries
+        .map(({ row }) => row.cohort_teacher_instructor_id || row.assigned_instructor_id)
+        .filter((id): id is string => id !== null)
+    )
+  );
+
+  const instructorNames = new Map<string, string>();
+  if (instructorIds.length > 0) {
+    const instructorResult = await query(
+      `SELECT id, full_name FROM instructors WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+      [tenantId, instructorIds]
+    );
+    for (const row of instructorResult.rows) {
+      instructorNames.set(row.id, row.full_name);
+    }
+  }
+
+  return minorEntries
+    .map(({ row, readyReason, deDeliveryMode, readyAt }) => {
+      const suggestedInstructorId = row.cohort_teacher_instructor_id || row.assigned_instructor_id || null;
+      return {
+        enrollmentId: row.enrollment_id,
+        studentId: row.student_id,
+        studentName: row.student_name,
+        deDeliveryMode,
+        readyReason,
+        readyAt,
+        suggestedInstructorId,
+        suggestedInstructorName: suggestedInstructorId ? instructorNames.get(suggestedInstructorId) ?? null : null,
+        cohortName: row.cohort_name,
+      };
+    })
+    .sort((a, b) => new Date(a.readyAt).getTime() - new Date(b.readyAt).getTime());
+};
+
 export interface CertificateCounts {
   issued: number;
   void: number;
@@ -171,6 +376,10 @@ export interface CertificateLogEntry {
   id: string;
   serialNumber: string;
   status: 'issued' | 'void';
+  // Always present, even for a void (VOID_FORM_TYPE, 'NOT_APPLICABLE') -
+  // the discriminator the frontend's program tab filters this ONE unified
+  // log by (DE: DL_400B/DL_400C, BTW: DL_400D), never a split dataset.
+  formType: string;
   issueDate: Date;
   voidReason: string | null;
   studentId: string | null;
@@ -186,12 +395,15 @@ export interface CertificateLogEntry {
  * always carries studentId/studentName/instructorId/instructorName as null,
  * which the frontend uses to decide void behavior under an instructor
  * filter (shown under "All", hidden once a specific instructor is picked -
- * a void isn't attributable to one).
+ * a void isn't attributable to one). ONE unified log across every form
+ * type/program - formType is the filter discriminator, the dataset itself
+ * is never split by program (see docs/ARCHITECTURE.md's Certificates-page
+ * section: one certificates table, one register, filtered views only).
  */
 export const getIssuedLog = async (tenantId: string): Promise<CertificateLogEntry[]> => {
   const result = await query(
     `SELECT
-       c.id, c.serial_number, c.status, c.issue_date, c.void_reason,
+       c.id, c.serial_number, c.status, c.form_type, c.issue_date, c.void_reason,
        s.id AS student_id, s.full_name AS student_name,
        i.id AS instructor_id, i.full_name AS instructor_name
      FROM certificates c
@@ -207,6 +419,7 @@ export const getIssuedLog = async (tenantId: string): Promise<CertificateLogEntr
     id: row.id,
     serialNumber: row.serial_number,
     status: row.status,
+    formType: row.form_type,
     issueDate: row.issue_date,
     voidReason: row.void_reason,
     studentId: row.student_id,

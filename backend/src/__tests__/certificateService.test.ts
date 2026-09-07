@@ -136,6 +136,146 @@ describe('certificateService.getAwaitingCertificateWorklist', () => {
   });
 });
 
+describe('certificateService.getDeReadyForIssuanceWorklist', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('surfaces a classroom enrollment with 4/4 attendance, not yet completed, as readyReason=attendance_complete', async () => {
+    const { getDeReadyForIssuanceWorklist } = await import('../services/certificateService');
+
+    const dob = new Date();
+    dob.setFullYear(dob.getFullYear() - 16);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])) // branch 1: completed DE, no cert - none
+      .mockResolvedValueOnce(
+        queryResult([{
+          enrollment_id: ENROLLMENT_ID,
+          student_id: STUDENT_ID,
+          student_name: 'Jane Minor',
+          date_of_birth: dob.toISOString(),
+          cohort_teacher_instructor_id: INSTRUCTOR_ID,
+          cohort_name: 'Fall Weekend Class',
+          assigned_instructor_id: null,
+        }])
+      ) // branch 2: classroom, not completed - one candidate
+      .mockResolvedValueOnce(
+        queryResult([
+          { enrollment_id: ENROLLMENT_ID, curriculum_day: 1 },
+          { enrollment_id: ENROLLMENT_ID, curriculum_day: 2 },
+          { enrollment_id: ENROLLMENT_ID, curriculum_day: 3 },
+          { enrollment_id: ENROLLMENT_ID, curriculum_day: 4 },
+        ])
+      ) // getClassroomAttendanceSummaries - 4/4
+      .mockResolvedValueOnce(
+        queryResult([{ enrollment_id: ENROLLMENT_ID, last_session_date: '2026-08-15' }])
+      ) // last attended session date
+      .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID, full_name: 'Ms. Rivera' }])); // instructor name lookup
+
+    const worklist = await getDeReadyForIssuanceWorklist(TENANT_ID);
+
+    expect(worklist).toHaveLength(1);
+    expect(worklist[0].readyReason).toBe('attendance_complete');
+    expect(worklist[0].deDeliveryMode).toBe('classroom');
+    expect(worklist[0].cohortName).toBe('Fall Weekend Class');
+    expect(worklist[0].suggestedInstructorName).toBe('Ms. Rivera');
+  });
+
+  it('excludes a classroom enrollment with fewer than 4 days attended', async () => {
+    const { getDeReadyForIssuanceWorklist } = await import('../services/certificateService');
+
+    const dob = new Date();
+    dob.setFullYear(dob.getFullYear() - 16);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
+      .mockResolvedValueOnce(queryResult([])) // branch 1
+      .mockResolvedValueOnce(
+        queryResult([{
+          enrollment_id: ENROLLMENT_ID,
+          student_id: STUDENT_ID,
+          student_name: 'Jane Minor',
+          date_of_birth: dob.toISOString(),
+          cohort_teacher_instructor_id: null,
+          cohort_name: 'Fall Weekend Class',
+          assigned_instructor_id: null,
+        }])
+      ) // branch 2
+      .mockResolvedValueOnce(
+        queryResult([
+          { enrollment_id: ENROLLMENT_ID, curriculum_day: 1 },
+          { enrollment_id: ENROLLMENT_ID, curriculum_day: 2 },
+        ])
+      ); // only 2/4 days
+
+    const worklist = await getDeReadyForIssuanceWorklist(TENANT_ID);
+    expect(worklist).toHaveLength(0);
+  });
+
+  it('surfaces a completed online enrollment with no certificate as readyReason=completed', async () => {
+    const { getDeReadyForIssuanceWorklist } = await import('../services/certificateService');
+
+    const completedAt = new Date();
+    const dob = new Date(completedAt);
+    dob.setFullYear(dob.getFullYear() - 17);
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
+      .mockResolvedValueOnce(
+        queryResult([{
+          enrollment_id: ENROLLMENT_ID,
+          student_id: STUDENT_ID,
+          de_delivery_mode: 'online',
+          ready_at: completedAt.toISOString(),
+          student_name: 'Jamie Online',
+          date_of_birth: dob.toISOString(),
+          cohort_teacher_instructor_id: null,
+          cohort_name: null,
+          assigned_instructor_id: INSTRUCTOR_ID,
+        }])
+      ) // branch 1: completed DE - one online student
+      .mockResolvedValueOnce(queryResult([])) // branch 2: classroom candidates - none
+      .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID, full_name: 'Coach Lee' }])); // instructor name lookup
+
+    const worklist = await getDeReadyForIssuanceWorklist(TENANT_ID);
+
+    expect(worklist).toHaveLength(1);
+    expect(worklist[0].readyReason).toBe('completed');
+    expect(worklist[0].deDeliveryMode).toBe('online');
+    expect(worklist[0].suggestedInstructorName).toBe('Coach Lee');
+  });
+
+  it('excludes an adult student (as of readiness) from the worklist, same minors-only convention as the BTW worklist', async () => {
+    const { getDeReadyForIssuanceWorklist } = await import('../services/certificateService');
+
+    const completedAt = new Date();
+    const dob = new Date(completedAt);
+    dob.setFullYear(dob.getFullYear() - 25); // adult
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
+      .mockResolvedValueOnce(
+        queryResult([{
+          enrollment_id: ENROLLMENT_ID,
+          student_id: STUDENT_ID,
+          de_delivery_mode: 'online',
+          ready_at: completedAt.toISOString(),
+          student_name: 'Adult Student',
+          date_of_birth: dob.toISOString(),
+          cohort_teacher_instructor_id: null,
+          cohort_name: null,
+          assigned_instructor_id: null,
+        }])
+      )
+      .mockResolvedValueOnce(queryResult([])); // branch 2
+
+    const worklist = await getDeReadyForIssuanceWorklist(TENANT_ID);
+    expect(worklist).toHaveLength(0);
+  });
+});
+
 describe('certificateService.recordCertificate', () => {
   beforeEach(() => {
     resetMockQuery();
@@ -511,6 +651,7 @@ describe('certificateService.getIssuedLog', () => {
           id: 'cert-1',
           serial_number: 'CS0000001',
           status: 'issued',
+          form_type: 'DL_400D',
           issue_date: '2026-08-01',
           void_reason: null,
           student_id: STUDENT_ID,
@@ -528,9 +669,34 @@ describe('certificateService.getIssuedLog', () => {
       id: 'cert-1',
       serialNumber: 'CS0000001',
       status: 'issued',
+      formType: 'DL_400D',
       studentName: 'Leo Whitfield',
       instructorName: 'Devon Ashby',
     });
+  });
+
+  it('carries formType for a DE certificate too - the program-tab filter discriminator on this ONE unified log', async () => {
+    const { getIssuedLog } = await import('../services/certificateService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: 'cert-de-1',
+          serial_number: 'CS-DE-1',
+          status: 'issued',
+          form_type: 'DL_400B',
+          issue_date: '2026-08-01',
+          void_reason: null,
+          student_id: STUDENT_ID,
+          student_name: 'Jane Minor',
+          instructor_id: INSTRUCTOR_ID,
+          instructor_name: 'Ms. Rivera',
+        },
+      ])
+    );
+
+    const log = await getIssuedLog(TENANT_ID);
+    expect(log[0].formType).toBe('DL_400B');
   });
 
   // A void record has no enrollment_id and no issued_by_instructor_id by

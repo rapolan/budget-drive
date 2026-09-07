@@ -24,7 +24,9 @@ import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { resolveTenantTimezone } from '../utils/tenantTime';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
-import { getClassroomAttendanceSummaries } from './classroomAttendanceService';
+import { getClassroomAttendanceSummaries, getClassroomAttendanceSummary } from './classroomAttendanceService';
+import { resolveFormType } from './certificateService';
+import { Certificate } from '../types';
 import crypto from 'crypto';
 
 const logger = createLogger('EnrollmentService');
@@ -523,6 +525,204 @@ export const enrollInBtw = async (
   } catch (error) {
     await client.query('ROLLBACK');
     logger.error('Failed to enroll student in BTW', error as Error, { tenantId, studentId });
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export interface CompleteAndIssueDeCertificateInput {
+  serialNumber: string;
+  issueDate: string;
+  issuedByInstructorId?: string | null;
+}
+
+/**
+ * The classroom-DE "immediate issuance" action (docs/ARCHITECTURE.md's
+ * Certificates-page section): reaching 4/4 curriculum-day attendance is a
+ * system-detectable event the school can act on the moment it happens, so
+ * this bundles the two writes a plain "Mark complete" + "Record
+ * certificate" would otherwise take as two separate admin clicks - both in
+ * ONE transaction, modeled on enrollInBtw's exact BEGIN/COMMIT shape. A
+ * failure at either write must never leave a completed-but-uncertified
+ * enrollment, or a certificate recorded against a still-incomplete one.
+ *
+ * Completion here is a REAL recorded event, not a side effect of entering
+ * a serial - it sets completed/completed_at/completed_by/completion_hash
+ * exactly as markEnrollmentCompleted does (same guardian-gate pre-check,
+ * same hash inputs), just inlined against this transaction's own client
+ * rather than calling that pool-bound function directly (no
+ * client-injection pattern exists elsewhere in this codebase to share
+ * between them - see enrollInBtw for the identical precedent of inlining
+ * rather than composing). The certificate INSERT mirrors recordCertificate
+ * exactly, including resolveFormType (imported from certificateService,
+ * not re-derived) - recordCertificate itself is untouched and stays
+ * completion-agnostic; this is a deliberate second write path for the one
+ * case (classroom DE, at the moment of completion) that benefits from
+ * combining the two steps, not a DE special-case bolted onto
+ * recordCertificate.
+ *
+ * Online DE has no attendance signal to combine against - it still goes
+ * through the plain markEnrollmentCompleted (via the widened "Mark
+ * complete" gate in EnrollmentSubPanel) followed by the ordinary
+ * recordCertificate, exactly like BTW.
+ */
+export const completeAndIssueDeCertificate = async (
+  enrollmentId: string,
+  tenantId: string,
+  data: CompleteAndIssueDeCertificateInput,
+  userId?: string
+): Promise<{ enrollment: Enrollment; certificate: Certificate }> => {
+  logger.info('Completing and issuing DE certificate', { tenantId, enrollmentId, serialNumber: data.serialNumber });
+
+  const enrollment = await getEnrollmentById(enrollmentId, tenantId);
+  if (!enrollment) {
+    throw new AppError('Enrollment not found', 404);
+  }
+  if (enrollment.programType !== 'driver_education' || enrollment.deDeliveryMode !== 'classroom') {
+    throw new AppError('This action is only for a classroom driver_education enrollment', 400);
+  }
+  if (enrollment.completed) {
+    throw new AppError('This enrollment is already marked complete', 400);
+  }
+
+  const attendance = await getClassroomAttendanceSummary(enrollmentId, tenantId);
+  if (!attendance.isComplete) {
+    throw new AppError(
+      `Cannot complete and issue - only ${attendance.attendedCurriculumDays.length}/4 curriculum days attended`,
+      400
+    );
+  }
+
+  // Same guardian gate markEnrollmentCompleted enforces - Constraint C is
+  // person-scoped, not program-specific, so a DE completion needs the
+  // identical minor-has-a-guardian check BTW completion already runs.
+  const guardianCheck = await query(
+    `SELECT
+       s.date_of_birth,
+       (SELECT COUNT(*) FROM student_guardians sg WHERE sg.student_id = s.id AND sg.tenant_id = $2) AS guardian_count
+     FROM students s WHERE s.id = $1 AND s.tenant_id = $2`,
+    [enrollment.studentId, tenantId]
+  );
+  if (guardianCheck.rows.length === 0) {
+    throw new AppError('Student not found', 404);
+  }
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+  const age = calculateAge(guardianCheck.rows[0].date_of_birth, timezone);
+  const isMinor = age === null || age < 18;
+  const guardianCount = parseInt(guardianCheck.rows[0].guardian_count, 10);
+  if (isMinor && guardianCount === 0) {
+    throw new AppError('Cannot mark program complete: this minor student has no linked guardian', 400);
+  }
+
+  const serialInUse = await query(
+    `SELECT id FROM certificates WHERE tenant_id = $1 AND serial_number = $2`,
+    [tenantId, data.serialNumber]
+  );
+  if (serialInUse.rows.length > 0) {
+    throw new AppError('This serial number has already been recorded', 400);
+  }
+
+  let issuedByInstructorId = data.issuedByInstructorId ?? null;
+  if (issuedByInstructorId) {
+    const instructorCheck = await query(
+      `SELECT id FROM instructors WHERE id = $1 AND tenant_id = $2`,
+      [issuedByInstructorId, tenantId]
+    );
+    if (instructorCheck.rows.length === 0) {
+      throw new AppError('Instructor not found', 404);
+    }
+  } else {
+    // Classroom DE has no lessons - the cohort's own teacher is the
+    // sensible default, same fallback order resolveDefaultIssuingInstructor
+    // and the worklist use.
+    const cohortResult = await query(
+      `SELECT dc.teacher_instructor_id FROM de_cohort_enrollments dce
+       JOIN de_cohorts dc ON dc.id = dce.cohort_id
+       WHERE dce.enrollment_id = $1 AND dc.tenant_id = $2
+       LIMIT 1`,
+      [enrollmentId, tenantId]
+    );
+    issuedByInstructorId = cohortResult.rows[0]?.teacher_instructor_id
+      ?? enrollment.assignedInstructorId
+      ?? null;
+  }
+
+  const formType = resolveFormType(enrollment);
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const completedAt = new Date();
+    const completionHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({
+        enrollmentId: enrollment.id,
+        programType: enrollment.programType,
+        hoursCompleted: enrollment.manualCompletedHours,
+        completedAt: completedAt.toISOString(),
+      }))
+      .digest('hex');
+
+    const enrollmentResult = await client.query(
+      `UPDATE enrollments
+       SET completed = true,
+           completed_at = $1,
+           completed_by = $2,
+           completion_reason = $3,
+           status = 'completed',
+           completion_hash = $4
+       WHERE id = $5 AND tenant_id = $6
+       RETURNING *`,
+      [completedAt, userId || null, 'All 4 curriculum days attended', completionHash, enrollmentId, tenantId]
+    );
+    const completedEnrollment = keysToCamel(enrollmentResult.rows[0]) as Enrollment;
+
+    const certificateId = crypto.randomUUID();
+    const certificateCompletionHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({
+        certificateId,
+        serialNumber: data.serialNumber,
+        enrollmentId,
+        issueDate: data.issueDate,
+      }))
+      .digest('hex');
+
+    const certificateResult = await client.query(
+      `INSERT INTO certificates (
+         id, tenant_id, enrollment_id, serial_number, form_type, issue_date,
+         issued_by_instructor_id, recorded_by, completion_hash
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        certificateId,
+        tenantId,
+        enrollmentId,
+        data.serialNumber,
+        formType,
+        data.issueDate,
+        issuedByInstructorId,
+        userId || null,
+        certificateCompletionHash,
+      ]
+    );
+    const certificate = keysToCamel(certificateResult.rows[0]) as Certificate;
+
+    await client.query('COMMIT');
+
+    logger.info('Successfully completed and issued DE certificate', {
+      tenantId,
+      enrollmentId,
+      certificateId: certificate.id,
+    });
+
+    return { enrollment: completedEnrollment, certificate };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Failed to complete and issue DE certificate', error as Error, { tenantId, enrollmentId });
     throw error;
   } finally {
     client.release();

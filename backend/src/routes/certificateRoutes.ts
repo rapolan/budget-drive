@@ -15,6 +15,7 @@ router.use(authenticate);
 router.use(requireTenantContext);
 
 router.get('/certificates/worklist', certificateController.getWorklist);
+router.get('/certificates/de-worklist', certificateController.getDeWorklist);
 router.get('/certificates/counts', certificateController.getCounts);
 router.get('/certificates/log', certificateController.getLog);
 router.get('/certificates/for-enrollments', certificateController.getForEnrollments);
@@ -25,6 +26,13 @@ router.post(
   validateUUID('enrollmentId'),
   validateRequired(['serialNumber', 'issueDate']),
   certificateController.recordCertificate
+);
+
+router.post(
+  '/enrollments/:enrollmentId/complete-and-issue-de-certificate',
+  validateUUID('enrollmentId'),
+  validateRequired(['serialNumber', 'issueDate']),
+  certificateController.completeAndIssueDeCertificate
 );
 
 router.post(
