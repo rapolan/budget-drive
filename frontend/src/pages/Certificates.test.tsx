@@ -3,7 +3,7 @@ import { render, screen, cleanup, waitFor, within } from '@testing-library/react
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CertificatesPage } from './Certificates';
 import { certificatesApi } from '@/api';
-import type { AwaitingCertificateEntry, CertificateLogEntry } from '@/api/certificates';
+import type { AwaitingCertificateEntry, CertificateLogEntry, DeReadyForIssuanceEntry } from '@/api/certificates';
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
@@ -12,10 +12,12 @@ vi.mock('@/api', async () => {
     certificatesApi: {
       ...actual.certificatesApi,
       getWorklist: vi.fn(),
+      getDeWorklist: vi.fn(),
       getCounts: vi.fn(),
       getLog: vi.fn(),
       getDetail: vi.fn(),
       record: vi.fn(),
+      completeAndIssueDeCertificate: vi.fn(),
       recordVoid: vi.fn(),
     },
   };
@@ -29,6 +31,21 @@ function worklistEntry(overrides: Partial<AwaitingCertificateEntry> = {}): Await
     completedAt: '2026-08-01T00:00:00.000Z',
     suggestedInstructorId: 'instructor-1',
     suggestedInstructorName: 'Devon Ashby',
+    ...overrides,
+  };
+}
+
+function deWorklistEntry(overrides: Partial<DeReadyForIssuanceEntry> = {}): DeReadyForIssuanceEntry {
+  return {
+    enrollmentId: 'de-enrollment-1',
+    studentId: 'de-student-1',
+    studentName: 'Test DE Student',
+    deDeliveryMode: 'classroom',
+    readyReason: 'attendance_complete',
+    readyAt: '2026-08-01T00:00:00.000Z',
+    suggestedInstructorId: 'instructor-1',
+    suggestedInstructorName: 'Devon Ashby',
+    cohortName: 'Summer Cohort A',
     ...overrides,
   };
 }
@@ -62,7 +79,9 @@ function renderCertificatesPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   (certificatesApi.getCounts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { issued: 0, void: 0 } });
+  (certificatesApi.getDeWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
 });
 
 afterEach(() => {
@@ -291,5 +310,169 @@ describe('Certificates - digital certificate view', () => {
     expect(screen.getByText(/DMV License No\. E1234/)).toBeInTheDocument();
     expect(screen.getAllByText('Devon Ashby').length).toBeGreaterThan(0);
     expect(screen.getByText(/Serial No\. CS0000001/)).toBeInTheDocument();
+  });
+
+  it('renders the DL 400B/DL 400C titles for a DE certificate', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [logEntry({ id: 'c-de-1', studentName: 'Ruby Sandoval', formType: 'DL_400B' })],
+    });
+    (certificatesApi.getDetail as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        id: 'c-de-1',
+        serialNumber: 'CS0000002',
+        formType: 'DL_400B',
+        status: 'issued',
+        issueDateLocal: 'August 1, 2026',
+        school: {
+          businessName: 'Budget Driving School',
+          licenseNumber: 'E1234',
+          addressLine1: '123 Main St',
+          addressLine2: null,
+          city: 'Sacramento',
+          state: 'CA',
+          zipCode: '95814',
+          phone: '916-555-0100',
+        },
+        student: { fullName: 'Ruby Sandoval', dateOfBirthLocal: 'May 10, 2009' },
+        completionDateLocal: 'July 30, 2026',
+        instructor: { fullName: 'Devon Ashby', licenseNumber: 'INS-1' },
+      },
+    });
+
+    renderCertificatesPage();
+    await waitFor(() => expect(screen.getByText('Ruby Sandoval')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: /^view$/i }));
+
+    expect(await screen.findByText('Certificate of Completion of Driver Education (Classroom)')).toBeInTheDocument();
+  });
+});
+
+// Item 1: DE tab reuses the Students-page Tabs pattern to switch which
+// program's worklist is active. Item 2: the DE worklist surfaces
+// cohort-completed/attendance-complete DE students, with the readyReason
+// discriminating a combined "Complete & issue" action from a plain
+// "Record certificate" one.
+describe('Certificates - Driver Education tab and worklist', () => {
+  it('defaults to the BTW tab, and switching to Driver Education loads the DE worklist instead', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [worklistEntry({ studentName: 'Leo Whitfield' })],
+    });
+    (certificatesApi.getDeWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [deWorklistEntry({ studentName: 'Ada Chen' })],
+    });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderCertificatesPage();
+    await waitFor(() => expect(screen.getByText('Leo Whitfield')).toBeInTheDocument());
+    expect(screen.queryByText('Ada Chen')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /driver education/i }));
+
+    await waitFor(() => expect(screen.getByText('Ada Chen')).toBeInTheDocument());
+    expect(screen.queryByText('Leo Whitfield')).not.toBeInTheDocument();
+    expect(screen.getByText('Ready for issuance')).toBeInTheDocument();
+  });
+
+  it('offers "Complete & issue certificate" for an attendance_complete entry, and calls the combined action on submit', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.getDeWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        deWorklistEntry({
+          enrollmentId: 'de-1',
+          studentName: 'Ada Chen',
+          readyReason: 'attendance_complete',
+          readyAt: '2026-08-10T00:00:00.000Z',
+        }),
+      ],
+    });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.completeAndIssueDeCertificate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { enrollment: {}, certificate: {} },
+    });
+
+    renderCertificatesPage();
+    await userEvent.click(screen.getByRole('tab', { name: /driver education/i }));
+    await waitFor(() => expect(screen.getByText('Ada Chen')).toBeInTheDocument());
+
+    const actionButtons = screen.getAllByRole('button', { name: /complete & issue certificate/i });
+    await userEvent.click(actionButtons[actionButtons.length - 1]);
+
+    const issueDateInput = screen.getByLabelText(/issue date/i) as HTMLInputElement;
+    expect(issueDateInput.value).toBe('2026-08-10');
+
+    await userEvent.type(screen.getByLabelText(/serial number/i), 'CS-DE-1');
+    await userEvent.click(screen.getByRole('button', { name: /^complete & issue$/i }));
+
+    await waitFor(() =>
+      expect(certificatesApi.completeAndIssueDeCertificate).toHaveBeenCalledWith(
+        'de-1',
+        expect.objectContaining({ serialNumber: 'CS-DE-1', issueDate: '2026-08-10' })
+      )
+    );
+  });
+
+  it('offers the plain "Record certificate" form for a completed entry, and calls the ordinary record action on submit', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.getDeWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        deWorklistEntry({
+          enrollmentId: 'de-2',
+          studentName: 'Priya Nair',
+          deDeliveryMode: 'online',
+          readyReason: 'completed',
+          readyAt: '2026-08-05T00:00:00.000Z',
+        }),
+      ],
+    });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.record as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+
+    renderCertificatesPage();
+    await userEvent.click(screen.getByRole('tab', { name: /driver education/i }));
+    await waitFor(() => expect(screen.getByText('Priya Nair')).toBeInTheDocument());
+
+    const recordButtons = screen.getAllByRole('button', { name: /^record certificate$/i });
+    await userEvent.click(recordButtons[recordButtons.length - 1]);
+    await userEvent.type(screen.getByLabelText(/serial number/i), 'CS-DE-2');
+    await userEvent.click(screen.getByRole('button', { name: /^record$/i }));
+
+    await waitFor(() =>
+      expect(certificatesApi.record).toHaveBeenCalledWith(
+        'de-2',
+        expect.objectContaining({ serialNumber: 'CS-DE-2', issueDate: '2026-08-05' })
+      )
+    );
+  });
+});
+
+// Item 3: ONE unified log, filterable by program - not a data split.
+describe('Certificates - unified log program filter', () => {
+  it('shows both BTW and DE certificates under All, and narrows to only DE form types when filtered', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    (certificatesApi.getWorklist as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (certificatesApi.getLog as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        logEntry({ id: 'c-btw', studentName: 'Leo Whitfield', formType: 'DL_400D' }),
+        logEntry({ id: 'c-de-classroom', studentName: 'Ada Chen', formType: 'DL_400B' }),
+        logEntry({ id: 'c-de-online', studentName: 'Priya Nair', formType: 'DL_400C' }),
+      ],
+    });
+
+    renderCertificatesPage();
+    await waitFor(() => expect(screen.getByText('Leo Whitfield')).toBeInTheDocument());
+    expect(screen.getByText('Ada Chen')).toBeInTheDocument();
+    expect(screen.getByText('Priya Nair')).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText(/program/i, { selector: '#log-program-filter' }), 'de');
+
+    expect(screen.queryByText('Leo Whitfield')).not.toBeInTheDocument();
+    expect(screen.getByText('Ada Chen')).toBeInTheDocument();
+    expect(screen.getByText('Priya Nair')).toBeInTheDocument();
   });
 });
