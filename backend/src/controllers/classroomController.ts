@@ -202,3 +202,59 @@ export const joinCohort = asyncHandler(async (req: Request, res: Response) => {
     message: 'Joined cohort',
   });
 });
+
+/**
+ * @route   GET /api/v1/classroom/online-in-progress
+ * @desc    Every not-yet-completed online driver_education enrollment,
+ *          tenant-wide - online DE's completion home, since it has no
+ *          cohort of its own
+ * @access  Private
+ */
+export const getOnlineDeInProgress = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const entries = await classroomService.getOnlineDeInProgress(tenantId);
+
+  res.json({
+    success: true,
+    data: entries,
+  });
+});
+
+/**
+ * @route   DELETE /api/v1/classroom/cohorts/:cohortId/enrollments/:enrollmentId
+ * @desc    Ends an enrollment's membership in a cohort - attendance
+ *          already recorded is kept, only the home-cohort link is removed
+ * @access  Private
+ */
+export const removeCohortEnrollment = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { cohortId, enrollmentId } = req.params;
+
+  await classroomService.removeCohortEnrollment(cohortId, enrollmentId, tenantId);
+
+  res.json({
+    success: true,
+    message: 'Removed from cohort',
+  });
+});
+
+/**
+ * @route   POST /api/v1/classroom/cohorts/:id/close
+ * @desc    Marks a cohort done and reports who completed (4/4) vs. who
+ *          still has curriculum-day gaps needing make-up - never marks
+ *          anyone complete itself, completion stays attendance-derived
+ * @access  Private
+ */
+export const closeCohort = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const result = await classroomService.closeCohort(id, tenantId);
+
+  res.json({
+    success: true,
+    data: result,
+    message: 'Cohort closed',
+  });
+});

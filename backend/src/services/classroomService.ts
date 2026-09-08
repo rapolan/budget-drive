@@ -501,3 +501,112 @@ export const searchStudentsForRosterAdd = async (
     };
   });
 };
+
+export interface OnlineDeInProgressEntry {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  manualCompletedHours: number | null;
+  hoursRequired: number;
+}
+
+/**
+ * Online DE has no cohort - it's the one delivery mode this page's
+ * cohort-list/roster model doesn't cover at all, so in-progress online
+ * students had no aggregate "complete them here" surface (they were only
+ * ever visible one at a time, on their own student record). This is that
+ * surface: every not-yet-completed online driver_education enrollment,
+ * tenant-wide, structurally parallel to getAwaitingCertificateWorklist's
+ * shape (a plain SELECT + join to students, no batching complexity
+ * needed since there's no attendance/cohort data to assemble).
+ */
+export const getOnlineDeInProgress = async (tenantId: string): Promise<OnlineDeInProgressEntry[]> => {
+  const result = await query(
+    `SELECT e.id AS enrollment_id, e.student_id, s.full_name AS student_name,
+       e.manual_completed_hours, e.hours_required
+     FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     WHERE e.tenant_id = $1
+       AND e.program_type = 'driver_education'
+       AND e.de_delivery_mode = 'online'
+       AND e.completed = false
+     ORDER BY s.full_name`,
+    [tenantId]
+  );
+
+  return result.rows.map((row) => ({
+    enrollmentId: row.enrollment_id,
+    studentId: row.student_id,
+    studentName: row.student_name,
+    manualCompletedHours: row.manual_completed_hours === null ? null : Number(row.manual_completed_hours),
+    hoursRequired: Number(row.hours_required),
+  }));
+};
+
+/**
+ * Ends an enrollment's membership in a cohort - e.g. a student cancels
+ * before class starts. Deliberately a single-statement DELETE, no
+ * transaction: de_attendance has NO foreign key to de_cohort_enrollments,
+ * direct or indirect (de_attendance.enrollment_id FKs straight to
+ * enrollments, de_attendance.session_id FKs to de_cohort_sessions -
+ * neither references de_cohort_enrollments), so removing membership
+ * cannot cascade into or otherwise touch a single attendance row. Days
+ * already attended stay attended; the enrollment itself, its
+ * program_type, and its whole attendance history are untouched. Since
+ * de_cohort_enrollments.enrollment_id is UNIQUE, the enrollment
+ * immediately has zero home cohort afterward and can join a different
+ * one via the ordinary joinCohort path, which already tolerates "no home
+ * cohort yet" as its normal pre-join state.
+ */
+export const removeCohortEnrollment = async (
+  cohortId: string,
+  enrollmentId: string,
+  tenantId: string
+): Promise<void> => {
+  const result = await query(
+    `DELETE FROM de_cohort_enrollments
+     WHERE cohort_id = $1 AND enrollment_id = $2 AND tenant_id = $3
+     RETURNING id`,
+    [cohortId, enrollmentId, tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('This student is not enrolled in this cohort', 404);
+  }
+};
+
+export interface CloseCohortResult {
+  cohort: DeCohort;
+  completedCount: number;
+  gaps: CohortGapEntry[];
+}
+
+/**
+ * Marks a cohort done and reports who finished (4/4) vs. who still has
+ * curriculum-day gaps needing make-up - reuses getCohortAttendanceGaps
+ * as-is, the exact primitive the cancellation flow's "actionable list of
+ * students who still have unattended curriculum days" already relies on
+ * (see docs/ARCHITECTURE.md §14). Closing has NO completion side effects
+ * whatsoever - it never writes enrollments.completed for anyone.
+ * Completion stays purely attendance-derived (4/4 distinct curriculum
+ * days, computed live); this only flips the cohort's own cosmetic
+ * status column (already `'completed'`, an existing enum value - no
+ * schema change) and surfaces who needs a make-up, for the admin to act
+ * on separately via the existing make-up flow.
+ */
+export const closeCohort = async (cohortId: string, tenantId: string): Promise<CloseCohortResult> => {
+  const gaps = await getCohortAttendanceGaps(cohortId, tenantId);
+  const cohort = await updateCohort(cohortId, tenantId, { status: 'completed' });
+
+  const enrolledResult = await query(
+    `SELECT COUNT(*) FROM de_cohort_enrollments WHERE cohort_id = $1 AND tenant_id = $2`,
+    [cohortId, tenantId]
+  );
+  const enrolledCount = parseInt(enrolledResult.rows[0].count, 10);
+
+  return {
+    cohort,
+    completedCount: enrolledCount - gaps.length,
+    gaps,
+  };
+};

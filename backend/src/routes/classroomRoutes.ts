@@ -36,6 +36,17 @@ router.post(
   validateRequired(['enrollmentId']),
   classroomController.joinCohort
 );
+router.delete(
+  '/classroom/cohorts/:cohortId/enrollments/:enrollmentId',
+  validateUUID('cohortId'),
+  validateUUID('enrollmentId'),
+  classroomController.removeCohortEnrollment
+);
+router.post(
+  '/classroom/cohorts/:id/close',
+  validateUUID('id'),
+  classroomController.closeCohort
+);
 
 router.post(
   '/classroom/sessions/:id/attendance',
@@ -45,5 +56,6 @@ router.post(
 );
 
 router.get('/classroom/make-up-candidates', classroomController.searchMakeUpCandidates);
+router.get('/classroom/online-in-progress', classroomController.getOnlineDeInProgress);
 
 export default router;
