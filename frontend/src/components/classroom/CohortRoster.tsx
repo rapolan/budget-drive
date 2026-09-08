@@ -1,8 +1,8 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, AlertTriangle, UserMinus } from 'lucide-react';
+import { UserPlus, AlertTriangle, UserMinus, CheckCircle2 } from 'lucide-react';
 import { classroomApi } from '@/api';
-import type { DeCohort } from '@/api/classroom';
+import type { DeCohort, CohortGapEntry } from '@/api/classroom';
 import { Button, LoadingSpinner } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { MakeUpStudentPicker } from './MakeUpStudentPicker';
@@ -33,6 +33,7 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
   const [addingMakeUpForSession, setAddingMakeUpForSession] = React.useState<string | null>(null);
   const [addStudentMode, setAddStudentMode] = React.useState<AddStudentMode>('closed');
   const [removingEnrollmentId, setRemovingEnrollmentId] = React.useState<string | null>(null);
+  const [showCloseSummary, setShowCloseSummary] = React.useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['classroom', 'cohort-roster', cohort.id],
@@ -66,6 +67,29 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
     },
   });
 
+  // The preview (opening the confirm summary) reuses the same
+  // getCohortAttendanceGaps primitive the cancellation flow's own
+  // make-up list already relies on - one read, no separate query logic.
+  const { data: gapsPreviewData, isLoading: gapsPreviewLoading } = useQuery({
+    queryKey: ['classroom', 'cohort-gaps', cohort.id],
+    queryFn: () => classroomApi.getCohortAttendanceGaps(cohort.id),
+    enabled: showCloseSummary,
+  });
+  const gapsPreview: CohortGapEntry[] = gapsPreviewData?.data ?? [];
+  const completedPreviewCount = cohort.enrolledCount - gapsPreview.length;
+
+  // Closing never marks anyone complete - completion stays purely
+  // attendance-derived (4/4 distinct curriculum days, computed live). This
+  // only flips the cohort's own cosmetic status and reports who's done vs.
+  // who still has gaps, for the admin to act on separately via make-up.
+  const closeMutation = useMutation({
+    mutationFn: () => classroomApi.closeCohort(cohort.id),
+    onSuccess: () => {
+      invalidateRoster();
+      setShowCloseSummary(false);
+    },
+  });
+
   return (
     <div className="rounded-xl border border-edge bg-surface">
       <div className="p-4 border-b border-edge flex items-center justify-between gap-4">
@@ -73,11 +97,61 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
           <h2 className="text-sm font-semibold text-tx-primary">{cohort.name}</h2>
           <p className="text-xs text-tx-muted mt-1">{cohort.enrolledCount}/{cohort.capacity} enrolled</p>
         </div>
-        <Button size="sm" onClick={() => setAddStudentMode('panel')}>
-          <UserPlus className="h-4 w-4" />
-          Add student
-        </Button>
+        <div className="flex items-center gap-2">
+          {cohort.status !== 'completed' && cohort.status !== 'cancelled' && (
+            <Button variant="secondary" size="sm" onClick={() => setShowCloseSummary(true)}>
+              <CheckCircle2 className="h-4 w-4" />
+              Close class
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setAddStudentMode('panel')}>
+            <UserPlus className="h-4 w-4" />
+            Add student
+          </Button>
+        </div>
       </div>
+
+      {showCloseSummary && (
+        <div className="p-4 border-b border-edge bg-status-warning-bg border-status-warning-border space-y-3">
+          {gapsPreviewLoading && (
+            <div className="flex justify-center py-4">
+              <LoadingSpinner />
+            </div>
+          )}
+          {!gapsPreviewLoading && (
+            <>
+              <p className="text-sm font-medium text-status-warning-text">
+                {completedPreviewCount} of {cohort.enrolledCount} completed all 4 days.
+                {gapsPreview.length > 0
+                  ? ` ${gapsPreview.length} ${gapsPreview.length === 1 ? 'has' : 'have'} gaps:`
+                  : ' Everyone is done - no make-ups needed.'}
+              </p>
+              {gapsPreview.length > 0 && (
+                <ul className="text-sm text-status-warning-text space-y-1">
+                  {gapsPreview.map((entry) => (
+                    <li key={entry.enrollmentId}>
+                      {entry.studentName} - missing day{entry.missingCurriculumDays.length === 1 ? '' : 's'}{' '}
+                      {entry.missingCurriculumDays.join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-xs text-status-warning-text">
+                Closing only marks the class done - it will not mark any student complete. Students with gaps stay
+                available for make-up sessions at other classes as usual.
+              </p>
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setShowCloseSummary(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={() => closeMutation.mutate()} disabled={closeMutation.isPending}>
+                  {closeMutation.isPending ? 'Closing...' : 'Confirm close'}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {addStudentMode === 'panel' && (
         <AddStudentPanel

@@ -17,6 +17,8 @@ vi.mock('@/api', async () => {
       joinCohort: vi.fn(),
       getCohorts: vi.fn().mockResolvedValue({ data: [] }),
       removeCohortEnrollment: vi.fn(),
+      getCohortAttendanceGaps: vi.fn(),
+      closeCohort: vi.fn(),
     },
     studentsApi: {
       ...actual.studentsApi,
@@ -218,5 +220,60 @@ describe('CohortRoster - Remove from class', () => {
       screen.queryByText(/this ends leo whitfield's membership/i)
     ).not.toBeInTheDocument();
     expect(classroomApi.removeCohortEnrollment).not.toHaveBeenCalled();
+  });
+});
+
+// Item 5 of the DE-lifecycle-edges investigation: closing a cohort must
+// never mark anyone complete - completion stays purely attendance-derived.
+// The confirm summary reuses getCohortAttendanceGaps as-is (the same
+// primitive the cancellation flow's own make-up list already relies on).
+describe('CohortRoster - Close class', () => {
+  it('shows a confirm summary separating completed from gapped students, without closing yet', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: roster() });
+    (classroomApi.getCohortAttendanceGaps as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ enrollmentId: 'enrollment-2', studentId: 'student-2', studentName: 'Mia Torres', missingCurriculumDays: [3, 4] }],
+    });
+
+    renderRoster({ enrolledCount: 5 });
+    fireEvent.click(await screen.findByRole('button', { name: /close class/i }));
+
+    expect(await screen.findByText(/4 of 5 completed all 4 days/i)).toBeInTheDocument();
+    expect(screen.getByText(/mia torres - missing days 3, 4/i)).toBeInTheDocument();
+    expect(classroomApi.closeCohort).not.toHaveBeenCalled();
+  });
+
+  it('shows "no make-ups needed" when nobody has a gap', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: roster() });
+    (classroomApi.getCohortAttendanceGaps as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderRoster({ enrolledCount: 3 });
+    fireEvent.click(await screen.findByRole('button', { name: /close class/i }));
+
+    expect(await screen.findByText(/3 of 3 completed all 4 days\. everyone is done/i)).toBeInTheDocument();
+  });
+
+  it('confirming calls closeCohort', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: roster() });
+    (classroomApi.getCohortAttendanceGaps as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.closeCohort as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { cohort: cohort({ status: 'completed' }), completedCount: 3, gaps: [] },
+    });
+
+    renderRoster({ enrolledCount: 3 });
+    fireEvent.click(await screen.findByRole('button', { name: /close class/i }));
+    await screen.findByText(/3 of 3 completed/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm close/i }));
+
+    await waitFor(() => expect(classroomApi.closeCohort).toHaveBeenCalledWith('cohort-1'));
+  });
+
+  it('hides the "Close class" button once the cohort is already completed or cancelled', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: roster() });
+
+    renderRoster({ status: 'completed' });
+
+    await screen.findByRole('button', { name: /add student/i });
+    expect(screen.queryByRole('button', { name: /close class/i })).not.toBeInTheDocument();
   });
 });
