@@ -148,7 +148,6 @@ describe('certificateService.getDeReadyForIssuanceWorklist', () => {
     dob.setFullYear(dob.getFullYear() - 16);
 
     mockQuery
-      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([])) // branch 1: completed DE, no cert - none
       .mockResolvedValueOnce(
         queryResult([{
@@ -190,7 +189,6 @@ describe('certificateService.getDeReadyForIssuanceWorklist', () => {
     dob.setFullYear(dob.getFullYear() - 16);
 
     mockQuery
-      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
       .mockResolvedValueOnce(queryResult([])) // branch 1
       .mockResolvedValueOnce(
         queryResult([{
@@ -222,7 +220,6 @@ describe('certificateService.getDeReadyForIssuanceWorklist', () => {
     dob.setFullYear(dob.getFullYear() - 17);
 
     mockQuery
-      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
       .mockResolvedValueOnce(
         queryResult([{
           enrollment_id: ENROLLMENT_ID,
@@ -247,7 +244,13 @@ describe('certificateService.getDeReadyForIssuanceWorklist', () => {
     expect(worklist[0].suggestedInstructorName).toBe('Coach Lee');
   });
 
-  it('excludes an adult student (as of readiness) from the worklist, same minors-only convention as the BTW worklist', async () => {
+  // Regression coverage for the bug this fixes: an earlier version of
+  // this function wrongly inherited the BTW worklist's minors-only
+  // surfacing rule, making every adult DE completion permanently
+  // invisible here with no error. DE certificates (DL 400B/400C) have no
+  // minors-only requirement - adults take DE too, and recordCertificate
+  // itself has never been age-gated for any program.
+  it('includes an adult student (unlike the BTW worklist, this one is never age-filtered)', async () => {
     const { getDeReadyForIssuanceWorklist } = await import('../services/certificateService');
 
     const completedAt = new Date();
@@ -255,7 +258,6 @@ describe('certificateService.getDeReadyForIssuanceWorklist', () => {
     dob.setFullYear(dob.getFullYear() - 25); // adult
 
     mockQuery
-      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }]))
       .mockResolvedValueOnce(
         queryResult([{
           enrollment_id: ENROLLMENT_ID,
@@ -269,10 +271,13 @@ describe('certificateService.getDeReadyForIssuanceWorklist', () => {
           assigned_instructor_id: null,
         }])
       )
-      .mockResolvedValueOnce(queryResult([])); // branch 2
+      .mockResolvedValueOnce(queryResult([])); // branch 2 - no instructor ids to resolve since both are null, so the instructor lookup query never fires
 
     const worklist = await getDeReadyForIssuanceWorklist(TENANT_ID);
-    expect(worklist).toHaveLength(0);
+
+    expect(worklist).toHaveLength(1);
+    expect(worklist[0].studentName).toBe('Adult Student');
+    expect(worklist[0].readyReason).toBe('completed');
   });
 });
 

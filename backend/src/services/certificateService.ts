@@ -188,16 +188,19 @@ export interface DeReadyForIssuanceEntry {
  * one: classroom completion is getClassroomAttendanceSummary's isComplete
  * (4/4 days, the Phase 3 attendance source of truth), and the plain
  * completed-with-no-cert case is the identical shape
- * getAwaitingCertificateWorklist already uses for BTW. Minors-as-of-
- * readiness only, same §340.27 surfacing convention as the BTW worklist -
- * recordCertificate/completeAndIssueDeCertificate are both callable
- * regardless of age; this is a pure surfacing rule.
+ * getAwaitingCertificateWorklist already uses for BTW. Unlike the BTW
+ * worklist, this one is NOT minors-only - §340.27's minor-consent
+ * surfacing rule is specific to BTW's own worklist purpose, and DE
+ * certificates (DL 400B/400C) have no such restriction: adults take DE
+ * too, and recordCertificate has never been age-gated for any program.
+ * An earlier version of this function wrongly inherited the BTW
+ * worklist's minors filter by pattern-matching its shape, which made
+ * every adult DE completion permanently invisible here with no error -
+ * fixed by simply never filtering on age.
  */
 export const getDeReadyForIssuanceWorklist = async (
   tenantId: string
 ): Promise<DeReadyForIssuanceEntry[]> => {
-  const tenantSettings = await getTenantSettings(tenantId);
-  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
 
   // Branch 1: completed DE enrollments (any delivery mode) with no
   // certificate yet - identical shape to the BTW worklist's own query,
@@ -312,14 +315,9 @@ export const getDeReadyForIssuanceWorklist = async (
 
   const allEntries = [...completedEntries, ...attendanceCompleteEntries];
 
-  const minorEntries = allEntries.filter(({ row, readyAt }) => {
-    const age = calculateAge(row.date_of_birth, timezone, new Date(readyAt));
-    return age === null || age < 18;
-  });
-
   const instructorIds = Array.from(
     new Set(
-      minorEntries
+      allEntries
         .map(({ row }) => row.cohort_teacher_instructor_id || row.assigned_instructor_id)
         .filter((id): id is string => id !== null)
     )
@@ -336,7 +334,7 @@ export const getDeReadyForIssuanceWorklist = async (
     }
   }
 
-  return minorEntries
+  return allEntries
     .map(({ row, readyReason, deDeliveryMode, readyAt }) => {
       const suggestedInstructorId = row.cohort_teacher_instructor_id || row.assigned_instructor_id || null;
       return {
