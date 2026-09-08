@@ -1,0 +1,11 @@
+-- students.last_contacted_at was declared on the Student TypeScript type
+-- (backend/src/types/index.ts, frontend/src/types/index.ts) and fully
+-- wired through studentService.updateStudent's dynamic UPDATE builder and
+-- the Students page's "Mark contacted" mutation, but no migration ever
+-- actually created this column - every call to PUT /students/:id with
+-- lastContactedAt set has been hitting a hard Postgres error
+-- (42703 undefined_column) since the feature was first built. Read paths
+-- (frontend/src/utils/studentStatus.ts's 7-day contacted-recently grace
+-- period on the needs-attention flag) were reading a field that could
+-- never be set, so the grace period has never once actually applied.
+ALTER TABLE public.students ADD COLUMN last_contacted_at timestamp without time zone;
