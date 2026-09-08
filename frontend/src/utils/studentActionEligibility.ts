@@ -1,4 +1,4 @@
-import type { Student, Lesson } from '@/types';
+import type { Student, Lesson, DeEnrollmentSummary } from '@/types';
 
 // The gold-gradient treatment for the guided "Mark complete" action -
 // reads as the positive milestone action, consistent with the gold star
@@ -57,6 +57,36 @@ export function isReadyToMarkComplete(student: Student, lessons: Lesson[]): bool
   }
   if (student.progress?.track === 'lessons') {
     return (student.progress.lessonsCompleted ?? 0) >= 1;
+  }
+  return false;
+}
+
+// The DE-tab counterpart to isReadyToMarkComplete above - a genuinely
+// separate question (DE has no lesson/hours progress track at all), never
+// folded into the BTW function, so a caller must explicitly pick the one
+// matching the tab it's rendering (Students.tsx gates each on
+// displayStatus.kind, never both on the same row).
+//
+// Reuses the exact completion signals already computed elsewhere - never
+// a third calculation of DE completion:
+//   - Classroom: eligible once classroomAttendance.isComplete (4/4
+//     curriculum days) - the identical attendance-derived source the
+//     cohort roster, the certificate worklist, and
+//     EnrollmentSubPanel.tsx's own canMarkComplete gate already read.
+//   - Online: eligible whenever the enrollment is active and not yet
+//     completed - the same "always available, no hours-vs-required
+//     threshold" judgment the Classroom page's Online tab already uses
+//     (getOnlineDeInProgress has no such gate; manualCompletedHours is
+//     display-only there too).
+export function isReadyToMarkDeComplete(deEnrollment: DeEnrollmentSummary | null | undefined): boolean {
+  if (!deEnrollment || deEnrollment.status !== 'active' || deEnrollment.completed) {
+    return false;
+  }
+  if (deEnrollment.deDeliveryMode === 'classroom') {
+    return !!deEnrollment.classroomAttendance?.isComplete;
+  }
+  if (deEnrollment.deDeliveryMode === 'online') {
+    return true;
   }
   return false;
 }

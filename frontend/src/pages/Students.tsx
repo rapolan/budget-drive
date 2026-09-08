@@ -14,7 +14,7 @@ import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
 import { computeStudentStatus, getFollowupReason, computeDeStatus, getDisplayStatus, classifyDeCard, type ProgramTab, type DeCardFilter } from '@/utils/studentStatus';
 import { getStudentContactDisplay } from '@/utils/studentContact';
-import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
+import { isReadyToMarkComplete, isReadyToMarkDeComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { EmptyState, LoadingSpinner, FilterButton, BackButton, ModalShell, Tabs } from '@/components/common';
@@ -1370,7 +1370,17 @@ export const StudentsPage: React.FC = () => {
                         <CheckCircle className="h-4 w-4" />
                       </button>
                     )}
-                    {isReadyToMarkComplete(student, lessonsData?.data || []) && (
+                    {displayStatus.kind === 'btw' && isReadyToMarkComplete(student, lessonsData?.data || []) && (
+                      <button
+                        type="button"
+                        onClick={() => setCompletingStudentId(student.id)}
+                        className={`p-2 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
+                        title="Mark complete"
+                      >
+                        <GraduationCap className="h-4 w-4" />
+                      </button>
+                    )}
+                    {displayStatus.kind === 'de' && isReadyToMarkDeComplete(student.deEnrollment) && (
                       <button
                         type="button"
                         onClick={() => setCompletingStudentId(student.id)}
@@ -1425,10 +1435,13 @@ export const StudentsPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            student.activeEnrollment &&
-                            completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id })
-                          }
+                          onClick={() => {
+                            const targetEnrollmentId =
+                              displayStatus.kind === 'de' ? student.deEnrollment?.id : student.activeEnrollment?.id;
+                            if (targetEnrollmentId) {
+                              completeEnrollmentMutation.mutate({ enrollmentId: targetEnrollmentId });
+                            }
+                          }}
                           disabled={completeEnrollmentMutation.isPending}
                           className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                         >
@@ -1550,7 +1563,21 @@ export const StudentsPage: React.FC = () => {
                                 actions since it's the one destructive one
                                 in the set. */}
                             <div className="min-h-[28px] flex items-center gap-1 mt-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
-                              {isReadyToMarkComplete(student, lessonsData?.data || []) && (
+                              {displayStatus.kind === 'btw' && isReadyToMarkComplete(student, lessonsData?.data || []) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompletingStudentId(student.id);
+                                  }}
+                                  aria-label="Mark program complete"
+                                  title="Mark complete"
+                                  className={`p-1.5 rounded-lg ${MARK_COMPLETE_BUTTON_CLASSES}`}
+                                >
+                                  <GraduationCap className="h-4 w-4" />
+                                </button>
+                              )}
+                              {displayStatus.kind === 'de' && isReadyToMarkDeComplete(student.deEnrollment) && (
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1745,10 +1772,13 @@ export const StudentsPage: React.FC = () => {
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  student.activeEnrollment &&
-                                  completeEnrollmentMutation.mutate({ enrollmentId: student.activeEnrollment.id })
-                                }
+                                onClick={() => {
+                                  const targetEnrollmentId =
+                                    displayStatus.kind === 'de' ? student.deEnrollment?.id : student.activeEnrollment?.id;
+                                  if (targetEnrollmentId) {
+                                    completeEnrollmentMutation.mutate({ enrollmentId: targetEnrollmentId });
+                                  }
+                                }}
                                 disabled={completeEnrollmentMutation.isPending}
                                 className="px-3 py-1.5 text-sm font-medium bg-status-success-text text-white rounded-lg hover:brightness-90 transition-colors disabled:opacity-50"
                               >

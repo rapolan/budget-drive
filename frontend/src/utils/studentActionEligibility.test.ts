@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isReadyToMarkComplete } from './studentActionEligibility';
-import type { Student, Lesson, ActiveEnrollmentSummary } from '@/types';
+import { isReadyToMarkComplete, isReadyToMarkDeComplete } from './studentActionEligibility';
+import type { Student, Lesson, ActiveEnrollmentSummary, DeEnrollmentSummary } from '@/types';
 
 function activeEnrollment(overrides: Partial<ActiveEnrollmentSummary> = {}): ActiveEnrollmentSummary {
   return {
@@ -138,5 +138,56 @@ describe('isReadyToMarkComplete (item 10 regression: must require zero remaining
     const lessons = [lesson({ status: 'completed' })];
 
     expect(isReadyToMarkComplete(student, lessons)).toBe(false);
+  });
+});
+
+function deEnrollment(overrides: Partial<DeEnrollmentSummary> = {}): DeEnrollmentSummary {
+  return {
+    id: 'de-enrollment-1',
+    status: 'active',
+    completed: false,
+    deDeliveryMode: 'classroom',
+    manualCompletedHours: null,
+    cohortName: 'Cohort 1',
+    awaitingCertificate: false,
+    ...overrides,
+  };
+}
+
+describe('isReadyToMarkDeComplete (item 1: DE tab counterpart to isReadyToMarkComplete)', () => {
+  it('returns false when there is no DE enrollment at all', () => {
+    expect(isReadyToMarkDeComplete(null)).toBe(false);
+    expect(isReadyToMarkDeComplete(undefined)).toBe(false);
+  });
+
+  it('returns false for a non-active or already-completed DE enrollment', () => {
+    expect(isReadyToMarkDeComplete(deEnrollment({ status: 'withdrawn' }))).toBe(false);
+    expect(isReadyToMarkDeComplete(deEnrollment({ completed: true }))).toBe(false);
+  });
+
+  it('classroom DE: not ready until classroomAttendance.isComplete (4/4 days) - never recomputed here', () => {
+    const partial = deEnrollment({
+      deDeliveryMode: 'classroom',
+      classroomAttendance: { attendedCurriculumDays: [1, 2], isComplete: false },
+    });
+    expect(isReadyToMarkDeComplete(partial)).toBe(false);
+
+    const full = deEnrollment({
+      deDeliveryMode: 'classroom',
+      classroomAttendance: { attendedCurriculumDays: [1, 2, 3, 4], isComplete: true },
+    });
+    expect(isReadyToMarkDeComplete(full)).toBe(true);
+  });
+
+  it('classroom DE with no attendance data yet is not ready', () => {
+    expect(isReadyToMarkDeComplete(deEnrollment({ deDeliveryMode: 'classroom' }))).toBe(false);
+  });
+
+  it('online DE: ready whenever active and not yet completed, matching the Online tab\'s ungated behavior', () => {
+    expect(isReadyToMarkDeComplete(deEnrollment({ deDeliveryMode: 'online' }))).toBe(true);
+  });
+
+  it('returns false when the delivery mode is missing/null', () => {
+    expect(isReadyToMarkDeComplete(deEnrollment({ deDeliveryMode: null }))).toBe(false);
   });
 });
