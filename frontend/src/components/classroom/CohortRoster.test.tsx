@@ -268,12 +268,55 @@ describe('CohortRoster - Close class', () => {
     await waitFor(() => expect(classroomApi.closeCohort).toHaveBeenCalledWith('cohort-1'));
   });
 
-  it('hides the "Close class" button once the cohort is already completed or cancelled', async () => {
+  it('hides the "Close class" button once the cohort is already cancelled', async () => {
     (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: roster() });
 
-    renderRoster({ status: 'completed' });
+    renderRoster({ status: 'cancelled' });
 
     await screen.findByRole('button', { name: /add student/i });
     expect(screen.queryByRole('button', { name: /close class/i })).not.toBeInTheDocument();
+  });
+});
+
+// Item 3: a completed (closed) class is a browse/history record - no
+// mutation of any kind is available once cohort.status === 'completed',
+// matching the Classroom page's "Completed classes" section requirement
+// that a closed cohort has NO actions.
+describe('CohortRoster - read-only once completed (item 3)', () => {
+  const rosterWithStudent = roster({
+    sessions: [{ id: 'session-1', curriculumDay: 1, sessionDate: '2026-10-03' }],
+    students: [
+      {
+        enrollmentId: 'enrollment-1',
+        studentId: 'student-1',
+        studentName: 'Leo Whitfield',
+        attendance: { 'session-1': { present: true, isHomeCohort: true } },
+        attendedCurriculumDayCount: 1,
+        missingCurriculumDays: [],
+      },
+    ],
+  });
+
+  it('shows a "Completed" badge instead of Close class / Add student', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: rosterWithStudent });
+
+    renderRoster({ status: 'completed' });
+    await screen.findByText('Leo Whitfield');
+
+    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /close class/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add student/i })).not.toBeInTheDocument();
+  });
+
+  it('disables attendance checkboxes and hides Remove / Add make-up actions', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: rosterWithStudent });
+
+    renderRoster({ status: 'completed' });
+    await screen.findByText('Leo Whitfield');
+
+    const checkbox = screen.getByLabelText(/leo whitfield present day 1/i) as HTMLInputElement;
+    expect(checkbox.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add make-up/i })).not.toBeInTheDocument();
   });
 });

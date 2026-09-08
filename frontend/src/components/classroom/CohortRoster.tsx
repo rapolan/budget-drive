@@ -35,6 +35,13 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
   const [removingEnrollmentId, setRemovingEnrollmentId] = React.useState<string | null>(null);
   const [showCloseSummary, setShowCloseSummary] = React.useState(false);
 
+  // A completed class is a closed record (item 3, Classroom page's
+  // "Completed" browse section) - browse/history only, no mutation of any
+  // kind. Cancelled cohorts keep their existing behavior (still editable
+  // today - out of scope for this read-only treatment, which is specific
+  // to the closed-via-"Close class" completed state).
+  const isReadOnly = cohort.status === 'completed';
+
   const { data, isLoading } = useQuery({
     queryKey: ['classroom', 'cohort-roster', cohort.id],
     queryFn: () => classroomApi.getCohortRoster(cohort.id),
@@ -98,30 +105,38 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
           <p className="text-xs text-tx-muted mt-1">{cohort.enrolledCount}/{cohort.capacity} enrolled</p>
         </div>
         <div className="flex items-center gap-2">
-          {cohort.status !== 'completed' && cohort.status !== 'cancelled' && (
-            <Button variant="secondary" size="sm" onClick={() => setShowCloseSummary(true)}>
-              <CheckCircle2 className="h-4 w-4" />
-              Close class
-            </Button>
+          {isReadOnly ? (
+            <span className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-status-success-bg text-status-success-text capitalize">
+              Completed
+            </span>
+          ) : (
+            <>
+              {cohort.status !== 'cancelled' && (
+                <Button variant="secondary" size="sm" onClick={() => setShowCloseSummary(true)}>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Close class
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  // Narrows (doesn't eliminate - an inherent TOCTOU gap in any
+                  // capacity-checked UI) the staleness window between "picker
+                  // opened showing room" and "the join actually runs" that
+                  // otherwise lets a concurrent admin's join go unnoticed here.
+                  queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
+                  setAddStudentMode('panel');
+                }}
+              >
+                <UserPlus className="h-4 w-4" />
+                Add student
+              </Button>
+            </>
           )}
-          <Button
-            size="sm"
-            onClick={() => {
-              // Narrows (doesn't eliminate - an inherent TOCTOU gap in any
-              // capacity-checked UI) the staleness window between "picker
-              // opened showing room" and "the join actually runs" that
-              // otherwise lets a concurrent admin's join go unnoticed here.
-              queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
-              setAddStudentMode('panel');
-            }}
-          >
-            <UserPlus className="h-4 w-4" />
-            Add student
-          </Button>
         </div>
       </div>
 
-      {showCloseSummary && (
+      {!isReadOnly && showCloseSummary && (
         <div className="p-4 border-b border-edge bg-status-warning-bg border-status-warning-border space-y-3">
           {gapsPreviewLoading && (
             <div className="flex justify-center py-4">
@@ -163,7 +178,7 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
         </div>
       )}
 
-      {addStudentMode === 'panel' && (
+      {!isReadOnly && addStudentMode === 'panel' && (
         <AddStudentPanel
           cohort={cohort}
           onClose={() => setAddStudentMode('closed')}
@@ -172,7 +187,7 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
         />
       )}
 
-      {addStudentMode === 'new-student' && (
+      {!isReadOnly && addStudentMode === 'new-student' && (
         <StudentModal
           student={null}
           initialEnrollmentPreset={{ cohortId: cohort.id, cohortName: cohort.name }}
@@ -203,15 +218,17 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
                   <th key={session.id} className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-tx-secondary">
                     <div>Day {session.curriculumDay}</div>
                     <div className="text-tx-muted font-normal normal-case">{formatShortDate(session.sessionDate)}</div>
-                    <button
-                      type="button"
-                      onClick={() => setAddingMakeUpForSession(session.id)}
-                      className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline font-normal normal-case"
-                    >
-                      <UserPlus className="h-3 w-3" />
-                      Add make-up
-                    </button>
-                    {addingMakeUpForSession === session.id && (
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingMakeUpForSession(session.id)}
+                        className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline font-normal normal-case"
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        Add make-up
+                      </button>
+                    )}
+                    {!isReadOnly && addingMakeUpForSession === session.id && (
                       <MakeUpStudentPicker
                         sessionId={session.id}
                         existingEnrollmentIds={students.map((s) => s.enrollmentId)}
@@ -221,9 +238,11 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
                     )}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary">
-                  <span className="sr-only">Actions</span>
-                </th>
+                {!isReadOnly && (
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-edge">
@@ -253,7 +272,7 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
                                 type="checkbox"
                                 aria-label={`${student.studentName} present Day ${session.curriculumDay}`}
                                 checked={present}
-                                disabled={attendanceMutation.isPending}
+                                disabled={isReadOnly || attendanceMutation.isPending}
                                 onChange={(e) =>
                                   attendanceMutation.mutate({
                                     sessionId: session.id,
@@ -270,18 +289,20 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
                           </td>
                         );
                       })}
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setRemovingEnrollmentId(isRemoving ? null : student.enrollmentId)}
-                          className="inline-flex items-center gap-1 text-xs text-tx-muted hover:text-status-danger-text"
-                        >
-                          <UserMinus className="h-3.5 w-3.5" />
-                          Remove
-                        </button>
-                      </td>
+                      {!isReadOnly && (
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setRemovingEnrollmentId(isRemoving ? null : student.enrollmentId)}
+                            className="inline-flex items-center gap-1 text-xs text-tx-muted hover:text-status-danger-text"
+                          >
+                            <UserMinus className="h-3.5 w-3.5" />
+                            Remove
+                          </button>
+                        </td>
+                      )}
                     </tr>
-                    {isRemoving && (
+                    {!isReadOnly && isRemoving && (
                       <tr>
                         <td colSpan={sessions.length + 2} className="px-4 py-3 bg-status-warning-bg border-y border-status-warning-border">
                           <p className="text-sm text-status-warning-text mb-2">

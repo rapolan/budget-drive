@@ -116,6 +116,14 @@ export interface CloseCohortResult {
   gaps: CohortGapEntry[];
 }
 
+export interface OnlineDeCompletedEntry {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  manualCompletedHours: number | null;
+  completedAt: string | null;
+}
+
 export const classroomApi = {
   createCohort: async (data: CreateCohortInput) => {
     const response = await apiClient.post<ApiResponse<DeCohort>>('/classroom/cohorts', data);
@@ -179,6 +187,13 @@ export const classroomApi = {
   // a tenant-wide list, not scoped to a cohort id.
   getOnlineDeInProgress: async () => {
     const response = await apiClient.get<ApiResponse<OnlineDeInProgressEntry[]>>('/classroom/online-in-progress');
+    return response.data;
+  },
+
+  // Read-only browse/history counterpart to getOnlineDeInProgress (item 4)
+  // - every online DE enrollment already marked complete, newest-first.
+  getOnlineDeCompleted: async () => {
+    const response = await apiClient.get<ApiResponse<OnlineDeCompletedEntry[]>>('/classroom/online-completed');
     return response.data;
   },
 

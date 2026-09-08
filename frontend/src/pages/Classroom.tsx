@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GraduationCap, Plus, X, Users, CheckCircle } from 'lucide-react';
 import { classroomApi, instructorsApi, enrollmentsApi } from '@/api';
-import type { DeCohort, CreateCohortSessionInput, OnlineDeInProgressEntry } from '@/api/classroom';
+import type { DeCohort, CreateCohortSessionInput, OnlineDeInProgressEntry, OnlineDeCompletedEntry } from '@/api/classroom';
 import { Button, EmptyState, LoadingSpinner, Tabs } from '@/components/common';
 import type { TabItem } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
@@ -45,15 +45,38 @@ export const ClassroomPage: React.FC = () => {
     queryFn: () => classroomApi.getOnlineDeInProgress(),
     enabled: activeTab === 'online',
   });
+  const { data: onlineCompletedData, isLoading: onlineCompletedLoading } = useQuery({
+    queryKey: ['classroom', 'online-completed'],
+    queryFn: () => classroomApi.getOnlineDeCompleted(),
+    enabled: activeTab === 'online',
+  });
 
-  const cohorts: DeCohort[] = React.useMemo(() => cohortsData?.data || [], [cohortsData]);
+  const allCohorts: DeCohort[] = React.useMemo(() => cohortsData?.data || [], [cohortsData]);
+  // Active/completed split (item 3) - a closed class (status='completed',
+  // set only by the "Close class" action) moves out of the working list
+  // into a browsable, read-only record below it, mirroring the
+  // Certificates page's worklist-then-issued-log structure. Cancelled
+  // cohorts stay in the active list (unaffected by this split - they're
+  // not a completed record, and CohortRoster still lets them be edited).
+  const cohorts = React.useMemo(() => allCohorts.filter((c) => c.status !== 'completed'), [allCohorts]);
+  const completedCohorts = React.useMemo(
+    () =>
+      allCohorts
+        .filter((c) => c.status === 'completed')
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [allCohorts]
+  );
   const deTeachers = React.useMemo(
     () => (instructorsData?.data || []).filter((i) => i.isDeTeacher === true),
     [instructorsData]
   );
   const onlineInProgress: OnlineDeInProgressEntry[] = React.useMemo(() => onlineData?.data || [], [onlineData]);
+  const onlineCompleted: OnlineDeCompletedEntry[] = React.useMemo(
+    () => onlineCompletedData?.data || [],
+    [onlineCompletedData]
+  );
 
-  const selectedCohort = cohorts.find((c) => c.id === selectedCohortId) || null;
+  const selectedCohort = allCohorts.find((c) => c.id === selectedCohortId) || null;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
@@ -61,6 +84,7 @@ export const ClassroomPage: React.FC = () => {
 
   const invalidateOnline = () => {
     queryClient.invalidateQueries({ queryKey: ['classroom', 'online-in-progress'] });
+    queryClient.invalidateQueries({ queryKey: ['classroom', 'online-completed'] });
     queryClient.invalidateQueries({ queryKey: ['students'] });
   };
 
@@ -193,6 +217,60 @@ export const ClassroomPage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Completed classes (item 3) - browse/history only, newest
+              first. Selecting one reuses the exact same CohortRoster
+              component the active list uses; CohortRoster itself switches
+              to a read-only render once cohort.status === 'completed', so
+              there's no separate "closed roster" component here. */}
+          {!cohortsLoading && completedCohorts.length > 0 && (
+            <div className="pt-2">
+              <h2 className="text-sm font-semibold text-tx-primary mb-3">Completed classes</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-3">
+                  {completedCohorts.map((cohort) => (
+                    <button
+                      key={cohort.id}
+                      type="button"
+                      onClick={() => setSelectedCohortId(cohort.id)}
+                      className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                        selectedCohortId === cohort.id
+                          ? 'border-primary bg-status-info-bg'
+                          : 'border-edge bg-surface hover:bg-surface2'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-tx-primary truncate">{cohort.name}</p>
+                        <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 capitalize bg-status-success-bg text-status-success-text">
+                          {cohort.status}
+                        </span>
+                      </div>
+                      {cohort.sessions.length > 0 && (
+                        <p className="text-xs text-tx-muted mt-1">
+                          {formatShortDate(cohort.sessions[0].sessionDate)} &ndash;{' '}
+                          {formatShortDate(cohort.sessions[cohort.sessions.length - 1].sessionDate)}
+                        </p>
+                      )}
+                      <p className="text-xs text-tx-muted mt-1 flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {cohort.enrolledCount}/{cohort.capacity} enrolled
+                      </p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="lg:col-span-2">
+                  {selectedCohort && selectedCohort.status === 'completed' ? (
+                    <CohortRoster cohort={selectedCohort} onCohortUpdated={invalidate} />
+                  ) : (
+                    <div className="h-full flex items-center justify-center rounded-xl border border-edge bg-surface p-12">
+                      <p className="text-sm text-tx-muted">Select a completed class to view its final roster.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -226,6 +304,32 @@ export const ClassroomPage: React.FC = () => {
                   isCompleting={completeMutation.isPending}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Completed (item 4) - browse/history only, newest first.
+              Certificate issuance is handled entirely by the certificate
+              worklist; no actions live here beyond viewing. */}
+          {!onlineCompletedLoading && onlineCompleted.length > 0 && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold text-tx-primary mb-3">Completed</h2>
+              <div className="rounded-xl border border-edge bg-surface divide-y divide-edge overflow-hidden">
+                {onlineCompleted.map((entry) => (
+                  <div key={entry.enrollmentId} className="px-5 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-tx-primary truncate">{entry.studentName}</p>
+                      <p className="text-xs text-tx-muted">
+                        {entry.manualCompletedHours ?? 0} hours logged
+                        {entry.completedAt ? ` · Completed ${formatShortDate(entry.completedAt)}` : ''}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-status-success-bg text-status-success-text flex-shrink-0">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Completed
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

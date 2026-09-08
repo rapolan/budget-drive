@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClassroomPage } from './Classroom';
 import { classroomApi, instructorsApi, enrollmentsApi } from '@/api';
-import type { DeCohort, CohortRoster, OnlineDeInProgressEntry } from '@/api/classroom';
+import type { DeCohort, CohortRoster, OnlineDeInProgressEntry, OnlineDeCompletedEntry } from '@/api/classroom';
 import type { Instructor } from '@/types';
 
 vi.mock('@/api', async () => {
@@ -20,6 +20,7 @@ vi.mock('@/api', async () => {
       searchRosterAddCandidates: vi.fn(),
       joinCohort: vi.fn(),
       getOnlineDeInProgress: vi.fn(),
+      getOnlineDeCompleted: vi.fn(),
     },
     instructorsApi: {
       ...actual.instructorsApi,
@@ -104,12 +105,24 @@ function onlineEntry(overrides: Partial<OnlineDeInProgressEntry> = {}): OnlineDe
   };
 }
 
+function onlineCompletedEntry(overrides: Partial<OnlineDeCompletedEntry> = {}): OnlineDeCompletedEntry {
+  return {
+    enrollmentId: 'online-enrollment-2',
+    studentId: 'student-2',
+    studentName: 'Dana Finished',
+    manualCompletedHours: 30,
+    completedAt: '2026-08-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
     data: [{ id: 'instructor-1', fullName: 'Ms. Rivera', isDeTeacher: true } as Instructor],
   });
   (classroomApi.getOnlineDeInProgress as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  (classroomApi.getOnlineDeCompleted as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
 });
 
 afterEach(cleanup);
@@ -340,5 +353,116 @@ describe('Classroom page - Online tab', () => {
     fireEvent.click(screen.getByRole('tab', { name: /online/i }));
 
     await waitFor(() => expect(screen.queryByRole('button', { name: /new class/i })).not.toBeInTheDocument());
+  });
+});
+
+// Item 3: a "Completed classes" browse/history section below the active
+// cohort list, mirroring the Certificates page's worklist-then-issued-log
+// structure. Closed cohorts (status='completed', set only by "Close
+// class") never appear in the active list or picker above.
+describe('Classroom page - Completed classes section (item 3)', () => {
+  it('keeps a completed cohort out of the active list and shows it in "Completed classes" instead', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [cohort({ id: 'active-1', name: 'Active Class', status: 'scheduled' }), cohort({ id: 'done-1', name: 'Finished Class', status: 'completed' })],
+    });
+
+    renderClassroomPage();
+
+    await screen.findByText('Active Class');
+    expect(await screen.findByText('Completed classes')).toBeInTheDocument();
+    expect(screen.getByText('Finished Class')).toBeInTheDocument();
+
+    // Not duplicated into the active picker above the section header.
+    const activePickerButtons = screen.getAllByText('Active Class');
+    expect(activePickerButtons).toHaveLength(1);
+  });
+
+  it('does not render the "Completed classes" section when nothing is completed', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [cohort({ status: 'scheduled' })] });
+
+    renderClassroomPage();
+
+    await screen.findByText('Fall Weekend Class');
+    expect(screen.queryByText('Completed classes')).not.toBeInTheDocument();
+  });
+
+  it('selecting a completed cohort shows its read-only final roster with no actions', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [cohort({ id: 'done-1', name: 'Finished Class', status: 'completed' })],
+    });
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: roster({
+        students: [
+          {
+            enrollmentId: 'enrollment-1',
+            studentId: 'student-1',
+            studentName: 'Leo Whitfield',
+            attendance: {
+              'session-1': { present: true, isHomeCohort: true },
+              'session-2': { present: true, isHomeCohort: true },
+              'session-3': { present: true, isHomeCohort: true },
+              'session-4': { present: true, isHomeCohort: true },
+            },
+            attendedCurriculumDayCount: 4,
+            missingCurriculumDays: [],
+          },
+        ],
+      }),
+    });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByText('Finished Class'));
+
+    await screen.findByText('Leo Whitfield');
+    expect(screen.queryByRole('button', { name: /add student/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /close class/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
+  });
+});
+
+// Item 4: a "Completed" browse/history section below the Online tab's
+// in-progress list. Read-only - certificate issuance is handled by the
+// certificate worklist, not here.
+describe('Classroom page - Online tab Completed section (item 4)', () => {
+  it('does not render the Completed section when nothing is completed', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+
+    await screen.findByText(/nothing in progress/i);
+    expect(screen.queryByText('Completed')).not.toBeInTheDocument();
+  });
+
+  it('lists a completed online DE student with logged hours and no actions', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.getOnlineDeCompleted as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [onlineCompletedEntry()],
+    });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+
+    expect(await screen.findByText('Dana Finished')).toBeInTheDocument();
+    expect(screen.getByText(/30 hours logged/i)).toBeInTheDocument();
+    const row = screen.getByText('Dana Finished').closest('div')!.parentElement as HTMLElement;
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('shows both in-progress and completed online students in their own sections', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.getOnlineDeInProgress as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [onlineEntry()],
+    });
+    (classroomApi.getOnlineDeCompleted as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [onlineCompletedEntry()],
+    });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+
+    expect(await screen.findByText('Jamie Online')).toBeInTheDocument();
+    expect(screen.getByText('Dana Finished')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mark complete/i })).toBeInTheDocument();
   });
 });

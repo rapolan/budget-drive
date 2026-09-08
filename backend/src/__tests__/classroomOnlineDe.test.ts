@@ -79,3 +79,77 @@ describe('classroomService.getOnlineDeInProgress', () => {
     expect(params[0]).toBe(TENANT_ID);
   });
 });
+
+/**
+ * The read-only browse/history counterpart to getOnlineDeInProgress
+ * (item 4) - Classroom page's Online tab "Completed" section. Same shape,
+ * opposite completed filter, plus completedAt for newest-first ordering.
+ */
+describe('classroomService.getOnlineDeCompleted', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('lists a completed online DE enrollment with its logged hours and completion date', async () => {
+    const { getOnlineDeCompleted } = await import('../services/classroomService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          enrollment_id: 'enr-3',
+          student_id: 'stu-3',
+          student_name: 'Done Online',
+          manual_completed_hours: '30.00',
+          completed_at: '2026-08-01T00:00:00.000Z',
+        },
+      ])
+    );
+
+    const entries = await getOnlineDeCompleted(TENANT_ID);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({
+      enrollmentId: 'enr-3',
+      studentId: 'stu-3',
+      studentName: 'Done Online',
+      manualCompletedHours: 30,
+      completedAt: '2026-08-01T00:00:00.000Z',
+    });
+  });
+
+  it('coerces a null completedAt to null rather than throwing', async () => {
+    const { getOnlineDeCompleted } = await import('../services/classroomService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          enrollment_id: 'enr-4',
+          student_id: 'stu-4',
+          student_name: 'No Timestamp',
+          manual_completed_hours: '10.00',
+          completed_at: null,
+        },
+      ])
+    );
+
+    const entries = await getOnlineDeCompleted(TENANT_ID);
+
+    expect(entries[0].completedAt).toBeNull();
+  });
+
+  it('scopes the query to tenant_id, program_type, delivery mode, completed=true, ordered newest-first', async () => {
+    const { getOnlineDeCompleted } = await import('../services/classroomService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([]));
+
+    await getOnlineDeCompleted(TENANT_ID);
+
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toMatch(/tenant_id = \$1/);
+    expect(sql).toMatch(/program_type = 'driver_education'/);
+    expect(sql).toMatch(/de_delivery_mode = 'online'/);
+    expect(sql).toMatch(/completed = true/);
+    expect(sql).toMatch(/ORDER BY e\.completed_at DESC/);
+    expect(params[0]).toBe(TENANT_ID);
+  });
+});

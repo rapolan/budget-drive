@@ -57,5 +57,6 @@ router.post(
 
 router.get('/classroom/make-up-candidates', classroomController.searchMakeUpCandidates);
 router.get('/classroom/online-in-progress', classroomController.getOnlineDeInProgress);
+router.get('/classroom/online-completed', classroomController.getOnlineDeCompleted);
 
 export default router;

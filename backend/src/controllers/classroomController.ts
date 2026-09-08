@@ -222,6 +222,24 @@ export const getOnlineDeInProgress = asyncHandler(async (req: Request, res: Resp
 });
 
 /**
+ * @route   GET /api/v1/classroom/online-completed
+ * @desc    Every online driver_education enrollment already marked
+ *          complete, newest-first - the read-only browse/history
+ *          counterpart to online-in-progress (item 4)
+ * @access  Private
+ */
+export const getOnlineDeCompleted = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const entries = await classroomService.getOnlineDeCompleted(tenantId);
+
+  res.json({
+    success: true,
+    data: entries,
+  });
+});
+
+/**
  * @route   DELETE /api/v1/classroom/cohorts/:cohortId/enrollments/:enrollmentId
  * @desc    Ends an enrollment's membership in a cohort - attendance
  *          already recorded is kept, only the home-cohort link is removed

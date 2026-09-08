@@ -543,6 +543,45 @@ export const getOnlineDeInProgress = async (tenantId: string): Promise<OnlineDeI
   }));
 };
 
+export interface OnlineDeCompletedEntry {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  manualCompletedHours: number | null;
+  completedAt: string | null;
+}
+
+/**
+ * The read-only counterpart to getOnlineDeInProgress (item 4, Classroom
+ * page's Online tab): every online driver_education enrollment already
+ * marked complete, newest-first. Certificate issuance is handled entirely
+ * by the certificate worklist - this is browse/history only, mirroring
+ * the completed-cohorts section's same "active work up top, completed
+ * record below" split.
+ */
+export const getOnlineDeCompleted = async (tenantId: string): Promise<OnlineDeCompletedEntry[]> => {
+  const result = await query(
+    `SELECT e.id AS enrollment_id, e.student_id, s.full_name AS student_name,
+       e.manual_completed_hours, e.completed_at
+     FROM enrollments e
+     JOIN students s ON s.id = e.student_id
+     WHERE e.tenant_id = $1
+       AND e.program_type = 'driver_education'
+       AND e.de_delivery_mode = 'online'
+       AND e.completed = true
+     ORDER BY e.completed_at DESC NULLS LAST`,
+    [tenantId]
+  );
+
+  return result.rows.map((row) => ({
+    enrollmentId: row.enrollment_id,
+    studentId: row.student_id,
+    studentName: row.student_name,
+    manualCompletedHours: row.manual_completed_hours === null ? null : Number(row.manual_completed_hours),
+    completedAt: row.completed_at ? new Date(row.completed_at).toISOString() : null,
+  }));
+};
+
 /**
  * Ends an enrollment's membership in a cohort - e.g. a student cancels
  * before class starts. Deliberately a single-statement DELETE, no
