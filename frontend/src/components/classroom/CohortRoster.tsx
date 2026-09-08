@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, AlertTriangle } from 'lucide-react';
+import { UserPlus, AlertTriangle, UserMinus } from 'lucide-react';
 import { classroomApi } from '@/api';
 import type { DeCohort } from '@/api/classroom';
 import { Button, LoadingSpinner } from '@/components/common';
@@ -32,6 +32,7 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
   const queryClient = useQueryClient();
   const [addingMakeUpForSession, setAddingMakeUpForSession] = React.useState<string | null>(null);
   const [addStudentMode, setAddStudentMode] = React.useState<AddStudentMode>('closed');
+  const [removingEnrollmentId, setRemovingEnrollmentId] = React.useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['classroom', 'cohort-roster', cohort.id],
@@ -51,6 +52,18 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
     mutationFn: ({ sessionId, enrollmentId, present }: { sessionId: string; enrollmentId: string; present: boolean }) =>
       classroomApi.recordAttendance(sessionId, { enrollmentId, present }),
     onSuccess: invalidateRoster,
+  });
+
+  // Ends membership only - de_attendance has no FK to de_cohort_enrollments,
+  // so days already attended are untouched and stay counted toward this
+  // enrollment's 4/4 completion total even after removal. The enrollment
+  // can join a different cohort afterward via the ordinary Add student flow.
+  const removeMutation = useMutation({
+    mutationFn: (enrollmentId: string) => classroomApi.removeCohortEnrollment(cohort.id, enrollmentId),
+    onSuccess: () => {
+      invalidateRoster();
+      setRemovingEnrollmentId(null);
+    },
   });
 
   return (
@@ -124,51 +137,89 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
                     )}
                   </th>
                 ))}
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-tx-secondary">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-edge">
               {students.map((student) => {
                 const missingDays = student.missingCurriculumDays.length;
+                const isRemoving = removingEnrollmentId === student.enrollmentId;
                 return (
-                  <tr key={student.enrollmentId}>
-                    <td className="px-4 py-3 text-sm text-tx-primary">
-                      {student.studentName}
-                      {missingDays > 0 && (
-                        <span className="ml-2 inline-flex items-center gap-1 text-xs text-status-warning-text">
-                          <AlertTriangle className="h-3 w-3" />
-                          Missing {missingDays} day{missingDays === 1 ? '' : 's'}
-                        </span>
-                      )}
-                    </td>
-                    {sessions.map((session) => {
-                      const entry = student.attendance[session.id];
-                      const present = entry?.present ?? false;
-                      const isHomeCohort = entry?.isHomeCohort ?? true;
-                      return (
-                        <td key={session.id} className="px-4 py-3 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <input
-                              type="checkbox"
-                              aria-label={`${student.studentName} present Day ${session.curriculumDay}`}
-                              checked={present}
-                              disabled={attendanceMutation.isPending}
-                              onChange={(e) =>
-                                attendanceMutation.mutate({
-                                  sessionId: session.id,
-                                  enrollmentId: student.enrollmentId,
-                                  present: e.target.checked,
-                                })
-                              }
-                              className="h-4 w-4 rounded border-edge-strong text-primary focus:ring-primary"
-                            />
-                            {!isHomeCohort && (
-                              <span className="text-xs text-tx-muted italic">(make-up)</span>
-                            )}
+                  <React.Fragment key={student.enrollmentId}>
+                    <tr>
+                      <td className="px-4 py-3 text-sm text-tx-primary">
+                        {student.studentName}
+                        {missingDays > 0 && (
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs text-status-warning-text">
+                            <AlertTriangle className="h-3 w-3" />
+                            Missing {missingDays} day{missingDays === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </td>
+                      {sessions.map((session) => {
+                        const entry = student.attendance[session.id];
+                        const present = entry?.present ?? false;
+                        const isHomeCohort = entry?.isHomeCohort ?? true;
+                        return (
+                          <td key={session.id} className="px-4 py-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <input
+                                type="checkbox"
+                                aria-label={`${student.studentName} present Day ${session.curriculumDay}`}
+                                checked={present}
+                                disabled={attendanceMutation.isPending}
+                                onChange={(e) =>
+                                  attendanceMutation.mutate({
+                                    sessionId: session.id,
+                                    enrollmentId: student.enrollmentId,
+                                    present: e.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 rounded border-edge-strong text-primary focus:ring-primary"
+                              />
+                              {!isHomeCohort && (
+                                <span className="text-xs text-tx-muted italic">(make-up)</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setRemovingEnrollmentId(isRemoving ? null : student.enrollmentId)}
+                          className="inline-flex items-center gap-1 text-xs text-tx-muted hover:text-status-danger-text"
+                        >
+                          <UserMinus className="h-3.5 w-3.5" />
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                    {isRemoving && (
+                      <tr>
+                        <td colSpan={sessions.length + 2} className="px-4 py-3 bg-status-warning-bg border-y border-status-warning-border">
+                          <p className="text-sm text-status-warning-text mb-2">
+                            This ends {student.studentName}'s membership in {cohort.name}. Their attendance record
+                            for days already attended is kept. They can be added to another cohort afterward.
+                          </p>
+                          <div className="flex gap-2">
+                            <Button variant="secondary" size="sm" onClick={() => setRemovingEnrollmentId(null)}>
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => removeMutation.mutate(student.enrollmentId)}
+                              disabled={removeMutation.isPending}
+                            >
+                              {removeMutation.isPending ? 'Removing...' : 'Confirm remove'}
+                            </Button>
                           </div>
                         </td>
-                      );
-                    })}
-                  </tr>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>

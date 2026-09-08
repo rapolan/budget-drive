@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CohortRoster } from './CohortRoster';
 import { classroomApi } from '@/api';
@@ -16,6 +16,7 @@ vi.mock('@/api', async () => {
       searchRosterAddCandidates: vi.fn(),
       joinCohort: vi.fn(),
       getCohorts: vi.fn().mockResolvedValue({ data: [] }),
+      removeCohortEnrollment: vi.fn(),
     },
     studentsApi: {
       ...actual.studentsApi,
@@ -153,5 +154,69 @@ describe('CohortRoster - Add student surfaces never nest', () => {
 
     expect(screen.queryByText(/fill in the details below/i)).not.toBeInTheDocument();
     expect(screen.queryByText('Add student to Fall Weekend Class')).not.toBeInTheDocument();
+  });
+});
+
+// Item 4 of the DE-lifecycle-edges investigation: removing a student from
+// a cohort ends membership only - de_attendance has no FK to
+// de_cohort_enrollments, so days already attended are never touched.
+describe('CohortRoster - Remove from class', () => {
+  const rosterWithStudent = roster({
+    sessions: [{ id: 'session-1', curriculumDay: 1, sessionDate: '2026-10-03' }],
+    students: [
+      {
+        enrollmentId: 'enrollment-1',
+        studentId: 'student-1',
+        studentName: 'Leo Whitfield',
+        attendance: {},
+        attendedCurriculumDayCount: 0,
+        missingCurriculumDays: [1, 2, 3, 4],
+      },
+    ],
+  });
+
+  it('shows a confirm step naming the cohort before removing, and requires an explicit click to proceed', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: rosterWithStudent });
+
+    renderRoster();
+    await screen.findByText('Leo Whitfield');
+
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+
+    expect(
+      await screen.findByText(/this ends leo whitfield's membership in fall weekend class/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/their attendance record for days already attended is kept/i)).toBeInTheDocument();
+    expect(classroomApi.removeCohortEnrollment).not.toHaveBeenCalled();
+  });
+
+  it('confirming calls removeCohortEnrollment with the cohort and enrollment ids', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: rosterWithStudent });
+    (classroomApi.removeCohortEnrollment as ReturnType<typeof vi.fn>).mockResolvedValue({ data: undefined });
+
+    renderRoster();
+    await screen.findByText('Leo Whitfield');
+
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirm remove/i }));
+
+    await waitFor(() =>
+      expect(classroomApi.removeCohortEnrollment).toHaveBeenCalledWith('cohort-1', 'enrollment-1')
+    );
+  });
+
+  it('cancelling the confirm step does not call removeCohortEnrollment', async () => {
+    (classroomApi.getCohortRoster as ReturnType<typeof vi.fn>).mockResolvedValue({ data: rosterWithStudent });
+
+    renderRoster();
+    await screen.findByText('Leo Whitfield');
+
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^cancel$/i }));
+
+    expect(
+      screen.queryByText(/this ends leo whitfield's membership/i)
+    ).not.toBeInTheDocument();
+    expect(classroomApi.removeCohortEnrollment).not.toHaveBeenCalled();
   });
 });
