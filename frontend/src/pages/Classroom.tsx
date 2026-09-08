@@ -1,23 +1,34 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GraduationCap, Plus, X, Users } from 'lucide-react';
-import { classroomApi, instructorsApi } from '@/api';
-import type { DeCohort, CreateCohortSessionInput } from '@/api/classroom';
-import { Button, EmptyState, LoadingSpinner } from '@/components/common';
+import { GraduationCap, Plus, X, Users, CheckCircle } from 'lucide-react';
+import { classroomApi, instructorsApi, enrollmentsApi } from '@/api';
+import type { DeCohort, CreateCohortSessionInput, OnlineDeInProgressEntry } from '@/api/classroom';
+import { Button, EmptyState, LoadingSpinner, Tabs } from '@/components/common';
+import type { TabItem } from '@/components/common';
 import { formatShortDate } from '@/utils/timeFormat';
 import { CohortRoster } from '@/components/classroom/CohortRoster';
 
 const CURRICULUM_DAYS = [1, 2, 3, 4] as const;
 
+type ClassroomTab = 'cohorts' | 'online';
+const TAB_ITEMS: TabItem<ClassroomTab>[] = [
+  { value: 'cohorts', label: 'Cohorts' },
+  { value: 'online', label: 'Online' },
+];
+
 /**
  * Driver education classroom tracking (Phase 3 of the compliance-records
- * arc). Two-pane layout: cohort list on the left, the selected cohort's
- * roster (students x 4 curriculum-day checkboxes) on the right. No
+ * arc). Two views under one Tabs bar: Cohorts (the original two-pane
+ * layout - cohort list + selected cohort's roster, students x 4
+ * curriculum-day checkboxes) and Online - online DE has no cohort of its
+ * own, so it had no "complete them here" surface until now; this tab
+ * lists every in-progress online DE enrollment tenant-wide. No
  * conflict-checking against behind-the-wheel lessons - a cohort's teacher
  * and schedule are entirely independent of BTW scheduling.
  */
 export const ClassroomPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = React.useState<ClassroomTab>('cohorts');
   const [selectedCohortId, setSelectedCohortId] = React.useState<string | null>(null);
   const [isCreating, setIsCreating] = React.useState(false);
 
@@ -29,17 +40,28 @@ export const ClassroomPage: React.FC = () => {
     queryKey: ['instructors'],
     queryFn: () => instructorsApi.getAll(),
   });
+  const { data: onlineData, isLoading: onlineLoading } = useQuery({
+    queryKey: ['classroom', 'online-in-progress'],
+    queryFn: () => classroomApi.getOnlineDeInProgress(),
+    enabled: activeTab === 'online',
+  });
 
   const cohorts: DeCohort[] = React.useMemo(() => cohortsData?.data || [], [cohortsData]);
   const deTeachers = React.useMemo(
     () => (instructorsData?.data || []).filter((i) => i.isDeTeacher === true),
     [instructorsData]
   );
+  const onlineInProgress: OnlineDeInProgressEntry[] = React.useMemo(() => onlineData?.data || [], [onlineData]);
 
   const selectedCohort = cohorts.find((c) => c.id === selectedCohortId) || null;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
+  };
+
+  const invalidateOnline = () => {
+    queryClient.invalidateQueries({ queryKey: ['classroom', 'online-in-progress'] });
+    queryClient.invalidateQueries({ queryKey: ['students'] });
   };
 
   const createMutation = useMutation({
@@ -58,6 +80,22 @@ export const ClassroomPage: React.FC = () => {
     },
   });
 
+  const updateHoursMutation = useMutation({
+    mutationFn: ({ enrollmentId, manualCompletedHours }: { enrollmentId: string; manualCompletedHours: number }) =>
+      enrollmentsApi.update(enrollmentId, { manualCompletedHours }),
+    onSuccess: () => invalidateOnline(),
+  });
+
+  // Reused as-is - the same endpoint EnrollmentSubPanel's "Mark complete"
+  // button calls. Marking complete here flows into the exact same
+  // certificate worklist as every other completion path (see the DE
+  // worklist's readyReason='completed' branch) - no separate completion
+  // logic for the Online tab.
+  const completeMutation = useMutation({
+    mutationFn: (enrollmentId: string) => enrollmentsApi.complete(enrollmentId),
+    onSuccess: () => invalidateOnline(),
+  });
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -65,90 +103,180 @@ export const ClassroomPage: React.FC = () => {
           <h1 className="text-2xl font-semibold text-tx-primary">Classroom</h1>
           <p className="mt-1 text-sm text-tx-muted">Schedule driver education classes and track attendance.</p>
         </div>
-        <Button onClick={() => setIsCreating(true)}>
-          <Plus className="h-4 w-4" />
-          New class
-        </Button>
+        {activeTab === 'cohorts' && (
+          <Button onClick={() => setIsCreating(true)}>
+            <Plus className="h-4 w-4" />
+            New class
+          </Button>
+        )}
       </div>
 
-      {cohortsLoading && (
-        <div className="flex justify-center py-12">
-          <LoadingSpinner />
-        </div>
-      )}
+      <Tabs items={TAB_ITEMS} activeValue={activeTab} onChange={setActiveTab} aria-label="Classroom view" />
 
-      {!cohortsLoading && cohorts.length === 0 && !isCreating && (
-        <EmptyState
-          icon={<GraduationCap className="h-10 w-10" />}
-          title="No classes scheduled yet"
-          description="Create a class to start scheduling driver education sessions."
-        />
-      )}
+      {activeTab === 'cohorts' && (
+        <>
+          {cohortsLoading && (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
+            </div>
+          )}
 
-      {!cohortsLoading && (cohorts.length > 0 || isCreating) && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left pane: cohort list */}
-          <div className="lg:col-span-1 space-y-3">
-            {isCreating && (
-              <NewCohortForm
-                deTeachers={deTeachers}
-                onCancel={() => setIsCreating(false)}
-                onSubmit={(data) => createMutation.mutate(data)}
-                isPending={createMutation.isPending}
-                error={createMutation.isError ? 'Failed to create class' : null}
-              />
-            )}
-            {cohorts.map((cohort) => (
-              <button
-                key={cohort.id}
-                type="button"
-                onClick={() => setSelectedCohortId(cohort.id)}
-                className={`w-full text-left rounded-xl border p-4 transition-colors ${
-                  selectedCohortId === cohort.id
-                    ? 'border-primary bg-status-info-bg'
-                    : 'border-edge bg-surface hover:bg-surface2'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-tx-primary truncate">{cohort.name}</p>
-                  {cohort.status !== 'scheduled' && (
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${
-                        cohort.status === 'cancelled'
-                          ? 'bg-status-danger-bg text-status-danger-text'
-                          : 'bg-status-success-bg text-status-success-text'
-                      }`}
-                    >
-                      {cohort.status}
-                    </span>
-                  )}
-                </div>
-                {cohort.sessions.length > 0 && (
-                  <p className="text-xs text-tx-muted mt-1">
-                    {formatShortDate(cohort.sessions[0].sessionDate)} &ndash;{' '}
-                    {formatShortDate(cohort.sessions[cohort.sessions.length - 1].sessionDate)}
-                  </p>
+          {!cohortsLoading && cohorts.length === 0 && !isCreating && (
+            <EmptyState
+              icon={<GraduationCap className="h-10 w-10" />}
+              title="No classes scheduled yet"
+              description="Create a class to start scheduling driver education sessions."
+            />
+          )}
+
+          {!cohortsLoading && (cohorts.length > 0 || isCreating) && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left pane: cohort list */}
+              <div className="lg:col-span-1 space-y-3">
+                {isCreating && (
+                  <NewCohortForm
+                    deTeachers={deTeachers}
+                    onCancel={() => setIsCreating(false)}
+                    onSubmit={(data) => createMutation.mutate(data)}
+                    isPending={createMutation.isPending}
+                    error={createMutation.isError ? 'Failed to create class' : null}
+                  />
                 )}
-                <p className="text-xs text-tx-muted mt-1 flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  {cohort.enrolledCount}/{cohort.capacity} enrolled
-                </p>
-              </button>
-            ))}
-          </div>
-
-          {/* Right pane: selected cohort's roster */}
-          <div className="lg:col-span-2">
-            {selectedCohort ? (
-              <CohortRoster cohort={selectedCohort} onCohortUpdated={invalidate} />
-            ) : (
-              <div className="h-full flex items-center justify-center rounded-xl border border-edge bg-surface p-12">
-                <p className="text-sm text-tx-muted">Select a class to view its roster.</p>
+                {cohorts.map((cohort) => (
+                  <button
+                    key={cohort.id}
+                    type="button"
+                    onClick={() => setSelectedCohortId(cohort.id)}
+                    className={`w-full text-left rounded-xl border p-4 transition-colors ${
+                      selectedCohortId === cohort.id
+                        ? 'border-primary bg-status-info-bg'
+                        : 'border-edge bg-surface hover:bg-surface2'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-tx-primary truncate">{cohort.name}</p>
+                      {cohort.status !== 'scheduled' && (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${
+                            cohort.status === 'cancelled'
+                              ? 'bg-status-danger-bg text-status-danger-text'
+                              : 'bg-status-success-bg text-status-success-text'
+                          }`}
+                        >
+                          {cohort.status}
+                        </span>
+                      )}
+                    </div>
+                    {cohort.sessions.length > 0 && (
+                      <p className="text-xs text-tx-muted mt-1">
+                        {formatShortDate(cohort.sessions[0].sessionDate)} &ndash;{' '}
+                        {formatShortDate(cohort.sessions[cohort.sessions.length - 1].sessionDate)}
+                      </p>
+                    )}
+                    <p className="text-xs text-tx-muted mt-1 flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {cohort.enrolledCount}/{cohort.capacity} enrolled
+                    </p>
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+
+              {/* Right pane: selected cohort's roster */}
+              <div className="lg:col-span-2">
+                {selectedCohort ? (
+                  <CohortRoster cohort={selectedCohort} onCohortUpdated={invalidate} />
+                ) : (
+                  <div className="h-full flex items-center justify-center rounded-xl border border-edge bg-surface p-12">
+                    <p className="text-sm text-tx-muted">Select a class to view its roster.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'online' && (
+        <div>
+          {onlineLoading && (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
+            </div>
+          )}
+
+          {!onlineLoading && onlineInProgress.length === 0 && (
+            <EmptyState
+              icon={<GraduationCap className="h-10 w-10" />}
+              title="Nothing in progress"
+              description="Online driver education students being worked toward completion will show up here."
+            />
+          )}
+
+          {!onlineLoading && onlineInProgress.length > 0 && (
+            <div className="rounded-xl border border-edge bg-surface divide-y divide-edge overflow-hidden">
+              {onlineInProgress.map((entry) => (
+                <OnlineDeRow
+                  key={entry.enrollmentId}
+                  entry={entry}
+                  onSaveHours={(hours) =>
+                    updateHoursMutation.mutate({ enrollmentId: entry.enrollmentId, manualCompletedHours: hours })
+                  }
+                  onMarkComplete={() => completeMutation.mutate(entry.enrollmentId)}
+                  isSavingHours={updateHoursMutation.isPending}
+                  isCompleting={completeMutation.isPending}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
+    </div>
+  );
+};
+
+interface OnlineDeRowProps {
+  entry: OnlineDeInProgressEntry;
+  onSaveHours: (hours: number) => void;
+  onMarkComplete: () => void;
+  isSavingHours: boolean;
+  isCompleting: boolean;
+}
+
+const OnlineDeRow: React.FC<OnlineDeRowProps> = ({ entry, onSaveHours, onMarkComplete, isSavingHours, isCompleting }) => {
+  const [hoursInput, setHoursInput] = React.useState(String(entry.manualCompletedHours ?? ''));
+
+  return (
+    <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-tx-primary truncate">{entry.studentName}</p>
+        <p className="text-xs text-tx-muted">
+          {entry.manualCompletedHours ?? 0} / {entry.hoursRequired} hours logged
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          value={hoursInput}
+          onChange={(e) => setHoursInput(e.target.value)}
+          placeholder="Hours"
+          className="w-20 px-2 py-1.5 border border-edge-strong rounded-lg text-sm bg-surface"
+          aria-label={`Hours logged for ${entry.studentName}`}
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onSaveHours(Number(hoursInput) || 0)}
+          disabled={isSavingHours}
+        >
+          Save hours
+        </Button>
+        <Button size="sm" onClick={onMarkComplete} disabled={isCompleting}>
+          <CheckCircle className="h-3.5 w-3.5" />
+          Mark complete
+        </Button>
+      </div>
     </div>
   );
 };

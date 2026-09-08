@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClassroomPage } from './Classroom';
-import { classroomApi, instructorsApi } from '@/api';
-import type { DeCohort, CohortRoster } from '@/api/classroom';
+import { classroomApi, instructorsApi, enrollmentsApi } from '@/api';
+import type { DeCohort, CohortRoster, OnlineDeInProgressEntry } from '@/api/classroom';
 import type { Instructor } from '@/types';
 
 vi.mock('@/api', async () => {
@@ -19,10 +19,16 @@ vi.mock('@/api', async () => {
       searchMakeUpCandidates: vi.fn(),
       searchRosterAddCandidates: vi.fn(),
       joinCohort: vi.fn(),
+      getOnlineDeInProgress: vi.fn(),
     },
     instructorsApi: {
       ...actual.instructorsApi,
       getAll: vi.fn(),
+    },
+    enrollmentsApi: {
+      ...actual.enrollmentsApi,
+      update: vi.fn(),
+      complete: vi.fn(),
     },
   };
 });
@@ -87,11 +93,23 @@ function renderClassroomPage() {
   );
 }
 
+function onlineEntry(overrides: Partial<OnlineDeInProgressEntry> = {}): OnlineDeInProgressEntry {
+  return {
+    enrollmentId: 'online-enrollment-1',
+    studentId: 'student-1',
+    studentName: 'Jamie Online',
+    manualCompletedHours: 12,
+    hoursRequired: 30,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
     data: [{ id: 'instructor-1', fullName: 'Ms. Rivera', isDeTeacher: true } as Instructor],
   });
+  (classroomApi.getOnlineDeInProgress as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
 });
 
 afterEach(cleanup);
@@ -249,5 +267,78 @@ describe('Classroom page - roster', () => {
     fireEvent.click(screen.getByRole('button', { name: /add student/i }));
 
     expect(await screen.findByText('Add student to Fall Weekend Class')).toBeInTheDocument();
+  });
+});
+
+// Online DE has no cohort of its own - this tab is its completion home
+// (item 3 of the DE-lifecycle-edges investigation).
+describe('Classroom page - Online tab', () => {
+  it('shows an empty state when nothing is in progress', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+
+    expect(await screen.findByText(/nothing in progress/i)).toBeInTheDocument();
+  });
+
+  it('lists an in-progress online DE student with their logged hours', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.getOnlineDeInProgress as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [onlineEntry()],
+    });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+
+    expect(await screen.findByText('Jamie Online')).toBeInTheDocument();
+    expect(screen.getByText('12 / 30 hours logged')).toBeInTheDocument();
+  });
+
+  it('saving hours calls enrollmentsApi.update with manualCompletedHours', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.getOnlineDeInProgress as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [onlineEntry()],
+    });
+    (enrollmentsApi.update as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+    await screen.findByText('Jamie Online');
+
+    const hoursInput = screen.getByLabelText(/hours logged for jamie online/i);
+    fireEvent.change(hoursInput, { target: { value: '20' } });
+    fireEvent.click(screen.getByRole('button', { name: /save hours/i }));
+
+    await waitFor(() =>
+      expect(enrollmentsApi.update).toHaveBeenCalledWith('online-enrollment-1', { manualCompletedHours: 20 })
+    );
+  });
+
+  it('marking complete calls the SAME enrollmentsApi.complete every other completion path uses', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (classroomApi.getOnlineDeInProgress as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [onlineEntry()],
+    });
+    (enrollmentsApi.complete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+
+    renderClassroomPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /online/i }));
+    await screen.findByText('Jamie Online');
+
+    fireEvent.click(screen.getByRole('button', { name: /mark complete/i }));
+
+    await waitFor(() => expect(enrollmentsApi.complete).toHaveBeenCalledWith('online-enrollment-1'));
+  });
+
+  it('hides the "New class" button while on the Online tab', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderClassroomPage();
+    expect(await screen.findByRole('button', { name: /new class/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /online/i }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /new class/i })).not.toBeInTheDocument());
   });
 });

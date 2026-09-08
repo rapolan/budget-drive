@@ -102,6 +102,20 @@ export interface RosterAddCandidate {
   otherCohortName: string | null;
 }
 
+export interface OnlineDeInProgressEntry {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  manualCompletedHours: number | null;
+  hoursRequired: number;
+}
+
+export interface CloseCohortResult {
+  cohort: DeCohort;
+  completedCount: number;
+  gaps: CohortGapEntry[];
+}
+
 export const classroomApi = {
   createCohort: async (data: CreateCohortInput) => {
     const response = await apiClient.post<ApiResponse<DeCohort>>('/classroom/cohorts', data);
@@ -158,6 +172,28 @@ export const classroomApi = {
       `/classroom/cohorts/${cohortId}/roster-candidates`,
       { params: { q: search } }
     );
+    return response.data;
+  },
+
+  // Online DE's completion home - it has no cohort of its own, so this is
+  // a tenant-wide list, not scoped to a cohort id.
+  getOnlineDeInProgress: async () => {
+    const response = await apiClient.get<ApiResponse<OnlineDeInProgressEntry[]>>('/classroom/online-in-progress');
+    return response.data;
+  },
+
+  // Ends a cohort membership - attendance already recorded is kept, only
+  // the home-cohort link is removed. The enrollment can join a different
+  // cohort afterward via joinCohort as usual.
+  removeCohortEnrollment: async (cohortId: string, enrollmentId: string) => {
+    const response = await apiClient.delete<ApiResponse<void>>(
+      `/classroom/cohorts/${cohortId}/enrollments/${enrollmentId}`
+    );
+    return response.data;
+  },
+
+  closeCohort: async (id: string) => {
+    const response = await apiClient.post<ApiResponse<CloseCohortResult>>(`/classroom/cohorts/${id}/close`);
     return response.data;
   },
 };
