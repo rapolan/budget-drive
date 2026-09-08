@@ -351,6 +351,66 @@ describe('StudentModal - program toggle at creation', () => {
     await waitFor(() => expect(classroomApi.joinCohort).toHaveBeenCalledWith('cohort-1', 'de-enrollment-1'));
   });
 
+  // Item 6 of the DE-lifecycle-edges investigation: a concurrent admin can
+  // fill the last spot between when this modal opened and when the join
+  // actually runs. The student is already created by then (step 1 is its
+  // own atomic transaction) - "Try a different class" lets the admin
+  // recover in-modal instead of leaving them unenrolled with no path
+  // forward but a separate trip to the Classroom page.
+  it('offers "Try a different class" when joinCohort 400s (capacity race), and retrying against a different cohort succeeds', async () => {
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'cohort-1', tenantId: 'tenant-1', name: 'Fall Weekend Class', teacherInstructorId: 'instructor-1',
+          capacity: 20, status: 'scheduled', createdBy: null, createdAt: '2026-01-01', updatedAt: '2026-01-01',
+          enrolledCount: 5,
+          sessions: [
+            { id: 's1', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 1, sessionDate: '2026-10-03', startTime: '08:00', endTime: '14:00' },
+            { id: 's2', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 2, sessionDate: '2026-10-04', startTime: '08:00', endTime: '14:00' },
+            { id: 's3', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 3, sessionDate: '2026-10-10', startTime: '08:00', endTime: '14:00' },
+            { id: 's4', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 4, sessionDate: '2026-10-11', startTime: '08:00', endTime: '14:00' },
+          ],
+        },
+        {
+          id: 'cohort-2', tenantId: 'tenant-1', name: 'Winter Class', teacherInstructorId: 'instructor-1',
+          capacity: 20, status: 'scheduled', createdBy: null, createdAt: '2026-01-01', updatedAt: '2026-01-01',
+          enrolledCount: 3,
+          sessions: [
+            { id: 's5', tenantId: 'tenant-1', cohortId: 'cohort-2', curriculumDay: 1, sessionDate: '2026-11-03', startTime: '08:00', endTime: '14:00' },
+            { id: 's6', tenantId: 'tenant-1', cohortId: 'cohort-2', curriculumDay: 2, sessionDate: '2026-11-04', startTime: '08:00', endTime: '14:00' },
+            { id: 's7', tenantId: 'tenant-1', cohortId: 'cohort-2', curriculumDay: 3, sessionDate: '2026-11-10', startTime: '08:00', endTime: '14:00' },
+            { id: 's8', tenantId: 'tenant-1', cohortId: 'cohort-2', curriculumDay: 4, sessionDate: '2026-11-11', startTime: '08:00', endTime: '14:00' },
+          ],
+        },
+      ],
+    });
+    (classroomApi.joinCohort as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce({ response: { data: { error: 'This cohort is at capacity' } } })
+      .mockResolvedValueOnce({ data: {} });
+
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    fireEvent.click(await screen.findByText('Fall Weekend Class'));
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    expect(await screen.findByText(/this cohort is at capacity/i)).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: /try a different class/i });
+    fireEvent.click(retryButton);
+
+    const pickerHeading = await screen.findByText('Pick a different class');
+    const picker = pickerHeading.closest('div')!.parentElement as HTMLElement;
+    const winterOption = within(picker).getByRole('button', { name: /winter class/i });
+    fireEvent.click(winterOption);
+
+    await waitFor(() =>
+      expect(classroomApi.joinCohort).toHaveBeenLastCalledWith('cohort-2', 'de-enrollment-1')
+    );
+    await waitFor(() => expect(screen.queryByText(/this cohort is at capacity/i)).not.toBeInTheDocument());
+  });
+
   it('Classroom with no cohort picked creates the student without joining any cohort - "assign later" stays valid', async () => {
     renderModal(null, {});
 

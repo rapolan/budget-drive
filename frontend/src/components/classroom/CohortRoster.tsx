@@ -104,7 +104,17 @@ export const CohortRoster: React.FC<CohortRosterProps> = ({ cohort, onCohortUpda
               Close class
             </Button>
           )}
-          <Button size="sm" onClick={() => setAddStudentMode('panel')}>
+          <Button
+            size="sm"
+            onClick={() => {
+              // Narrows (doesn't eliminate - an inherent TOCTOU gap in any
+              // capacity-checked UI) the staleness window between "picker
+              // opened showing room" and "the join actually runs" that
+              // otherwise lets a concurrent admin's join go unnoticed here.
+              queryClient.invalidateQueries({ queryKey: ['classroom', 'cohorts'] });
+              setAddStudentMode('panel');
+            }}
+          >
             <UserPlus className="h-4 w-4" />
             Add student
           </Button>

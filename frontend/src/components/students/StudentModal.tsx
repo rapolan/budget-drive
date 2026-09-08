@@ -110,6 +110,12 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const { settings } = useTenant();
   const isEditing = Boolean(student);
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
+  // Recovery UI for the cohort capacity race (a concurrent admin fills the
+  // last spot between when this modal opened and when the join actually
+  // runs) - lets the admin immediately retry against a different class
+  // instead of leaving an already-created student unenrolled with no
+  // in-modal recovery path.
+  const [showRetryClassPicker, setShowRetryClassPicker] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'details');
 
   // Auto-scroll (create mode only): as each section is filled in, scroll
@@ -1147,9 +1153,18 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     // student's driver_education enrollment - never bundled into the
     // creation request itself (matches every other joinCohort entry
     // point). Only fires when Classroom delivery AND a cohort were both
-    // selected - the cohort is optional ("assign later" stays valid).
+    // selected - the cohort is optional ("assign later" stays valid). A
+    // rejection here (e.g. a capacity race - see "Try a different class"
+    // below) is deliberately swallowed: the mutation's own isError/error
+    // state already drives the recovery UI, and mutateAsync's rethrow
+    // would otherwise be an unhandled rejection with nothing further for
+    // handleSubmit itself to do about it.
     if (!isEditing && newStudentId && initialProgramType === 'driver_education' && initialDeliveryMode === 'classroom' && initialCohortId) {
-      await joinCohortAfterCreateMutation.mutateAsync({ studentId: newStudentId, cohortId: initialCohortId });
+      try {
+        await joinCohortAfterCreateMutation.mutateAsync({ studentId: newStudentId, cohortId: initialCohortId });
+      } catch {
+        // Handled via joinCohortAfterCreateMutation.isError in the JSX below.
+      }
     }
   };
 
@@ -2464,13 +2479,66 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       </div>
                     </div>
                   </div>
-                  {joinCohortAfterCreateMutation.isError && (
-                    <div className="bg-status-danger-bg rounded-lg px-4 py-3 flex items-start gap-2 mb-4">
-                      <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
-                      <p className="text-sm text-status-danger-text">
-                        {(joinCohortAfterCreateMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
-                          || 'The student was created, but could not be enrolled in the cohort - assign them from the Classroom page instead.'}
-                      </p>
+                  {joinCohortAfterCreateMutation.isError && !showRetryClassPicker && (
+                    <div className="bg-status-danger-bg rounded-lg px-4 py-3 mb-4 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-status-danger-text">
+                          {(joinCohortAfterCreateMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                            || 'The student was created, but could not be enrolled in the cohort - assign them from the Classroom page instead.'}
+                        </p>
+                      </div>
+                      {/* A capacity race between two admins is the realistic cause here
+                          (the picker's capacity snapshot is only as fresh as when this
+                          modal opened) - offer an immediate retry against a different
+                          class rather than leaving the admin to separately navigate to
+                          the Classroom page for a student who's already been created. */}
+                      <button
+                        type="button"
+                        onClick={() => setShowRetryClassPicker(true)}
+                        className="text-sm font-medium text-status-danger-text underline hover:no-underline"
+                      >
+                        Try a different class
+                      </button>
+                    </div>
+                  )}
+
+                  {showRetryClassPicker && (
+                    <div className="bg-surface2 border border-edge-strong rounded-lg p-4 mb-4 space-y-2">
+                      <p className="text-sm font-medium text-tx-primary">Pick a different class</p>
+                      {joinableCohortsForCreate.length === 0 ? (
+                        <p className="text-xs text-tx-muted">No other classes with room right now.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {joinableCohortsForCreate
+                            .filter((c) => c.enrolledCount < c.capacity)
+                            .map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                disabled={joinCohortAfterCreateMutation.isPending}
+                                onClick={() => {
+                                  if (!createdStudent) return;
+                                  joinCohortAfterCreateMutation.mutate(
+                                    { studentId: createdStudent.id, cohortId: c.id },
+                                    { onSuccess: () => setShowRetryClassPicker(false) }
+                                  );
+                                }}
+                                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm border border-edge-strong rounded-lg bg-surface hover:bg-surface2 transition-colors disabled:opacity-50"
+                              >
+                                <span>{c.name}</span>
+                                <span className="text-xs text-tx-muted">{c.enrolledCount}/{c.capacity}</span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowRetryClassPicker(false)}
+                        className="text-xs text-tx-muted hover:text-tx-secondary"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   )}
                   <div className="flex justify-end gap-3">
