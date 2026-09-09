@@ -147,6 +147,20 @@ Driver Education had no price tag at all until now - a DE student could be enrol
 
 See `docs/ARCHITECTURE.md` §18 for the schema, the exact defaulting and validation rules, and how each piece was live-verified end to end.
 
+### The Payments Page, Brought Up to Speed
+
+The Payments page had fallen behind the rest of the app - no click-to-open, no way to sort by who owes the most, and a summary that predated Driver Education having a price tag at all. This brings it in line with how the Students and Lessons pages already work, reusing those same patterns rather than inventing new ones.
+
+**Click a row, see everything about that student's payments.** The whole row is now the way in - no need to hunt for a small link - and it opens the exact same history view "View History" always did, not a second screen to learn. The two per-row actions (add a payment, view history) tuck away under the student's name and appear on hover, the same quiet reveal already used on the Students and Lessons pages; on a phone or tablet, where there's no hovering, they're just there.
+
+**A new way to sort: highest balance first.** Alongside the usual alphabetical order, the page can now answer "who owes the most" directly - genuinely useful for deciding who to follow up with, not just cosmetic reordering.
+
+**Three numbers up top, at a glance**: Total Outstanding across every student, how much has actually come in this month, and how many students currently carry a balance. All three already account for Driver Education's course fees right alongside Behind-the-Wheel's lesson costs - a student who only owes on Driver Education is counted exactly the same as one who owes on Behind-the-Wheel, since both feed the same combined number under the hood.
+
+**The reference number entered when recording a payment shows up right in that student's history**, in its own column - not just captured and forgotten.
+
+See `docs/ARCHITECTURE.md` §19 for the exact patterns reused and how each piece was live-verified.
+
 ### Guardians as First-Class Records
 Students can be linked to one or more guardian records (parents/legal guardians), replacing flat emergency-contact strings with structured, searchable, many-to-many data. See `docs/ARCHITECTURE.md` for the schema. Key principles:
 - **Guardian matching and linking logic lives entirely in the backend service layer** — never in a UI component — so the same logic can be reused by a future public signup form without risking duplicate guardian records.

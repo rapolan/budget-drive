@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, CreditCard, TrendingUp, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History } from 'lucide-react';
-import { studentsApi } from '@/api';
+import { DollarSign, CreditCard, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History, ArrowUpDown, Users } from 'lucide-react';
+import { studentsApi, paymentsApi } from '@/api';
 import { PaymentModal, PaymentHistoryModal } from '@/components/payments';
 import type { Student } from '@/types';
 import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useSessionState } from '@/hooks/useSessionState';
+import { useTenant } from '@/contexts/TenantContext';
 
 type ViewMode = 'table' | 'cards';
 const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
+// 'balance' sorts highest-outstanding-balance-first - "who owes the
+// most," a genuinely new question this page couldn't answer before.
+// Matches Students.tsx's plain (non-persisted) useState<SortOption> -
+// sort choice resets on reload, same as there.
+type SortOption = 'name' | 'balance';
 
 export const PaymentsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
+  const { tenantNow } = useTenant();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('name');
   const [viewMode, setViewMode] = useSessionState<ViewMode>('payments-view-mode', 'table', isViewMode);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -27,7 +35,17 @@ export const PaymentsPage: React.FC = () => {
     queryFn: () => studentsApi.getAll(1, 1000),
   });
 
+  // Fetch payments (for the "Total collected this month" summary card -
+  // Student.paymentSummary only ever carries a lifetime total, not a
+  // per-period one). Same paymentsApi.getAll(1, 1000) call Dashboard.tsx
+  // already uses for its own monthly-revenue card.
+  const { data: paymentsData } = useQuery({
+    queryKey: ['payments'],
+    queryFn: () => paymentsApi.getAll(1, 1000),
+  });
+
   const students = studentsData?.data || [];
+  const payments = paymentsData?.data || [];
 
   // Loading state
   if (isLoading) {
@@ -123,21 +141,32 @@ export const PaymentsPage: React.FC = () => {
     };
   };
 
-  // Filter students
-  const filteredStudents = students.filter((student) => {
-    const matchesSearch =
-      student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+  // Filter, then sort, students
+  const filteredStudents = students
+    .filter((student) => {
+      const matchesSearch =
+        student.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (filterStatus === 'all') return true;
+      if (filterStatus === 'all') return true;
 
-    const payment = getPaymentInfo(student);
-    return payment.status === filterStatus;
-  });
+      const payment = getPaymentInfo(student);
+      return payment.status === filterStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'balance') {
+        return getPaymentInfo(b).balance - getPaymentInfo(a).balance;
+      }
+      return a.fullName.localeCompare(b.fullName);
+    });
 
-  // Calculate totals
+  // Calculate totals - outstandingBalance/totalPaid on Student.paymentSummary
+  // already combine BOTH BTW lesson-cost balances and DE course-fee
+  // balances (studentService.attachProgress's combinePaymentSummaries),
+  // so these totals are correct across both programs with no extra logic
+  // here.
   const totals = students.reduce(
     (acc, student) => {
       const payment = getPaymentInfo(student);
@@ -145,10 +174,24 @@ export const PaymentsPage: React.FC = () => {
         totalDue: acc.totalDue + payment.totalDue,
         totalPaid: acc.totalPaid + payment.paid,
         totalOutstanding: acc.totalOutstanding + payment.balance,
+        studentsWithBalance: acc.studentsWithBalance + (payment.balance > 0 ? 1 : 0),
       };
     },
-    { totalDue: 0, totalPaid: 0, totalOutstanding: 0 }
+    { totalDue: 0, totalPaid: 0, totalOutstanding: 0, studentsWithBalance: 0 }
   );
+
+  // Total collected THIS MONTH (tenant-timezone month boundaries, never
+  // client-clock derived - same tenantNow.monthBoundaries pattern
+  // Dashboard.tsx's own monthlyRevenue card already uses). Distinct from
+  // totals.totalPaid above, which is a lifetime figure.
+  const totalCollectedThisMonth = tenantNow
+    ? payments
+        .filter((p) => {
+          const paymentDateStr = String(p.date).split('T')[0];
+          return paymentDateStr >= tenantNow.monthBoundaries.start && p.status === 'confirmed';
+        })
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    : 0;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -219,51 +262,54 @@ export const PaymentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Total Revenue */}
-        <div className="rounded-lg bg-surface p-6 shadow">
+      {/* Summary Stats - matches Students.tsx's stat-card treatment
+          (tokens, rounded-xl/border-edge/shadow-sm, icon chip + value
+          block), not the previous hand-rolled rounded-lg/shadow cards.
+          totalOutstanding/totalPaid already combine BTW lesson-cost
+          balances and DE course-fee balances (Student.paymentSummary,
+          see combinePaymentSummaries in studentService.ts) - correct
+          across both programs with no extra logic on this page. */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-tx-secondary">Total Revenue</p>
-              <p className="mt-2 text-3xl font-bold text-tx-primary">
-                ${totals.totalDue.toFixed(2)}
-              </p>
+            <div className="p-2 bg-status-danger-bg rounded-lg">
+              <CreditCard className="h-5 w-5 text-status-danger-text" />
             </div>
-            <TrendingUp className="h-12 w-12 text-primary" />
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-status-danger-text">${totals.totalOutstanding.toFixed(2)}</p>
+            <p className="text-sm text-tx-muted">Total Outstanding</p>
           </div>
         </div>
 
-        {/* Total Collected */}
-        <div className="rounded-lg bg-surface p-6 shadow">
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-tx-secondary">Total Collected</p>
-              <p className="mt-2 text-3xl font-bold text-status-success-text">
-                ${totals.totalPaid.toFixed(2)}
-              </p>
+            <div className="p-2 bg-status-success-bg rounded-lg">
+              <DollarSign className="h-5 w-5 text-status-success-text" />
             </div>
-            <DollarSign className="h-12 w-12 text-status-success-text" />
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-status-success-text">${totalCollectedThisMonth.toFixed(2)}</p>
+            <p className="text-sm text-tx-muted">Collected This Month</p>
           </div>
         </div>
 
-        {/* Outstanding Balance */}
-        <div className="rounded-lg bg-surface p-6 shadow">
+        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
-              <p className="mt-2 text-3xl font-bold text-status-danger-text">
-                ${totals.totalOutstanding.toFixed(2)}
-              </p>
+            <div className="p-2 bg-status-info-bg rounded-lg">
+              <Users className="h-5 w-5 text-primary" />
             </div>
-            <CreditCard className="h-12 w-12 text-status-danger-text" />
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-tx-primary">{totals.studentsWithBalance}</p>
+            <p className="text-sm text-tx-muted">Students with a Balance</p>
           </div>
         </div>
       </div>
 
       {/* Filters */}
       <div className="rounded-lg bg-surface p-4 shadow">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Search */}
           <div className="flex items-center rounded-md border border-edge-strong bg-surface px-4 py-2">
             <Search className="h-5 w-5 text-tx-muted" />
@@ -275,6 +321,23 @@ export const PaymentsPage: React.FC = () => {
               autoComplete="nope"
               className="ml-2 flex-1 border-none bg-transparent outline-none"
             />
+          </div>
+
+          {/* Sort - matches Students.tsx's sort-dropdown pattern
+              (ArrowUpDown icon + plain native select). "balance" is the
+              genuinely new option: highest-outstanding-balance-first. */}
+          <div className="flex items-center gap-2 rounded-md border border-edge-strong bg-surface px-4 py-2">
+            <ArrowUpDown className="h-4 w-4 text-tx-muted flex-shrink-0" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              title="Sort students by"
+              aria-label="Sort students by"
+              className="flex-1 text-sm border-none bg-transparent text-tx-secondary focus:ring-0 cursor-pointer"
+            >
+              <option value="name">Name A-Z</option>
+              <option value="balance">Highest Balance First</option>
+            </select>
           </div>
 
           {/* Status Filter */}
@@ -451,15 +514,12 @@ export const PaymentsPage: React.FC = () => {
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-edge bg-surface">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-2">
+                  <td colSpan={6} className="py-2">
                     <EmptyState
                       icon={<DollarSign className="h-12 w-12" />}
                       title="No payment records found"
@@ -478,10 +538,50 @@ export const PaymentsPage: React.FC = () => {
                   const payment = getPaymentInfo(student);
 
                   return (
-                    <tr key={student.id} className="hover:bg-surface2">
-                      <td className="whitespace-nowrap px-6 py-4">
+                    <tr
+                      key={student.id}
+                      className="group hover:bg-surface2 cursor-pointer"
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setIsHistoryModalOpen(true);
+                      }}
+                    >
+                      <td className="px-6 py-4">
                         <div className="text-sm font-medium text-tx-primary">
                           {student.fullName}
+                        </div>
+                        {/* Row actions - under the student name, hover-
+                            reveal on desktop / always-visible on touch,
+                            matching Students.tsx/Lessons.tsx exactly.
+                            min-h-[28px] is unconditional so a hovered row
+                            never reflows its neighbors. */}
+                        <div className="min-h-[28px] flex items-center gap-1 mt-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStudent(student);
+                              setIsPaymentModalOpen(true);
+                            }}
+                            aria-label="Add payment"
+                            title="Add payment"
+                            className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedStudent(student);
+                              setIsHistoryModalOpen(true);
+                            }}
+                            aria-label="View payment history"
+                            title="View history"
+                            className="p-1.5 text-tx-secondary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                          >
+                            <History className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
@@ -516,31 +616,6 @@ export const PaymentsPage: React.FC = () => {
                           {getStatusIcon(payment.status)}
                           {payment.status}
                         </span>
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedStudent(student);
-                              setIsPaymentModalOpen(true);
-                            }}
-                            className="text-primary hover:text-opacity-80"
-                          >
-                            Add Payment
-                          </button>
-                          <span className="text-tx-muted">|</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedStudent(student);
-                              setIsHistoryModalOpen(true);
-                            }}
-                            className="text-primary hover:text-opacity-80"
-                          >
-                            View History
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   );

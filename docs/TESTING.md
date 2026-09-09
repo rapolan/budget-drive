@@ -310,6 +310,12 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** The DE enrollment's `totalCost` matches the tenant default (or the edited value) and is a genuine, non-negative number. `GET /api/v1/students` returns `paymentSummary.outstandingBalance` equal to the DE fee for a DE-only student. `POST /api/v1/payments` succeeds against a DE-only student (previously always 400'd) and the resulting `enrollment_id` is the DE enrollment. A student with both programs shows `totalPaid`/`outstandingBalance` as the sum of both. Booking a Behind-the-Wheel lesson for a student with a completed internal DE enrollment still applies the existing per-lesson discount, unaffected by any of this.
 
+### 2.6b Payments page parity (row-click, hover actions, sorting, summary cards)
+
+**Do:** Go to `/payments`. Click anywhere on a student's row (not a button) and confirm it opens the same `PaymentHistoryModal` "View History" always opened. Hover a row and confirm two icon buttons (Add Payment, View History) appear under the student's name without reflowing the row; on a touch device (or by tabbing to focus a button) confirm they're visible without hovering. Click a button inside the row and confirm it opens the correct modal without also triggering the row-click's history modal. Change the sort dropdown to "Highest Balance First" and confirm the list reorders by `outstandingBalance` descending. Confirm the three summary cards read "Total Outstanding," "Collected This Month," and "Students with a Balance," and that a DE-only student's balance is included in all three. Record a payment with a reference number from a row, then click that row to confirm the reference number appears in the Reference # column of the resulting history view.
+
+**Pass looks like:** Row-click opens the existing history modal, not a new surface. Hover/focus-reveal matches Students.tsx/Lessons.tsx's exact behavior (hidden-then-revealed on hover-capable devices, always visible on touch). Sorting by balance puts the highest `outstandingBalance` student first. Summary card totals correctly include DE course-fee balances alongside BTW lesson-cost balances (no under-counting). The reference number entered at payment time is visible in that same student's payment history.
+
 ### 2.7 Treasury status (ledger seam)
 
 **Do:** With a valid admin token, call:
