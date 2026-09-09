@@ -479,6 +479,138 @@ describe('POST /api/v1/students/with-guardian', () => {
   });
 });
 
+// Regression coverage: initialEnrollment lives NESTED inside `student`
+// (matching the frontend's CreateStudentInput shape exactly -
+// StudentModal.tsx builds one CreateStudentInput object, including
+// initialEnrollment, and sends it unchanged as `student` for both the
+// plain-create and guardian-staging paths). A prior version of
+// CreateStudentWithGuardianInput declared initialEnrollment as a SIBLING
+// of `student` instead, and createStudentWithGuardian read it from
+// input.initialEnrollment (the sibling location) rather than
+// input.student.initialEnrollment (where the frontend actually puts it)
+// - so every guardian-staged Driver Education creation silently fell
+// through to the driver_training default, producing a real Behind-the-
+// Wheel enrollment for a student who selected Driver Education (the
+// "Sami Corona" bug). This also cascaded into a second, downstream
+// symptom: joinCohort correctly 400s "Only a driver_education enrollment
+// can join a cohort" against the resulting driver_training enrollment,
+// making cohort-add for that same student fail with no separate cohort
+// bug required to explain it.
+describe('POST /api/v1/students/with-guardian - initialEnrollment nested inside student', () => {
+  beforeEach(() => {
+    resetMockQuery();
+    resetMockClient();
+  });
+
+  it('a MINOR with a staged guardian and student.initialEnrollment: driver_education produces a driver_education enrollment, not driver_training', async () => {
+    const studentService = await import('../services/studentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ default_de_hours_required: 30, default_de_classroom_cost: 150 }])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])); // findExactGuardianMatch - no match
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID, full_name: 'Sami Corona' }])) // student INSERT
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_education', de_delivery_mode: 'classroom' }])
+      ) // enrollment INSERT - must be the DE branch
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID, first_name: 'Jane', last_name: 'Doe' }])) // guardian INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1', tenant_id: TENANT_ID, student_id: 'student-1', guardian_id: GUARDIAN_ID, is_primary: true }])) // link INSERT
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    const res = await studentService.createStudentWithGuardian(
+      TENANT_ID,
+      {
+        student: {
+          ...minorStudentPayload({ fullName: 'Sami Corona' }),
+          initialEnrollment: { programType: 'driver_education' as const, deDeliveryMode: 'classroom' as const },
+        },
+        guardians: [{ mode: 'new', firstName: 'Jane', lastName: 'Doe', phone: '555-0200', relationship: 'mother' }],
+      },
+      'staff-1'
+    );
+
+    expect(res.student.fullName).toBe('Sami Corona');
+
+    // The enrollment INSERT must be the driver_education branch - proven
+    // by asserting the actual SQL text and params, not just the mocked
+    // return value (which a bug could still satisfy by coincidence).
+    const enrollmentInsertCall = mockClientQuery.mock.calls[2];
+    expect(enrollmentInsertCall[0]).toMatch(/'driver_education'/);
+    expect(enrollmentInsertCall[0]).toMatch(/de_delivery_mode/);
+    expect(enrollmentInsertCall[1]).toContain('classroom');
+  });
+
+  it('a MINOR with a staged guardian and NO initialEnrollment still defaults to driver_training (existing behavior unchanged)', async () => {
+    const studentService = await import('../services/studentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ default_hours_required: 6 }])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])); // findExactGuardianMatch
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])
+      ) // enrollment INSERT - driver_training branch
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])) // link INSERT
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    await studentService.createStudentWithGuardian(
+      TENANT_ID,
+      {
+        student: minorStudentPayload(),
+        guardians: [{ mode: 'new', firstName: 'Jane', lastName: 'Doe', phone: '555-0200', relationship: 'mother' }],
+      },
+      'staff-1'
+    );
+
+    const enrollmentInsertCall = mockClientQuery.mock.calls[2];
+    expect(enrollmentInsertCall[0]).toMatch(/'driver_training'/);
+  });
+
+  it('a top-level (sibling) initialEnrollment is ignored - only the one nested inside student is read', async () => {
+    const studentService = await import('../services/studentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ default_hours_required: 6 }])) // getTenantSettings
+      .mockResolvedValueOnce(queryResult([])); // findExactGuardianMatch
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
+      .mockResolvedValueOnce(queryResult([{ id: 'student-1', tenant_id: TENANT_ID }])) // student INSERT
+      .mockResolvedValueOnce(
+        queryResult([{ id: 'enrollment-1', student_id: 'student-1', tenant_id: TENANT_ID, program_type: 'driver_training' }])
+      ) // enrollment INSERT - falls back to driver_training since student.initialEnrollment is absent
+      .mockResolvedValueOnce(queryResult([{ id: GUARDIAN_ID, tenant_id: TENANT_ID }])) // guardian INSERT
+      .mockResolvedValueOnce(queryResult([{ id: 'link-1' }])) // link INSERT
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
+
+    await studentService.createStudentWithGuardian(
+      TENANT_ID,
+      {
+        student: minorStudentPayload(),
+        guardians: [{ mode: 'new', firstName: 'Jane', lastName: 'Doe', phone: '555-0200', relationship: 'mother' }],
+        // A sibling initialEnrollment (the old, wrong location) must have
+        // no effect - proves the fix reads exclusively from
+        // input.student.initialEnrollment, not input.initialEnrollment.
+        // Deliberately not a real field on CreateStudentWithGuardianInput
+        // any more (that was the bug) - cast as a plain unknown-shaped
+        // record to simulate a caller that still sends it there, rather
+        // than widening to `any`.
+        initialEnrollment: { programType: 'driver_education', deDeliveryMode: 'classroom' },
+      } as unknown as Parameters<typeof studentService.createStudentWithGuardian>[1],
+      'staff-1'
+    );
+
+    const enrollmentInsertCall = mockClientQuery.mock.calls[2];
+    expect(enrollmentInsertCall[0]).toMatch(/'driver_training'/);
+  });
+});
+
 // Constraint A, structural proof: creating a student with N guardians must
 // issue exactly ONE BEGIN and ONE COMMIT - never one pair per guardian - and
 // every write to students/guardians/student_guardians must happen on the

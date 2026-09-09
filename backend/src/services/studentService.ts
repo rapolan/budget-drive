@@ -671,10 +671,18 @@ export type CreateStudentWithGuardianEntry =
   | { mode: 'new'; firstName?: string; lastName?: string; email?: string; phone?: string; relationship?: string; isPrimary?: boolean };
 
 export interface CreateStudentWithGuardianInput {
-  student: Parameters<typeof createStudent>[1];
+  // initialEnrollment lives HERE, nested inside student - matching the
+  // frontend's CreateStudentInput shape exactly (StudentModal.tsx builds
+  // one CreateStudentInput object and sends it as `student` unchanged for
+  // both the plain-create and guardian-staging paths). It is NOT a
+  // sibling field on this outer input - a prior version of this type
+  // declared it as a sibling, which the frontend never actually sent to,
+  // so every guardian-staged Driver Education creation silently fell
+  // through to the driver_training default below (bug: "Sami Corona").
+  student: Parameters<typeof createStudent>[1] & {
+    initialEnrollment?: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online'; totalCost?: number };
+  };
   guardians: CreateStudentWithGuardianEntry[]; // 1..N
-  // Same meaning and default as createStudent's own initialEnrollment param.
-  initialEnrollment?: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online'; totalCost?: number };
 }
 
 /**
@@ -703,7 +711,7 @@ export const createStudentWithGuardian = async (
   userId?: string
 ): Promise<{ student: Student; guardians: Array<{ guardian: Guardian; link: StudentGuardianLink }> }> => {
   const { student: data, guardians } = input;
-  const initialEnrollment = input.initialEnrollment ?? { programType: 'driver_training' as const };
+  const initialEnrollment = data.initialEnrollment ?? { programType: 'driver_training' as const };
 
   logger.info('Creating new student with guardians', {
     tenantId,
