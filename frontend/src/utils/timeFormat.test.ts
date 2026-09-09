@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addCalendarDays, daysBetween, parseLocalDate, formatShortDate } from './timeFormat';
+import { addCalendarDays, daysBetween, parseLocalDate, formatShortDate, getMonthBoundaries } from './timeFormat';
 
 // Regression: lessons.date is a Postgres `date` column. The `pg` driver
 // returns it as a JS Date object, and Express's res.json() then serializes
@@ -58,6 +58,36 @@ describe('addCalendarDays', () => {
 
   it('adds more than a single day', () => {
     expect(addCalendarDays('2026-08-04', 13)).toBe('2026-08-17');
+  });
+});
+
+describe('getMonthBoundaries', () => {
+  it('returns the current month for offset 0', () => {
+    expect(getMonthBoundaries('2026-08-17', 0)).toEqual({ start: '2026-08-01', end: '2026-08-31' });
+  });
+
+  it('returns the previous month for offset -1', () => {
+    expect(getMonthBoundaries('2026-08-17', -1)).toEqual({ start: '2026-07-01', end: '2026-07-31' });
+  });
+
+  it('rolls back over a year boundary', () => {
+    expect(getMonthBoundaries('2026-01-15', -1)).toEqual({ start: '2025-12-01', end: '2025-12-31' });
+  });
+
+  it('returns the same month one year earlier for offset -12', () => {
+    expect(getMonthBoundaries('2026-08-17', -12)).toEqual({ start: '2025-08-01', end: '2025-08-31' });
+  });
+
+  it('handles a short month correctly (February, non-leap year)', () => {
+    expect(getMonthBoundaries('2026-02-10', 0)).toEqual({ start: '2026-02-01', end: '2026-02-28' });
+  });
+
+  it('handles a leap-year February correctly', () => {
+    expect(getMonthBoundaries('2028-02-10', 0)).toEqual({ start: '2028-02-01', end: '2028-02-29' });
+  });
+
+  it('accepts a full ISO datetime string, not just a bare YYYY-MM-DD', () => {
+    expect(getMonthBoundaries('2026-08-17T00:00:00.000Z', -1)).toEqual({ start: '2026-07-01', end: '2026-07-31' });
   });
 });
 

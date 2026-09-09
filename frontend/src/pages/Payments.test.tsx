@@ -223,6 +223,125 @@ describe('Payments page - reference number visible in history (item 5)', () => {
   });
 });
 
+describe('Payments page - sort by payment date', () => {
+  it('offers Payment Date Newest/Oldest options, sorting students by their most recent payment', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        student({ id: 's1', fullName: 'Early Payer', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid' } }),
+        student({ id: 's2', fullName: 'Recent Payer', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid' } }),
+      ],
+    });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        payment({ id: 'p1', studentId: 's1', date: '2026-08-01' as unknown as Date, createdAt: new Date('2026-08-01') }),
+        payment({ id: 'p2', studentId: 's2', date: '2026-08-15' as unknown as Date, createdAt: new Date('2026-08-15') }),
+      ],
+    });
+
+    renderPage();
+    await screen.findByText('Early Payer');
+
+    fireEvent.change(screen.getByLabelText(/sort students by/i), { target: { value: 'date_newest' } });
+    let rows = screen.getAllByRole('row').filter((r) => r.textContent?.includes('Payer'));
+    expect(rows[0].textContent).toContain('Recent Payer');
+
+    fireEvent.change(screen.getByLabelText(/sort students by/i), { target: { value: 'date_oldest' } });
+    rows = screen.getAllByRole('row').filter((r) => r.textContent?.includes('Payer'));
+    expect(rows[0].textContent).toContain('Early Payer');
+  });
+
+  it('sorts a student with no payments to the end regardless of direction', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        student({ id: 's1', fullName: 'No Payments', paymentSummary: { totalPaid: 0, outstandingBalance: 0, paymentStatus: 'unpaid' } }),
+        student({ id: 's2', fullName: 'Has Payment', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid' } }),
+      ],
+    });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', studentId: 's2', date: '2026-08-15' as unknown as Date, createdAt: new Date('2026-08-15') })],
+    });
+
+    renderPage();
+    await screen.findByText('Has Payment');
+
+    fireEvent.change(screen.getByLabelText(/sort students by/i), { target: { value: 'date_newest' } });
+    const rows = screen.getAllByRole('row').filter((r) => r.textContent?.includes('Payments') || r.textContent?.includes('Has Payment'));
+    expect(rows[0].textContent).toContain('Has Payment');
+    expect(rows[1].textContent).toContain('No Payments');
+  });
+});
+
+describe('Payments page - month-over-month trend on Collected This Month', () => {
+  it('shows a trend comparison to last month with an up arrow when collections increased', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        // This month (tenant "today" is 2026-08-17): $300
+        payment({ id: 'p1', amount: 100, date: '2026-08-05' as unknown as Date, status: 'confirmed' }),
+        payment({ id: 'p2', amount: 200, date: '2026-08-12' as unknown as Date, status: 'confirmed' }),
+        // Last month: $100
+        payment({ id: 'p3', amount: 100, date: '2026-07-10' as unknown as Date, status: 'confirmed' }),
+      ],
+    });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+    expect(within(collectedCard).getByText('$300.00')).toBeInTheDocument();
+    expect(within(collectedCard).getByText(/\+\$200\.00 vs last month \(\$100\.00\)/)).toBeInTheDocument();
+  });
+
+  it('shows a down trend when collections decreased vs last month', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        // This month: $50
+        payment({ id: 'p1', amount: 50, date: '2026-08-05' as unknown as Date, status: 'confirmed' }),
+        // Last month: $400
+        payment({ id: 'p2', amount: 400, date: '2026-07-10' as unknown as Date, status: 'confirmed' }),
+      ],
+    });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+    expect(within(collectedCard).getByText(/-\$350\.00 vs last month \(\$400\.00\)/)).toBeInTheDocument();
+  });
+
+  it('resolves "this month"/"last month" from tenant time, not the browser clock (hostile-clock)', async () => {
+    // Browser TZ is set well ahead of the tenant's America/Los_Angeles -
+    // near the tenant's 2026-08-17 "today", a naive new Date()-based
+    // computation in the browser's own zone could disagree with the
+    // tenant-resolved boundary on which side of the month-end a payment
+    // near 2026-07-31/2026-08-01 falls on. This proves the card uses
+    // MOCK_TENANT_NOW.monthBoundaries/today, never the browser's.
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'Pacific/Kiritimati'; // UTC+14 - far ahead of Los Angeles
+    try {
+      (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+      (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [
+          payment({ id: 'p1', amount: 75, date: '2026-08-01' as unknown as Date, status: 'confirmed' }),
+          payment({ id: 'p2', amount: 40, date: '2026-07-31' as unknown as Date, status: 'confirmed' }),
+        ],
+      });
+
+      renderPage();
+      await screen.findByText('Test Student');
+
+      const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+      // 2026-08-01 is in tenant "this month" ($75), 2026-07-31 is "last
+      // month" ($40) - correct regardless of the hostile browser TZ.
+      expect(within(collectedCard).getByText('$75.00')).toBeInTheDocument();
+      expect(within(collectedCard).getByText(/\+\$35\.00 vs last month \(\$40\.00\)/)).toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+});
+
 describe('Payments page - status filter reflects the combined balance (item 6)', () => {
   it('filtering by "unpaid" includes a DE-only student whose combined paymentSummary says unpaid', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({

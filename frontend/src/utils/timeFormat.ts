@@ -127,3 +127,22 @@ export const daysBetween = (startDateStr: string, endDateStr: string): number =>
   const end = parseLocalDate(endDateStr);
   return Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
 };
+
+/**
+ * Start/end (both YYYY-MM-DD, inclusive) of the calendar month that is
+ * `monthOffset` months away from `dateStr` (0 = the month dateStr falls in,
+ * -1 = the previous month, -12 = the same month one year earlier, etc).
+ * Pure calendar-month arithmetic on an already-resolved date string - same
+ * "safe client-side" reasoning as addCalendarDays above. Always call this
+ * with a tenant-resolved string (e.g. tenantNow.today), never a
+ * browser-derived one, so the boundary itself stays tenant-correct.
+ * @param dateStr - Date in YYYY-MM-DD format
+ * @param monthOffset - Number of months to shift (may be negative)
+ * @returns { start, end } as YYYY-MM-DD strings
+ */
+export const getMonthBoundaries = (dateStr: string, monthOffset: number): { start: string; end: string } => {
+  const [year, month] = dateStr.split('T')[0].split('-').map(Number);
+  const start = new Date(year, month - 1 + monthOffset, 1);
+  const end = new Date(year, month + monthOffset, 0);
+  return { start: formatLocalDate(start), end: formatLocalDate(end) };
+};

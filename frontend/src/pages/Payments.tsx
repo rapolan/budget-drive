@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, CreditCard, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History, ArrowUpDown, Users } from 'lucide-react';
+import { DollarSign, CreditCard, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History, ArrowUpDown, Users, TrendingUp } from 'lucide-react';
 import { studentsApi, paymentsApi } from '@/api';
 import { PaymentModal, PaymentHistoryModal } from '@/components/payments';
 import type { Student } from '@/types';
@@ -8,14 +8,19 @@ import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
+import { getMonthBoundaries } from '@/utils/timeFormat';
 
 type ViewMode = 'table' | 'cards';
 const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
 // 'balance' sorts highest-outstanding-balance-first - "who owes the
 // most," a genuinely new question this page couldn't answer before.
+// 'date_newest'/'date_oldest' sort by payment CREATION date rather than
+// anything about the student row - only meaningful once payments (not
+// just students) are what's being ordered, but reuses the same
+// sort-dropdown control instead of adding a second one.
 // Matches Students.tsx's plain (non-persisted) useState<SortOption> -
 // sort choice resets on reload, same as there.
-type SortOption = 'name' | 'balance';
+type SortOption = 'name' | 'balance' | 'date_newest' | 'date_oldest';
 
 export const PaymentsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
@@ -141,6 +146,24 @@ export const PaymentsPage: React.FC = () => {
     };
   };
 
+  // Most recent payment CREATED date for a student (not lesson/enrollment
+  // date) - same "derive one comparable date per student from a related
+  // records array" shape as Students.tsx's getLastLessonDate/'last_lesson'
+  // sort. Students with no payments have no createdAt to compare, so they
+  // sort to the end regardless of direction, same as Students.tsx does for
+  // no-lessons students.
+  const getLastPaymentCreatedAt = (studentId: string): Date | null => {
+    const studentPayments = payments.filter((p) => p.studentId === studentId);
+    if (studentPayments.length === 0) return null;
+    return studentPayments.reduce(
+      (latest, p) => {
+        const created = new Date(p.createdAt);
+        return !latest || created > latest ? created : latest;
+      },
+      null as Date | null
+    );
+  };
+
   // Filter, then sort, students
   const filteredStudents = students
     .filter((student) => {
@@ -158,6 +181,16 @@ export const PaymentsPage: React.FC = () => {
     .sort((a, b) => {
       if (sortBy === 'balance') {
         return getPaymentInfo(b).balance - getPaymentInfo(a).balance;
+      }
+      if (sortBy === 'date_newest' || sortBy === 'date_oldest') {
+        const aDate = getLastPaymentCreatedAt(a.id);
+        const bDate = getLastPaymentCreatedAt(b.id);
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return sortBy === 'date_newest'
+          ? bDate.getTime() - aDate.getTime()
+          : aDate.getTime() - bDate.getTime();
       }
       return a.fullName.localeCompare(b.fullName);
     });
@@ -184,14 +217,28 @@ export const PaymentsPage: React.FC = () => {
   // client-clock derived - same tenantNow.monthBoundaries pattern
   // Dashboard.tsx's own monthlyRevenue card already uses). Distinct from
   // totals.totalPaid above, which is a lifetime figure.
+  const sumConfirmedInRange = (start: string, end: string) =>
+    payments
+      .filter((p) => {
+        const paymentDateStr = String(p.date).split('T')[0];
+        return paymentDateStr >= start && paymentDateStr <= end && p.status === 'confirmed';
+      })
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
   const totalCollectedThisMonth = tenantNow
-    ? payments
-        .filter((p) => {
-          const paymentDateStr = String(p.date).split('T')[0];
-          return paymentDateStr >= tenantNow.monthBoundaries.start && p.status === 'confirmed';
-        })
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    ? sumConfirmedInRange(tenantNow.monthBoundaries.start, tenantNow.monthBoundaries.end)
     : 0;
+
+  // Last month's collected total, for the trend comparison below - last
+  // month's boundaries are derived from tenantNow.today via pure
+  // calendar-month arithmetic (getMonthBoundaries), never the browser's
+  // own clock. Matches Students.tsx's stats.newLastMonth in spirit (a
+  // month-over-month comparison), but tenant-time-correct from the start.
+  const lastMonthBoundaries = tenantNow ? getMonthBoundaries(tenantNow.today, -1) : null;
+  const totalCollectedLastMonth = lastMonthBoundaries
+    ? sumConfirmedInRange(lastMonthBoundaries.start, lastMonthBoundaries.end)
+    : 0;
+  const collectedDiffVsLastMonth = totalCollectedThisMonth - totalCollectedLastMonth;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -291,6 +338,15 @@ export const PaymentsPage: React.FC = () => {
           <div className="mt-3">
             <p className="text-2xl font-bold text-status-success-text">${totalCollectedThisMonth.toFixed(2)}</p>
             <p className="text-sm text-tx-muted">Collected This Month</p>
+            {/* Month-over-month trend - same icon/styling treatment as
+                Students.tsx's "New This Month" comparison (TrendingUp,
+                rotated 180deg when negative, success/danger token pair). */}
+            <p className={`flex items-center text-xs font-medium mt-1 ${
+              collectedDiffVsLastMonth >= 0 ? 'text-status-success-text' : 'text-status-danger-text'
+            }`}>
+              <TrendingUp className={`h-3 w-3 mr-1 ${collectedDiffVsLastMonth < 0 ? 'rotate-180' : ''}`} />
+              {collectedDiffVsLastMonth >= 0 ? '+' : '-'}${Math.abs(collectedDiffVsLastMonth).toFixed(2)} vs last month (${totalCollectedLastMonth.toFixed(2)})
+            </p>
           </div>
         </div>
 
@@ -337,6 +393,8 @@ export const PaymentsPage: React.FC = () => {
             >
               <option value="name">Name A-Z</option>
               <option value="balance">Highest Balance First</option>
+              <option value="date_newest">Payment Date (Newest First)</option>
+              <option value="date_oldest">Payment Date (Oldest First)</option>
             </select>
           </div>
 
