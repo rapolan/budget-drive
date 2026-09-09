@@ -284,6 +284,12 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** Exactly **one** `POST /api/v1/students/with-guardian` request fires (check the Network tab) — not two separate requests, and no follow-up `POST /students/:id/guardians` call. Its request body has a `guardians` array with two entries. The student is created with both guardians linked, and whichever one you set primary in the sub-panel before submitting is the one marked primary after creation.
 
+### 2.3k Creating a minor in Driver Education with a staged guardian (program choice must survive)
+
+**Do:** Click **Add Student**. Switch the program toggle to **Driver Education**, pick Classroom or Online. Fill in a minor's date of birth so the guardian sub-panel appears, and stage a guardian (2.3d) before submitting. Submit. Open the newly-created student's Enrollments tab.
+
+**Pass looks like:** The student has a `driver_education` enrollment (not `driver_training`), with the delivery mode you picked and a course fee matching the tenant's default. If you picked Classroom and selected a class during creation, the student is already on that class's roster — adding them to a cohort must not fail with "student couldn't be added" or similar. The create-success block shows "Go to Classroom" (no cohort picked) or a plain "Close" with no further action needed (a cohort was picked) — never "Book Lesson."
+
 ### 2.4 Book a lesson (happy path)
 
 **Do:** Go to `/scheduling` (or open the booking form from a student/instructor). Pick a student with no conflicting lesson (e.g. Naomi Frasier, who is `completed` status but still bookable), pick an instructor with open availability, pick a future date/time that doesn't overlap an existing lesson for that instructor, submit.

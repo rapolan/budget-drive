@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
@@ -107,6 +108,7 @@ interface StudentModalProps {
 
 export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, initialEnrollmentPreset, prefillFromGuardian, onViewGuardian, initialTab }) => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { settings } = useTenant();
   const isEditing = Boolean(student);
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
@@ -2521,7 +2523,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       <div>
                         <p className="text-status-success-text font-medium">Student Added!</p>
                         <p className="text-status-success-text text-sm">
-                          {createdStudent.fullName} is ready for their first lesson
+                          {initialProgramType === 'driver_education'
+                            ? initialCohortId
+                              ? `${createdStudent.fullName} is enrolled in Driver Education and assigned to their class`
+                              : `${createdStudent.fullName} is enrolled in Driver Education - assign them to a class when ready`
+                            : `${createdStudent.fullName} is ready for their first lesson`}
                         </p>
                       </div>
                     </div>
@@ -2596,7 +2602,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                     >
                       Close
                     </button>
-                    {onBookLesson && (
+                    {/* Program-aware: a Driver Education student doesn't
+                        book lessons, so "Book Lesson" only ever applies
+                        to a Behind-the-Wheel creation. DE with no cohort
+                        picked at creation still needs a class assigned -
+                        "Go to Classroom" sends the admin there directly.
+                        DE WITH a cohort already picked is fully done in
+                        one step (creation + enrollment + join all
+                        already happened) - no further action needed
+                        beyond Close. */}
+                    {initialProgramType === 'driver_training' && onBookLesson && (
                       <button
                         type="button"
                         onClick={() => {
@@ -2607,6 +2622,19 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                       >
                         <Plus className="h-4 w-4" />
                         Book Lesson
+                      </button>
+                    )}
+                    {initialProgramType === 'driver_education' && !initialCohortId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate('/classroom');
+                          onClose();
+                        }}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
+                      >
+                        <GraduationCap className="h-4 w-4" />
+                        Go to Classroom
                       </button>
                     )}
                   </div>

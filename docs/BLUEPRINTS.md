@@ -161,6 +161,20 @@ The Payments page had fallen behind the rest of the app - no click-to-open, no w
 
 See `docs/ARCHITECTURE.md` §19 for the exact patterns reused and how each piece was live-verified.
 
+### Three Bugs From One Real Walkthrough
+
+Actually creating a Driver Education student - a minor, with a guardian, the way it happens in real life - surfaced three problems in a row that a narrower test never would have caught.
+
+**A Driver Education choice was quietly getting lost for minors.** Creating a minor always goes through the same step as adding their guardian, in one action - and on that specific path, the Driver Education choice never actually made it through. The student got created fine, the guardian got linked fine, but the enrollment came out as Behind-the-Wheel regardless of what was actually picked. Adults, who don't need this guardian step, were never affected - which is exactly why this went unnoticed until someone walked through the minor case for real.
+
+**Adding that same student to a class then failed** - and it turned out to be the very same problem showing up a second time, not a new one. Once she was actually enrolled in the right program (Driver Education, not Behind-the-Wheel), adding her to a class worked immediately - the class-adding logic itself had nothing wrong with it, it was correctly rejecting a Behind-the-Wheel student the whole time.
+
+**The confirmation after creating a student never actually looked at which program was chosen.** Every new student - Behind-the-Wheel or Driver Education alike - was offered "Book Lesson," even though a Driver Education student doesn't book lessons at all. That's fixed now: a Behind-the-Wheel student still sees "Book Lesson" exactly as before; a Driver Education student with no class picked yet sees "Go to Classroom," which takes them straight there; and a Driver Education student who was already assigned a class during creation sees a clean confirmation with nothing further to do - they're genuinely finished in one step.
+
+**The one real student created by mistake during this walkthrough was corrected, not deleted or left wrong.** Her incorrect enrollment was formally ended with a note explaining exactly what happened, and the right one was added in its place - the same way any admin would fix a mis-enrolled student, leaving an honest trail behind rather than quietly rewriting history.
+
+See `docs/ARCHITECTURE.md` §20 for the exact root causes and how each was live-verified before and after.
+
 ### Guardians as First-Class Records
 Students can be linked to one or more guardian records (parents/legal guardians), replacing flat emergency-contact strings with structured, searchable, many-to-many data. See `docs/ARCHITECTURE.md` for the schema. Key principles:
 - **Guardian matching and linking logic lives entirely in the backend service layer** — never in a UI component — so the same logic can be reused by a future public signup form without risking duplicate guardian records.

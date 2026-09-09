@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { StudentModal } from './StudentModal';
 import { studentsApi, guardiansApi, lessonsApi, enrollmentsApi, feeFlagsApi, classroomApi } from '@/api';
 import type { Student, GuardianCandidate, Lesson, Enrollment } from '@/types';
@@ -94,9 +95,11 @@ function renderModal(
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <StudentModal student={student} onClose={() => {}} {...extraProps} />
-    </QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <StudentModal student={student} onClose={() => {}} {...extraProps} />
+      </QueryClientProvider>
+    </MemoryRouter>
   );
 }
 
@@ -231,6 +234,127 @@ describe('StudentModal - create success offers an optional "Book Lesson" action'
 
     expect(screen.queryByRole('button', { name: /book lesson/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
+  });
+});
+
+// Regression coverage: the create-success block previously showed "Book
+// Lesson" unconditionally ({onBookLesson && (...)}, no program check at
+// all) - wrong for a Driver Education creation, which never books a
+// lesson. Branches on initialProgramType/initialCohortId (the same state
+// StudentModal already tracks for the creation-time program toggle):
+// driver_training -> "Book Lesson" (unchanged); driver_education with no
+// cohort picked -> "Go to Classroom" (navigates to /classroom); driver_
+// education WITH a cohort already picked at creation -> no lesson/
+// classroom button at all, since creation + enrollment + join already
+// completed in one step.
+describe('StudentModal - program-aware create-success block', () => {
+  const createdAdult = {
+    id: 'student-new-3',
+    tenantId: 'tenant-1',
+    fullName: 'Adult Student',
+    firstName: 'Adult',
+    lastName: 'Student',
+    email: 'adult.student@example.com',
+    phone: '5550100',
+    status: 'active',
+    enrollmentDate: new Date('2026-01-01'),
+    totalHoursCompleted: 0,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  } as Student;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({ data: createdAdult });
+    (classroomApi.getCohorts as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          id: 'cohort-1',
+          tenantId: 'tenant-1',
+          name: 'Fall Weekend Class',
+          teacherInstructorId: 'instructor-1',
+          capacity: 20,
+          status: 'scheduled',
+          createdBy: null,
+          createdAt: '2026-01-01',
+          updatedAt: '2026-01-01',
+          enrolledCount: 5,
+          sessions: [
+            { id: 's1', tenantId: 'tenant-1', cohortId: 'cohort-1', curriculumDay: 1, sessionDate: '2026-10-03', startTime: '08:00', endTime: '14:00' },
+          ],
+        },
+      ],
+    });
+    (classroomApi.joinCohort as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+    (enrollmentsApi.getForStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [{ id: 'de-enrollment-1', programType: 'driver_education' } as Enrollment],
+    });
+  });
+
+  function fillBasicFields() {
+    fireEvent.change(document.getElementsByName('student_firstname_input')[0], { target: { value: 'Adult' } });
+    fireEvent.change(document.getElementsByName('student_lastname_input')[0], { target: { value: 'Student' } });
+    fireEvent.change(document.getElementsByName('student_email_input')[0], {
+      target: { value: 'adult.student@example.com' },
+    });
+    fireEvent.change(document.getElementsByName('student_phone_input')[0], { target: { value: '5550100' } });
+    fireEvent.change(screen.getByTitle('Date of Birth'), { target: { value: '1990-01-01' } });
+  }
+
+  it('driver_training creation shows "Book Lesson", not "Go to Classroom"', async () => {
+    renderModal(null, { onBookLesson: vi.fn() });
+
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+    expect(screen.getByText(/adult student is ready for their first lesson/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /book lesson/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /go to classroom/i })).not.toBeInTheDocument();
+  });
+
+  it('driver_education creation with NO cohort selected shows "Go to Classroom", not "Book Lesson"', async () => {
+    renderModal(null, { onBookLesson: vi.fn() });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'online' })); // avoid the cohort picker entirely
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+    expect(screen.getByText(/adult student is enrolled in driver education - assign them to a class when ready/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /go to classroom/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /book lesson/i })).not.toBeInTheDocument();
+  });
+
+  it('driver_education creation WITH a cohort already selected shows neither button - a clean done state', async () => {
+    renderModal(null, { onBookLesson: vi.fn() });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    fireEvent.click(await screen.findByText('Fall Weekend Class'));
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+    expect(screen.getByText(/adult student is enrolled in driver education and assigned to their class/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /book lesson/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /go to classroom/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^close$/i })).toBeInTheDocument();
+  });
+
+  it('"Go to Classroom" navigates to /classroom and closes the modal', async () => {
+    const onClose = vi.fn();
+    renderModal(null, { onClose });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'online' }));
+    fillBasicFields();
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(screen.getByText(/student added!/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /go to classroom/i }));
+
+    expect(onClose).toHaveBeenCalled();
   });
 });
 

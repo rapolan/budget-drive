@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { CohortRoster } from './CohortRoster';
 import { classroomApi } from '@/api';
 import type { DeCohort, CohortRoster as CohortRosterData } from '@/api/classroom';
@@ -89,9 +90,11 @@ function renderRoster(cohortOverrides: Partial<DeCohort> = {}) {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={queryClient}>
-      <CohortRoster cohort={cohort(cohortOverrides)} onCohortUpdated={() => {}} />
-    </QueryClientProvider>
+    <MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <CohortRoster cohort={cohort(cohortOverrides)} onCohortUpdated={() => {}} />
+      </QueryClientProvider>
+    </MemoryRouter>
   );
 }
 
