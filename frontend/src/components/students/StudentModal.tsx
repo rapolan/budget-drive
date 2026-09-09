@@ -295,6 +295,22 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
     initialEnrollmentPreset ? 'classroom' : null
   );
   const [initialCohortId, setInitialCohortId] = useState<string>(initialEnrollmentPreset?.cohortId ?? '');
+  // DE's one flat course fee, prefilled from the tenant's classroom/online
+  // default the moment a delivery mode is picked - same "prefill, admin
+  // can override, never re-prefill after a manual edit" relationship
+  // defaultLessonCost has to a lesson's cost (SmartBookingForm's
+  // costTouched pattern).
+  const [initialDeCost, setInitialDeCost] = useState<string>('');
+  const [initialDeCostTouched, setInitialDeCostTouched] = useState(false);
+
+  useEffect(() => {
+    if (initialProgramType !== 'driver_education' || !initialDeliveryMode || initialDeCostTouched) return;
+    const defaultCost = initialDeliveryMode === 'classroom'
+      ? settings?.defaultDeClassroomCost ?? 150
+      : settings?.defaultDeOnlineCost ?? 150;
+    setInitialDeCost(String(defaultCost));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProgramType, initialDeliveryMode, settings?.defaultDeClassroomCost, settings?.defaultDeOnlineCost]);
 
   const { data: joinableCohortsForCreateData } = useQuery({
     queryKey: ['classroom', 'cohorts'],
@@ -753,6 +769,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       manualCompletedHours?: number;
       deDeliveryMode?: 'classroom' | 'online';
       joinCohortId?: string;
+      totalCost?: number;
     }) => {
       const { joinCohortId, ...enrollmentData } = data;
       const response = await enrollmentsApi.create(student!.id, enrollmentData);
@@ -1135,7 +1152,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
       initialEnrollment: isEditing
         ? undefined
         : initialProgramType === 'driver_education'
-        ? { programType: 'driver_education', deDeliveryMode: initialDeliveryMode ?? 'classroom' }
+        ? {
+            programType: 'driver_education',
+            deDeliveryMode: initialDeliveryMode ?? 'classroom',
+            totalCost: initialDeCost !== '' ? parseFloat(initialDeCost) : undefined,
+          }
         : { programType: 'driver_training' },
     };
 
@@ -1546,6 +1567,32 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                           ))}
                         </div>
                       </div>
+
+                      {initialDeliveryMode && (
+                        <div>
+                          <label htmlFor="initial-de-cost" className="block text-xs font-medium text-tx-secondary mb-1">
+                            Course fee
+                          </label>
+                          <div className="relative">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                              <DollarSign className="h-4 w-4 text-tx-muted" />
+                            </div>
+                            <input
+                              id="initial-de-cost"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={initialDeCost}
+                              onChange={(e) => {
+                                setInitialDeCostTouched(true);
+                                setInitialDeCost(e.target.value);
+                              }}
+                              className="w-full pl-8 pr-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                              placeholder="150.00"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {initialDeliveryMode === 'classroom' && (
                         <div>

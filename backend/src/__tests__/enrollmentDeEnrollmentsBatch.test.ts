@@ -55,6 +55,7 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
           completed_at: null,
           de_delivery_mode: 'classroom',
           manual_completed_hours: null,
+          total_cost: '150.00',
           cohort_name: 'Fall Weekend Class',
           certificate_id: null,
         }])
@@ -75,6 +76,7 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
       completedAt: null,
       deDeliveryMode: 'classroom',
       manualCompletedHours: null,
+      totalCost: 150,
       classroomAttendance: { attendedCurriculumDays: [1, 2], isComplete: false },
       cohortName: 'Fall Weekend Class',
       certificateExists: false,
@@ -93,6 +95,7 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
         completed_at: null,
         de_delivery_mode: 'online',
         manual_completed_hours: '18',
+        total_cost: '150.00',
         cohort_name: null,
         certificate_id: null,
       }])
@@ -107,6 +110,7 @@ describe('enrollmentService.getDeEnrollmentsBatch', () => {
       completedAt: null,
       deDeliveryMode: 'online',
       manualCompletedHours: 18,
+      totalCost: 150,
       classroomAttendance: undefined,
       cohortName: null,
       certificateExists: false,

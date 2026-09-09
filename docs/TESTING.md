@@ -304,6 +304,12 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 **Pass looks like:** `POST /api/v1/payments` returns `201` exactly once even after a rapid double-click. The payment appears in the payments list and in that student's payment history, with the correct amount/method/reference number/status. The student's `outstandingBalance`/`totalPaid` reflects the change. BSV/MNEE chips are disabled when `enableBlockchainPayments` is off and selectable when it's on, in both light and dark themes.
 
+### 2.6a Driver Education course fee
+
+**Do:** In Settings' Training Defaults, confirm "Default Classroom Driver Education Cost" and "Default Online Driver Education Cost" are present and editable. Create a new student, choose Driver Education, pick Classroom - confirm the "Course fee" field pre-fills to the classroom default and is editable; switch to Online and confirm it re-prefills to the online default (unless already edited). Create the student with the default fee, then go to `/payments` and confirm their outstanding balance matches the DE fee and Add Payment pre-fills the same amount. Record a payment for the full fee and confirm the balance drops to $0 and status becomes "Paid." For a student with both a Behind-the-Wheel balance and a Driver Education balance, confirm the Payments page shows one combined total, not just the BTW figure.
+
+**Pass looks like:** The DE enrollment's `totalCost` matches the tenant default (or the edited value) and is a genuine, non-negative number. `GET /api/v1/students` returns `paymentSummary.outstandingBalance` equal to the DE fee for a DE-only student. `POST /api/v1/payments` succeeds against a DE-only student (previously always 400'd) and the resulting `enrollment_id` is the DE enrollment. A student with both programs shows `totalPaid`/`outstandingBalance` as the sum of both. Booking a Behind-the-Wheel lesson for a student with a completed internal DE enrollment still applies the existing per-lesson discount, unaffected by any of this.
+
 ### 2.7 Treasury status (ledger seam)
 
 **Do:** With a valid admin token, call:

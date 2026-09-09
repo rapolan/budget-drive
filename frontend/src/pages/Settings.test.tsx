@@ -23,6 +23,8 @@ const MOCK_SETTINGS = {
   standardLessonLengthMinutes: 120,
   defaultLessonCost: 150,
   maxLessonsPerStudentPerDay: 1,
+  defaultDeClassroomCost: 150,
+  defaultDeOnlineCost: 150,
   timezone: 'America/New_York',
 };
 const MOCK_TENANT = { name: 'Test Driving School' };
@@ -148,6 +150,57 @@ describe('Settings - General tab default lesson cost', () => {
     expect(putCall).toBeDefined();
     const body = JSON.parse(putCall![1].body as string);
     expect(body.defaultLessonCost).toBe(175);
+  });
+});
+
+// DE pricing: one flat course fee at enrollment, with separate
+// classroom/online defaults - mirrors defaultLessonCost's exact
+// prefill-then-editable pattern, just for the DE program instead of BTW.
+describe('Settings - General tab DE course fee defaults', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
+    mockRefreshSettings.mockResolvedValue(undefined);
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: {} }),
+    }) as unknown as typeof fetch;
+  });
+
+  it('renders both DE cost fields defaulted to the tenant\'s current values', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const classroomInput = await screen.findByLabelText(/default classroom driver education cost/i);
+    const onlineInput = await screen.findByLabelText(/default online driver education cost/i);
+    expect((classroomInput as HTMLInputElement).value).toBe('150');
+    expect((onlineInput as HTMLInputElement).value).toBe('150');
+  });
+
+  it('submits newly-entered classroom and online DE costs independently through the existing save path', async () => {
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: /general/i }));
+
+    const classroomInput = await screen.findByLabelText(/default classroom driver education cost/i);
+    const onlineInput = await screen.findByLabelText(/default online driver education cost/i);
+    fireEvent.change(classroomInput, { target: { value: '175' } });
+    fireEvent.change(onlineInput, { target: { value: '125' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/tenant/settings'),
+        expect.objectContaining({ method: 'PUT' })
+      );
+    });
+
+    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([, options]) => options?.method === 'PUT'
+    );
+    const body = JSON.parse(putCall![1].body as string);
+    expect(body.defaultDeClassroomCost).toBe(175);
+    expect(body.defaultDeOnlineCost).toBe(125);
   });
 });
 

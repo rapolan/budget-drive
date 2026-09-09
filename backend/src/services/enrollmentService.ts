@@ -349,6 +349,10 @@ interface DeEnrollmentBatchRow {
   classroomAttendance?: { attendedCurriculumDays: number[]; isComplete: boolean };
   cohortName: string | null;
   certificateExists: boolean;
+  // One flat course fee (see createEnrollment/createStudent's DE-cost
+  // defaulting) - null only for a pre-DE-pricing enrollment that predates
+  // this column being populated.
+  totalCost: number | null;
 }
 
 export const getDeEnrollmentsBatch = async (
@@ -364,7 +368,7 @@ export const getDeEnrollmentsBatch = async (
   // DE "Awaiting Cert" card can never disagree with the worklist itself.
   const result = await query(
     `SELECT e.id, e.student_id, e.status, e.completed, e.completed_at, e.de_delivery_mode,
-            e.manual_completed_hours, c.name AS cohort_name, cert.id AS certificate_id
+            e.manual_completed_hours, e.total_cost, c.name AS cohort_name, cert.id AS certificate_id
      FROM enrollments e
      LEFT JOIN de_cohort_enrollments dce ON dce.enrollment_id = e.id AND dce.tenant_id = e.tenant_id
      LEFT JOIN de_cohorts c ON c.id = dce.cohort_id
@@ -386,6 +390,7 @@ export const getDeEnrollmentsBatch = async (
     completed_at: Date | null;
     de_delivery_mode: 'classroom' | 'online' | null;
     manual_completed_hours: string | null;
+    total_cost: string | null;
     cohort_name: string | null;
     certificate_id: string | null;
   }[]) {
@@ -396,6 +401,7 @@ export const getDeEnrollmentsBatch = async (
       completedAt: row.completed_at,
       deDeliveryMode: row.de_delivery_mode,
       manualCompletedHours: row.manual_completed_hours !== null ? parseFloat(row.manual_completed_hours) : null,
+      totalCost: row.total_cost !== undefined && row.total_cost !== null ? parseFloat(row.total_cost) : null,
       classroomAttendance: attendanceByEnrollment.get(row.id),
       cohortName: row.cohort_name,
       certificateExists: row.certificate_id !== null,
@@ -774,6 +780,10 @@ export const createEnrollment = async (
     }
   }
 
+  if (data.totalCost !== undefined && data.totalCost !== null && data.totalCost < 0) {
+    throw new AppError('totalCost must be a non-negative number', 400);
+  }
+
   const tenantSettings = await getTenantSettings(tenantId);
   // California classroom DE is a 30-hour course, distinct from BTW's
   // 6-hour default - driver_education never falls back to
@@ -786,6 +796,21 @@ export const createEnrollment = async (
       : tenantSettings?.defaultHoursRequired ?? 6
   );
   const licenseType = data.licenseType ?? 'car';
+  // Driver Education is billed as one flat course fee at enrollment (not
+  // per-lesson like BTW) - classroom and online default to their own
+  // tenant-configurable price, admin-overridable via data.totalCost, the
+  // same "prefill only, never enforced as-is" relationship BTW's
+  // defaultLessonCost has to lessons.cost. BTW enrollments are unaffected
+  // (totalCost stays null unless explicitly set, exactly as before) -
+  // BTW's own cost accumulates from summed lesson.cost instead
+  // (computePaymentSummary).
+  const totalCost = data.totalCost ?? (
+    data.programType === 'driver_education'
+      ? data.deDeliveryMode === 'classroom'
+        ? tenantSettings?.defaultDeClassroomCost ?? 150
+        : tenantSettings?.defaultDeOnlineCost ?? 150
+      : null
+  );
 
   const result = await query(
     `INSERT INTO enrollments (
@@ -800,7 +825,7 @@ export const createEnrollment = async (
       hoursRequired,
       licenseType,
       data.assignedInstructorId || null,
-      data.totalCost ?? null,
+      totalCost,
       data.manualCompletedHours ?? null,
       data.deDeliveryMode ?? null,
       userId || null,
@@ -1009,6 +1034,9 @@ export const updateEnrollment = async (
     values.push(data.assignedInstructorId);
   }
   if (data.totalCost !== undefined) {
+    if (data.totalCost !== null && data.totalCost < 0) {
+      throw new AppError('totalCost must be a non-negative number', 400);
+    }
     fields.push(`total_cost = $${paramCount++}`);
     values.push(data.totalCost);
   }

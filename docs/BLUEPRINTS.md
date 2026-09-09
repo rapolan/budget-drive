@@ -133,6 +133,20 @@ This is manual bookkeeping, not a payment processor - an admin is recording what
 
 See `docs/ARCHITECTURE.md` §17 for the schema fixes, the exact method-to-database mapping, and how each piece was live-verified.
 
+### Pricing Driver Education
+
+Driver Education had no price tag at all until now - a DE student could be enrolled, attend, and complete the whole program with no cost ever recorded, and no way to record a payment against them even if there had been one. Behind-the-Wheel has always billed by the lesson; Driver Education bills differently - one flat course fee, charged once at enrollment, not per class day.
+
+**A course fee shows up the moment Driver Education is chosen**, defaulting to the school's own price for whichever delivery mode is picked - classroom and online each have their own configurable default, editable in Settings alongside the school's other pricing defaults. The fee is right there to review or change before the student is even created, the same "already filled in, still yours to adjust" feel Behind-the-Wheel's own lesson cost has always had.
+
+**That fee becomes a real, payable balance immediately.** A newly-enrolled classroom student with the default $150 fee and nothing paid shows a $150 balance the moment they're created - on their own record, and now on the Payments page too. Recording a payment against them pre-fills that same $150, same as it would for a Behind-the-Wheel student's lesson balance, and paying it off brings their balance to zero exactly the way it should.
+
+**A person who owes on both programs at once now shows one combined number**, not just whichever program happened to be tracked before. Behind-the-Wheel debt and Driver Education debt add together into a single balance and a single status, so nothing about what a student actually owes goes missing just because they're partway through both programs.
+
+**The existing Driver-Education-graduate discount on Behind-the-Wheel lessons is untouched** - it still only ever knocks a few dollars off a lesson's cost for someone who finished this school's own Driver Education, and it still never touches the Driver Education fee itself. Nothing about how that discount works changed here.
+
+See `docs/ARCHITECTURE.md` §18 for the schema, the exact defaulting and validation rules, and how each piece was live-verified end to end.
+
 ### Guardians as First-Class Records
 Students can be linked to one or more guardian records (parents/legal guardians), replacing flat emergency-contact strings with structured, searchable, many-to-many data. See `docs/ARCHITECTURE.md` for the schema. Key principles:
 - **Guardian matching and linking logic lives entirely in the backend service layer** — never in a UI component — so the same logic can be reused by a future public signup form without risking duplicate guardian records.

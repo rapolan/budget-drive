@@ -1,7 +1,8 @@
 import React from 'react';
-import { Plus, CheckCircle, RotateCcw, LogOut, Award, Clock, FileText, Users } from 'lucide-react';
+import { Plus, CheckCircle, RotateCcw, LogOut, Award, Clock, FileText, Users, DollarSign } from 'lucide-react';
 import type { Enrollment, ProgramType, Certificate } from '@/types';
 import type { DeCohort } from '@/api/classroom';
+import { useTenant } from '@/contexts/TenantContext';
 
 const PROGRAM_LABELS: Record<ProgramType, string> = {
   driver_education: 'Driver Education',
@@ -30,6 +31,7 @@ interface EnrollmentSubPanelProps {
     manualCompletedHours?: number;
     deDeliveryMode?: 'classroom' | 'online';
     joinCohortId?: string;
+    totalCost?: number;
   }) => void;
   isAddPending: boolean;
   // Upcoming (non-cancelled) cohorts with remaining capacity, for the
@@ -113,10 +115,17 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
   isEnrollInBtwPending,
   currentPermit,
 }) => {
+  const { settings } = useTenant();
   const [draftHoursRequired, setDraftHoursRequired] = React.useState('');
   const [draftManualHours, setDraftManualHours] = React.useState('');
   const [draftDeliveryMode, setDraftDeliveryMode] = React.useState<'classroom' | 'online' | null>(null);
   const [draftCohortId, setDraftCohortId] = React.useState('');
+  // DE's one flat course fee - prefilled from the tenant's classroom/
+  // online default the moment a delivery mode is picked, same
+  // prefill-then-never-reprefill-after-edit relationship StudentModal's
+  // creation-time DE cost field and BTW's defaultLessonCost both use.
+  const [draftDeCost, setDraftDeCost] = React.useState('');
+  const [draftDeCostTouched, setDraftDeCostTouched] = React.useState(false);
 
   React.useEffect(() => {
     if (isAddingProgramType === null) {
@@ -124,8 +133,19 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
       setDraftManualHours('');
       setDraftDeliveryMode(null);
       setDraftCohortId('');
+      setDraftDeCost('');
+      setDraftDeCostTouched(false);
     }
   }, [isAddingProgramType]);
+
+  React.useEffect(() => {
+    if (isAddingProgramType !== 'driver_education' || !draftDeliveryMode || draftDeCostTouched) return;
+    const defaultCost = draftDeliveryMode === 'classroom'
+      ? settings?.defaultDeClassroomCost ?? 150
+      : settings?.defaultDeOnlineCost ?? 150;
+    setDraftDeCost(String(defaultCost));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAddingProgramType, draftDeliveryMode, settings?.defaultDeClassroomCost, settings?.defaultDeOnlineCost]);
 
   const isDeEligible = hasCompletedInternalDe || !!mostRecentExternalDeCompleted;
   const [btwPermitNumber, setBtwPermitNumber] = React.useState('');
@@ -360,6 +380,32 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
                 </div>
               </div>
 
+              {draftDeliveryMode && (
+                <div>
+                  <label htmlFor="new-enrollment-de-cost" className="block text-xs font-medium text-tx-secondary mb-1">
+                    Course fee
+                  </label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <DollarSign className="h-4 w-4 text-tx-muted" />
+                    </div>
+                    <input
+                      id="new-enrollment-de-cost"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={draftDeCost}
+                      onChange={(e) => {
+                        setDraftDeCostTouched(true);
+                        setDraftDeCost(e.target.value);
+                      }}
+                      className="w-full pl-8 pr-3 py-2 border border-edge-strong rounded-lg text-sm bg-surface"
+                      placeholder="150.00"
+                    />
+                  </div>
+                </div>
+              )}
+
               {draftDeliveryMode === 'classroom' && (
                 <div>
                   <label htmlFor="new-enrollment-cohort" className="block text-xs font-medium text-tx-secondary mb-1">
@@ -437,8 +483,16 @@ export const EnrollmentSubPanel: React.FC<EnrollmentSubPanelProps> = ({
                   isAddingProgramType === 'driver_training'
                     ? { hoursRequired: draftHoursRequired ? Number(draftHoursRequired) : undefined }
                     : draftDeliveryMode === 'classroom'
-                    ? { deDeliveryMode: 'classroom', joinCohortId: draftCohortId || undefined }
-                    : { deDeliveryMode: 'online', manualCompletedHours: draftManualHours ? Number(draftManualHours) : undefined }
+                    ? {
+                        deDeliveryMode: 'classroom',
+                        joinCohortId: draftCohortId || undefined,
+                        totalCost: draftDeCost !== '' ? Number(draftDeCost) : undefined,
+                      }
+                    : {
+                        deDeliveryMode: 'online',
+                        manualCompletedHours: draftManualHours ? Number(draftManualHours) : undefined,
+                        totalCost: draftDeCost !== '' ? Number(draftDeCost) : undefined,
+                      }
                 )
               }
               disabled={

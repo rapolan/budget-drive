@@ -143,6 +143,8 @@ const GeneralSettings: React.FC = () => {
     enableDriverEducation: settings?.enableDriverEducation === true,
     deDiscountAmount:    settings?.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
     defaultDeHoursRequired: settings?.defaultDeHoursRequired != null ? Number(settings.defaultDeHoursRequired) : 30,
+    defaultDeClassroomCost: settings?.defaultDeClassroomCost != null ? Number(settings.defaultDeClassroomCost) : 150,
+    defaultDeOnlineCost: settings?.defaultDeOnlineCost != null ? Number(settings.defaultDeOnlineCost) : 150,
     archiveInactivityGraceDays: settings?.archiveInactivityGraceDays != null ? Number(settings.archiveInactivityGraceDays) : 90,
   });
 
@@ -172,6 +174,8 @@ const GeneralSettings: React.FC = () => {
       enableDriverEducation: settings.enableDriverEducation === true,
       deDiscountAmount:    settings.deDiscountAmount != null ? Number(settings.deDiscountAmount) : 5,
       defaultDeHoursRequired: settings.defaultDeHoursRequired != null ? Number(settings.defaultDeHoursRequired) : 30,
+      defaultDeClassroomCost: settings.defaultDeClassroomCost != null ? Number(settings.defaultDeClassroomCost) : 150,
+      defaultDeOnlineCost: settings.defaultDeOnlineCost != null ? Number(settings.defaultDeOnlineCost) : 150,
       archiveInactivityGraceDays: settings.archiveInactivityGraceDays != null ? Number(settings.archiveInactivityGraceDays) : 90,
     });
   }, [settings]);
@@ -497,6 +501,36 @@ const GeneralSettings: React.FC = () => {
               className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
             />
             <span className="text-sm text-tx-secondary">hours</span>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-default-de-classroom-cost" className="block text-sm font-medium text-tx-secondary mb-1">Default Classroom Driver Education Cost</label>
+          <p className="text-xs text-tx-muted mb-3">Prefills the course fee when enrolling a new classroom driver education student - one flat fee at enrollment, not per class day. Still editable per enrollment.</p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-tx-secondary">$</span>
+            <input
+              id="settings-default-de-classroom-cost"
+              type="number"
+              value={form.defaultDeClassroomCost}
+              onChange={e => setForm(f => ({ ...f, defaultDeClassroomCost: parseFloat(e.target.value) || 150 }))}
+              min="0" step="0.01"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="settings-default-de-online-cost" className="block text-sm font-medium text-tx-secondary mb-1">Default Online Driver Education Cost</label>
+          <p className="text-xs text-tx-muted mb-3">Prefills the course fee when enrolling a new online driver education student. Still editable per enrollment.</p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-tx-secondary">$</span>
+            <input
+              id="settings-default-de-online-cost"
+              type="number"
+              value={form.defaultDeOnlineCost}
+              onChange={e => setForm(f => ({ ...f, defaultDeOnlineCost: parseFloat(e.target.value) || 150 }))}
+              min="0" step="0.01"
+              className="w-28 px-3 py-2 border border-edge-strong rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
           </div>
         </div>
         <div>

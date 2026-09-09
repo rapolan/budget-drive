@@ -115,6 +115,13 @@ export interface TenantSettings {
   // classroom DE is 30 hours) - vestigial for display only, DE completion
   // is never gated on this value.
   defaultDeHoursRequired?: number;
+  // Driver Education is billed as one flat course fee at enrollment, not
+  // per-lesson like BTW - prefills the cost field wherever a DE enrollment
+  // is created (StudentModal's creation-time toggle, EnrollmentSubPanel's
+  // add-enrollment flow), same "prefill only, editable" relationship
+  // defaultLessonCost has to a lesson's cost.
+  defaultDeClassroomCost?: number;
+  defaultDeOnlineCost?: number;
   // Phase 4 archive trigger's BTW fallback: days of no lesson activity
   // (since the enrollment's most recent lesson, or completed_at if none)
   // before a completed BTW student with no permit on file becomes
@@ -689,7 +696,7 @@ export interface CreateStudentInput {
   // enrollment instead of the automatic driver_training one - never both.
   initialEnrollment?:
     | { programType: 'driver_training' }
-    | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online' };
+    | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online'; totalCost?: number };
 }
 
 export type CreateStudentWithGuardianEntry =

@@ -149,3 +149,131 @@ describe('enrollmentService.createEnrollment - deDeliveryMode', () => {
     expect(enrollment.deDeliveryMode).toBeNull();
   });
 });
+
+/**
+ * DE course-fee pricing: one flat fee at enrollment (not per-lesson like
+ * BTW), defaulting to the tenant's classroom/online price, admin-
+ * overridable via totalCost - same "prefill, never enforced as sent"
+ * relationship BTW's defaultLessonCost has to a lesson's cost.
+ */
+describe('enrollmentService.createEnrollment - DE course fee (totalCost)', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('defaults totalCost to defaultDeClassroomCost for a classroom enrollment when not provided', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student exists
+      .mockResolvedValueOnce(queryResult([{ default_de_classroom_cost: 175, default_de_online_cost: 125 }])) // tenant settings
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-6', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'classroom', total_cost: 175,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, { programType: 'driver_education', deDeliveryMode: 'classroom' });
+
+    const [, params] = mockQuery.mock.calls[2];
+    expect(params).toContain(175);
+  });
+
+  it('defaults totalCost to defaultDeOnlineCost for an online enrollment when not provided', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }]))
+      .mockResolvedValueOnce(queryResult([{ default_de_classroom_cost: 175, default_de_online_cost: 125 }]))
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-7', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'online', total_cost: 125,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, { programType: 'driver_education', deDeliveryMode: 'online' });
+
+    const [, params] = mockQuery.mock.calls[2];
+    expect(params).toContain(125);
+  });
+
+  it('falls back to the hardcoded 150 placeholder when no tenant default is configured', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }]))
+      .mockResolvedValueOnce(queryResult([{}])) // no default_de_classroom_cost/default_de_online_cost columns
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-8', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'classroom', total_cost: 150,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, { programType: 'driver_education', deDeliveryMode: 'classroom' });
+
+    const [, params] = mockQuery.mock.calls[2];
+    expect(params).toContain(150);
+  });
+
+  it('an explicit totalCost overrides the tenant default (admin edit at confirm time)', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }]))
+      .mockResolvedValueOnce(queryResult([{ default_de_classroom_cost: 175 }]))
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-9', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_education', de_delivery_mode: 'classroom', total_cost: 200,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, {
+      programType: 'driver_education',
+      deDeliveryMode: 'classroom',
+      totalCost: 200,
+    });
+
+    const [, params] = mockQuery.mock.calls[2];
+    expect(params).toContain(200);
+    expect(params).not.toContain(175);
+  });
+
+  it('rejects a negative totalCost', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }]));
+
+    await expect(
+      createEnrollment(STUDENT_ID, TENANT_ID, {
+        programType: 'driver_education',
+        deDeliveryMode: 'classroom',
+        totalCost: -50,
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('BTW (driver_training) totalCost is unaffected - stays null unless explicitly set, never defaults to a DE price', async () => {
+    const { createEnrollment } = await import('../services/enrollmentService');
+
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // student exists
+      .mockResolvedValueOnce(queryResult([])) // getActiveDriverTrainingEnrollment - none active
+      .mockResolvedValueOnce(queryResult([{ default_hours_required: 6, default_de_classroom_cost: 175 }])) // tenant settings
+      .mockResolvedValueOnce(
+        queryResult([{
+          id: 'enrollment-10', tenant_id: TENANT_ID, student_id: STUDENT_ID,
+          program_type: 'driver_training', total_cost: null,
+        }])
+      );
+
+    await createEnrollment(STUDENT_ID, TENANT_ID, { programType: 'driver_training' });
+
+    const [, params] = mockQuery.mock.calls[3];
+    expect(params).toContain(null);
+    expect(params).not.toContain(175);
+  });
+});

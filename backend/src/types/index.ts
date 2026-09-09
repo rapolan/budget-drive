@@ -87,6 +87,14 @@ export interface TenantSettings {
   // (online), never gated on this value - it exists for data honesty, not
   // because anything currently reads it.
   defaultDeHoursRequired: number;
+  // Driver Education is billed as ONE FLAT COURSE FEE at enrollment, not
+  // per class day like BTW's per-lesson pricing - these prefill the cost
+  // field wherever a DE enrollment is created, matching
+  // defaultLessonCost's "prefill only, admin can override, backend still
+  // validates" pattern. Classroom and online get separate defaults since
+  // they're different real-world offerings.
+  defaultDeClassroomCost: number;
+  defaultDeOnlineCost: number;
   // Phase 4 archive trigger's BTW fallback: how many days of no lesson
   // activity (since the enrollment's most recent lesson, or since
   // completed_at if none) makes a completed BTW student archive-eligible

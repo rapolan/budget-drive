@@ -316,6 +316,37 @@ describe('StudentModal - program toggle at creation', () => {
     expect(screen.getByText('5/20')).toBeInTheDocument();
   });
 
+  it('the course fee field pre-fills to the tenant default and stays editable', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+
+    const costInput = (await screen.findByLabelText(/course fee/i)) as HTMLInputElement;
+    expect(costInput.value).toBe('150');
+
+    fireEvent.change(costInput, { target: { value: '199' } });
+    expect(costInput.value).toBe('199');
+
+    fillBasicFields();
+    fireEvent.click(screen.getByText('Fall Weekend Class'));
+    fireEvent.submit(screen.getByTitle('Date of Birth').closest('form')!);
+
+    await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
+    const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(submittedData.initialEnrollment.totalCost).toBe(199);
+  });
+
+  it('the course fee re-prefills when switching delivery mode, as long as it has not been manually edited', async () => {
+    renderModal(null, {});
+
+    fireEvent.click(screen.getByRole('button', { name: 'Driver Education' }));
+    const costInput = (await screen.findByLabelText(/course fee/i)) as HTMLInputElement;
+    expect(costInput.value).toBe('150');
+
+    fireEvent.click(screen.getByRole('button', { name: 'online' }));
+    expect((await screen.findByLabelText(/course fee/i) as HTMLInputElement).value).toBe('150');
+  });
+
   it('Online delivery shows no cohort picker and creates an online driver_education enrollment', async () => {
     renderModal(null, {});
 
@@ -329,7 +360,7 @@ describe('StudentModal - program toggle at creation', () => {
 
     await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
     const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'online' });
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'online', totalCost: 150 });
     expect(classroomApi.joinCohort).not.toHaveBeenCalled();
   });
 
@@ -346,7 +377,7 @@ describe('StudentModal - program toggle at creation', () => {
 
     await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
     const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'classroom' });
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'classroom', totalCost: 150 });
 
     await waitFor(() => expect(classroomApi.joinCohort).toHaveBeenCalledWith('cohort-1', 'de-enrollment-1'));
   });
@@ -422,7 +453,7 @@ describe('StudentModal - program toggle at creation', () => {
 
     await waitFor(() => expect(studentsApi.create).toHaveBeenCalled());
     const submittedData = (studentsApi.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'classroom' });
+    expect(submittedData.initialEnrollment).toEqual({ programType: 'driver_education', deDeliveryMode: 'classroom', totalCost: 150 });
     expect(classroomApi.joinCohort).not.toHaveBeenCalled();
   });
 
@@ -2291,6 +2322,7 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
         programType: 'driver_education',
         deDeliveryMode: 'online',
         manualCompletedHours: 30,
+        totalCost: 150,
       })
     );
     expect(classroomApi.joinCohort).not.toHaveBeenCalled();
@@ -2334,6 +2366,7 @@ describe('StudentModal - Enrollments tab (Item 4)', () => {
       expect(enrollmentsApi.create).toHaveBeenCalledWith('student-1', {
         programType: 'driver_education',
         deDeliveryMode: 'classroom',
+        totalCost: 150,
       })
     );
     await waitFor(() => expect(classroomApi.joinCohort).toHaveBeenCalledWith('cohort-1', 'enrollment-new'));

@@ -574,6 +574,12 @@ describe('GET /api/v1/students - DE awaiting-certificate flag', () => {
     mockQuery.mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, standard_lesson_length_minutes: 120 }])); // tenant settings
     mockQuery.mockResolvedValueOnce(queryResult([])); // active driver_training enrollments batch (none)
     mockQuery.mockResolvedValueOnce(queryResult(deEnrollmentRow ? [deEnrollmentRow] : [])); // getDeEnrollmentsBatch
+    // lessons query is skipped (enrollmentIds is empty - no active BTW enrollment),
+    // but the combined BTW+DE payments query now runs whenever there's a DE
+    // enrollment id to look up, even with no BTW enrollment.
+    if (deEnrollmentRow) {
+      mockQuery.mockResolvedValueOnce(queryResult([])); // combined payments batch (no payments recorded)
+    }
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched guardian counts
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched outstanding fees
     mockQuery.mockResolvedValueOnce(queryResult([])); // batched primary guardians

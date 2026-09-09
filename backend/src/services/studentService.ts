@@ -56,6 +56,50 @@ const emptyToNull = (value: any): any => {
  * guardians) via a second batched query, skipped entirely if no student in
  * the batch is a minor - adults never pay for the guardian-count query.
  */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Combines a student's BTW and DE per-enrollment payment summaries into
+ * one list-level total - a person can owe on either program, or both at
+ * once, since payments now attach to whichever enrollment (BTW or DE)
+ * the payment is actually for (paymentService.createPayment). Each input
+ * is already computed by the identical computePaymentSummary the
+ * Enrollments tab uses per-enrollment (enrollmentService.
+ * attachProgressAndPayments) - this never recomputes a balance, only
+ * sums two already-correct ones.
+ *
+ * 'unknown'/null only when NEITHER program has a computable total. A
+ * computable balance on one program and 'unknown' on the other still
+ * yields a real combined total - 'unknown' means "not computable," not
+ * "zero," so it contributes nothing to the sum rather than blocking it.
+ */
+function combinePaymentSummaries(
+  btw: import('../types').EnrollmentPaymentSummary | null,
+  de: import('../types').EnrollmentPaymentSummary | null
+): import('../types').EnrollmentPaymentSummary | undefined {
+  if (!btw && !de) return undefined;
+
+  const totalPaid = round2((btw?.totalPaid ?? 0) + (de?.totalPaid ?? 0));
+  const btwBalance = btw?.outstandingBalance;
+  const deBalance = de?.outstandingBalance;
+
+  if (btwBalance == null && deBalance == null) {
+    return { totalPaid, outstandingBalance: null, paymentStatus: 'unknown' };
+  }
+
+  const outstandingBalance = round2((btwBalance ?? 0) + (deBalance ?? 0));
+  let paymentStatus: import('../types').EnrollmentPaymentSummary['paymentStatus'] = 'unpaid';
+  if (outstandingBalance === 0 && totalPaid > 0) {
+    paymentStatus = 'paid';
+  } else if (totalPaid > 0 && outstandingBalance > 0) {
+    paymentStatus = 'partial';
+  }
+
+  return { totalPaid, outstandingBalance, paymentStatus };
+}
+
 async function attachProgress(students: Student[], tenantId: string): Promise<Student[]> {
   if (students.length === 0) return students;
 
@@ -89,14 +133,19 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
   // Batched payment totals per enrollment, for the derived paymentSummary
   // attached below (mirrors enrollmentService's own derive-don't-cache
   // computation, reused here so Payments.tsx's list view doesn't need a
-  // per-student detail fetch).
-  const paymentsResult = enrollmentIds.length > 0
+  // per-student detail fetch). Covers BOTH the BTW enrollment ids AND the
+  // DE enrollment ids in one query - a payment can attach to either
+  // program's enrollment (see paymentService.createPayment), so both
+  // must be included for paidByEnrollment to be complete.
+  const deEnrollmentIds = Array.from(deEnrollments.values()).map(e => e.id);
+  const allPaymentEnrollmentIds = [...enrollmentIds, ...deEnrollmentIds];
+  const paymentsResult = allPaymentEnrollmentIds.length > 0
     ? await query(
         `SELECT enrollment_id, COALESCE(SUM(amount), 0) AS total_paid
          FROM payments
          WHERE tenant_id = $1 AND enrollment_id = ANY($2::uuid[]) AND status = 'confirmed'
          GROUP BY enrollment_id`,
-        [tenantId, enrollmentIds]
+        [tenantId, allPaymentEnrollmentIds]
       )
     : { rows: [] as any[] };
   const paidByEnrollment = new Map<string, number>();
@@ -151,17 +200,6 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
         }
       : null;
 
-    // Derived, not stored (Payments.tsx's list view) - mirrors `progress`:
-    // a top-level field sourced from the active driver_training enrollment,
-    // computed fresh from payments.amount each read rather than cached.
-    const paymentSummary = enrollment
-      ? computePaymentSummary(
-          enrollment,
-          lessonsByEnrollment.get(enrollment.id) ?? [],
-          paidByEnrollment.get(enrollment.id) ?? 0
-        )
-      : undefined;
-
     // "Listed, not totalled" (Constraint A, feeFlagService's own doc
     // comment) - the list only needs a boolean + a sum for the badge, but
     // that sum is derived fresh here from the listed flags, never a second
@@ -173,6 +211,27 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
     const primaryGuardian = primaryGuardiansByStudent.get(student.id);
 
     const deRow = deEnrollments.get(student.id) ?? null;
+
+    // Derived, not stored (Payments.tsx's list view) - mirrors `progress`:
+    // combines BOTH programs' balances into one summary, since a person
+    // can owe on their BTW enrollment, their DE enrollment, or both at
+    // once. Each program's own totalCost/totalPaid/outstandingBalance is
+    // computed via the identical computePaymentSummary the Enrollments
+    // tab already uses per-enrollment (attachProgressAndPayments) - never
+    // a second/different balance calculation - then summed here. 'unknown'
+    // only when NEITHER program has a computable total (a totalCost-less,
+    // lesson-less BTW enrollment and no DE enrollment at all); a
+    // computable DE balance alongside an unknown BTW one (or vice versa)
+    // still yields a real combined total, since "not computable yet" for
+    // one program isn't the same as "zero" - it just doesn't add anything
+    // knowable to the sum.
+    const btwSummary = enrollment
+      ? computePaymentSummary(enrollment, lessonsByEnrollment.get(enrollment.id) ?? [], paidByEnrollment.get(enrollment.id) ?? 0)
+      : null;
+    const deSummary = deRow
+      ? computePaymentSummary({ totalCost: deRow.totalCost }, [], paidByEnrollment.get(deRow.id) ?? 0)
+      : null;
+    const paymentSummary = combinePaymentSummaries(btwSummary, deSummary);
     // Certificate-worklist eligibility mirror (same wasMinorAtCompletion
     // pattern enrollmentService.attachProgressAndPayments already uses):
     // age is evaluated AS OF the enrollment's own completedAt, not today,
@@ -429,8 +488,10 @@ export const createStudent = async (
   // expectation exactly - omit this and nothing changes); passing
   // { programType: 'driver_education', deDeliveryMode } instead creates a
   // driver_education enrollment as the student's first one and skips the
-  // driver_training auto-enrollment - it does NOT create both.
-  initialEnrollment: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online' } = { programType: 'driver_training' }
+  // driver_training auto-enrollment - it does NOT create both. totalCost
+  // is DE-only (one flat course fee, admin-editable at creation) - omit
+  // it to fall back to the tenant's classroom/online default.
+  initialEnrollment: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online'; totalCost?: number } = { programType: 'driver_training' }
 ): Promise<Student> => {
   logger.info('Creating new student', {
     tenantId,
@@ -557,16 +618,28 @@ export const createStudent = async (
         [tenantId, newStudent.id, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
       );
     } else {
+      if (initialEnrollment.totalCost !== undefined && initialEnrollment.totalCost < 0) {
+        throw new AppError('totalCost must be a non-negative number', 400);
+      }
+      // One flat course fee at enrollment (not per-lesson like BTW) -
+      // defaults to the tenant's classroom/online price, admin-editable
+      // before this call (see StudentModal.tsx's DE details panel).
+      const deCost = initialEnrollment.totalCost ?? (
+        initialEnrollment.deDeliveryMode === 'classroom'
+          ? tenantSettings?.defaultDeClassroomCost ?? 150
+          : tenantSettings?.defaultDeOnlineCost ?? 150
+      );
       await client.query(
         `INSERT INTO enrollments (
-           tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, created_by, updated_by
-         ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $6)`,
+           tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, total_cost, created_by, updated_by
+         ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $7, $7)`,
         [
           tenantId,
           newStudent.id,
           tenantSettings?.defaultDeHoursRequired ?? 30,
           data.licenseType ?? 'car',
           initialEnrollment.deDeliveryMode,
+          deCost,
           userId || null,
         ]
       );
@@ -601,7 +674,7 @@ export interface CreateStudentWithGuardianInput {
   student: Parameters<typeof createStudent>[1];
   guardians: CreateStudentWithGuardianEntry[]; // 1..N
   // Same meaning and default as createStudent's own initialEnrollment param.
-  initialEnrollment?: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online' };
+  initialEnrollment?: { programType: 'driver_training' } | { programType: 'driver_education'; deDeliveryMode: 'classroom' | 'online'; totalCost?: number };
 }
 
 /**
@@ -823,11 +896,19 @@ export const createStudentWithGuardian = async (
         [tenantId, newStudent.id, hoursRequired, licenseType, data.assignedInstructorId || null, userId || null]
       );
     } else {
+      if (initialEnrollment.totalCost !== undefined && initialEnrollment.totalCost < 0) {
+        throw new AppError('totalCost must be a non-negative number', 400);
+      }
+      const deCost = initialEnrollment.totalCost ?? (
+        initialEnrollment.deDeliveryMode === 'classroom'
+          ? tenantSettings?.defaultDeClassroomCost ?? 150
+          : tenantSettings?.defaultDeOnlineCost ?? 150
+      );
       await client.query(
         `INSERT INTO enrollments (
-           tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, created_by, updated_by
-         ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $6)`,
-        [tenantId, newStudent.id, tenantSettings?.defaultDeHoursRequired ?? 30, licenseType, initialEnrollment.deDeliveryMode, userId || null]
+           tenant_id, student_id, program_type, hours_required, license_type, de_delivery_mode, total_cost, created_by, updated_by
+         ) VALUES ($1, $2, 'driver_education', $3, $4, $5, $6, $7, $7)`,
+        [tenantId, newStudent.id, tenantSettings?.defaultDeHoursRequired ?? 30, licenseType, initialEnrollment.deDeliveryMode, deCost, userId || null]
       );
     }
 

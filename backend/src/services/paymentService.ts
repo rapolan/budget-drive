@@ -209,11 +209,61 @@ export const createPayment = async (
       throw new AppError('Student not found or does not belong to this organization', 404);
     }
 
-    // Payments attach to the student's ACTIVE driver_training enrollment
-    // (Constraint A/D - at most one exists).
+    // Payments attach to the student's active driver_training enrollment
+    // when one exists (Constraint A/D - at most one exists, and this is
+    // required whenever a lessonId is given, since a lesson only ever
+    // belongs to a driver_training enrollment). A DE-only student - no
+    // driver_training enrollment at all - can now be paid against their
+    // driver_education enrollment instead, since DE has its own real
+    // course-fee balance (see enrollmentService.createEnrollment's DE
+    // cost defaulting). A student with NEITHER program still 400s -
+    // there is genuinely nothing to record a payment against.
     const activeEnrollment = await getActiveDriverTrainingEnrollment(data.studentId, tenantId);
-    if (!activeEnrollment) {
+    let targetEnrollmentId: string;
+    if (activeEnrollment) {
+      targetEnrollmentId = activeEnrollment.id;
+    } else if (data.lessonId) {
+      // A lesson-linked payment has nowhere to attach without a
+      // driver_training enrollment - fall through to the same 400 below
+      // rather than silently attaching to an unrelated DE enrollment.
       throw new AppError('Student has no active driver_training enrollment', 400);
+    } else {
+      // Prefer a DE enrollment with a genuine outstanding balance
+      // (total_cost minus confirmed payments so far) over just the most
+      // recent one - a student with an old, already-paid-off DE
+      // enrollment and a newer one still owing should attach to the one
+      // that's actually unpaid.
+      const deEnrollmentResult = await dbQuery(
+        `SELECT e.id,
+                e.total_cost,
+                COALESCE((
+                  SELECT SUM(p.amount) FROM payments p
+                  WHERE p.enrollment_id = e.id AND p.tenant_id = e.tenant_id AND p.status = 'confirmed'
+                ), 0) AS total_paid
+         FROM enrollments e
+         WHERE e.student_id = $1 AND e.tenant_id = $2 AND e.program_type = 'driver_education'
+         ORDER BY (e.total_cost IS NOT NULL AND e.total_cost > COALESCE((
+                    SELECT SUM(p2.amount) FROM payments p2
+                    WHERE p2.enrollment_id = e.id AND p2.tenant_id = e.tenant_id AND p2.status = 'confirmed'
+                  ), 0)) DESC,
+                  e.created_at DESC
+         LIMIT 1`,
+        [data.studentId, tenantId]
+      );
+      if (deEnrollmentResult.rows.length === 0) {
+        throw new AppError('Student has no active driver_training or driver_education enrollment', 400);
+      }
+      const deRow = deEnrollmentResult.rows[0];
+      const deTotalCost = deRow.total_cost !== null ? Number(deRow.total_cost) : null;
+      const deOutstanding = deTotalCost !== null ? deTotalCost - Number(deRow.total_paid) : null;
+      if (deOutstanding !== null && deOutstanding <= 0 && Number(data.amount) > 0) {
+        logger.warn('Recording a payment against a DE enrollment with no outstanding balance', {
+          tenantId,
+          studentId: data.studentId,
+          enrollmentId: deRow.id,
+        });
+      }
+      targetEnrollmentId = deRow.id;
     }
 
     // If lesson_id provided, validate it belongs to tenant and student
@@ -242,7 +292,7 @@ export const createPayment = async (
       RETURNING *, $12 AS student_id`,
       [
         tenantId,
-        activeEnrollment.id,
+        targetEnrollmentId,
         data.amount,
         data.paymentMethod || 'cash',
         data.paymentType || 'lesson_payment',

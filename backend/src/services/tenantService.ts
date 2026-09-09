@@ -371,6 +371,14 @@ export const updateTenantSettings = async (
     fields.push(`default_de_hours_required = $${paramCount++}`);
     values.push(data.defaultDeHoursRequired);
   }
+  if (data.defaultDeClassroomCost !== undefined) {
+    fields.push(`default_de_classroom_cost = $${paramCount++}`);
+    values.push(data.defaultDeClassroomCost);
+  }
+  if (data.defaultDeOnlineCost !== undefined) {
+    fields.push(`default_de_online_cost = $${paramCount++}`);
+    values.push(data.defaultDeOnlineCost);
+  }
   if (data.archiveInactivityGraceDays !== undefined) {
     fields.push(`archive_inactivity_grace_days = $${paramCount++}`);
     values.push(data.archiveInactivityGraceDays);
