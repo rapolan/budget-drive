@@ -175,6 +175,18 @@ Actually creating a Driver Education student - a minor, with a guardian, the way
 
 See `docs/ARCHITECTURE.md` §20 for the exact root causes and how each was live-verified before and after.
 
+### Sorting Payments by Date, and a Trend Line for What's Been Collected
+
+Two small additions to the Payments page, plus a fix for a similar problem found on the Students page along the way.
+
+**Payments can now be sorted by date, newest or oldest first**, right alongside the existing name and balance options - a quick way to see who paid most recently, or who's been waiting the longest.
+
+**The "Collected This Month" number now shows how it compares to last month**, with a small up or down arrow underneath - the exact same trend treatment the Students page already uses for its own "New This Month" count, so it feels like part of the same app rather than a new idea bolted on.
+
+**While building that comparison, an existing problem on the Students page's own trend number got fixed too.** It was quietly using the browser's own clock to decide what "this month" meant, rather than the driving school's actual timezone - the same category of mistake this app has caught and fixed in a few other places before. A school and a browser sitting in different timezones, right around the turn of a month, could have disagreed on which side of the month a brand-new student fell on. It's fixed now, using the same tenant-timezone approach as everywhere else - and it still shows the exact same correct numbers it always should have.
+
+See `docs/ARCHITECTURE.md` §21 for the exact boundary math and how each piece was live-verified.
+
 ### Guardians as First-Class Records
 Students can be linked to one or more guardian records (parents/legal guardians), replacing flat emergency-contact strings with structured, searchable, many-to-many data. See `docs/ARCHITECTURE.md` for the schema. Key principles:
 - **Guardian matching and linking logic lives entirely in the backend service layer** — never in a UI component — so the same logic can be reused by a future public signup form without risking duplicate guardian records.

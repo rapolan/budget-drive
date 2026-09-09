@@ -623,6 +623,14 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 ---
 
+### 2.50 Payments: sort by payment date, and the "Collected This Month" trend indicator
+
+**Do:** Open the **Payments** page. Change the sort dropdown to **Payment Date (Newest First)**, then to **Payment Date (Oldest First)**. Separately, note the figure and small print on the **Collected This Month** card.
+
+**Pass looks like:** Sorting by date reorders the student rows by each student's most recent payment (newest-first puts whoever paid most recently at the top; oldest-first reverses it); a student with no payments at all sorts to the end regardless of direction. The **Collected This Month** card shows the usual dollar figure, plus a small line below it with a trend arrow (pointing up in success-green if this month's total is ahead of last month's, down in danger-red if behind) and text reading `±$<diff> vs last month ($<last month's total>)` — visually the same treatment as the Students page's own "New This Month" card (§2.4x area). Both this figure and the Students page's "New This Month"/"vs last month"/"vs last year" numbers are resolved from the driving school's own timezone, not the browser's — if you're testing from a browser in a different timezone than the school's configured one, near a month boundary, both should still agree with what the school's calendar actually says, not your local one.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.
