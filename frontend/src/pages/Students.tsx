@@ -23,7 +23,7 @@ import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
-import { parseLocalDate } from '@/utils/timeFormat';
+import { parseLocalDate, getMonthBoundaries } from '@/utils/timeFormat';
 
 // The BTW/All status-filter bar is exactly 6 chips: all/scheduled/
 // ready_to_book/needs_attention/completed/inactive. turning_18 stays a
@@ -574,15 +574,31 @@ export const StudentsPage: React.FC = () => {
     return counts;
   }, [data?.data]);
 
-  // Calculate additional stats for dashboard cards
+  // Calculate additional stats for dashboard cards. Month boundaries are
+  // resolved from tenantNow.today via getMonthBoundaries (pure
+  // calendar-month arithmetic on an already-tenant-resolved string) -
+  // NOT browser-local new Date() month/year math. This was a pre-existing
+  // bug (the same browser-vs-tenant-timezone class fixed elsewhere in this
+  // app, see docs/ARCHITECTURE.md §7): a browser sitting in a timezone
+  // ahead of the tenant's near a month boundary could count/exclude a
+  // student on the wrong side of "this month" vs the tenant's own clock.
   const stats = useMemo(() => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-    const lastYearSameMonthStart = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-    const lastYearSameMonthEnd = new Date(now.getFullYear() - 1, now.getMonth() + 1, 0);
-    
+    if (!tenantNow) {
+      return {
+        newThisMonth: 0,
+        newLastMonth: 0,
+        newLastYearSameMonth: 0,
+        diffVsLastMonth: 0,
+        diffVsLastYear: 0,
+        completedThisMonth: 0,
+        avgProgress: 0,
+      };
+    }
+
+    const monthStart = tenantNow.monthBoundaries.start;
+    const lastMonth = getMonthBoundaries(tenantNow.today, -1);
+    const lastYearSameMonth = getMonthBoundaries(tenantNow.today, -12);
+
     let newThisMonth = 0;
     let newLastMonth = 0;
     let newLastYearSameMonth = 0;
@@ -590,27 +606,27 @@ export const StudentsPage: React.FC = () => {
     let avgProgress = 0;
 
     data?.data?.forEach((student) => {
-      const createdAt = new Date(student.createdAt);
-      
+      const createdAtStr = String(student.createdAt).split('T')[0];
+
       // This month
-      if (createdAt >= monthStart) {
+      if (createdAtStr >= monthStart) {
         newThisMonth++;
       }
-      
+
       // Last month
-      if (createdAt >= lastMonthStart && createdAt <= lastMonthEnd) {
+      if (createdAtStr >= lastMonth.start && createdAtStr <= lastMonth.end) {
         newLastMonth++;
       }
-      
+
       // Same month last year
-      if (createdAt >= lastYearSameMonthStart && createdAt <= lastYearSameMonthEnd) {
+      if (createdAtStr >= lastYearSameMonth.start && createdAtStr <= lastYearSameMonth.end) {
         newLastYearSameMonth++;
       }
 
       const statusInfo = getStudentStatus(student);
       if (statusInfo.status === 'completed') {
-        const completedAt = student.updatedAt ? new Date(student.updatedAt) : createdAt;
-        if (completedAt >= monthStart) {
+        const completedAtStr = student.updatedAt ? String(student.updatedAt).split('T')[0] : createdAtStr;
+        if (completedAtStr >= monthStart) {
           completedThisMonth++;
         }
       }
@@ -620,7 +636,7 @@ export const StudentsPage: React.FC = () => {
 
     const totalStudents = data?.data?.length || 0;
     avgProgress = totalStudents > 0 ? Math.round(avgProgress / totalStudents) : 0;
-    
+
     // Calculate differences
     const diffVsLastMonth = newThisMonth - newLastMonth;
     const diffVsLastYear = newThisMonth - newLastYearSameMonth;
@@ -634,7 +650,7 @@ export const StudentsPage: React.FC = () => {
       completedThisMonth,
       avgProgress,
     };
-  }, [data?.data]);
+  }, [data?.data, tenantNow]);
 
   // Helper to get last lesson date for a student
   const getLastLessonDate = (studentId: string): Date | null => {
