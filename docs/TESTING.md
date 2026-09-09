@@ -300,9 +300,9 @@ Work through these in order — later steps assume earlier ones passed. Use the 
 
 ### 2.6 Record a payment
 
-**Do:** Go to `/payments`, create a new payment for a student (e.g. a lesson fee for Ivy Delgado), pick a payment method, submit.
+**Do:** Go to `/payments`, click "Add Payment" for a student with an outstanding balance. Confirm the amount pre-fills to their `outstandingBalance` with a "Pre-filled from outstanding balance" caption. Try each method chip (Card/Cash/Venmo/Zelle/PayPal/Check); with `enableBlockchainPayments` off in Settings, confirm BSV/MNEE render locked (dashed border, lock icon, unclickable); turn the flag on and confirm they become normal, selectable chips. Type into the amount field and confirm the "New balance after this payment" box updates live, including showing a "credit" when the amount exceeds the balance. Fill in an optional reference number, submit, and confirm the modal closes and the balance updates in the list. Rapid double-click the confirm button once and check only one payment was created. Open "View History" for that student and confirm the reference number appears in its own column.
 
-**Pass looks like:** `POST /api/v1/payments` returns `201`. The payment appears in the payments list with the correct amount/method/status. The student's `outstandingBalance`/`totalPaid` reflects the change if the UI surfaces it.
+**Pass looks like:** `POST /api/v1/payments` returns `201` exactly once even after a rapid double-click. The payment appears in the payments list and in that student's payment history, with the correct amount/method/reference number/status. The student's `outstandingBalance`/`totalPaid` reflects the change. BSV/MNEE chips are disabled when `enableBlockchainPayments` is off and selectable when it's on, in both light and dark themes.
 
 ### 2.7 Treasury status (ledger seam)
 

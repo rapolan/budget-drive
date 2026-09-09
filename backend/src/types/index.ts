@@ -917,7 +917,7 @@ export interface Payment {
 
   date: Date;
   amount: number;
-  paymentMethod: 'bsv' | 'mnee' | 'stripe_card' | 'paypal' | 'cash' | 'check' | 'debit' | 'credit';
+  paymentMethod: 'bsv' | 'mnee' | 'stripe_card' | 'paypal' | 'cash' | 'check' | 'debit' | 'credit' | 'venmo' | 'zelle';
   paymentType: string;
 
   status: 'pending' | 'confirmed' | 'failed' | 'refunded';
@@ -931,6 +931,10 @@ export interface Payment {
   receiptSent: boolean;
   receiptUrl: string | null;
   notes: string | null;
+  // Free-text reference for a manually-recorded payment - e.g. a Square
+  // receipt number, a check number, the last 4 digits of a card. Never
+  // validated/parsed, purely an admin-facing lookup aid.
+  referenceNumber: string | null;
 
   codaRowId: string | null;
 

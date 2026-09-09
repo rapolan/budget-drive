@@ -26,15 +26,22 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Matches the real payment_method CHECK constraint
+  // (backend/database/migrations/001_baseline.sql, widened additively by
+  // 030_widen_payment_method_check.sql) - the values the Add Payment
+  // modal's method chips actually persist.
   const getPaymentMethodLabel = (method: string) => {
     const labels: Record<string, string> = {
       cash: 'Cash',
-      credit_card: 'Credit Card',
-      debit_card: 'Debit Card',
+      credit: 'Card',
+      debit: 'Card (debit)',
+      stripe_card: 'Card (Stripe)',
       check: 'Check',
-      bank_transfer: 'Bank Transfer',
-      e_transfer: 'E-Transfer',
-      other: 'Other',
+      paypal: 'PayPal',
+      venmo: 'Venmo',
+      zelle: 'Zelle',
+      bsv: 'BSV',
+      mnee: 'MNEE',
     };
     return labels[method] || method;
   };
@@ -167,6 +174,9 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                               Status
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                              Reference #
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Notes
                             </th>
                           </tr>
@@ -204,6 +214,11 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                 >
                                   {payment.status}
                                 </span>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3">
+                                <div className="text-sm text-tx-muted">
+                                  {payment.referenceNumber || '-'}
+                                </div>
                               </td>
                               <td className="px-4 py-3">
                                 <div className="max-w-xs truncate text-sm text-tx-muted">

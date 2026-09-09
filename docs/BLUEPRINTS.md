@@ -115,6 +115,24 @@ Finished students eventually recede from the daily working views - the active St
 
 See `docs/ARCHITECTURE.md` §16 for the full schema, eligibility rules, and hash composition, and `docs/compliance-records-build-plan.md` for the phase's build history.
 
+### Recording a Payment
+
+This is manual bookkeeping, not a payment processor - an admin is recording what already happened (cash handed over, a Venmo transfer received), not charging a card. A real processor integration (Stripe, Square) is a deliberately separate future phase.
+
+**The whole action was broken before this - it just failed silently under the hood.** Recording a payment always 500'd, on every attempt, regardless of anything the admin picked - the database was never actually set up to track who recorded or last touched a payment, even though the code already assumed it could. That's fixed with no visible change to how it's used; recording a payment now genuinely works.
+
+**The amount shows up already filled in, front and center.** The moment a student is picked, the amount defaults to exactly what they still owe - a big, bold number the admin can tap into and change if this payment isn't for the full balance, with a small note underneath explaining where the number came from. Picking a different student updates it again, unless the admin has already started typing their own number - once they have, their edit is never overwritten out from under them.
+
+**Six payment methods, shown as one-tap chips instead of a dropdown**: Card, Cash, Venmo, Zelle, PayPal, and Check, all visible at once. Two more - BSV and MNEE - sit at the end of the row, greyed out with a small lock icon until blockchain payments are turned on for the school in Settings; flip that on and they become normal, selectable chips like everything else. Card records as a card payment - not a real Stripe charge, since nothing here processes real cards yet.
+
+**An optional reference number** - a receipt number, a check number, the last few digits of a card - can be jotted down alongside the payment, for whenever someone needs to trace it back to a physical slip or statement later. It shows up right in that student's payment history alongside everything else about the payment.
+
+**A running balance updates live as the amount changes**, sitting just above the button in its own quiet highlighted strip - "New balance after this payment: $X.XX" - so the admin can see the effect of what they're about to record before they confirm it. If the amount happens to be more than what's owed, the balance doesn't just stop at zero and hide that fact - it shows the extra as a credit, since that's real money the student now has sitting toward whatever they owe next.
+
+**One big button, and nothing to double-check afterward.** A single full-width "Record Payment" button is the only primary action, with a small line underneath reminding the admin that everything's already filled in and ready - they can just confirm, or adjust anything first. It disables itself the instant it's tapped, so an impatient extra tap can't record the same payment twice, and the modal closing is the confirmation that it worked.
+
+See `docs/ARCHITECTURE.md` §17 for the schema fixes, the exact method-to-database mapping, and how each piece was live-verified.
+
 ### Guardians as First-Class Records
 Students can be linked to one or more guardian records (parents/legal guardians), replacing flat emergency-contact strings with structured, searchable, many-to-many data. See `docs/ARCHITECTURE.md` for the schema. Key principles:
 - **Guardian matching and linking logic lives entirely in the backend service layer** — never in a UI component — so the same logic can be reused by a future public signup form without risking duplicate guardian records.

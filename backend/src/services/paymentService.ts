@@ -237,9 +237,9 @@ export const createPayment = async (
     const result = await dbQuery(
       `INSERT INTO payments (
         tenant_id, enrollment_id, amount, payment_method, payment_type,
-        date, status, bsv_transaction_id, notes, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-      RETURNING *, $11 AS student_id`,
+        date, status, bsv_transaction_id, notes, reference_number, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+      RETURNING *, $12 AS student_id`,
       [
         tenantId,
         activeEnrollment.id,
@@ -250,6 +250,7 @@ export const createPayment = async (
         data.status || 'confirmed',
         data.bsvTransactionId || null,
         data.notes || null,
+        data.referenceNumber || null,
         userId || null,
         data.studentId,
       ]
@@ -330,6 +331,10 @@ export const updatePayment = async (
     if (data.notes !== undefined) {
       fields.push(`notes = $${paramCount++}`);
       values.push(data.notes);
+    }
+    if (data.referenceNumber !== undefined) {
+      fields.push(`reference_number = $${paramCount++}`);
+      values.push(data.referenceNumber);
     }
     if (userId) {
       fields.push(`updated_by = $${paramCount++}`);

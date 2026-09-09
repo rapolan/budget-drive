@@ -536,12 +536,17 @@ export interface Lesson {
   updatedAt: Date;
 }
 
+// The real payment_method CHECK constraint (backend/database/migrations/
+// 001_baseline.sql, widened additively by 030_widen_payment_method_check.sql)
+// - matches backend/src/types/index.ts's Payment.paymentMethod exactly.
+export type PaymentMethod = 'bsv' | 'mnee' | 'stripe_card' | 'paypal' | 'cash' | 'check' | 'debit' | 'credit' | 'venmo' | 'zelle';
+
 export interface Payment {
   id: string;
   tenantId: string;
   studentId: string;
   amount: number;
-  paymentMethod: 'cash' | 'card' | 'stripe' | 'paypal' | 'bsv' | 'mnee';
+  paymentMethod: PaymentMethod;
   paymentType: 'lesson_payment' | 'package' | 'registration_fee' | 'late_fee' | 'refund';
   date: Date;
   status: 'pending' | 'confirmed' | 'failed' | 'refunded';
@@ -550,6 +555,9 @@ export interface Payment {
   stripePaymentIntentId?: string;
   paypalOrderId?: string;
   notes?: string;
+  // Free-text reference for a manually-recorded payment - e.g. a Square
+  // receipt number, a check number, the last 4 digits of a card.
+  referenceNumber?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -756,12 +764,13 @@ export interface CreateLessonInput {
 export interface CreatePaymentInput {
   studentId: string;
   amount: number;
-  paymentMethod?: 'cash' | 'card' | 'stripe' | 'paypal' | 'bsv' | 'mnee';
+  paymentMethod?: PaymentMethod;
   paymentType?: 'lesson_payment' | 'package' | 'registration_fee' | 'late_fee' | 'refund';
   date?: string;
   status?: 'pending' | 'confirmed' | 'failed' | 'refunded';
   bsvTransactionId?: string;
   notes?: string;
+  referenceNumber?: string;
 }
 
 // ===================================================================

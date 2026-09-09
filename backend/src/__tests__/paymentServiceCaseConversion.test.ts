@@ -37,6 +37,7 @@ const rawPaymentRow = {
   receipt_sent: false,
   receipt_url: null,
   notes: null,
+  reference_number: null,
   coda_row_id: null,
   created_by: 'user-1',
   updated_by: 'user-1',
