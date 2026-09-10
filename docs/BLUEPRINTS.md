@@ -262,6 +262,18 @@ A lapsed **Driving School Instructor License** (California DMV — see the entry
 
 **Always visible on the record and list, not just the alert.** The instructor record and the Instructors list both surface the same status derived client-side from the already-tenant-resolved `tenantNow.today` (`frontend/src/utils/licenseExpiry.ts`, the same safe category as `turning18.ts`'s predicate — comparing already-resolved strings, never deriving "now" itself). An instructor with **no expiration recorded** is flagged `missing`, styled with the same danger weight as `expired` — never silently treated as compliant just because there's no date to compare against.
 
+### Fixing Three Real Bugs From a Codebase Health Audit
+
+A full health audit surfaced three confirmed, live bugs. None of them are related to each other, and each shipped as its own commit.
+
+**Every lesson booking's confirmation and reminder emails had silently never been queued, in this app's entire history.** The database table they get written to had simply never been created - not a partial fix, not a typo, just genuinely never built, even though the code that writes to it has existed all along. Because that write was wrapped in a "don't let this break the actual booking" safety net, nobody ever saw an error - the booking always succeeded, the reminder just quietly never got queued behind the scenes. The notification history page had the identical problem from the other direction: it always failed to load, for the same missing-table reason. Both are fixed now, and along the way two more small things were fixed to make that possible - a page that reads notification history was never actually sending its own login credentials, so it would have failed to load even with the table fixed, and one of the database queries referenced a lesson field by the wrong name. Automatic sending itself is still not wired up - that was true before this fix and remains true after; it's flagged as a separate piece of follow-up work, not silently bundled in here.
+
+**Two edits that looked like they worked, but didn't save anything.** Changing a student's date of birth on their record, and changing a lesson's pickup address after it was already booked, both appeared to save successfully - no error, no complaint - but neither one actually changed anything in the database. Both are now genuinely fixed.
+
+**A tenant's own basic info was quietly never loading correctly - the exact same bug this app already fixed once before, in a different file.** Every time the app started up, it asked the server for the tenant's business name and a few other basic details, and the server handed back the right data in the wrong shape - so the app never actually saw it, and silently fell back to a generic placeholder name instead. Nobody would have noticed, because the fallback looked reasonable enough on its own. This is now fixed, and the fix was checked carefully both ways: confirmed nothing on the app's side had already grown its own workaround for the bug, and confirmed the fix didn't accidentally miss a related field that turns out to have never existed in the database at all (that one's now flagged separately, since adding it would be a new decision, not a fix to something broken).
+
+See `docs/ARCHITECTURE.md` §22 for the exact root causes, the schema, and how each was live-verified before and after.
+
 ---
 
 ## 1. The 6-Dimensional (6D) Scheduling Engine
