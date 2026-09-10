@@ -1,7 +1,24 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
 
 vi.mock('../config/database', () => ({ query: mockQuery }));
+
+const JWT_SECRET = 'test-jwt-secret-at-least-32-characters-long';
+// validateUUID('id') gates GET /tenants/:id, so the HTTP-level tests below
+// need a real UUID - the other, pre-existing tests in this file use the
+// plain 'tenant-1' string as a queryResult() mock field, never as a URL
+// param, so they're unaffected.
+const TENANT_UUID = '11111111-1111-1111-1111-111111111111';
+
+function signToken(userId: string, tenantId: string, role = 'admin') {
+  return jwt.sign(
+    { userId, tenantId, email: `${userId}@example.com`, role },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+}
 
 // Regression test: getTenantSettings/updateTenantSettings returned the raw
 // snake_case DB row cast (unsafely) to a camelCase TypeScript type, so every
@@ -181,5 +198,115 @@ describe('tenantService camelCase conversion', () => {
     const settings = await tenantService.getTenantSettings('tenant-1');
 
     expect(settings?.timezone).toBeNull();
+  });
+});
+
+// Regression test (bug found via a full codebase health audit): unlike
+// getTenantSettings above (already correct), getTenantById/getTenantBySlug/
+// getAllTenants all returned the raw snake_case DB row cast directly (`as
+// TenantFullInfo`/`as Tenant[]`), with no keysToCamel call - the exact same
+// bug class as the already-fixed getTenantSettings/paymentService.ts
+// history, recurring in this file. Live via GET /tenants/:id (also backs
+// GET /tenant/current, used by the frontend's TenantContext) and
+// GET /tenants.
+describe('tenantService.getTenantById/getTenantBySlug/getAllTenants camelCase conversion', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('getTenantById returns businessName/planTier/trialEndsAt in camelCase, not snake_case', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: 'tenant-1',
+        plan_tier: 'enterprise',
+        trial_ends_at: null,
+        business_name: 'Budget Driving School',
+        created_at: '2026-08-23T13:08:47.542Z',
+      }])
+    );
+
+    const tenant = await tenantService.getTenantById('tenant-1');
+
+    expect(tenant?.businessName).toBe('Budget Driving School');
+    expect(tenant?.planTier).toBe('enterprise');
+    expect(tenant?.createdAt).toBe('2026-08-23T13:08:47.542Z');
+    expect((tenant as unknown as { business_name?: string })?.business_name).toBeUndefined();
+    expect((tenant as unknown as { plan_tier?: string })?.plan_tier).toBeUndefined();
+  });
+
+  it('getTenantBySlug returns businessName in camelCase, not snake_case', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'tenant-1', slug: 'budget-driving', business_name: 'Budget Driving School' }])
+    );
+
+    const tenant = await tenantService.getTenantBySlug('budget-driving');
+
+    expect(tenant?.businessName).toBe('Budget Driving School');
+    expect((tenant as unknown as { business_name?: string })?.business_name).toBeUndefined();
+  });
+
+  it('getAllTenants returns every tenant with camelCase fields, not snake_case', async () => {
+    const tenantService = await import('../services/tenantService');
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        { id: 'tenant-1', plan_tier: 'enterprise', created_at: '2026-08-23T00:00:00.000Z' },
+        { id: 'tenant-2', plan_tier: 'basic', created_at: '2026-08-24T00:00:00.000Z' },
+      ])
+    );
+
+    const tenants = await tenantService.getAllTenants();
+
+    expect(tenants).toHaveLength(2);
+    expect(tenants[0].planTier).toBe('enterprise');
+    expect(tenants[1].planTier).toBe('basic');
+    expect((tenants[0] as unknown as { plan_tier?: string }).plan_tier).toBeUndefined();
+  });
+
+  it('GET /api/v1/tenants/:id returns camelCase fields in the actual HTTP response shape', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{
+        id: TENANT_UUID,
+        plan_tier: 'enterprise',
+        business_name: 'Budget Driving School',
+        created_at: '2026-08-23T13:08:47.542Z',
+      }])
+    );
+
+    const res = await request(app)
+      .get(`/api/v1/tenants/${TENANT_UUID}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Tenant-Id', TENANT_UUID);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.businessName).toBe('Budget Driving School');
+    expect(res.body.data.planTier).toBe('enterprise');
+    expect(res.body.data.business_name).toBeUndefined();
+    expect(res.body.data.plan_tier).toBeUndefined();
+  });
+
+  it('GET /api/v1/tenants returns camelCase fields in the actual HTTP response shape', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
+
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: TENANT_UUID, plan_tier: 'enterprise', created_at: '2026-08-23T00:00:00.000Z' }])
+    );
+
+    const res = await request(app)
+      .get('/api/v1/tenants')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Tenant-Id', TENANT_UUID);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].planTier).toBe('enterprise');
+    expect(res.body.data[0].plan_tier).toBeUndefined();
   });
 });

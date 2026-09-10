@@ -29,7 +29,7 @@ export const getTenantById = async (id: string): Promise<TenantFullInfo | null> 
     return null;
   }
 
-  return result.rows[0] as TenantFullInfo;
+  return keysToCamel(result.rows[0]) as TenantFullInfo;
 };
 
 /**
@@ -57,7 +57,7 @@ export const getTenantBySlug = async (slug: string): Promise<TenantFullInfo | nu
     return null;
   }
 
-  return result.rows[0] as TenantFullInfo;
+  return keysToCamel(result.rows[0]) as TenantFullInfo;
 };
 
 /**
@@ -68,7 +68,7 @@ export const getAllTenants = async (): Promise<Tenant[]> => {
     `SELECT * FROM tenants ORDER BY created_at DESC`
   );
 
-  return result.rows as Tenant[];
+  return result.rows.map(keysToCamel) as Tenant[];
 };
 
 /**
