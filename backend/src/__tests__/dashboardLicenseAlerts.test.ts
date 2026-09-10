@@ -12,10 +12,22 @@ describe('getInstructorsWithExpiringLicenses', () => {
 
   it('returns correct daysUntilExpiry and severity for an approaching (warning) expiry', async () => {
     const { getInstructorsWithExpiringLicenses } = await import('../services/dashboardService');
+    const { tenantToday, addTenantDays } = await import('../utils/tenantTime');
+
+    // A hardcoded absolute date here ('2026-01-01') previously went stale
+    // the moment the calendar passed it - the days-until-expiry silently
+    // went negative (danger territory), while the tautological old
+    // assertion (`severity === (daysUntilExpiry <= 30 ? 'danger' :
+    // 'warning')`) still passed, since it checked internal consistency
+    // against the function's own output rather than a concrete expected
+    // value. Relative-date + concrete literals, matching every sibling
+    // test in this file, so this can't silently rot again.
+    const today = tenantToday('America/Los_Angeles');
+    const warningExpiration = addTenantDays(today, 60, 'America/Los_Angeles');
 
     mockQuery.mockResolvedValueOnce(queryResult([{ id: 'ts-1', tenant_id: TENANT_ID, timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: 'instructor-1', full_name: 'Warning Instructor', instructor_license_expiration: '2026-01-01' }])
+      queryResult([{ id: 'instructor-1', full_name: 'Warning Instructor', instructor_license_expiration: warningExpiration }])
     );
 
     // 60 days ahead of the expiration - warning territory (> 30 days out).
@@ -23,8 +35,8 @@ describe('getInstructorsWithExpiringLicenses', () => {
 
     expect(alerts).toHaveLength(1);
     expect(alerts[0].instructorId).toBe('instructor-1');
-    expect(typeof alerts[0].daysUntilExpiry).toBe('number');
-    expect(alerts[0].severity).toBe(alerts[0].daysUntilExpiry <= 30 ? 'danger' : 'warning');
+    expect(alerts[0].daysUntilExpiry).toBe(60);
+    expect(alerts[0].severity).toBe('warning');
   });
 
   it('marks an already-expired license as danger severity', async () => {
