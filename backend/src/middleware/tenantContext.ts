@@ -61,19 +61,3 @@ export const getTenantId = (req: Request): string => {
   }
   return req.tenantId;
 };
-
-/**
- * Validate that a resource belongs to the current tenant
- * Use this when fetching resources by ID to prevent cross-tenant access
- */
-export const validateTenantOwnership = (
-  resourceTenantId: string,
-  requestTenantId: string
-) => {
-  if (resourceTenantId !== requestTenantId) {
-    throw new AppError(
-      'Access denied: Resource does not belong to your organization',
-      403
-    );
-  }
-};

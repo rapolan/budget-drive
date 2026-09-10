@@ -73,7 +73,8 @@ export const getHistory = asyncHandler(async (req: Request, res: Response) => {
 /**
  * @route   POST /api/v1/notifications/process
  * @desc    Manually trigger the notification processor (dev/admin tooling -
- *          there is no automatic scheduler wired up; see notificationCron.ts)
+ *          there is no automatic scheduler wired up; the cron that used to
+ *          do this (jobs/notificationCron.ts) was confirmed dead and removed)
  * @access  Private
  */
 export const processQueue = asyncHandler(async (_req: Request, res: Response) => {

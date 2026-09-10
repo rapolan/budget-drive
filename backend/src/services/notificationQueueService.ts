@@ -5,9 +5,11 @@
  * from the `notifications` table, in-app alert dismissal tracking, see
  * notificationService.ts). lessonService.ts writes rows here on booking
  * and cancellation; automatic sending is driven by notificationProcessor's
- * processQueue(), triggered manually via POST /notifications/process
- * (its cron scheduler, notificationCron.ts's startNotificationCron, is
- * confirmed dead/never called - out of scope here).
+ * processQueue(), triggered manually via POST /notifications/process.
+ * There is no automatic scheduler - the cron job that used to call this
+ * on a timer (jobs/notificationCron.ts) was confirmed dead/never wired to
+ * index.ts and was removed entirely in a later health-audit pass; wiring
+ * up real automatic sending remains out of scope here.
  *
  * Moved out of routes/notifications.ts (which previously ran this SQL
  * directly in the route handler) to match this codebase's service-layer

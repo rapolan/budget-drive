@@ -50,26 +50,3 @@ export const authenticate = async (
     next(new AppError('Invalid or expired authentication token', 401));
   }
 };
-
-/**
- * Optional authentication - Attaches user if token exists, but doesn't require it
- */
-export const optionalAuth = (
-  req: Request,
-  _res: Response,
-  next: NextFunction
-) => {
-  try {
-    const token = extractTokenFromHeader(req.headers.authorization);
-
-    if (token) {
-      const decoded = verifyToken(token);
-      req.user = decoded;
-    }
-
-    next();
-  } catch (_error) {
-    // Silently fail - user just won't be authenticated
-    next();
-  }
-};

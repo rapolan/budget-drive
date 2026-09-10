@@ -17,23 +17,6 @@ import { createLogger } from '../utils/logger';
 
 const logger = createLogger('NotificationService');
 
-export const getActiveNoShowNotification = async (
-  tenantId: string,
-  studentId: string
-): Promise<Notification | null> => {
-  const result = await query(
-    `SELECT * FROM notifications
-     WHERE tenant_id = $1 AND related_entity_type = 'student' AND related_entity_id = $2
-       AND type = 'follow_up_due' AND is_read = false
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [tenantId, studentId]
-  );
-
-  if (result.rows.length === 0) return null;
-  return keysToCamel(result.rows[0]) as Notification;
-};
-
 export const createNoShowNotification = async (
   tenantId: string,
   userId: string,

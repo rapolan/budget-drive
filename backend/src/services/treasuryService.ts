@@ -76,16 +76,6 @@ class TreasuryService {
   }
 
   /**
-   * Convert USD to satoshis
-   * (Currently unused - reserved for Phase 3 BSV integration)
-   */
-  // private usdToSatoshis(usd: number): number {
-  //   const bsv = usd / this.BSV_PRICE_USD;
-  //   const satoshis = Math.round(bsv * this.SATOSHIS_PER_BSV);
-  //   return satoshis;
-  // }
-
-  /**
    * Get BSV price (in production, fetch from exchange)
    */
   async getBSVPrice(): Promise<number> {

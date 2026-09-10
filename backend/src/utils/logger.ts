@@ -200,32 +200,6 @@ export const logResponse = (req: any, res: any, duration: number): void => {
 };
 
 /**
- * Log database query
- */
-export const logQuery = (query: string, params?: any[], duration?: number): void => {
-  logger.debug('Database Query', {
-    query,
-    params,
-    duration: duration ? `${duration}ms` : undefined,
-  });
-};
-
-/**
- * Log service operation
- */
-export const logServiceOperation = (
-  service: string,
-  operation: string,
-  context?: LogContext
-): void => {
-  logger.info('Service Operation', {
-    service,
-    operation,
-    ...context,
-  });
-};
-
-/**
  * Log API error with full context
  */
 export const logApiError = (

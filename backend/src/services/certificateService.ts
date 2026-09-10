@@ -740,21 +740,9 @@ export const recordVoid = async (
   return keysToCamel(result.rows[0]) as Certificate;
 };
 
-export const getCertificateForEnrollment = async (
-  enrollmentId: string,
-  tenantId: string
-): Promise<Certificate | null> => {
-  const result = await query(
-    `SELECT * FROM certificates WHERE enrollment_id = $1 AND tenant_id = $2`,
-    [enrollmentId, tenantId]
-  );
-  if (result.rows.length === 0) return null;
-  return keysToCamel(result.rows[0]) as Certificate;
-};
-
 /**
- * Batched form of getCertificateForEnrollment, for the student-record view
- * (Items 3/5) - one query for all of a student's enrollments, not N+1.
+ * Batched certificate lookup for the student-record view (Items 3/5) - one
+ * query for all of a student's enrollments, not N+1.
  */
 export const getCertificatesForEnrollments = async (
   enrollmentIds: string[],

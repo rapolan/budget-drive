@@ -36,33 +36,3 @@ export function useDebounce<T>(value: T, delay: number = 300): T {
 
   return debouncedValue;
 }
-
-/**
- * Alternative debounce hook that returns both the debounced value and a boolean indicating if it's debouncing
- *
- * @param value - The value to debounce
- * @param delay - Delay in milliseconds (default: 300ms)
- * @returns Object with debouncedValue and isDebouncing flag
- */
-export function useDebouncedValue<T>(
-  value: T,
-  delay: number = 300
-): { debouncedValue: T; isDebouncing: boolean } {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  const [isDebouncing, setIsDebouncing] = useState(false);
-
-  useEffect(() => {
-    setIsDebouncing(true);
-
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-      setIsDebouncing(false);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return { debouncedValue, isDebouncing };
-}

@@ -88,18 +88,6 @@ export const formatTenantDateLabel = (dateStr: string): string => {
 };
 
 /**
- * Format date and time together (e.g., "Mon, Jan 15 at 2:30 PM")
- * @param date - Date object or date string
- * @param time24 - Time in HH:MM format
- * @returns Formatted datetime string
- */
-export const formatDateTime = (date: Date | string, time24: string): string => {
-  const dateStr = formatShortDate(date);
-  const timeStr = format12Hour(time24);
-  return `${dateStr} at ${timeStr}`;
-};
-
-/**
  * Add N calendar days to a YYYY-MM-DD date string, returning a YYYY-MM-DD
  * string. Pure calendar-day arithmetic on an already-resolved local date -
  * not tenant-timezone interpretation of an instant, so this is safe to use

@@ -94,20 +94,3 @@ export const slowRequestMiddleware = (threshold: number = 1000) => {
     next();
   };
 };
-
-/**
- * Middleware to log route not found
- */
-export const notFoundLoggingMiddleware = (
-  req: Request,
-  _res: Response,
-  next: NextFunction
-): void => {
-  logger.warn('Route Not Found', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-  });
-
-  next();
-};
