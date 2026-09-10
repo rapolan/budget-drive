@@ -284,6 +284,18 @@ This app has real, working groundwork for a future blockchain feature - but that
 
 See `docs/ARCHITECTURE.md` §23 for the exact mechanics and how each was live-verified.
 
+### Spring Cleaning: Dead Code, Unused Dependencies, One Bad Test, and a Few Stale Sentences
+
+A third pass of the same health audit turned into general housekeeping - clearing out code and dependencies that had genuinely stopped being used, fixing one test that had quietly stopped meaning anything, and correcting a handful of places where the written word no longer matched the running app.
+
+**A fair number of functions, one whole file's worth of unused constants, and a small pile of dependencies turned out to be dead weight - all removed, only after checking each one fresh.** Nothing here was taken on faith from an earlier pass; every single item was re-searched for real usage right before it was touched, precisely because two earlier rounds of work had already changed some of the same files - and one item that looked dead before genuinely wasn't anymore (a function a previous fix had since written a real test around), so it was left alone exactly as found. Six backend packages and one frontend package that nothing actually imports are gone too, along with the code that never used them.
+
+**One test was quietly incapable of ever failing, and it's fixed now.** It checked a number against a rule computed from that same number - which will always agree with itself, no matter what the underlying logic actually does. Worse, the specific example date it used had drifted into the past since it was written, so the real-world scenario it claimed to test didn't even exist anymore - and the test still passed regardless, because it was never actually checking anything real. It's rewritten now to check against an honest, fixed expected answer, the same way the test right next to it in the same file always correctly has.
+
+**A few places where the documentation had quietly drifted from the truth were corrected.** The technical architecture document used to open by describing a whole second database and an entire separate indexing service as if they were already running - they aren't, and the app's real, complete database today is just the one it's always had. That's been rewritten to say so plainly, and to frame that content honestly as a possible future direction rather than something built. A changelog entry still described an old design for matching instructors to their service area that was replaced before it ever really shipped - it now describes what the app actually does. And two small code comments that had quietly gone stale - one describing a folder of test scripts as far narrower than it's actually grown into, another implying a save button does something it's never actually done - were corrected to say what's really true today, without changing anything about how either one behaves.
+
+See `docs/ARCHITECTURE.md` §24 for the full list and the evidence behind each decision.
+
 ---
 
 ## 1. The 6-Dimensional (6D) Scheduling Engine

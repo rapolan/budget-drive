@@ -1,55 +1,66 @@
 # Budget Drive Protocol (BDP) - Technical Architecture
 
 **Version:** 2.2  
-**Last Updated:** August 2026  
-**Status:** Authoritative Technical Reference
+**Last Updated:** September 2026  
+**Status:** Authoritative Technical Reference for the sections below marked as such. **§1-4 are the exception** — they describe a future, optional overlay/anchoring layer that does not exist in this codebase today (see the notice at the top of §1).
 
 ---
 
 ## 1. System Overview
 
-BDP is a multi-tenant driving school management platform designed with a **Hybrid Data Layer**. It balances operational performance and privacy with blockchain-backed immutability and auditability.
+> **§1-4 describe future, optional work — not current architecture.** Found stale during a codebase health audit: this section previously read as if MongoDB, `@bsv/overlay-express`, Topic Managers, and Lookup Services were already built and running. None of them are — there is no MongoDB dependency, connection, or code anywhere in this repo, and `@bsv/overlay-express` is not installed (confirmed via `package.json` and a full-repo grep). **The app's actual, current database is PostgreSQL end to end** — every table this app reads or writes lives there; nothing is split across a second datastore. What §1-4 describe below is BSV Overlay Services, Project Babbage's reference architecture for a *separate*, optional service that would sit alongside this app and index on-chain lookup data in MongoDB — it is not, and was never meant to be, a replacement for PostgreSQL. This mirrors how `docs/BLOCKCHAIN.md` and `docs/BLUEPRINTS.md` already frame the rest of this app's BSV work honestly (deferred, `BSV_ENABLED=false`, no blockchain code written yet for most of it) — §1-4 is corrected here to match that same honesty rather than reading as a description of what's currently deployed. See `docs/ARCHITECTURE.md` §23 and `docs/BLOCKCHAIN.md` for what BSV-adjacent work is actually built today (all of it dormant scaffolding, `BSV_ENABLED=false`).
+
+BDP is a multi-tenant driving school management platform. **Today**, it runs on a single operational datastore (PostgreSQL) with no blockchain writes active. The **Hybrid Data Layer** described below is the long-term design this app is built to grow into, balancing operational performance and privacy with blockchain-backed immutability and auditability — once that work is actually built and `BSV_ENABLED` is turned on for real.
 
 ### Core Tech Stack
+
+**Currently running:**
 - **Frontend:** React 18, TypeScript, Vite, Tailwind CSS
 - **Backend:** Node.js 18, Express, TypeScript
-- **Primary DB:** PostgreSQL 14 (Multi-tenant operational data)
-- **Overlay DB:** MongoDB (Indexed blockchain data for AI/Third-party queries)
-- **Blockchain:** BSV (Overlay Services architecture via `@bsv/sdk` and `@bsv/overlay-express`)
+- **Database:** PostgreSQL 14 — the only datastore this app uses today. No MongoDB, no overlay service, nothing else.
+- **Blockchain (dormant scaffolding only):** `@bsv/sdk` is a real dependency, used by the `LedgerService` seam (see §23) — but `BSV_ENABLED=false` in every environment this app runs in, so none of it executes.
+
+**Future, not yet built:**
+- **Overlay DB:** MongoDB, for indexing on-chain data once real anchoring exists (Project Babbage's Overlay Services pattern — a separate service, not a replacement for the PostgreSQL database above).
+- **Overlay Services runtime:** `@bsv/overlay-express` — not installed, not a dependency of this app.
 
 ---
 
-## 2. The Hybrid Data Layer
+## 2. The Hybrid Data Layer (Future Design — Not Yet Built)
 
-BDP uses a Three-Layer Architecture to manage data based on privacy, speed, and audit requirements.
+The table below describes the target three-layer architecture this app is designed to grow into. **Today, only the "Operational" row is real** — everything this app currently stores lives in PostgreSQL, including anything that would eventually move to the other two rows.
 
-| Layer | Technology | Purpose | Key Data |
-|-------|------------|---------|----------|
-| **Operational** | PostgreSQL | Fast queries, PII protection | Student names, addresses, performance notes, real-time schedule state. |
-| **Audit/Financial** | BSV Blockchain | Immutable truth, timestamps | Booking hashes, payment proofs, Merkle proofs, certificates, protocol fees. |
-| **Overlay Index** | MongoDB | Queryable audit trail | Indexed hashes, SPV proofs, aggregated stats for AI agents/DMV. |
+| Layer | Technology | Purpose | Key Data | Status |
+|-------|------------|---------|----------|--------|
+| **Operational** | PostgreSQL | Fast queries, PII protection | Student names, addresses, performance notes, real-time schedule state. | **Live today** |
+| **Audit/Financial** | BSV Blockchain | Immutable truth, timestamps | Booking hashes, payment proofs, Merkle proofs, certificates, protocol fees. | Not built — `BSV_ENABLED=false`, see §23 |
+| **Overlay Index** | MongoDB | Queryable audit trail | Indexed hashes, SPV proofs, aggregated stats for AI agents/DMV. | Not built — no MongoDB dependency exists |
 
-### Data Sovereignty Framework
-We follow a strict "Where Does This Data Go?" decision tree:
+### Data Sovereignty Framework (Design Intent, Once the Other Two Layers Exist)
+The eventual "Where Does This Data Go?" decision tree, once the Audit/Financial and Overlay Index layers are actually built:
 - **Financial/Payment?** → Blockchain + MongoDB index.
 - **Provable/Verifiable?** → Hash on Blockchain, full data in PostgreSQL.
 - **Personal Identifiable Info (PII)?** → PostgreSQL only (Private).
 - **High-Volume Operational?** → PostgreSQL (Fast).
 
+Today, everything — PII, financial records, everything — lives in PostgreSQL only, since the other two layers don't exist yet.
+
 ---
 
-## 3. BSV Standards & Protocols
+## 3. BSV Standards & Protocols (Target Standards — Reference Only Today)
 
-BDP adheres to modern BRC standards to ensure interoperability within the BSV ecosystem.
+The BRC standards below are what this app's future BSV integration is designed to interoperate with. None of this is wired up while `BSV_ENABLED=false`; §23's `LedgerService` seam is the actual, current landing spot for BSV-shaped calls, and it reserves protocol action types (`BDP_BOOK`, `BDP_PAY`, etc.) matching the fee schedule below for when real anchoring is built.
 
-### Key Standards
-- **BRC-100:** Unified Wallet-to-Application Interface. Used for user auth and transaction signing.
-- **BRC-52:** Identity & Verifiable Credentials. Used for instructor licenses and course completion certificates.
-- **BRC-22 (SHIP):** Synchronizes Hosting for Indexing Peers. Broadcasts transactions to overlay hosts.
-- **BRC-24 (SLAP):** Service Lookup Availability Protocol. Discovers available lookup services.
-- **BEEF:** Background Evaluation Extended Format. The standard transaction envelope format.
+### Key Standards (Not Yet Implemented)
+- **BRC-100:** Unified Wallet-to-Application Interface. Would be used for user auth and transaction signing.
+- **BRC-52:** Identity & Verifiable Credentials. Would be used for instructor licenses and course completion certificates — see `docs/BLOCKCHAIN.md` §5 for how this differs from the plain operational certificate-tracking feature that IS built today (`docs/ARCHITECTURE.md` §13).
+- **BRC-22 (SHIP):** Synchronizes Hosting for Indexing Peers. Would broadcast transactions to overlay hosts.
+- **BRC-24 (SLAP):** Service Lookup Availability Protocol. Would discover available lookup services.
+- **BEEF:** Background Evaluation Extended Format. The standard transaction envelope format this would use.
 
 ### Protocol Prefixes & Fees
+These are real, already reserved as `LedgerActionType` values in `backend/src/services/Ledger/LedgerService.ts` today (see §23) — but only ever fire when `BSV_ENABLED=true`, which no environment currently has set.
+
 | Prefix | Action | Fee (sats) |
 |--------|--------|------------|
 | `BDP_BOOK` | Lesson Booking | 5 |
@@ -60,20 +71,22 @@ BDP adheres to modern BRC standards to ensure interoperability within the BSV ec
 
 ---
 
-## 4. Overlay Services Architecture
+## 4. Overlay Services Architecture (Future, Optional — Not Built)
 
-The "Overlay" consists of **Topic Managers** (admittance) and **Lookup Services** (indexing/querying).
+None of this exists in the codebase today — no MongoDB, no `@bsv/overlay-express`, no Topic Manager or Lookup Service code anywhere in this repo. This section is kept as a design reference for what a future, separate overlay service could look like, per Project Babbage's Overlay Services reference architecture, should real on-chain anchoring ever be built out beyond the dormant `LedgerService` scaffolding described in §23.
 
-### Topic Managers (Validation)
-Decide which transaction outputs enter the overlay.
-- **`tm_bdp_lessons`**: Validates `BDP_BOOK` structure (tenantId, studentHash, fee >= 5 sats).
-- **`tm_bdp_payments`**: Validates `BDP_PAY` structure (amount, currency, fee >= 3 sats).
-- **`tm_bdp_certs`**: Validates BRC-52 certificate signatures and protocol fees.
+The "Overlay" would consist of **Topic Managers** (admittance) and **Lookup Services** (indexing/querying) — a separate service from this app, communicating with it rather than being part of it.
 
-### Lookup Services (Querying)
-Answer queries about the admitted data.
-- **`ls_bdp_lessons`**: Queries lessons by `studentHash`, `instructorHash`, or `date_range`.
-- **`ls_bdp_payments`**: Queries financial history and payment proofs.
+### Topic Managers (Validation) — Proposed, Not Built
+Would decide which transaction outputs enter the overlay.
+- **`tm_bdp_lessons`**: Would validate `BDP_BOOK` structure (tenantId, studentHash, fee >= 5 sats).
+- **`tm_bdp_payments`**: Would validate `BDP_PAY` structure (amount, currency, fee >= 3 sats).
+- **`tm_bdp_certs`**: Would validate BRC-52 certificate signatures and protocol fees.
+
+### Lookup Services (Querying) — Proposed, Not Built
+Would answer queries about the admitted data.
+- **`ls_bdp_lessons`**: Would query lessons by `studentHash`, `instructorHash`, or `date_range`.
+- **`ls_bdp_payments`**: Would query financial history and payment proofs.
 
 ---
 
@@ -492,6 +505,20 @@ Two structural/safety fixes to the dormant BSV scaffolding. `BSV_ENABLED` stays 
 - **`createWallet()` (already dead code, zero callers per the Pass-0 audit) now always throws**, since it never supplies a private key. Documented in place as a reminder that a real future implementation of "generate a new wallet" would need to hand the key back through a genuine secret-management path (returned to an admin once, over TLS, never logged) - not resurrect the auto-generate-and-log pattern this fix removed.
 - **`BSV_ENABLED=false` (the current/default state) is completely unaffected** - `config/env.ts`'s new branch is skipped entirely when the flag is off, and nothing calls `getProtocolWallet()`/constructs a `WalletService` in that state at all.
 - **Live-verified**: constructing `config/env.ts` with `BSV_ENABLED=true` and no wallet key throws the exact instructive message above, with zero console output; the real dev environment (`BSV_ENABLED=false`) still loads successfully, unchanged. Tests (`walletKeyStartupSafety.test.ts`) cover both the `config/env.ts` startup check and the `WalletService` constructor's own boundary, plus asserting no console output ever contains "PRIVATE KEY" or "wallet generated" text across the throwing and non-throwing paths.
+
+---
+
+## 24. Health-Audit Fix-Up, Pass 3: Dead Code, Dependencies, a Tautological Test, and Stale Docs
+
+Cleanup pass following Passes 1-2's live-bug and BSV-safety fixes. Every item below was re-verified fresh on current main (not trusted from the prior audit's snapshot) immediately before acting on it, since Passes 1-2 had already touched several of the same files.
+
+- **Dead code removed** (backend): `config/constants.ts` (entire file, zero importers), `notificationService.getActiveNoShowNotification`, `certificateService.getCertificateForEnrollment` (singular - the batched `getCertificatesForEnrollments` was always the live one), `logger.logQuery`/`logServiceOperation`, `auth.optionalAuth`, `tenantContext.validateTenantOwnership`, `loggingMiddleware.notFoundLoggingMiddleware`, and `jobs/notificationCron.ts` (entire file - `startNotificationCron`/`stopNotificationCron` were its only content, both dead, never called from `index.ts`). Confirmed this doesn't touch `notification_queue` itself or `notificationProcessor.processQueue()`'s live manual-trigger path (`POST /notifications/process`, fixed in Pass 1) - the cron only ever called that function on a timer that was never wired up in the first place. Also removed `treasuryService.ts`'s commented-out `usdToSatoshis` (4-line block).
+- **Dead code removed** (frontend): `hooks/useApiError.ts` (entire file, all 4 exports, zero importers), `utils/timeFormat.ts`'s `formatDateTime`, `hooks/useDebounce.ts`'s `useDebouncedValue`.
+- **One item skipped**: `walletService.createWallet` was on the original removal list, but re-verification found it's no longer zero-reference - Pass 2 added `walletKeyStartupSafety.test.ts`, which deliberately calls `createWallet()` to prove it now throws (a real, intentional test of dead-but-safe behavior, not a stray reference). Left in place, per the standing instruction that anything with a new reference gets reported and skipped, not removed.
+- **Lower-confidence items, decided, not removed**: `backend/src/types/index.ts`'s 29 unused interfaces and `types/treasury.ts`'s `TreasurySpending` remain unremoved (type-only scaffolding for unbuilt features - zero runtime cost, left for a future, deliberate decision on whether those features are ever built). `frontend/src/utils/zipCode.ts`'s `getEffectiveZipCode`/`sortByProximity` were investigated further than the prior audit went: they're the assembly layer over `calculateProximityScore`/`getZipRegion`/`CA_ZIP_REGIONS`, an entire client-side proximity-scoring subsystem that turns out to be **not wired into any production code path at all** - the one place it's referenced outside its own test file is a comment in `SmartBookingForm/index.tsx` explicitly noting that the real ranking is computed server-side. Decided to leave all of it in place rather than remove just the two named functions: partially deleting a coherent (if currently unwired) utility module would leave it in a worse, half-dead state than either keeping it whole or removing the whole subsystem - and removing the whole subsystem wasn't what was asked. Flagged here for a future, explicit decision on the module as a whole.
+- **Unused dependencies removed**: backend - `bsv` (the plain package; `@bsv/sdk`, the one actually used, is kept), `uuid`, `winston`, `axios`, `body-parser`, `express-validator` (plus the now-orphaned `@types/body-parser`/`@types/uuid` dev dependencies). Frontend - `recharts`. `npm install` run for both packages in the same commit to update lockfiles; 83 and 35 packages respectively came out of the dependency trees.
+- **Tautological test fixed**: `dashboardLicenseAlerts.test.ts`'s "approaching (warning) expiry" test asserted `severity` against a condition computed from the same test's own output (`daysUntilExpiry <= 30 ? 'danger' : 'warning'`) rather than a concrete expected value - and its hardcoded absolute expiration date had, by the time this pass ran, quietly gone 252 days stale (the scenario the test claimed to cover, "60 days ahead," no longer existed - `daysUntilExpiry` was actually deeply negative). Fixed using the same relative-date pattern (`tenantToday`/`addTenantDays`) every sibling test in the file already uses, plus concrete literals (`daysUntilExpiry: 60`, `severity: 'warning'`) - can't silently rot the same way again, and now genuinely exercises the 30-day danger/warning boundary rather than just checking internal consistency.
+- **Stale docs corrected**: §1-4 above were rewritten to stop describing MongoDB/`@bsv/overlay-express`/Topic Managers/Lookup Services as current architecture - neither MongoDB nor `@bsv/overlay-express` exists anywhere in this codebase (confirmed via `package.json` and a full-repo grep) - and now clearly frame that content as future, optional work (BSV Overlay Services, Project Babbage's reference architecture for a separate indexing service, not a replacement for this app's actual database), stating plainly that **PostgreSQL is the only datastore this app uses today**. `CHANGELOG.md`'s `[Added - Instructor Service Areas]` entry was corrected from describing the old filter-with-fallback design (superseded before it shipped) to describing the current rank-only/never-exclude design, re-confirmed live in `schedulingService.ts` (`outsideServiceArea` is purely a sort key at the comparator, never a filter). `frontend/e2e-screenshots/playwright.config.ts`'s header comment, which claimed the directory was "scoped strictly to the booking-workflow screenshots," was updated to describe what it actually is now - 28+ ad-hoc verification specs accumulated over this app's development, not a general E2E suite. `frontend/src/pages/NotificationSettings.tsx`'s comment implying a real `settingsApi.updateNotifications` integration (which was never built - `settingsApi` doesn't exist anywhere in this codebase) was replaced with an explicit `STUB:` notice - the page only writes to `localStorage` today; wiring up real persistence is separate, future work, not attempted in this pass.
 
 ---
 

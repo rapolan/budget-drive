@@ -35,11 +35,14 @@ export const NotificationSettingsPage: React.FC = () => {
     setSaveMessage('');
 
     try {
-      // Simulate save to localStorage for now
+      // STUB: this page does not persist to the backend yet. It only
+      // writes to this browser's localStorage - nothing here is read by
+      // any backend service or sent to any other device/session. A real
+      // settingsApi.updateNotifications(settings) call was never built
+      // (settingsApi does not exist anywhere in this codebase - confirmed
+      // via a full-repo grep during a codebase health audit). Wiring this
+      // up is tracked as separate, future work, not part of this fix.
       localStorage.setItem('notification_settings', JSON.stringify(settings));
-
-      // In production, this would be an API call:
-      // await settingsApi.updateNotifications(settings);
 
       await new Promise(resolve => setTimeout(resolve, 500));
       setSaveMessage('Settings saved successfully!');
