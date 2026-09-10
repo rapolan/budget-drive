@@ -41,16 +41,26 @@ class WalletService {
   constructor(walletConfig: WalletConfig) {
     this.network = walletConfig.network;
 
-    // Initialize private key (generate new one if not provided)
-    if (walletConfig.privateKey) {
-      this.privateKey = PrivateKey.fromWif(walletConfig.privateKey);
-    } else {
-      // Generate new private key for testnet development
-      this.privateKey = PrivateKey.fromRandom();
-      console.log('🔑 New wallet generated');
-      console.log('⚠️  SAVE THIS PRIVATE KEY (WIF):', this.privateKey.toWif());
-      console.log('📍 Address:', this.getAddress());
+    // A private key is required - never silently generate and log one.
+    // This used to fall back to PrivateKey.fromRandom() and console.log the
+    // resulting WIF ("SAVE THIS PRIVATE KEY") whenever no key was
+    // configured. Most hosting platforms (including Railway, this app's
+    // deployment target) capture and retain stdout indefinitely, so a real
+    // private key logged this way could persist in log history forever. A
+    // never-shown, auto-generated key is also its own risk - funds sent to
+    // it would be unrecoverable the moment the process restarts and
+    // generates a different one. config/env.ts already refuses to start
+    // the app at all when BSV_ENABLED=true with no configured key, so this
+    // branch should be unreachable in practice - it exists as a second,
+    // defensive boundary directly on the class itself, in case something
+    // ever constructs a WalletService outside that startup check.
+    if (!walletConfig.privateKey) {
+      throw new Error(
+        'WalletService requires a private key (WIF). Configure BSV_PROTOCOL_WALLET_WIF ' +
+        'before creating a wallet - a key must never be silently generated or logged.'
+      );
     }
+    this.privateKey = PrivateKey.fromWif(walletConfig.privateKey);
 
     // Set ARC endpoint based on network
     this.arcEndpoint = this.network === 'testnet'
@@ -309,7 +319,14 @@ export function getProtocolWallet(): WalletService {
 }
 
 /**
- * Create a new wallet (for testing or generating tenant wallets)
+ * Create a new wallet (for testing or generating tenant wallets).
+ * Dead code today - zero callers anywhere in the codebase - and now always
+ * throws, since it never supplies a private key and WalletService's
+ * constructor no longer silently generates one (see the constructor's own
+ * comment). A future real implementation of this would need to generate a
+ * key and hand it back to the caller through a real secret-management path
+ * (e.g. returned to an admin once, over TLS, never logged) - not resurrect
+ * the auto-generate-and-log pattern this fix removed.
  */
 export function createWallet(network: 'mainnet' | 'testnet' = 'testnet'): WalletService {
   return new WalletService({ network });

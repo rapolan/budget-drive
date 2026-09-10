@@ -61,6 +61,26 @@ if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET!.length < 32
   throw new Error('JWT_SECRET must be at least 32 characters in production');
 }
 
+// BSV_ENABLED=true with no configured wallet key must refuse to start, not
+// silently generate one. walletService.ts's WalletService constructor used
+// to fall back to PrivateKey.fromRandom() and console.log the resulting WIF
+// ("SAVE THIS PRIVATE KEY") whenever no key was configured - a real private
+// key logged to stdout persists indefinitely on most hosting platforms
+// (including Railway, this app's deployment target), which capture and
+// retain log history. A never-shown, auto-generated key is also its own
+// risk (funds sent to it would be unrecoverable the moment the process
+// restarts and generates a different one). The admin must deliberately
+// configure BSV_PROTOCOL_WALLET_WIF themselves before BSV can be enabled -
+// this is the earliest point in the app's startup where that's checkable,
+// before any route binds. BSV_ENABLED=false (the current/default state) is
+// completely unaffected - this branch is never reached at all in that case.
+if (process.env.BSV_ENABLED === 'true' && !process.env.BSV_PROTOCOL_WALLET_WIF) {
+  throw new Error(
+    'BSV_ENABLED is true but BSV_PROTOCOL_WALLET_WIF is not configured. ' +
+    'Set this environment variable before enabling BSV.'
+  );
+}
+
 export const config: EnvConfig = {
   // Server
   NODE_ENV: process.env.NODE_ENV || 'development',
