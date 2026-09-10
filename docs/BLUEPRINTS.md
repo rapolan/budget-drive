@@ -274,6 +274,16 @@ A full health audit surfaced three confirmed, live bugs. None of them are relate
 
 See `docs/ARCHITECTURE.md` §22 for the exact root causes, the schema, and how each was live-verified before and after.
 
+### Two Safety Fixes to the Blockchain Groundwork That Isn't Turned On Yet
+
+This app has real, working groundwork for a future blockchain feature - but that feature has never actually been switched on, and won't be for this launch. A second pass of the same health audit checked how that dormant groundwork was built, since "not turned on" should genuinely mean nothing about it can affect the app today, and found two things worth tightening up before going further.
+
+**One file was quietly allowed to reach around the safety wall instead of going through the front door.** This app is built so that every single piece of blockchain-related code has to pass through one specific, deliberately narrow gateway - the idea being that as long as nothing bypasses that gateway, flipping the feature on or off is genuinely just one switch, nothing more. One file had found its own way around that gateway instead of using it, sitting right next to a line of code doing it the correct way. It's fixed now, structurally - nothing about what actually happens when booking a lesson has changed, today or ever, since the feature stays off either way. Along the way, a second, unrelated, already-existing problem was found and is being reported rather than silently patched: the specific bookkeeping table this code writes to doesn't actually exist yet in the database, so that particular write has quietly never done anything, before or after this fix - worth a decision later, not part of what this fix set out to do.
+
+**A private key must never simply be typed into a log file, and this app used to do exactly that.** If this blockchain feature is ever turned on without a wallet already set up for it, the app used to just generate a brand-new one on the spot and print it straight into its own output - including the secret part, which is the one part that should never appear anywhere by accident. Most hosting providers keep that output around indefinitely, so a real secret typed into it that way could sit there forever, discoverable long after anyone remembers it exists. That's removed entirely. In its place: if the feature is ever turned on without a real key already configured, the app now simply refuses to start at all, with a plain, direct explanation of exactly what's missing and what to do about it. Nothing is ever generated quietly on the app's behalf anymore - a real key has to be a deliberate choice made by an actual person, every time. None of this changes anything about how the app runs today, since this whole scenario only exists once someone deliberately turns the feature on.
+
+See `docs/ARCHITECTURE.md` §23 for the exact mechanics and how each was live-verified.
+
 ---
 
 ## 1. The 6-Dimensional (6D) Scheduling Engine

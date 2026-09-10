@@ -117,4 +117,13 @@ Certificate issuance tracking (13 CCR §340.27 — see [ARCHITECTURE.md](ARCHITE
 - **No blockchain import anywhere in this path** — `certificateService.ts` and `transcriptService.ts` never import `walletService`, `treasuryService`, or the `Ledger` seam directly, matching the same isolation discipline as `enrollmentService.ts`'s own completion path and `fee_flags`' revenue isolation.
 - `BDP_CERT` (10 sats, §2 above) is the fee schedule already reserved for a future certificate-issuance anchor call — like `BDP_PROGRESS`, currently unused by any real code path, since `BSV_ENABLED` stays `false` and nothing calls `LedgerService.issueCertificate` outside its own interface/no-op implementation and tests.
 
+### Ledger Seam Discipline and Wallet Key Safety (Health-Audit Fix-Up, Pass 2)
+
+Two structural fixes to the dormant scaffolding above, neither of which enables or wires up any real BSV behavior - `BSV_ENABLED` stays `false` throughout.
+
+- **`lessonService.ts` was found bypassing the `LedgerService` seam**, directly calling `treasuryService.createTransaction(...)` instead of going through the interface - the same rule violation this doc's "Security Best Practices" and CLAUDE.md's BSV/Ledger rule both exist to prevent. Fixed by adding `LedgerService.recordTreasurySplit(params)`, implemented identically by `NoopLedgerService` and `BsvLedgerService` (both delegate to `treasuryService.createTransaction`, which already contains its own `BSV_ENABLED` branch internally) - `lessonService.ts` now calls this instead of importing `treasuryService` directly. Purely structural: the same Postgres write (or, currently, the same silent failure - `treasury_transactions` has no migration anywhere in this repo) happens either way.
+- **`walletService.ts` no longer silently generates and logs a private key.** Its constructor used to fall back to a freshly-generated key and `console.log` the WIF whenever none was configured - a real secret that most hosting platforms (including Railway) would then retain in log history indefinitely. It now throws instead, and `backend/src/config/env.ts` fails the whole app at startup with an instructive error if `BSV_ENABLED=true` is ever set without `BSV_PROTOCOL_WALLET_WIF` configured. No auto-generated key is ever created or stored anywhere - a real key must be a deliberate admin choice.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) §23 for the full mechanics and live verification.
+
 **For full technical specs, see [ARCHITECTURE.md](ARCHITECTURE.md).**

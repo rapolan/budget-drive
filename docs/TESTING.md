@@ -637,6 +637,14 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Known limitation, not a regression to chase**: no email is actually sent for these queued notifications — there is no automatic scheduler running (`notificationCron.ts`'s scheduler has never been wired up), and the manual "Process Queue" button on the Notification History page currently processes zero rows even when clicked (a separate, still-open column-name mismatch inside the automatic-processing code path, `notificationProcessor.ts`'s `scheduled_for`/`retry_count` vs. the real `scheduled_send_time`/`attempt_count` columns). The rows themselves being written and readable is what this test covers.
 
+### 2.52 BSV wallet key safety (dormant scaffolding, `BSV_ENABLED` stays `false`)
+
+**Do:** This is not a UI test — there is no user-facing surface for this, since `BSV_ENABLED` stays `false` in every normal environment. If you need to verify it directly: temporarily set `BSV_ENABLED=true` in `backend/.env` with `BSV_PROTOCOL_WALLET_WIF` left unset or blank, then try to start the backend (`cd backend && npm run dev`).
+
+**Pass looks like:** The backend refuses to start at all, printing a plain, instructive error — `BSV_ENABLED is true but BSV_PROTOCOL_WALLET_WIF is not configured. Set this environment variable before enabling BSV.` — with no private key of any kind printed anywhere in the output. Setting `BSV_PROTOCOL_WALLET_WIF` to any non-empty value (a real key isn't needed just to prove the check passes) lets the backend start normally. **Revert `BSV_ENABLED` back to `false` afterward** — this is dormant scaffolding, not a feature to leave toggled on in a dev environment.
+
+**Do not do this against a real/shared environment** — this test is about confirming the *refusal to start* and the *absence of a logged key*, not about actually running with BSV enabled. See `docs/ARCHITECTURE.md` §23.
+
 ---
 
 ## 3. Known issues to route around
@@ -647,3 +655,4 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 - **Lesson edit path has no conflict validation**: editing an existing lesson's date/time/instructor via the pencil-icon modal (as opposed to creating a new booking) does not run any scheduling-conflict or capacity check. It's possible to silently move a lesson into a double-booking or a full day this way. See §2.14 for the specific test case — this is a known gap, not expected behavior to preserve.
 - **Notification auto-send is still not wired up**: `notification_queue` rows are now correctly written and readable (§2.51), but nothing automatically processes them into sent emails — there's no running cron, and the manual "Process Queue" button currently finds zero eligible rows due to a separate column-name mismatch in `notificationProcessor.ts`. This is a known, reported functional gap, not something §2.51's fix was meant to address.
 - **`tenant.tenantType` is still `undefined`**: fixing `tenantService.ts`'s camelCase gap (§22) did not fix this — the underlying `tenant_full_info` view has no `tenant_type` column at all, and never has. This is a separate, pre-existing gap in the schema, not a case-conversion bug.
+- **`treasury_transactions` does not exist**: no migration anywhere in this repo creates it, and it's absent from the dev database (confirmed via `to_regclass`). `treasuryService.createTransaction`'s `INSERT` has always silently failed on every lesson booking with a nonzero cost, caught by `lessonService.ts`'s own non-blocking try/catch — this predates, and is unrelated to, the §23 ledger-seam fix (which preserves this exact silent-failure behavior rather than fixing it, since fixing it was outside that fix's scope). Reported for visibility, not yet actioned.
