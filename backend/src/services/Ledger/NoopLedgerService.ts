@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../../utils/logger';
+import treasuryService from '../treasuryService';
 import {
   LedgerService,
   LedgerAnchorParams,
@@ -61,6 +62,35 @@ export class NoopLedgerService implements LedgerService {
       certificateId: params.certificateId,
     });
     return this.result();
+  }
+
+  async recordTreasurySplit(params: {
+    tenantId: string;
+    sourceType: 'lesson_booking' | 'lesson_payment' | 'tip' | 'refund';
+    sourceId: string;
+    grossAmount: number;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    // treasuryService.createTransaction is the one call site exempted to
+    // import walletService directly (see LedgerService.ts's header rule) -
+    // it already contains its own BSV_ENABLED branch internally (Phase 1
+    // Postgres write always happens; the real on-chain broadcast only
+    // additionally happens when enabled), so this noop implementation
+    // delegates straight to it rather than re-deriving that branch here.
+    // A plain top-level import, not a lazy require: treasuryService (and
+    // therefore @bsv/sdk via walletService) was already eagerly loaded at
+    // process startup by every module that used to import it directly
+    // (e.g. the old lessonService.ts) - this doesn't change that, it just
+    // moves the one legitimate import to the one folder allowed to have it.
+    await treasuryService.createTransaction({
+      tenant_id: params.tenantId,
+      source_type: params.sourceType,
+      source_id: params.sourceId,
+      gross_amount: params.grossAmount,
+      description: params.description,
+      metadata: params.metadata,
+    });
   }
 
   async getStatus(): Promise<LedgerStatus> {

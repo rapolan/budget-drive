@@ -131,6 +131,28 @@ export class BsvLedgerService implements LedgerService {
     });
   }
 
+  async recordTreasurySplit(params: {
+    tenantId: string;
+    sourceType: 'lesson_booking' | 'lesson_payment' | 'tip' | 'refund';
+    sourceId: string;
+    grossAmount: number;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    // createTransaction already contains its own BSV_ENABLED branch (Phase
+    // 1 Postgres write always happens; the on-chain broadcast additionally
+    // happens here since this class is only ever selected when the flag is
+    // true) - delegate straight to it rather than re-deriving that logic.
+    await treasuryService.createTransaction({
+      tenant_id: params.tenantId,
+      source_type: params.sourceType,
+      source_id: params.sourceId,
+      gross_amount: params.grossAmount,
+      description: params.description,
+      metadata: params.metadata,
+    });
+  }
+
   async getStatus(): Promise<LedgerStatus> {
     try {
       const wallet = getProtocolWallet();

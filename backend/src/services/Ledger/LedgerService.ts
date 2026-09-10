@@ -89,6 +89,27 @@ export interface LedgerService {
     courseCode?: string;
   }): Promise<LedgerAnchorResult>;
 
+  /**
+   * Record a BDP treasury split (the 1% revenue-split bookkeeping row in
+   * `treasury_transactions` - see treasuryService.createTransaction). This is
+   * NOT the same thing as anchorAction: the Postgres write happens
+   * unconditionally (Phase 1, matching createTransaction's own long-standing
+   * behavior), and the real on-chain broadcast only additionally happens
+   * when BSV is enabled - createTransaction already contains that branch
+   * internally, so both LedgerService implementations delegate straight to
+   * it rather than re-deriving the same enabled/disabled check here.
+   * Business logic must call this instead of importing treasuryService
+   * directly (see this file's header rule).
+   */
+  recordTreasurySplit(params: {
+    tenantId: string;
+    sourceType: 'lesson_booking' | 'lesson_payment' | 'tip' | 'refund';
+    sourceId: string;
+    grossAmount: number;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void>;
+
   /** Health/diagnostics for the /treasury/status style endpoints. */
   getStatus(): Promise<LedgerStatus>;
 }

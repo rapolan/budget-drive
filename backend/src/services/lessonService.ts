@@ -9,7 +9,6 @@
 import { query } from '../config/database';
 import { Lesson, SchedulingConflict } from '../types';
 import { AppError } from '../middleware/errorHandler';
-import treasuryService from './treasuryService';
 import { ledger } from './Ledger';
 import lessonInviteService from './lessonInviteService';
 import { validateLessonBooking } from './schedulingService';
@@ -509,6 +508,14 @@ export const createLesson = async (
     });
 
     // BDP Phase 1: Record 1% treasury split on lesson booking (Patent Claim #2)
+    // - routed through the ledger seam (recordTreasurySplit), never
+    // treasuryService directly, matching this file's own correct
+    // ledger.anchorAction call two lines below and LedgerService.ts's
+    // header rule ("never import walletService or treasuryService
+    // directly outside this folder"). Structural fix only - both ledger
+    // implementations delegate straight to treasuryService.createTransaction,
+    // which already contains its own BSV_ENABLED branch internally, so this
+    // produces byte-for-byte the same behavior as the direct call it replaces.
     if (lesson.cost && lesson.cost > 0) {
       try {
         logger.debug('Recording treasury split for lesson booking', {
@@ -517,11 +524,11 @@ export const createLesson = async (
           cost: lesson.cost,
         });
 
-        await treasuryService.createTransaction({
-          tenant_id: tenantId,
-          source_type: 'lesson_booking',
-          source_id: lesson.id,
-          gross_amount: lesson.cost,
+        await ledger.recordTreasurySplit({
+          tenantId,
+          sourceType: 'lesson_booking',
+          sourceId: lesson.id,
+          grossAmount: lesson.cost,
           description: `Treasury split from lesson booking (${data.lessonType || 'behind_wheel'})`,
           metadata: {
             student_id: data.studentId,

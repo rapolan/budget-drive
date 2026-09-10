@@ -8,12 +8,11 @@ vi.mock('../services/schedulingService', () => ({
   validateLessonBooking: (...args: unknown[]) => mockValidateLessonBooking(...args),
 }));
 
-vi.mock('../services/treasuryService', () => ({
-  default: { createTransaction: vi.fn() },
-}));
-
+// lessonService.ts no longer imports treasuryService directly - the
+// treasury split now routes through ledger.recordTreasurySplit (the
+// ledger seam), so only the Ledger mock is needed here.
 vi.mock('../services/Ledger', () => ({
-  ledger: { anchorAction: vi.fn() },
+  ledger: { anchorAction: vi.fn(), recordTreasurySplit: vi.fn() },
 }));
 
 vi.mock('../services/lessonInviteService', () => ({

@@ -1,5 +1,75 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// Regression coverage (bug found via a full codebase health audit):
+// lessonService.ts used to call treasuryService.createTransaction directly,
+// bypassing the ledger seam. Fixed by adding recordTreasurySplit to
+// LedgerService, implemented by both NoopLedgerService and BsvLedgerService
+// as a thin delegate to treasuryService.createTransaction (the one call
+// site exempted to import walletService, per CLAUDE.md/LedgerService.ts's
+// header rule) - createTransaction already contains its own BSV_ENABLED
+// branch internally (Phase 1 Postgres write always happens; the real
+// on-chain broadcast only additionally happens when enabled), so both
+// implementations produce the exact same downstream call rather than
+// re-deriving that branch in the seam itself.
+const mockCreateTransaction = vi.fn().mockResolvedValue({ id: 'treasury-tx-1' });
+vi.mock('../services/treasuryService', () => ({
+  default: { createTransaction: (...args: unknown[]) => mockCreateTransaction(...args) },
+}));
+
+describe('LedgerService.recordTreasurySplit', () => {
+  beforeEach(() => {
+    mockCreateTransaction.mockClear();
+  });
+
+  it('NoopLedgerService.recordTreasurySplit delegates to treasuryService.createTransaction with the mapped arguments', async () => {
+    const { NoopLedgerService } = await import('../services/Ledger/NoopLedgerService');
+    const svc = new NoopLedgerService();
+
+    await svc.recordTreasurySplit({
+      tenantId: 'tenant-1',
+      sourceType: 'lesson_booking',
+      sourceId: 'lesson-1',
+      grossAmount: 75,
+      description: 'Treasury split from lesson booking (behind_wheel)',
+      metadata: { student_id: 'student-1', instructor_id: 'instructor-1' },
+    });
+
+    expect(mockCreateTransaction).toHaveBeenCalledTimes(1);
+    expect(mockCreateTransaction).toHaveBeenCalledWith({
+      tenant_id: 'tenant-1',
+      source_type: 'lesson_booking',
+      source_id: 'lesson-1',
+      gross_amount: 75,
+      description: 'Treasury split from lesson booking (behind_wheel)',
+      metadata: { student_id: 'student-1', instructor_id: 'instructor-1' },
+    });
+  });
+
+  it('BsvLedgerService.recordTreasurySplit delegates to the exact same treasuryService.createTransaction call as NoopLedgerService', async () => {
+    const { BsvLedgerService } = await import('../services/Ledger/BsvLedgerService');
+    const svc = new BsvLedgerService();
+
+    await svc.recordTreasurySplit({
+      tenantId: 'tenant-1',
+      sourceType: 'lesson_booking',
+      sourceId: 'lesson-1',
+      grossAmount: 75,
+      description: 'Treasury split from lesson booking (behind_wheel)',
+      metadata: { student_id: 'student-1', instructor_id: 'instructor-1' },
+    });
+
+    expect(mockCreateTransaction).toHaveBeenCalledTimes(1);
+    expect(mockCreateTransaction).toHaveBeenCalledWith({
+      tenant_id: 'tenant-1',
+      source_type: 'lesson_booking',
+      source_id: 'lesson-1',
+      gross_amount: 75,
+      description: 'Treasury split from lesson booking (behind_wheel)',
+      metadata: { student_id: 'student-1', instructor_id: 'instructor-1' },
+    });
+  });
+});
+
 describe('NoopLedgerService', () => {
   let logInfoSpy: ReturnType<typeof vi.spyOn>;
 
