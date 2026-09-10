@@ -1,20 +1,16 @@
 /**
  * Notifications API Client
  * Endpoints for notification queue management and history
+ *
+ * Previously used its own bare axios.create() instance with a hardcoded
+ * fallback tenant ID and no auth-token interceptor at all - every request
+ * silently went out with no Authorization header, so NotificationHistory.tsx
+ * always 401'd for a real logged-in user regardless of the notification_queue
+ * table itself existing. Switched to the shared apiClient (see ./client.ts),
+ * matching every other module in this directory.
  */
 
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:4000/api/v1';
-const TENANT_ID = import.meta.env.VITE_TENANT_ID || 'test-tenant-123';
-
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'x-tenant-id': TENANT_ID,
-  },
-});
+import { apiClient } from './client';
 
 export interface NotificationQueueItem {
   id: string;
@@ -92,10 +88,10 @@ export const getNotificationQueue = async (
   limit: number = 100,
   offset: number = 0
 ): Promise<NotificationQueueResponse> => {
-  const params: any = { limit, offset };
+  const params: Record<string, string | number> = { limit, offset };
   if (status) params.status = status;
 
-  const response = await api.get('/notifications/queue', { params });
+  const response = await apiClient.get<NotificationQueueResponse>('/notifications/queue', { params });
   return response.data;
 };
 
@@ -108,11 +104,11 @@ export const getNotificationHistory = async (
   limit: number = 100,
   offset: number = 0
 ): Promise<NotificationHistoryResponse> => {
-  const params: any = { limit, offset };
+  const params: Record<string, string | number> = { limit, offset };
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
 
-  const response = await api.get('/notifications/history', { params });
+  const response = await apiClient.get<NotificationHistoryResponse>('/notifications/history', { params });
   return response.data;
 };
 
@@ -120,7 +116,7 @@ export const getNotificationHistory = async (
  * Manually trigger notification processor (for testing/admin)
  */
 export const processNotificationQueue = async (): Promise<{ success: boolean; message: string }> => {
-  const response = await api.post('/notifications/process');
+  const response = await apiClient.post<{ success: boolean; message: string }>('/notifications/process');
   return response.data;
 };
 
@@ -128,7 +124,7 @@ export const processNotificationQueue = async (): Promise<{ success: boolean; me
  * Retry a failed notification
  */
 export const retryNotification = async (notificationId: string): Promise<{ success: boolean; message: string }> => {
-  const response = await api.post(`/notifications/${notificationId}/retry`);
+  const response = await apiClient.post<{ success: boolean; message: string }>(`/notifications/${notificationId}/retry`);
   return response.data;
 };
 
@@ -147,7 +143,7 @@ export const createTestNotification = async (
     willSendIn: string;
   };
 }> => {
-  const response = await api.post('/notifications/test', { email, sendImmediately });
+  const response = await apiClient.post('/notifications/test', { email, sendImmediately });
   return response.data;
 };
 
