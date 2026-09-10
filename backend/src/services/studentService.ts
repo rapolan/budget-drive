@@ -1024,6 +1024,10 @@ export const updateStudent = async (
     fields.push(`middle_name = $${paramCount++}`);
     values.push(data.middleName);
   }
+  if (data.dateOfBirth !== undefined) {
+    fields.push(`date_of_birth = $${paramCount++}`);
+    values.push(emptyToNull(data.dateOfBirth));
+  }
   if (data.email !== undefined) {
     fields.push(`email = $${paramCount++}`);
     values.push(data.email);

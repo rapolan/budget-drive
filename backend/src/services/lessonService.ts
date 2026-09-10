@@ -852,6 +852,10 @@ export const updateLesson = async (
     fields.push(`instructor_rating = $${paramCount++}`);
     values.push(data.instructorRating);
   }
+  if (data.pickupAddress !== undefined) {
+    fields.push(`pickup_address = $${paramCount++}`);
+    values.push(data.pickupAddress);
+  }
   if (data.notes !== undefined) {
     fields.push(`notes = $${paramCount++}`);
     values.push(data.notes);
