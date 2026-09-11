@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/api/users';
-import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2 } from 'lucide-react';
+import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 
 export const TeamSettings: React.FC = () => {
@@ -110,12 +110,23 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('staff');
   const queryClient = useQueryClient();
+  // Automated email isn't built yet - the backend creates the invite (a
+  // user row + token) and returns a real inviteLink, but nothing ever
+  // sends it anywhere. Without showing it here, an admin has no way to
+  // actually get the link to their teammate, so a successful invite must
+  // keep the modal open and show it, not just close - see inviteLink below.
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const inviteMutation = useMutation({
     mutationFn: usersApi.invite,
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      onClose();
+      // Reuse the backend's own inviteLink verbatim - never recomputed
+      // here, so this always matches whatever FRONTEND_URL the backend
+      // was actually configured with (see userController.ts's
+      // inviteTeamMember).
+      setInviteLink(response.data?.inviteLink ?? null);
     },
   });
 
@@ -124,6 +135,77 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
     if (!email) return;
     inviteMutation.mutate({ email, role: role as any });
   };
+
+  const copyLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  if (inviteLink) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-1.5 bg-status-success-bg border border-status-success-border rounded-md flex-shrink-0">
+              <CheckCircle2 className="h-4 w-4 text-status-success-text" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-tx-primary">Invite created</h3>
+              <p className="text-sm text-tx-muted mt-0.5">
+                Share this link with {email} - email sending isn't set up yet, so send it yourself
+                (text, email, however you'd reach them).
+              </p>
+            </div>
+          </div>
+
+          <label htmlFor="invite-link" className="block text-sm font-medium text-tx-secondary mb-1">
+            Invite link
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="invite-link"
+              type="text"
+              readOnly
+              value={inviteLink}
+              title="Invite link"
+              className="flex-1 min-w-0 px-3 py-2 text-sm bg-surface2 border border-edge-strong rounded-lg font-mono text-tx-secondary truncate"
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button
+              type="button"
+              onClick={copyLink}
+              title="Copy invite link to clipboard"
+              className={copied ? 'bg-status-success-text hover:brightness-100' : ''}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  Copy
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="flex justify-end mt-6">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Done
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -170,6 +252,12 @@ const InviteModal = ({ onClose }: { onClose: () => void }) => {
               {role === 'viewer' && "Viewers have read-only access to the school's data."}
             </p>
           </div>
+          {inviteMutation.isError && (
+            <p className="text-sm text-status-danger-text">
+              {(inviteMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                || 'Failed to create the invite. Please try again.'}
+            </p>
+          )}
           <div className="flex justify-end space-x-3 mt-6">
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
