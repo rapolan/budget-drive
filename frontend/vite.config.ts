@@ -33,4 +33,21 @@ export default defineConfig({
       },
     },
   },
+  // Production: Railway's Start Command runs `npm run preview` (this
+  // block), not `npm run dev` (the `server` block above, unaffected).
+  // host: true binds to all network interfaces - Railway's proxy sits in
+  // front of the container and can't reach a localhost-only bind (the
+  // earlier 502). allowedHosts is required separately since Vite 5:
+  // without it, `vite preview` rejects any request whose Host header
+  // isn't localhost with "Blocked request. This host is not allowed".
+  // The wildcard covers any Railway-generated subdomain so this doesn't
+  // need updating if the domain ever regenerates; the current exact
+  // domain is also listed for clarity/documentation.
+  preview: {
+    host: true,
+    allowedHosts: [
+      'budget-drive-production.up.railway.app',
+      '.up.railway.app',
+    ],
+  },
 });
