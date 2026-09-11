@@ -50,6 +50,31 @@ describe('userService.inviteUserToTenant token generation', () => {
     expect(storedHash).toBe(hashToken(result.inviteToken));
   });
 
+  // Regression test for the 500 this task fixed: inviteUserToTenant's own
+  // INSERT into users previously omitted password_hash entirely, relying
+  // on a NOT NULL column with no default - it has never actually worked
+  // for a genuinely new email. Confirms both full_name and password_hash
+  // are now explicitly inserted as NULL (not omitted), matching migration
+  // 002's nullable columns.
+  it('creates a new invitee user row with full_name and password_hash explicitly NULL, not omitted', async () => {
+    const userService = await import('../services/userService');
+
+    mockQuery.mockResolvedValueOnce(queryResult([])); // no existing user
+    mockQuery.mockResolvedValueOnce(queryResult([{ id: 'user-1', email: 'brandnew@example.com' }])); // insert user
+    mockQuery.mockResolvedValueOnce(
+      queryResult([{ id: 'membership-1', user_id: 'user-1', tenant_id: TENANT_ID, role: 'staff', status: 'invited' }])
+    );
+
+    await userService.inviteUserToTenant('brandnew@example.com', TENANT_ID, 'staff', 'inviter-1');
+
+    const insertUserCall = mockQuery.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO users')
+    );
+    expect(insertUserCall).toBeDefined();
+    expect(insertUserCall![0]).toContain('password_hash');
+    expect(insertUserCall![1]).toEqual(['brandnew@example.com', null, null]);
+  });
+
   it('only an owner can invite someone as owner', async () => {
     const userService = await import('../services/userService');
 

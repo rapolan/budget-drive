@@ -54,6 +54,18 @@ export const login = async (email: string, password: string): Promise<LoginResul
 
   const user = userResult.rows[0];
 
+  // An invited-but-not-yet-accepted user has password_hash = NULL (they
+  // haven't chosen a password yet - see AcceptInvite.tsx / migration 002).
+  // bcrypt.compare REJECTS (doesn't return false) when given a null hash,
+  // so this must be checked before calling verifyPassword, not after -
+  // otherwise this throws an unhandled rejection (a 500) instead of the
+  // same generic 401 every other invalid-login case returns. The message
+  // stays identical to the "wrong password" case - confirming "this email
+  // exists but hasn't set a password" would be a user-enumeration leak.
+  if (user.password_hash === null) {
+    throw new AppError('Invalid email or password', 401);
+  }
+
   // Verify password
   const isValidPassword = await verifyPassword(password, user.password_hash);
   if (!isValidPassword) {
@@ -171,6 +183,16 @@ export const changePassword = async (
 
   if (userResult.rows.length === 0) {
     throw new AppError('User not found', 404);
+  }
+
+  // Same null-hash guard as login() - bcrypt.compare rejects rather than
+  // returning false when given a null hash (an invited-but-not-accepted
+  // user, see migration 002). Shouldn't be reachable here in practice
+  // (login() already refuses to mint a token for such a user), but this
+  // endpoint trusts userId from an already-verified JWT rather than
+  // re-deriving it from a fresh login, so it's checked defensively too.
+  if (userResult.rows[0].password_hash === null) {
+    throw new AppError('Current password is incorrect', 401);
   }
 
   // Verify current password

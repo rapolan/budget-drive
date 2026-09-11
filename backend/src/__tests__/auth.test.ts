@@ -47,6 +47,62 @@ describe('auth', () => {
       expect(res.status).toBe(401);
       expect(res.body.success).toBe(false);
     });
+
+    // SECURITY: an invited-but-not-yet-accepted user has password_hash =
+    // NULL (migration 002 - they haven't chosen a password yet, that only
+    // happens at accept-invite). This must NEVER be treated as "no
+    // password required" - confirmed here with ANY password, including an
+    // empty string, against a real such user row. Before this fix,
+    // bcrypt.compare(password, null) REJECTS rather than returning false,
+    // which would have surfaced as an unhandled 500 instead of a clean
+    // 401 for exactly this case - the one place this class of bug could
+    // have accidentally become an auth bypass if handled carelessly.
+    it('rejects login with ANY password for an invited user whose password_hash is still NULL', async () => {
+      const { default: app } = await import('../app');
+      mockQuery.mockResolvedValueOnce(
+        queryResult([
+          {
+            id: 'user-1',
+            email: 'invited@example.com',
+            password_hash: null,
+            full_name: null,
+            email_verified: false,
+          },
+        ])
+      );
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'invited@example.com', password: 'anything-at-all' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('rejects login with a non-empty but wrong password for an invited user with a NULL password_hash, without ever calling bcrypt.compare against null', async () => {
+      const { default: app } = await import('../app');
+      mockQuery.mockResolvedValueOnce(
+        queryResult([
+          {
+            id: 'user-1',
+            email: 'invited@example.com',
+            password_hash: null,
+            full_name: null,
+            email_verified: false,
+          },
+        ])
+      );
+
+      // A second, longer/differently-shaped password than the first test -
+      // proves the null-hash guard rejects regardless of what's submitted,
+      // not just one specific string.
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'invited@example.com', password: 'correct-horse-battery-staple' });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+    });
   });
 
   describe('protected routes', () => {

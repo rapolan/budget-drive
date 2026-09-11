@@ -1,0 +1,44 @@
+-- ============================================================================
+-- 002_nullable_invite_user_fields.sql
+--
+-- Makes users.full_name and users.password_hash nullable, to correctly
+-- represent an invited-but-not-yet-accepted teammate.
+--
+-- Background: userService.inviteUserToTenant creates a users row for a
+-- brand-new email before that person has ever chosen a name or a
+-- password - both are genuinely unknown until they accept the invite
+-- (AcceptInvite.tsx / POST /auth/accept-invite, which sets password_hash
+-- only - full_name is never collected in that flow, by design). With
+-- both columns NOT NULL and no default, inviteUserToTenant's INSERT has
+-- always failed with a constraint violation for any genuinely new email -
+-- the invite flow has never actually worked end to end.
+--
+-- Nullable (not a placeholder/sentinel value) is the correct fix: an
+-- invited-but-not-accepted user is a real, distinct, temporary state this
+-- app already models elsewhere (user_tenant_memberships.status =
+-- 'invited', TeamSettings.tsx's "Pending User" display fallback) - a
+-- fake name or a fake hash sitting in these columns would misrepresent
+-- that state, not describe it honestly.
+--
+-- check_password_hash_length (CHECK (length(password_hash::text) = 60))
+-- is left untouched - a CHECK constraint is satisfied whenever its
+-- expression evaluates to NULL (not just TRUE), so a NULL password_hash
+-- already passes this constraint without any change; it still enforces
+-- the 60-char bcrypt-hash-length rule for every NON-null value.
+--
+-- Every read path was audited before this migration: keysToCamel/
+-- keysToSnake already pass null field values through unchanged (no
+-- crash), authService.ts's login()/getCurrentUser() already declare
+-- fullName as string | null, and TeamSettings.tsx's rendering already
+-- guards both fields with a null-safe fallback. The one real gap this
+-- migration's companion code change fixes: login() previously called
+-- bcrypt.compare(password, user.password_hash) unconditionally - bcrypt
+-- rejects (not "returns false") when given a null hash, which would
+-- have produced an unhandled 500 instead of a clean 401 for exactly the
+-- case this migration newly makes possible (an invited user attempting
+-- to log in before accepting). login() now checks membership status
+-- before ever calling bcrypt.compare - see authService.ts.
+-- ============================================================================
+
+ALTER TABLE public.users ALTER COLUMN full_name DROP NOT NULL;
+ALTER TABLE public.users ALTER COLUMN password_hash DROP NOT NULL;

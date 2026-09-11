@@ -292,14 +292,18 @@ export const inviteUserToTenant = async (
     throw new AppError('Only an owner can assign the owner role', 403);
   }
 
-  // Ensure user exists (create minimal user record)
+  // Ensure user exists (create minimal user record). full_name and
+  // password_hash are both genuinely unknown at this point - neither is
+  // chosen until the invite is accepted (AcceptInvite.tsx only ever sets
+  // password_hash; full_name is never collected there either) - both
+  // columns are nullable specifically for this state (migration 002).
   const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
   let user = null;
   if (userRes.rows.length === 0) {
     const createRes = await query(
-      `INSERT INTO users (email, full_name, email_verified, created_at, updated_at)
-       VALUES ($1,$2,FALSE,NOW(),NOW()) RETURNING *`,
-      [email, null]
+      `INSERT INTO users (email, full_name, password_hash, email_verified, created_at, updated_at)
+       VALUES ($1,$2,$3,FALSE,NOW(),NOW()) RETURNING *`,
+      [email, null, null]
     );
     user = createRes.rows[0];
   } else {

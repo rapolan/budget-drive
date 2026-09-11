@@ -123,3 +123,34 @@ describe('TeamSettings invite flow', () => {
     });
   });
 });
+
+// An invited-but-not-yet-accepted teammate has fullName: null (migration
+// 002 - they haven't chosen a name yet, that only happens at accept-
+// invite). Confirms the team list's existing null-safe fallbacks
+// (studentAge-style ternaries already in the JSX, not new code) actually
+// render correctly rather than throwing or showing literal "null".
+describe('TeamSettings member list with an invited (nameless) teammate', () => {
+  it('shows "Pending User" and an email-initial avatar for a team member with no fullName yet', async () => {
+    vi.mocked(usersApi.getAll).mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'user-2',
+          email: 'pending@example.com',
+          fullName: null,
+          role: 'staff',
+          membershipStatus: 'invited',
+        },
+      ],
+    });
+
+    renderTeamSettings();
+
+    expect(await screen.findByText('Pending User')).toBeInTheDocument();
+    expect(screen.getByText('pending@example.com')).toBeInTheDocument();
+    // Avatar initial falls back to the email's first letter when fullName
+    // is null ('p' from pending@example.com, uppercased).
+    expect(screen.getByText('P')).toBeInTheDocument();
+    expect(screen.getByText('invited')).toBeInTheDocument();
+  });
+});
