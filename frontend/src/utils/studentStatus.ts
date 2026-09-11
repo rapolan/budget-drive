@@ -381,6 +381,51 @@ export function getFollowupReason(
 }
 
 /**
+ * Composite "needs attention" reasons - the single source of truth for
+ * WHY a student is flagged, shared by the Students list row badge (whose
+ * `title` tooltip is otherwise the only place these reasons surface) and
+ * StudentModal's detail-view summary, so the two surfaces can never
+ * disagree. Deliberately NOT folded into computeStudentStatus itself,
+ * which stays a pure function shared with Dashboard.tsx - Dashboard
+ * already renders needsGuardian/hasOutstandingFee/no-show as their own
+ * separate alert cards, and widening the shared status computation would
+ * silently duplicate those into its "Needs Attention" count too. Each
+ * reason gets a short, admin-facing label (+ a longer tooltip/detail
+ * string) - a student can carry more than one; all applicable reasons are
+ * returned, not just the first.
+ */
+export interface AttentionReason {
+  label: string;
+  title: string;
+}
+
+export function getNeedsAttentionReasons(
+  student: Student,
+  lessons: Lesson[],
+  now: Date,
+  noShowStudentIds: Set<string>
+): AttentionReason[] {
+  const reasons: AttentionReason[] = [];
+  const statusInfo = computeStudentStatus(student, lessons, now, student.activeEnrollment ?? null);
+  if (statusInfo.status === 'needs_attention') {
+    reasons.push({
+      label: 'Follow up',
+      title: getFollowupReason(student, lessons, now, student.activeEnrollment ?? null),
+    });
+  }
+  if (student.needsGuardian) {
+    reasons.push({ label: 'Needs guardian', title: 'This minor has no linked guardian record' });
+  }
+  if (student.hasOutstandingFee) {
+    reasons.push({ label: 'Fee due', title: `Outstanding fee: $${(student.outstandingFeeAmount ?? 0).toFixed(2)}` });
+  }
+  if (noShowStudentIds.has(student.id)) {
+    reasons.push({ label: 'No-show follow-up', title: 'Missed a lesson - follow-up not yet dismissed' });
+  }
+  return reasons;
+}
+
+/**
  * Driver Education (DE) status - a PARALLEL, deliberately separate track
  * from ComputedStatus/StatusInfo above, not a case folded into that union.
  * A DE program is linear (unassigned -> enrolled -> attending -> complete),

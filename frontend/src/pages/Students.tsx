@@ -12,7 +12,7 @@ import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { GuardiansList } from '@/components/guardians/GuardiansList';
 import { GuardianModal } from '@/components/guardians/GuardianModal';
 import { UnifiedSearchResults } from '@/components/guardians/UnifiedSearchResults';
-import { computeStudentStatus, getFollowupReason, computeDeStatus, getDisplayStatus, classifyDeCard, type ProgramTab, type DeCardFilter } from '@/utils/studentStatus';
+import { computeStudentStatus, getFollowupReason, computeDeStatus, getDisplayStatus, classifyDeCard, getNeedsAttentionReasons as getNeedsAttentionReasonsShared, type ProgramTab, type DeCardFilter, type AttentionReason } from '@/utils/studentStatus';
 import { getStudentContactDisplay } from '@/utils/studentContact';
 import { isReadyToMarkComplete, isReadyToMarkDeComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
 import { bucketTimePreference } from '@/utils/timePreferenceBucket';
@@ -433,40 +433,12 @@ export const StudentsPage: React.FC = () => {
   const hasBtw = (student: Student): boolean => student.activeEnrollment !== null && student.activeEnrollment !== undefined;
   const hasDe = (student: Student): boolean => !!student.deEnrollment;
 
-  // Composite "needs attention" reasons for the Students page's OWN
-  // filtering/counting/row-flags (item 2). Deliberately NOT folded into
-  // computeStudentStatus itself, which stays a pure function shared with
-  // Dashboard.tsx - Dashboard already renders needsGuardian/hasOutstandingFee/
-  // no-show as their own separate alert cards, and widening the shared
-  // status computation would silently duplicate those into its
-  // "Needs Attention" count too. Each reason gets a short, admin-facing
-  // label (+ a longer tooltip) for the per-row amber flag; a student can
-  // carry more than one - all applicable flags render, not just the first.
-  interface AttentionReason {
-    label: string;
-    title: string;
-  }
-
-  const getNeedsAttentionReasons = (student: Student): AttentionReason[] => {
-    const reasons: AttentionReason[] = [];
-    const statusInfo = getStudentStatus(student);
-    if (statusInfo.status === 'needs_attention') {
-      reasons.push({
-        label: 'Follow up',
-        title: getFollowupReason(student, lessonsData?.data || [], statusNow, student.activeEnrollment ?? null),
-      });
-    }
-    if (student.needsGuardian) {
-      reasons.push({ label: 'Needs guardian', title: 'This minor has no linked guardian record' });
-    }
-    if (student.hasOutstandingFee) {
-      reasons.push({ label: 'Fee due', title: `Outstanding fee: $${(student.outstandingFeeAmount ?? 0).toFixed(2)}` });
-    }
-    if (noShowStudentIds.has(student.id)) {
-      reasons.push({ label: 'No-show follow-up', title: 'Missed a lesson - follow-up not yet dismissed' });
-    }
-    return reasons;
-  };
+  // Composite "needs attention" reasons for the Students page's row
+  // flags/filtering/counting (item 2) - the shared computation also feeds
+  // StudentModal's detail-view summary (see studentStatus.ts), so the two
+  // surfaces can never disagree about why a student is flagged.
+  const getNeedsAttentionReasons = (student: Student): AttentionReason[] =>
+    getNeedsAttentionReasonsShared(student, lessonsData?.data || [], statusNow, noShowStudentIds);
 
   const studentNeedsAnyAttention = (student: Student): boolean =>
     getNeedsAttentionReasons(student).length > 0;

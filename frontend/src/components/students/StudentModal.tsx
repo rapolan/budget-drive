@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient, useQuery, useQueries } from '@tanstack/react-query';
 import {
   X, User, TrendingUp, History, Phone, Mail, MapPin,
-  CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap, DollarSign
+  CheckCircle, AlertCircle, FileText, Users, Plus, Search, GraduationCap, DollarSign, UserCheck
 } from 'lucide-react';
-import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi, certificatesApi, classroomApi } from '@/api';
+import { studentsApi, lessonsApi, instructorsApi, guardiansApi, feeFlagsApi, enrollmentsApi, certificatesApi, classroomApi, dashboardApi } from '@/api';
 import type { Student, CreateStudentInput, Guardian, GuardianCandidate, GuardianRelationship, Lesson, ProgramType } from '@/types';
 import { StudentProgressCard } from './StudentProgressCard';
 import { LessonHistoryTimeline } from './LessonHistoryTimeline';
@@ -15,10 +15,11 @@ import { DuplicateGuardianConfirm } from '@/components/guardians/DuplicateGuardi
 import { ModalShell } from '@/components/common/ModalShell';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
-import { formatShortDate } from '@/utils/timeFormat';
+import { formatShortDate, parseLocalDate } from '@/utils/timeFormat';
 import { calculateAge } from '@/utils/age';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { isReadyToMarkComplete, MARK_COMPLETE_BUTTON_CLASSES } from '@/utils/studentActionEligibility';
+import { getNeedsAttentionReasons } from '@/utils/studentStatus';
 import { useDebounce } from '@/hooks/useDebounce';
 
 type TabType = 'details' | 'progress' | 'enrollments' | 'history';
@@ -109,7 +110,16 @@ interface StudentModalProps {
 export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, onBookLesson, initialEnrollmentPreset, prefillFromGuardian, onViewGuardian, initialTab }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { settings } = useTenant();
+  const { settings, tenantNow } = useTenant();
+  // Same tenant-resolved "now" pattern as Students.tsx's statusNow -
+  // getNeedsAttentionReasons/computeStudentStatus require an explicit
+  // instant, never the browser's own clock (see docs/ARCHITECTURE.md §7).
+  // Memoized on the underlying date string, not re-derived as a new Date
+  // instance every render, so it's a stable dependency below.
+  const attentionNow = useMemo(
+    () => (tenantNow ? parseLocalDate(tenantNow.today) : new Date(0)),
+    [tenantNow]
+  );
   const isEditing = Boolean(student);
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
   // Recovery UI for the cohort capacity race (a concurrent admin fills the
@@ -155,12 +165,28 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   const defaultHoursRequired = settings?.defaultHoursRequired ?? 6;
   const adultHoursDefault = 2; // Adults (18+) typically want fewer lessons
 
-  // Fetch lessons and instructors for progress/history tabs
+  // Fetch lessons - used by the progress/history tabs AND by the
+  // needs-attention summary below, which must be ready on the default
+  // 'details' tab (not gated to progress/history) since it renders in the
+  // header regardless of which tab is active. Same queryKey Students.tsx
+  // uses for the identical purpose, so this shares its cache entry.
   const { data: lessonsData } = useQuery({
     queryKey: ['lessons'],
     queryFn: () => lessonsApi.getAll(1, 1000),
-    enabled: isEditing && (activeTab === 'progress' || activeTab === 'history'),
+    enabled: isEditing,
   });
+
+  // Same no-show-alert source Students.tsx's row flags read, needed here
+  // for the identical reason - shares that query's cache entry (same key).
+  const { data: noShowAlertsData } = useQuery({
+    queryKey: ['dashboard', 'no-show-alerts'],
+    queryFn: () => dashboardApi.getNoShowAlerts(),
+    enabled: isEditing,
+  });
+  const noShowStudentIds = useMemo(
+    () => new Set((noShowAlertsData?.data || []).map(a => a.studentId)),
+    [noShowAlertsData]
+  );
 
   const { data: instructorsData } = useQuery({
     queryKey: ['instructors'],
@@ -282,6 +308,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
   // Calculate student age from formData
   const studentAge = calculateAge(formData.dateOfBirth || '');
   const isAdult = studentAge !== null && studentAge >= 18;
+
+  // Needs-attention reasons for the header summary below - the SAME
+  // computation Students.tsx's row-flag tooltip reads (studentStatus.ts),
+  // so the list and this detail view can never disagree about why a
+  // student is flagged. Empty for a create-in-progress (no student yet).
+  const attentionReasons = useMemo(
+    () => (isEditing && student
+      ? getNeedsAttentionReasons(student, lessonsData?.data || [], attentionNow, noShowStudentIds)
+      : []),
+    [isEditing, student, lessonsData, attentionNow, noShowStudentIds]
+  );
 
   // --- Program toggle (create mode only) - sets up the student's FIRST
   // enrollment in the same step as creation. Behind-the-Wheel (default)
@@ -1329,6 +1366,32 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
                 )}
                 {isEditing && student?.email && (
                   <p className="text-sm text-tx-muted truncate">{student.email}</p>
+                )}
+                {/* Needs-attention summary - same reasons/labels as the
+                    Students list row flag (studentStatus.ts's
+                    getNeedsAttentionReasons), surfaced here instead of only
+                    a hover tooltip. Renders nothing when there are no
+                    reasons, so a student with none gets no layout shift. */}
+                {attentionReasons.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {attentionReasons.map((reason) => {
+                      const Icon = reason.label === 'Needs guardian'
+                        ? UserCheck
+                        : reason.label === 'Fee due'
+                        ? DollarSign
+                        : Phone;
+                      return (
+                        <span
+                          key={reason.label}
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold leading-none bg-status-warning-bg text-status-warning-text"
+                          title={reason.title}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {reason.label}
+                        </span>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>

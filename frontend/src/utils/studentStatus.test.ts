@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { studentNeedsFollowup, getFollowupReason, computeStudentStatus, computeDeStatus, getDisplayStatus, classifyDeCard } from './studentStatus';
+import { studentNeedsFollowup, getFollowupReason, computeStudentStatus, computeDeStatus, getDisplayStatus, classifyDeCard, getNeedsAttentionReasons } from './studentStatus';
 import type { Student, Lesson, ActiveEnrollmentSummary, DeEnrollmentSummary } from '@/types';
 
 // studentStatus.ts's `now` parameter is required, never defaulted (a
@@ -490,5 +490,56 @@ describe('classifyDeCard', () => {
 
   it('falls back to online_in_progress for a not-completed enrollment with no delivery mode resolved yet', () => {
     expect(classifyDeCard(deEnrollment({ completed: false, deDeliveryMode: null }))).toBe('online_in_progress');
+  });
+});
+
+// getNeedsAttentionReasons is the single shared computation behind BOTH the
+// Students list row's amber flag tooltip and StudentModal's detail-view
+// summary - these tests exist so a future change to this function is
+// caught for both surfaces at once, and so the two can never silently
+// drift apart (verified live in this feature's own e2e-screenshots spec).
+describe('getNeedsAttentionReasons', () => {
+  const NO_SHOW_IDS = new Set<string>();
+  // A completed lesson recent enough (5 days) that studentNeedsFollowup's
+  // own gap clause (14-60 days since last completed lesson) does NOT fire -
+  // keeps these fixtures clean of an unintended extra "Follow up" reason
+  // in the tests that isolate a single OTHER reason.
+  const CLEAN_LESSONS = [lesson({ id: 'l0', date: daysAgo(5), status: 'completed' })];
+
+  it('returns no reasons for an ordinary active student with nothing flagged', () => {
+    const student = { ...BASE_STUDENT, activeEnrollment: BASE_ENROLLMENT, needsGuardian: false, hasOutstandingFee: false };
+    expect(getNeedsAttentionReasons(student, CLEAN_LESSONS, NOW, NO_SHOW_IDS)).toEqual([]);
+  });
+
+  it('returns exactly one reason ("Follow up") for a student flagged only by studentNeedsFollowup', () => {
+    const student = { ...BASE_STUDENT, activeEnrollment: BASE_ENROLLMENT, needsGuardian: false, hasOutstandingFee: false };
+    const lessons = [lesson({ id: 'l1', date: daysAgo(3), status: 'cancelled' })];
+    const reasons = getNeedsAttentionReasons(student, lessons, NOW, NO_SHOW_IDS);
+    expect(reasons.map(r => r.label)).toEqual(['Follow up']);
+  });
+
+  it('returns exactly one reason ("Needs guardian") for a minor with no linked guardian and no other issue', () => {
+    const student = { ...BASE_STUDENT, activeEnrollment: BASE_ENROLLMENT, needsGuardian: true, hasOutstandingFee: false };
+    const reasons = getNeedsAttentionReasons(student, CLEAN_LESSONS, NOW, NO_SHOW_IDS);
+    expect(reasons.map(r => r.label)).toEqual(['Needs guardian']);
+  });
+
+  it('returns exactly one reason ("Fee due") for a student with only an outstanding fee, including the amount in its title', () => {
+    const student = { ...BASE_STUDENT, activeEnrollment: BASE_ENROLLMENT, needsGuardian: false, hasOutstandingFee: true, outstandingFeeAmount: 50 };
+    const reasons = getNeedsAttentionReasons(student, CLEAN_LESSONS, NOW, NO_SHOW_IDS);
+    expect(reasons).toEqual([{ label: 'Fee due', title: 'Outstanding fee: $50.00' }]);
+  });
+
+  it('returns exactly one reason ("No-show follow-up") for a student only present in the no-show alert set', () => {
+    const student = { ...BASE_STUDENT, activeEnrollment: BASE_ENROLLMENT, needsGuardian: false, hasOutstandingFee: false };
+    const reasons = getNeedsAttentionReasons(student, CLEAN_LESSONS, NOW, new Set([student.id]));
+    expect(reasons.map(r => r.label)).toEqual(['No-show follow-up']);
+  });
+
+  it('returns ALL applicable reasons at once, not just the first, for a student flagged by every check', () => {
+    const student = { ...BASE_STUDENT, activeEnrollment: BASE_ENROLLMENT, needsGuardian: true, hasOutstandingFee: true, outstandingFeeAmount: 50 };
+    const lessons = [lesson({ id: 'l1', date: daysAgo(3), status: 'no_show' })];
+    const reasons = getNeedsAttentionReasons(student, lessons, NOW, new Set([student.id]));
+    expect(reasons.map(r => r.label)).toEqual(['Follow up', 'Needs guardian', 'Fee due', 'No-show follow-up']);
   });
 });
