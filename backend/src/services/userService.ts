@@ -22,6 +22,21 @@ const logger = createLogger('UserService');
 const INVITE_TOKEN_TTL_DAYS = 7;
 
 /**
+ * Defense-in-depth: strips password_hash (snake_case, straight off a raw
+ * pg row) from any object before it's ever returned from this service.
+ * Every query in this file already selects an explicit column list rather
+ * than `u.*`/`SELECT *` specifically to avoid fetching this column at
+ * all - this is a second, independent layer so a future accidental
+ * `u.*`/`SELECT *` reintroduced anywhere in this file still can't leak a
+ * real hash through a controller's res.json(...), rather than relying on
+ * the SQL alone.
+ */
+const omitPasswordHash = <T extends Record<string, unknown>>(row: T): Omit<T, 'password_hash'> => {
+  const { password_hash: _passwordHash, ...rest } = row;
+  return rest;
+};
+
+/**
  * Hash an invite token for storage. Invite tokens are high-entropy random
  * values (32 bytes from crypto.randomBytes), not user-chosen secrets, so a
  * fast deterministic hash is appropriate here - unlike passwords, there's
@@ -68,7 +83,8 @@ export const getUsersByTenant = async (
 
   const result = await query(
     `SELECT
-       u.*,
+       u.id, u.email, u.full_name, u.phone, u.profile_photo_url,
+       u.email_verified, u.last_login_at, u.created_at, u.updated_at,
        utm.id as membership_id,
        utm.role,
        utm.status as membership_status,
@@ -83,7 +99,7 @@ export const getUsersByTenant = async (
     [tenantId]
   );
 
-  return result.rows.map(keysToCamel) as UserWithMembership[];
+  return result.rows.map(omitPasswordHash).map(keysToCamel) as UserWithMembership[];
 };
 
 /**
@@ -95,7 +111,8 @@ export const getUserWithMembership = async (
 ): Promise<UserWithMembership | null> => {
   const result = await query(
     `SELECT
-       u.*,
+       u.id, u.email, u.full_name, u.phone, u.profile_photo_url,
+       u.email_verified, u.last_login_at, u.created_at, u.updated_at,
        utm.id as membership_id,
        utm.role,
        utm.status as membership_status,
@@ -109,7 +126,7 @@ export const getUserWithMembership = async (
   );
 
   if (result.rows.length === 0) return null;
-  return keysToCamel(result.rows[0]) as UserWithMembership;
+  return keysToCamel(omitPasswordHash(result.rows[0])) as UserWithMembership;
 };
 
 /**
@@ -131,15 +148,19 @@ export const createUserAndAddToTenant = async (
     throw new AppError('Only an owner can assign the owner role', 403);
   }
 
-  // Upsert user by email (simple flow: if exists, use existing)
-  const userRes = await query('SELECT * FROM users WHERE email = $1', [userData.email]);
+  // Upsert user by email (simple flow: if exists, use existing). Only id
+  // is actually needed from this lookup - selecting specific columns
+  // rather than * so a real password_hash (for an EXISTING user matched
+  // by email) can never end up spread into the response below.
+  const userRes = await query('SELECT id, email, full_name, phone, email_verified, created_at, updated_at FROM users WHERE email = $1', [userData.email]);
 
   let user = null;
   if (userRes.rows.length === 0) {
     const passwordHash = userData.password ? await hashPassword(userData.password) : null;
     const createRes = await query(
       `INSERT INTO users (email, full_name, phone, password_hash, email_verified, created_at, updated_at)
-       VALUES ($1,$2,$3,$4, FALSE, NOW(), NOW()) RETURNING *`,
+       VALUES ($1,$2,$3,$4, FALSE, NOW(), NOW())
+       RETURNING id, email, full_name, phone, email_verified, created_at, updated_at`,
       [userData.email, userData.fullName || null, userData.phone || null, passwordHash]
     );
     user = createRes.rows[0];
@@ -166,7 +187,7 @@ export const createUserAndAddToTenant = async (
       ...insert.rows[0],
     };
 
-    return keysToCamel(combined) as UserWithMembership;
+    return keysToCamel(omitPasswordHash(combined)) as UserWithMembership;
   }
 
   // Already member — return existing joined row
@@ -297,12 +318,18 @@ export const inviteUserToTenant = async (
   // chosen until the invite is accepted (AcceptInvite.tsx only ever sets
   // password_hash; full_name is never collected there either) - both
   // columns are nullable specifically for this state (migration 002).
-  const userRes = await query('SELECT * FROM users WHERE email = $1', [email]);
+  //
+  // Only non-secret columns are selected/returned here - this branch also
+  // runs for RE-inviting an EXISTING user (a real, non-null password_hash
+  // in that case), which would otherwise spread their actual hash into
+  // `combined` below and out through this function's return value.
+  const userRes = await query('SELECT id, email, full_name, email_verified, created_at, updated_at FROM users WHERE email = $1', [email]);
   let user = null;
   if (userRes.rows.length === 0) {
     const createRes = await query(
       `INSERT INTO users (email, full_name, password_hash, email_verified, created_at, updated_at)
-       VALUES ($1,$2,$3,FALSE,NOW(),NOW()) RETURNING *`,
+       VALUES ($1,$2,$3,FALSE,NOW(),NOW())
+       RETURNING id, email, full_name, email_verified, created_at, updated_at`,
       [email, null, null]
     );
     user = createRes.rows[0];
@@ -328,7 +355,7 @@ export const inviteUserToTenant = async (
     ...insert.rows[0],
   };
 
-  return { ...(keysToCamel(combined) as UserWithMembership), inviteToken };
+  return { ...(keysToCamel(omitPasswordHash(combined)) as UserWithMembership), inviteToken };
 };
 
 /**
