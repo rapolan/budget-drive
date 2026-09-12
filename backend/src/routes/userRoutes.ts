@@ -17,6 +17,7 @@ router.get('/:id', userController.getUserDetails);
 // Only owner/admin can manage team membership
 router.post('/', requireRole('owner', 'admin'), userController.createTeamMember);
 router.post('/invite', requireRole('owner', 'admin'), userController.inviteTeamMember);
+router.post('/:id/reset-password', requireRole('owner', 'admin'), userController.resetTeamMemberPassword);
 router.patch('/:id', requireRole('owner', 'admin'), userController.updateTeamMember);
 router.delete('/:id', requireRole('owner', 'admin'), userController.removeTeamMember);
 

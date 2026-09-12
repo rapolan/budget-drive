@@ -71,6 +71,27 @@ export const removeTeamMember = asyncHandler(async (req: Request, res: Response)
 });
 
 /**
+ * POST /api/v1/users/:id/reset-password
+ *
+ * INTERIM measure: sets a new temporary password for another team member
+ * with no email delivery required. The real long-term fix is a
+ * self-service "forgot password" flow (with email delivery) once email
+ * sending is built as its own feature - this exists so an admin can
+ * unblock a locked-out teammate today. requireRole('owner','admin') at
+ * the route layer is the authorization gate, matching how the invite
+ * endpoint is gated.
+ */
+export const resetTeamMemberPassword = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const callerId = req.user?.userId;
+  if (!callerId) throw new AppError('Authentication required', 401);
+
+  const { temporaryPassword } = await userService.resetUserPassword(id, tenantId, callerId);
+  res.json({ success: true, data: { temporaryPassword } });
+});
+
+/**
  * POST /api/v1/users/invite
  */
 export const inviteTeamMember = asyncHandler(async (req: Request, res: Response) => {

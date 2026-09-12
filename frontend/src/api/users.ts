@@ -37,6 +37,18 @@ export const usersApi = {
   },
 
   /**
+   * INTERIM admin-initiated password reset for ANOTHER team member (owner/
+   * admin only, enforced server-side) - no email delivery involved. Returns
+   * a freshly generated temporary password the admin must communicate to
+   * the teammate themselves (text/call/in person). The real long-term fix
+   * is a self-service "forgot password" flow once email sending is built.
+   */
+  resetPassword: async (userId: string) => {
+    const response = await apiClient.post<ApiResponse<{ temporaryPassword: string }>>(`/users/${userId}/reset-password`, {});
+    return response.data;
+  },
+
+  /**
    * Remove a user from the team
    */
   remove: async (userId: string) => {

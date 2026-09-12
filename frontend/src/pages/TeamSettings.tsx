@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/api/users';
-import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2, Copy, Check } from 'lucide-react';
+import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2, Copy, Check, KeyRound } from 'lucide-react';
 import { Button } from '@/components/common/Button';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const TeamSettings: React.FC = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<{ id: string; label: string } | null>(null);
+  const { user: currentUser } = useAuth();
+  // Reset Password is an owner/admin-only action (matches requireRole on
+  // the backend route exactly - this is a UI convenience, not the real
+  // authorization boundary) and can never target the caller's own
+  // account (that's the existing authenticated "change my password"
+  // flow, which needs the current password; this admin action doesn't).
+  const canResetPasswords = currentUser?.role === 'owner' || currentUser?.role === 'admin';
 
   const { data: response, isLoading } = useQuery({
     queryKey: ['team-members'],
@@ -80,14 +89,27 @@ export const TeamSettings: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="More actions"
-                      title="More actions"
-                    >
-                      <MoreVertical className="h-5 w-5" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      {canResetPasswords && user.id !== currentUser?.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Reset password for ${user.fullName || user.email}`}
+                          title="Reset password"
+                          onClick={() => setResetPasswordTarget({ id: user.id, label: user.fullName || user.email })}
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="More actions"
+                        title="More actions"
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -102,6 +124,132 @@ export const TeamSettings: React.FC = () => {
       {isInviteModalOpen && (
         <InviteModal onClose={() => setIsInviteModalOpen(false)} />
       )}
+
+      {resetPasswordTarget && (
+        <ResetPasswordModal
+          userId={resetPasswordTarget.id}
+          userLabel={resetPasswordTarget.label}
+          onClose={() => setResetPasswordTarget(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+const ResetPasswordModal = ({
+  userId,
+  userLabel,
+  onClose,
+}: {
+  userId: string;
+  userLabel: string;
+  onClose: () => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  // INTERIM measure until a real self-service "forgot password" flow (with
+  // email delivery) is built - see resetUserPassword's doc comment in
+  // userService.ts. No confirmation prompt is needed before the request
+  // itself since nothing destructive happens until the admin actually
+  // shares this password - opening the modal already required an
+  // explicit click on a clearly-labeled action.
+  const resetMutation = useMutation({
+    mutationFn: () => usersApi.resetPassword(userId),
+  });
+
+  React.useEffect(() => {
+    resetMutation.mutate();
+    // Fire exactly once when the modal opens - not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const temporaryPassword = resetMutation.data?.data?.temporaryPassword;
+
+  const copyPassword = async () => {
+    if (!temporaryPassword) return;
+    try {
+      await navigator.clipboard.writeText(temporaryPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
+        {resetMutation.isPending && (
+          <p className="text-sm text-tx-muted">Generating a new temporary password for {userLabel}...</p>
+        )}
+
+        {resetMutation.isError && (
+          <>
+            <h3 className="text-lg font-bold text-tx-primary mb-2">Couldn't reset password</h3>
+            <p className="text-sm text-status-danger-text mb-4">
+              {(resetMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                || 'Something went wrong. Please try again.'}
+            </p>
+            <div className="flex justify-end">
+              <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
+            </div>
+          </>
+        )}
+
+        {temporaryPassword && (
+          <>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-1.5 bg-status-success-bg border border-status-success-border rounded-md flex-shrink-0">
+                <CheckCircle2 className="h-4 w-4 text-status-success-text" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-tx-primary">Password reset</h3>
+                <p className="text-sm text-tx-muted mt-0.5">
+                  Share this temporary password with {userLabel} - email sending isn't set up yet, so send it
+                  yourself (text, call, in person). It won't be shown again after you close this.
+                </p>
+              </div>
+            </div>
+
+            <label htmlFor="temp-password" className="block text-sm font-medium text-tx-secondary mb-1">
+              Temporary password
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="temp-password"
+                type="text"
+                readOnly
+                value={temporaryPassword}
+                title="Temporary password"
+                className="flex-1 min-w-0 px-3 py-2 text-sm bg-surface2 border border-edge-strong rounded-lg font-mono text-tx-secondary truncate"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button
+                type="button"
+                onClick={copyPassword}
+                title="Copy temporary password to clipboard"
+                className={copied ? 'bg-status-success-text hover:brightness-100' : ''}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <Button type="button" variant="secondary" onClick={onClose}>Done</Button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

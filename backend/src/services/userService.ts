@@ -269,6 +269,77 @@ export const updateUserMembership = async (
 };
 
 /**
+ * Generates a temporary password an admin can read aloud/text to a
+ * teammate - readable characters only (no ambiguous 0/O/1/l/I), long
+ * enough to comfortably clear the 8-character minimum every other
+ * password path in this app enforces (authService.ts's register/
+ * changePassword).
+ */
+const TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+const generateTemporaryPassword = (length = 12): string => {
+  const bytes = crypto.randomBytes(length);
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += TEMP_PASSWORD_ALPHABET[bytes[i] % TEMP_PASSWORD_ALPHABET.length];
+  }
+  return password;
+};
+
+/**
+ * INTERIM password reset: an owner/admin sets a new temporary password for
+ * ANOTHER team member directly, with no email involved - there is
+ * currently no self-service "forgot password" flow anywhere in this app
+ * (that needs email delivery, a separate, not-yet-built feature). The
+ * admin must communicate the returned temporary password to the teammate
+ * themselves (text/call/in person). This is explicitly a stand-in for
+ * that future flow, not a replacement for it.
+ *
+ * Tenant-scoped the same way updateUserMembership/removeUserFromTenant
+ * are: requires a `user_tenant_memberships` row for (targetUserId,
+ * tenantId) to exist before touching anything, so an admin from a
+ * DIFFERENT tenant gets a 404 rather than resetting a stranger's
+ * password - this is checked, not assumed. Also blocks resetting the
+ * caller's OWN password through this path - that's the existing
+ * authenticated "change my password" flow (authService.changePassword),
+ * which requires knowing the CURRENT password; this admin action
+ * deliberately does not, so it must never apply to the admin's own
+ * account.
+ *
+ * requireRole('owner','admin') at the route layer (userRoutes.ts) is the
+ * actual authorization gate - matches the invite endpoint's own gating
+ * exactly, not re-implemented here.
+ */
+export const resetUserPassword = async (
+  targetUserId: string,
+  tenantId: string,
+  callerId: string
+): Promise<{ temporaryPassword: string }> => {
+  if (targetUserId === callerId) {
+    throw new AppError('Use the change-password flow to reset your own password', 400);
+  }
+
+  const membership = await query(
+    `SELECT id FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`,
+    [targetUserId, tenantId]
+  );
+  if (membership.rows.length === 0) {
+    throw new AppError('User not found in this tenant', 404);
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await hashPassword(temporaryPassword);
+
+  await query(
+    `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
+    [passwordHash, targetUserId]
+  );
+
+  logger.info('Admin reset a team member password', { tenantId, targetUserId, resetBy: callerId });
+
+  return { temporaryPassword };
+};
+
+/**
  * Remove user from tenant. Blocks removing the last active owner.
  */
 export const removeUserFromTenant = async (userId: string, tenantId: string): Promise<void> => {
@@ -411,6 +482,7 @@ export default {
   getUserWithMembership,
   createUserAndAddToTenant,
   updateUserMembership,
+  resetUserPassword,
   removeUserFromTenant,
   inviteUserToTenant,
   acceptInvite,

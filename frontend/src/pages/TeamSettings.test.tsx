@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TeamSettings } from './TeamSettings';
@@ -9,7 +9,15 @@ vi.mock('@/api/users', () => ({
   usersApi: {
     getAll: vi.fn(),
     invite: vi.fn(),
+    resetPassword: vi.fn(),
   },
+}));
+
+// Mutable per-test so the "staff can't see Reset Password" test can swap
+// in a staff-role user without a separate mock setup per test file.
+let mockCurrentUser: { id: string; role: string } = { id: 'admin-1', role: 'admin' };
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: mockCurrentUser }),
 }));
 
 function renderTeamSettings() {
@@ -25,6 +33,7 @@ function renderTeamSettings() {
 
 beforeEach(() => {
   vi.mocked(usersApi.getAll).mockResolvedValue({ success: true, data: [] });
+  mockCurrentUser = { id: 'admin-1', role: 'admin' };
 });
 
 afterEach(() => {
@@ -152,5 +161,61 @@ describe('TeamSettings member list with an invited (nameless) teammate', () => {
     // is null ('p' from pending@example.com, uppercased).
     expect(screen.getByText('P')).toBeInTheDocument();
     expect(screen.getByText('invited')).toBeInTheDocument();
+  });
+});
+
+// INTERIM admin-initiated password reset (no email delivery) - see
+// resetUserPassword's doc comment in userService.ts for the full
+// rationale. requireRole('owner','admin') at the route layer is the real
+// authorization boundary; these tests confirm the UI's own gating
+// matches it exactly (never shown to staff, never for the caller's own
+// row), and that a successful reset shows the returned password clearly.
+describe('TeamSettings admin-initiated password reset', () => {
+  const teammate = { id: 'user-2', email: 'teammate@example.com', fullName: 'Teammate Person', role: 'staff', membershipStatus: 'active' };
+
+  it('an admin sees and can use Reset Password for another team member, and it shows the returned temporary password', async () => {
+    const user = userEvent.setup();
+    vi.mocked(usersApi.getAll).mockResolvedValue({ success: true, data: [teammate] });
+    vi.mocked(usersApi.resetPassword).mockResolvedValue({ success: true, data: { temporaryPassword: 'aB3dE5fG7h' } });
+
+    renderTeamSettings();
+
+    const row = (await screen.findByText('teammate@example.com')).closest('tr')!;
+    await user.click(within(row).getByRole('button', { name: /reset password/i }));
+
+    expect(usersApi.resetPassword).toHaveBeenCalledWith('user-2');
+    const passwordField = await screen.findByLabelText<HTMLInputElement>(/temporary password/i);
+    expect(passwordField.value).toBe('aB3dE5fG7h');
+    expect(screen.getByText(/password reset/i)).toBeInTheDocument();
+  });
+
+  it('a staff (non-admin) user never sees a Reset Password button for anyone', async () => {
+    mockCurrentUser = { id: 'staff-viewer-1', role: 'staff' };
+    vi.mocked(usersApi.getAll).mockResolvedValue({ success: true, data: [teammate] });
+
+    renderTeamSettings();
+
+    await screen.findByText('teammate@example.com');
+    expect(screen.queryByRole('button', { name: /reset password/i })).not.toBeInTheDocument();
+  });
+
+  it('an admin never sees a Reset Password button on their OWN row', async () => {
+    mockCurrentUser = { id: 'admin-1', role: 'admin' };
+    vi.mocked(usersApi.getAll).mockResolvedValue({
+      success: true,
+      data: [
+        { id: 'admin-1', email: 'admin@example.com', fullName: 'Current Admin', role: 'admin', membershipStatus: 'active' },
+        teammate,
+      ],
+    });
+
+    renderTeamSettings();
+
+    await screen.findByText('admin@example.com');
+    // Exactly one Reset Password button - for the teammate, not the
+    // caller's own row.
+    expect(screen.getAllByRole('button', { name: /reset password/i })).toHaveLength(1);
+    const ownRow = screen.getByText('admin@example.com').closest('tr')!;
+    expect(within(ownRow).queryByRole('button', { name: /reset password/i })).not.toBeInTheDocument();
   });
 });
