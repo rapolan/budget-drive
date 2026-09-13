@@ -66,7 +66,9 @@ export const removeTeamMember = asyncHandler(async (req: Request, res: Response)
   const { id } = req.params;
   // Prevent removing yourself - controller-level guard
   if (req.user?.userId === id) throw new AppError('Cannot remove yourself', 400);
-  await userService.removeUserFromTenant(id, tenantId);
+  const callerId = req.user?.userId;
+  const callerRole = callerId ? await userService.getCurrentRole(callerId, tenantId) : null;
+  await userService.removeUserFromTenant(id, tenantId, callerRole || undefined);
   res.json({ success: true, message: 'User removed from team' });
 });
 

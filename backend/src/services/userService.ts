@@ -54,7 +54,7 @@ const countActiveOwners = async (tenantId: string, excludeUserId?: string): Prom
   const result = await query(
     `SELECT COUNT(*) FROM user_tenant_memberships
      WHERE tenant_id = $1 AND role = 'owner' AND status = 'active'
-       AND user_id != COALESCE($2, '00000000-0000-0000-0000-000000000000')`,
+       AND user_id != COALESCE($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)`,
     [tenantId, excludeUserId || null]
   );
   return parseInt(result.rows[0].count, 10);
@@ -340,9 +340,24 @@ export const resetUserPassword = async (
 };
 
 /**
- * Remove user from tenant. Blocks removing the last active owner.
+ * Remove user from tenant.
+ *
+ * Removal is MORE consequential than a role change (it revokes all access
+ * outright, rather than adjusting privilege), so it must never carry a
+ * WEAKER guard than updateUserMembership already applies to the owner
+ * role: removing ANY owner - not just the last one - requires the caller
+ * to also be an owner. On top of that, the last remaining active owner can
+ * never be removed by anyone, including another owner, since a tenant
+ * must always retain at least one.
+ *
+ * @param callerRole - role of the user making this request, required to
+ *   enforce that only an owner can remove another owner
  */
-export const removeUserFromTenant = async (userId: string, tenantId: string): Promise<void> => {
+export const removeUserFromTenant = async (
+  userId: string,
+  tenantId: string,
+  callerRole?: UserRole
+): Promise<void> => {
   const existing = await query(
     `SELECT role FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`,
     [userId, tenantId]
@@ -350,6 +365,9 @@ export const removeUserFromTenant = async (userId: string, tenantId: string): Pr
   if (existing.rows.length === 0) throw new AppError('Membership not found', 404);
 
   if (existing.rows[0].role === 'owner') {
+    if (callerRole !== 'owner') {
+      throw new AppError('Only an owner can remove another owner', 403);
+    }
     const remainingOwners = await countActiveOwners(tenantId, userId);
     if (remainingOwners === 0) {
       throw new AppError('Cannot remove the last owner of this tenant', 400);
