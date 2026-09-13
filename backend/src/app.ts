@@ -50,6 +50,15 @@ const app: Application = express();
 app.use(helmet());
 
 // CORS - Allow requests from frontend
+//
+// TEMPORARY DIAGNOSTIC (remove once the production CORS rejection issue is
+// resolved): prints the exact ALLOWED_ORIGINS array this running process
+// actually has, as JSON - makes trailing whitespace/slashes visible as
+// \" \" artifacts, and shows definitively whether Railway's env var is
+// really reaching this process or it's silently fallen back to the
+// http://localhost default in env.ts.
+console.log('CORS allowed origins:', JSON.stringify(config.ALLOWED_ORIGINS));
+
 app.use(
   cors({
     origin: config.ALLOWED_ORIGINS,
