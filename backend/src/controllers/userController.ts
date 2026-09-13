@@ -111,8 +111,31 @@ export const inviteTeamMember = asyncHandler(async (req: Request, res: Response)
     callerRole || undefined
   );
 
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const inviteLink = `${frontendUrl}/accept-invite?token=${inviteToken}`;
+  const inviteLink = buildInviteLink(inviteToken);
 
   res.status(201).json({ success: true, data: { ...user, inviteLink } });
 });
+
+/**
+ * POST /api/v1/users/:id/resend-invite
+ *
+ * For a user still in 'invited' status - regenerates their invite
+ * token/expiry and returns a fresh link using the same copy-link UI
+ * pattern as the original invite. Also the fix for the previously-500ing
+ * "re-invite an invited email" path, since this UPDATEs the existing
+ * membership row rather than attempting a duplicate INSERT.
+ */
+export const resendTeamInvite = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const { inviteToken } = await userService.resendInvite(id, tenantId);
+  const inviteLink = buildInviteLink(inviteToken);
+
+  res.json({ success: true, data: { inviteLink } });
+});
+
+function buildInviteLink(inviteToken: string): string {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  return `${frontendUrl}/accept-invite?token=${inviteToken}`;
+}

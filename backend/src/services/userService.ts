@@ -426,25 +426,98 @@ export const inviteUserToTenant = async (
     user = userRes.rows[0];
   }
 
+  // A user can have at most one membership row per tenant
+  // (user_tenant_memberships_user_id_tenant_id_key, a UNIQUE(user_id,
+  // tenant_id) constraint) - inviting an email that already has ANY
+  // membership row for this tenant (active or invited) must never attempt
+  // a second INSERT, or it 500s on that constraint. An 'invited' row is
+  // updated in place with a fresh token/expiry instead (this is also
+  // exactly what resendInvite below does); any other existing status
+  // (active, suspended, declined) is a genuine conflict this function
+  // does not attempt to resolve.
+  const existingMembership = await query(
+    `SELECT id, status FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`,
+    [user.id, tenantId]
+  );
+
   const inviteToken = crypto.randomBytes(32).toString('hex');
   const inviteTokenHash = hashInviteToken(inviteToken);
 
-  // Create invited membership
-  const insert = await query(
-    `INSERT INTO user_tenant_memberships
-       (user_id, tenant_id, role, status, instructor_id, invited_by, invited_at,
-        invite_token_hash, invite_token_expires_at, created_at, updated_at)
-     VALUES ($1,$2,$3,'invited',$4,$5,NOW(),$6,NOW() + INTERVAL '${INVITE_TOKEN_TTL_DAYS} days',NOW(),NOW())
-     RETURNING *`,
-    [user.id, tenantId, role, instructorId || null, invitedBy, inviteTokenHash]
-  );
+  let membershipRow;
+  if (existingMembership.rows.length === 0) {
+    const insert = await query(
+      `INSERT INTO user_tenant_memberships
+         (user_id, tenant_id, role, status, instructor_id, invited_by, invited_at,
+          invite_token_hash, invite_token_expires_at, created_at, updated_at)
+       VALUES ($1,$2,$3,'invited',$4,$5,NOW(),$6,NOW() + INTERVAL '${INVITE_TOKEN_TTL_DAYS} days',NOW(),NOW())
+       RETURNING *`,
+      [user.id, tenantId, role, instructorId || null, invitedBy, inviteTokenHash]
+    );
+    membershipRow = insert.rows[0];
+  } else if (existingMembership.rows[0].status === 'invited') {
+    const update = await query(
+      `UPDATE user_tenant_memberships
+       SET role = $1, instructor_id = $2, invited_by = $3, invited_at = NOW(),
+           invite_token_hash = $4, invite_token_expires_at = NOW() + INTERVAL '${INVITE_TOKEN_TTL_DAYS} days',
+           updated_at = NOW()
+       WHERE user_id = $5 AND tenant_id = $6
+       RETURNING *`,
+      [role, instructorId || null, invitedBy, inviteTokenHash, user.id, tenantId]
+    );
+    membershipRow = update.rows[0];
+  } else {
+    throw new AppError('This user is already a member of this tenant', 409);
+  }
 
   const combined = {
     ...user,
-    ...insert.rows[0],
+    ...membershipRow,
   };
 
   return { ...(keysToCamel(omitPasswordHash(combined)) as UserWithMembership), inviteToken };
+};
+
+/**
+ * Resend an invite to a user who is still in 'invited' status (has not yet
+ * accepted) - regenerates the invite token/expiry on their EXISTING
+ * membership row (an UPDATE, never a fresh INSERT, for the same
+ * unique-constraint reason documented on inviteUserToTenant above) and
+ * returns a new raw token for the caller to build a fresh invite link
+ * from. Tenant-scoped and role-gated the same way every other membership
+ * mutation in this file is: requireRole('owner','admin') at the route
+ * layer is the real authorization boundary.
+ *
+ * Explicitly refuses to "resend" for an already-active user - there is
+ * nothing to resend once they've accepted.
+ */
+export const resendInvite = async (
+  userId: string,
+  tenantId: string
+): Promise<{ inviteToken: string }> => {
+  const existing = await query(
+    `SELECT status FROM user_tenant_memberships WHERE user_id = $1 AND tenant_id = $2`,
+    [userId, tenantId]
+  );
+  if (existing.rows.length === 0) throw new AppError('Membership not found', 404);
+  if (existing.rows[0].status !== 'invited') {
+    throw new AppError('This user has already accepted their invite', 400);
+  }
+
+  const inviteToken = crypto.randomBytes(32).toString('hex');
+  const inviteTokenHash = hashInviteToken(inviteToken);
+
+  await query(
+    `UPDATE user_tenant_memberships
+     SET invited_at = NOW(), invite_token_hash = $1,
+         invite_token_expires_at = NOW() + INTERVAL '${INVITE_TOKEN_TTL_DAYS} days',
+         updated_at = NOW()
+     WHERE user_id = $2 AND tenant_id = $3`,
+    [inviteTokenHash, userId, tenantId]
+  );
+
+  logger.info('Resent invite', { tenantId, userId });
+
+  return { inviteToken };
 };
 
 /**
@@ -503,5 +576,6 @@ export default {
   resetUserPassword,
   removeUserFromTenant,
   inviteUserToTenant,
+  resendInvite,
   acceptInvite,
 };

@@ -144,6 +144,9 @@ describe('password_hash never leaves the database via a users-table response', (
         },
       ])
     );
+    // no existing membership for this tenant yet - falls into the INSERT
+    // branch (this user exists globally but has never been invited here).
+    mockQuery.mockResolvedValueOnce(queryResult([]));
     // the new invited membership INSERT.
     mockQuery.mockResolvedValueOnce(
       queryResult([

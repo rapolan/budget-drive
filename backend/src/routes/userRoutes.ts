@@ -18,6 +18,7 @@ router.get('/:id', userController.getUserDetails);
 router.post('/', requireRole('owner', 'admin'), userController.createTeamMember);
 router.post('/invite', requireRole('owner', 'admin'), userController.inviteTeamMember);
 router.post('/:id/reset-password', requireRole('owner', 'admin'), userController.resetTeamMemberPassword);
+router.post('/:id/resend-invite', requireRole('owner', 'admin'), userController.resendTeamInvite);
 router.patch('/:id', requireRole('owner', 'admin'), userController.updateTeamMember);
 router.delete('/:id', requireRole('owner', 'admin'), userController.removeTeamMember);
 

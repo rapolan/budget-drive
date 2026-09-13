@@ -20,6 +20,7 @@ describe('userService.inviteUserToTenant token generation', () => {
 
     mockQuery.mockResolvedValueOnce(queryResult([])); // no existing user
     mockQuery.mockResolvedValueOnce(queryResult([{ id: 'user-1', email: 'invitee@example.com' }])); // insert user
+    mockQuery.mockResolvedValueOnce(queryResult([])); // no existing membership
     mockQuery.mockImplementationOnce(async (_sql: string, params: any[]) => {
       return queryResult([{
         id: 'membership-1',
@@ -61,6 +62,7 @@ describe('userService.inviteUserToTenant token generation', () => {
 
     mockQuery.mockResolvedValueOnce(queryResult([])); // no existing user
     mockQuery.mockResolvedValueOnce(queryResult([{ id: 'user-1', email: 'brandnew@example.com' }])); // insert user
+    mockQuery.mockResolvedValueOnce(queryResult([])); // no existing membership
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'membership-1', user_id: 'user-1', tenant_id: TENANT_ID, role: 'staff', status: 'invited' }])
     );
