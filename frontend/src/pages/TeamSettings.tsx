@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/api/users';
 import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2, Copy, Check, KeyRound, UserMinus, Mail, ArrowLeftRight, AlertTriangle } from 'lucide-react';
@@ -160,16 +161,29 @@ export const TeamSettings: React.FC = () => {
 };
 
 /**
- * "More actions" dropdown for a team member row. Modeled on
- * StatusMenu.tsx's open/close/outside-click mechanics (the existing
- * pattern for this kind of menu in this codebase - there is no shared
- * dropdown primitive to reuse instead). Each item's visibility follows the
- * task's stated rules: Resend invite only for 'invited' users; Remove and
- * Change role never for the caller's own row or for the tenant's owner
- * (an admin viewing an owner's row shouldn't see options they'd be
- * blocked from using anyway, the same "don't show what you can't do"
- * pattern already used for Reset Password).
+ * "More actions" dropdown for a team member row. The menu is rendered via
+ * a portal into document.body, positioned from the trigger button's own
+ * getBoundingClientRect() - NOT as an `absolute` child of the table's row,
+ * because the table's outer container uses `overflow-hidden` (needed for
+ * its own rounded-corner clipping), which cut off the dropdown for any row
+ * near the bottom of the table before it could fully open. Rendering
+ * outside that DOM/overflow context via a portal is the fix; the
+ * open/close/outside-click mechanics otherwise still follow
+ * StatusMenu.tsx's pattern (there is no shared dropdown primitive in this
+ * codebase). Each item's visibility follows the task's stated rules:
+ * Resend invite only for 'invited' users; Remove and Change role never for
+ * the caller's own row or for the tenant's owner (an admin viewing an
+ * owner's row shouldn't see options they'd be blocked from using anyway,
+ * the same "don't show what you can't do" pattern already used for Reset
+ * Password).
+ *
+ * The menu closes (rather than repositions) on scroll - it's a short-lived
+ * transient control, not something a user scrolls while keeping open, so
+ * closing on scroll avoids the jank/complexity of tracking the trigger's
+ * position on every scroll event for no real benefit.
  */
+const MENU_WIDTH = 208; // w-52
+
 const MoreActionsMenu = ({
   user,
   currentUser,
@@ -186,17 +200,52 @@ const MoreActionsMenu = ({
   onResendInvite: () => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const openMenu = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      // Right-aligned under the button, matching the old `right-0 top-full`
+      // placement, but computed from real viewport coordinates (`fixed`
+      // positioning) instead of an `absolute` offset inside a clipped
+      // ancestor.
+      setMenuPosition({ top: rect.bottom + 4, left: rect.right - MENU_WIDTH });
+    }
+    setIsOpen(true);
+  };
+
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        menuRef.current && !menuRef.current.contains(target) &&
+        triggerRef.current && !triggerRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    // Closes on scroll anywhere (capture phase catches scrolling inside the
+    // table's own overflow container, not just window-level scroll).
+    const handleScroll = () => setIsOpen(false);
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [isOpen]);
 
   const runAndClose = (action: () => void) => {
     action();
@@ -217,22 +266,31 @@ const MoreActionsMenu = ({
   }
 
   return (
-    <div className="relative inline-block" ref={menuRef}>
+    <>
       <Button
+        ref={triggerRef}
         variant="ghost"
         size="sm"
         aria-label="More actions"
         title="More actions"
         onClick={(e) => {
           e.stopPropagation();
-          setIsOpen(o => !o);
+          if (isOpen) {
+            setIsOpen(false);
+          } else {
+            openMenu();
+          }
         }}
       >
         <MoreVertical className="h-5 w-5" />
       </Button>
 
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 w-52 bg-surface rounded-lg shadow-2xl border border-edge overflow-hidden z-50">
+      {isOpen && menuPosition && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: menuPosition.top, left: menuPosition.left, width: MENU_WIDTH }}
+          className="bg-surface rounded-lg shadow-2xl border border-edge overflow-hidden z-50"
+        >
           {showResetPassword && (
             <button
               type="button"
@@ -273,9 +331,10 @@ const MoreActionsMenu = ({
               Remove from team
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 };
 
