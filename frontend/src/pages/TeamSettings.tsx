@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/api/users';
-import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2, Copy, Check, KeyRound } from 'lucide-react';
+import { UserPlus, MoreVertical, Shield, Clock, CheckCircle2, Copy, Check, KeyRound, UserMinus, Mail, ArrowLeftRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { useAuth } from '@/contexts/AuthContext';
 
 export const TeamSettings: React.FC = () => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [resetPasswordTarget, setResetPasswordTarget] = useState<{ id: string; label: string } | null>(null);
+  const [changeRoleTarget, setChangeRoleTarget] = useState<{ id: string; label: string; role: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; label: string } | null>(null);
+  const [resendInviteTarget, setResendInviteTarget] = useState<{ id: string; label: string } | null>(null);
   const { user: currentUser } = useAuth();
   // Reset Password is an owner/admin-only action (matches requireRole on
   // the backend route exactly - this is a UI convenience, not the real
@@ -15,6 +18,10 @@ export const TeamSettings: React.FC = () => {
   // account (that's the existing authenticated "change my password"
   // flow, which needs the current password; this admin action doesn't).
   const canResetPasswords = currentUser?.role === 'owner' || currentUser?.role === 'admin';
+  // Same role check backs every "More actions" menu item - reused as-is
+  // rather than inventing a second gate, matching the backend's own
+  // requireRole('owner','admin') on every mutating route this menu calls.
+  const canManageTeam = canResetPasswords;
 
   const { data: response, isLoading } = useQuery({
     queryKey: ['team-members'],
@@ -90,25 +97,16 @@ export const TeamSettings: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-1">
-                      {canResetPasswords && user.id !== currentUser?.id && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Reset password for ${user.fullName || user.email}`}
-                          title="Reset password"
-                          onClick={() => setResetPasswordTarget({ id: user.id, label: user.fullName || user.email })}
-                        >
-                          <KeyRound className="h-4 w-4" />
-                        </Button>
+                      {canManageTeam && (
+                        <MoreActionsMenu
+                          user={user}
+                          currentUser={currentUser}
+                          onResetPassword={() => setResetPasswordTarget({ id: user.id, label: user.fullName || user.email })}
+                          onChangeRole={() => setChangeRoleTarget({ id: user.id, label: user.fullName || user.email, role: user.role })}
+                          onRemove={() => setRemoveTarget({ id: user.id, label: user.fullName || user.email })}
+                          onResendInvite={() => setResendInviteTarget({ id: user.id, label: user.fullName || user.email })}
+                        />
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="More actions"
-                        title="More actions"
-                      >
-                        <MoreVertical className="h-5 w-5" />
-                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -131,6 +129,151 @@ export const TeamSettings: React.FC = () => {
           userLabel={resetPasswordTarget.label}
           onClose={() => setResetPasswordTarget(null)}
         />
+      )}
+
+      {changeRoleTarget && (
+        <ChangeRoleModal
+          userId={changeRoleTarget.id}
+          userLabel={changeRoleTarget.label}
+          currentRole={changeRoleTarget.role}
+          onClose={() => setChangeRoleTarget(null)}
+        />
+      )}
+
+      {removeTarget && (
+        <RemoveUserModal
+          userId={removeTarget.id}
+          userLabel={removeTarget.label}
+          onClose={() => setRemoveTarget(null)}
+        />
+      )}
+
+      {resendInviteTarget && (
+        <ResendInviteModal
+          userId={resendInviteTarget.id}
+          userLabel={resendInviteTarget.label}
+          onClose={() => setResendInviteTarget(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+/**
+ * "More actions" dropdown for a team member row. Modeled on
+ * StatusMenu.tsx's open/close/outside-click mechanics (the existing
+ * pattern for this kind of menu in this codebase - there is no shared
+ * dropdown primitive to reuse instead). Each item's visibility follows the
+ * task's stated rules: Resend invite only for 'invited' users; Remove and
+ * Change role never for the caller's own row or for the tenant's owner
+ * (an admin viewing an owner's row shouldn't see options they'd be
+ * blocked from using anyway, the same "don't show what you can't do"
+ * pattern already used for Reset Password).
+ */
+const MoreActionsMenu = ({
+  user,
+  currentUser,
+  onResetPassword,
+  onChangeRole,
+  onRemove,
+  onResendInvite,
+}: {
+  user: any;
+  currentUser: { id: string; role: string } | null | undefined;
+  onResetPassword: () => void;
+  onChangeRole: () => void;
+  onRemove: () => void;
+  onResendInvite: () => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const runAndClose = (action: () => void) => {
+    action();
+    setIsOpen(false);
+  };
+
+  const isSelf = user.id === currentUser?.id;
+  const isOwner = user.role === 'owner';
+  const isInvited = user.membershipStatus === 'invited';
+
+  const showResetPassword = !isSelf;
+  const showChangeRole = !isSelf && !isOwner;
+  const showRemove = !isSelf && !isOwner;
+  const showResendInvite = isInvited;
+
+  if (!showResetPassword && !showChangeRole && !showRemove && !showResendInvite) {
+    return null;
+  }
+
+  return (
+    <div className="relative inline-block" ref={menuRef}>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="More actions"
+        title="More actions"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(o => !o);
+        }}
+      >
+        <MoreVertical className="h-5 w-5" />
+      </Button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 w-52 bg-surface rounded-lg shadow-2xl border border-edge overflow-hidden z-50">
+          {showResetPassword && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); runAndClose(onResetPassword); }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-tx-primary hover:bg-surface2 transition-colors"
+            >
+              <KeyRound className="h-4 w-4" />
+              Reset password
+            </button>
+          )}
+          {showChangeRole && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); runAndClose(onChangeRole); }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-tx-primary hover:bg-surface2 transition-colors"
+            >
+              <ArrowLeftRight className="h-4 w-4" />
+              Change role
+            </button>
+          )}
+          {showResendInvite && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); runAndClose(onResendInvite); }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-tx-primary hover:bg-surface2 transition-colors"
+            >
+              <Mail className="h-4 w-4" />
+              Resend invite
+            </button>
+          )}
+          {showRemove && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); runAndClose(onRemove); }}
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-status-danger-text hover:bg-status-danger-bg transition-colors"
+            >
+              <UserMinus className="h-4 w-4" />
+              Remove from team
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -228,6 +371,265 @@ const ResetPasswordModal = ({
                 type="button"
                 onClick={copyPassword}
                 title="Copy temporary password to clipboard"
+                className={copied ? 'bg-status-success-text hover:brightness-100' : ''}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <Button type="button" variant="secondary" onClick={onClose}>Done</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Change role: promote/demote between 'staff' and 'admin' (the task's
+ * explicit scope - the owner role is never offered here, since this menu
+ * item is hidden entirely for owner rows and updateUserMembership itself
+ * refuses to assign/revoke 'owner' unless the caller is already an
+ * owner). Backed by the existing PATCH /users/:id endpoint via
+ * usersApi.update - no new backend call needed for this action.
+ */
+const ChangeRoleModal = ({
+  userId,
+  userLabel,
+  currentRole,
+  onClose,
+}: {
+  userId: string;
+  userLabel: string;
+  currentRole: string;
+  onClose: () => void;
+}) => {
+  const [role, setRole] = useState(currentRole === 'admin' ? 'admin' : 'staff');
+  const queryClient = useQueryClient();
+
+  const updateMutation = useMutation({
+    mutationFn: () => usersApi.update(userId, { role: role as any }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      onClose();
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateMutation.mutate();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-bold text-tx-primary mb-4">Change role for {userLabel}</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="change-role" className="block text-sm font-medium text-tx-secondary mb-1">Role</label>
+            <select
+              id="change-role"
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              className="w-full border border-edge-strong rounded-lg p-2 focus:ring-primary focus:border-primary"
+              title="Select a role"
+            >
+              <option value="staff">Office Staff</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          {updateMutation.isError && (
+            <p className="text-sm text-status-danger-text">
+              {(updateMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                || 'Failed to change role. Please try again.'}
+            </p>
+          )}
+          <div className="flex justify-end space-x-3 mt-6">
+            <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={updateMutation.isPending} disabled={role === currentRole}>
+              {updateMutation.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Remove from team: revokes access entirely (deletes the
+ * user_tenant_memberships row for this tenant only - the users row itself
+ * always persists, since the same user may belong to other tenants, and
+ * their row must remain for audit purposes even if not). Destructive and
+ * hard to reverse (the removed user loses access on their very next
+ * request that touches a requireRole-gated route - see
+ * requireRole.ts), so this requires an explicit confirm step, unlike
+ * Reset Password which needs no extra confirmation.
+ */
+const RemoveUserModal = ({
+  userId,
+  userLabel,
+  onClose,
+}: {
+  userId: string;
+  userLabel: string;
+  onClose: () => void;
+}) => {
+  const queryClient = useQueryClient();
+
+  const removeMutation = useMutation({
+    mutationFn: () => usersApi.remove(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+      onClose();
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="p-1.5 bg-status-danger-bg border border-status-danger-border rounded-md flex-shrink-0">
+            <AlertTriangle className="h-4 w-4 text-status-danger-text" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-tx-primary">Remove {userLabel} from the team?</h3>
+            <p className="text-sm text-tx-muted mt-0.5">
+              They will immediately lose access to this school's data. Their user account itself is not deleted -
+              only their access to this school - so they can be re-invited later if needed.
+            </p>
+          </div>
+        </div>
+
+        {removeMutation.isError && (
+          <p className="text-sm text-status-danger-text mb-4">
+            {(removeMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+              || 'Failed to remove this team member. Please try again.'}
+          </p>
+        )}
+
+        <div className="flex justify-end space-x-3 mt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            type="button"
+            variant="destructive"
+            loading={removeMutation.isPending}
+            onClick={() => removeMutation.mutate()}
+          >
+            {removeMutation.isPending ? 'Removing...' : 'Remove'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Resend invite: for a user still in 'invited' status, regenerates and
+ * shows a new invite link - same copy-link UI pattern as InviteModal's
+ * success state below. Backed by usersApi.resendInvite, which UPDATEs the
+ * existing membership row rather than attempting a fresh INSERT (see
+ * resendInvite's doc comment in userService.ts) - this is also the fix
+ * for the previously-reported bug where re-inviting an already-invited
+ * email 500s on the user_tenant_memberships unique constraint.
+ */
+const ResendInviteModal = ({
+  userId,
+  userLabel,
+  onClose,
+}: {
+  userId: string;
+  userLabel: string;
+  onClose: () => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const resendMutation = useMutation({
+    mutationFn: () => usersApi.resendInvite(userId),
+  });
+
+  React.useEffect(() => {
+    resendMutation.mutate();
+    // Fire exactly once when the modal opens - not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const inviteLink = resendMutation.data?.data?.inviteLink;
+
+  const copyLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md p-6">
+        {resendMutation.isPending && (
+          <p className="text-sm text-tx-muted">Generating a new invite link for {userLabel}...</p>
+        )}
+
+        {resendMutation.isError && (
+          <>
+            <h3 className="text-lg font-bold text-tx-primary mb-2">Couldn't resend invite</h3>
+            <p className="text-sm text-status-danger-text mb-4">
+              {(resendMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                || 'Something went wrong. Please try again.'}
+            </p>
+            <div className="flex justify-end">
+              <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
+            </div>
+          </>
+        )}
+
+        {inviteLink && (
+          <>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-1.5 bg-status-success-bg border border-status-success-border rounded-md flex-shrink-0">
+                <CheckCircle2 className="h-4 w-4 text-status-success-text" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-tx-primary">Invite resent</h3>
+                <p className="text-sm text-tx-muted mt-0.5">
+                  Share this new link with {userLabel} - their previous invite link no longer works.
+                </p>
+              </div>
+            </div>
+
+            <label htmlFor="resend-invite-link" className="block text-sm font-medium text-tx-secondary mb-1">
+              Invite link
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="resend-invite-link"
+                type="text"
+                readOnly
+                value={inviteLink}
+                title="Invite link"
+                className="flex-1 min-w-0 px-3 py-2 text-sm bg-surface2 border border-edge-strong rounded-lg font-mono text-tx-secondary truncate"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button
+                type="button"
+                onClick={copyLink}
+                title="Copy invite link to clipboard"
                 className={copied ? 'bg-status-success-text hover:brightness-100' : ''}
               >
                 {copied ? (

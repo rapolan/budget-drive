@@ -55,4 +55,13 @@ export const usersApi = {
     const response = await apiClient.delete<ApiResponse<{ message: string }>>(`/users/${userId}`);
     return response.data;
   },
+
+  /**
+   * Resend an invite to a user still in 'invited' status - regenerates
+   * the invite link, same copy-link UI pattern as the original invite.
+   */
+  resendInvite: async (userId: string) => {
+    const response = await apiClient.post<ApiResponse<{ inviteLink: string }>>(`/users/${userId}/resend-invite`, {});
+    return response.data;
+  },
 };
