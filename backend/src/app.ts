@@ -42,6 +42,14 @@ import classroomRoutes from './routes/classroomRoutes';
 // Create Express app
 const app: Application = express();
 
+// Trust the first hop reverse proxy (Railway terminates TLS in front of
+// this app and forwards over plain HTTP internally) - without this,
+// Express reports req.protocol/req.secure from its own plaintext
+// connection to the proxy, never 'https', even though the real client
+// request was HTTPS. This is what makes req.protocol trustworthy for
+// building this server's own public base URL (see calendarFeedRoutes.ts).
+app.set('trust proxy', 1);
+
 // =====================================================
 // MIDDLEWARE
 // =====================================================
