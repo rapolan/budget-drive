@@ -489,16 +489,17 @@ export interface Vehicle {
   id: string;
   tenantId: string;
   ownershipType: 'school_owned' | 'instructor_owned' | 'leased';
-  make: string;
-  model: string;
-  year: number;
-  licensePlate: string;
+  ownerInstructorId?: string | null;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  licensePlate?: string | null;
   vin?: string;
   color?: string;
-  registrationExpiration: Date;
+  registrationExpiration?: Date | null;
   insuranceProvider?: string;
   insurancePolicyNumber?: string;
-  insuranceExpiration: Date;
+  insuranceExpiration?: Date | null;
   currentMileage: number;
   status: 'active' | 'maintenance' | 'retired';
   notes?: string;
@@ -739,16 +740,18 @@ export interface CreateInstructorInput {
 
 export interface CreateVehicleInput {
   ownershipType?: 'school_owned' | 'instructor_owned' | 'leased';
-  make: string;
-  model: string;
-  year: number;
-  licensePlate: string;
+  // Required when ownershipType is 'instructor_owned' (checked server-side).
+  ownerInstructorId?: string | null;
+  make?: string;
+  model?: string;
+  year?: number;
+  licensePlate?: string;
   vin?: string;
   color?: string;
-  registrationExpiration: string;
+  registrationExpiration?: string;
   insuranceProvider?: string;
   insurancePolicyNumber?: string;
-  insuranceExpiration: string;
+  insuranceExpiration?: string;
   currentMileage?: number;
   notes?: string;
 }

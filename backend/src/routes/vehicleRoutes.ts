@@ -27,10 +27,14 @@ router.get(
   vehicleController.getAllVehicles
 );
 
-// Create new vehicle
+// Create new vehicle - only ownership is required; the school knows who
+// owns a vehicle before it knows make/model/mileage/registration details,
+// which are filled in over time. ownerInstructorId's own presence (only
+// when ownershipType is 'instructor_owned') is checked in vehicleService,
+// since validateRequired can't express a conditional requirement.
 router.post(
   '/vehicles',
-  validateRequired(['make', 'model', 'year', 'licensePlate', 'vin']),
+  validateRequired(['ownershipType']),
   vehicleController.createVehicle
 );
 

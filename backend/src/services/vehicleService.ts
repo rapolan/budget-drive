@@ -69,40 +69,55 @@ export const getAvailableVehicles = async (
 
 export const createVehicle = async (
   tenantId: string,
-  data: any,
-  userId?: string
+  data: any
 ): Promise<Vehicle> => {
   logger.info('Creating new vehicle', {
     tenantId,
+    ownershipType: data.ownershipType,
     make: data.make,
     model: data.model,
     year: data.year,
     licensePlate: data.licensePlate,
   });
 
+  // Only ownership is required to create a vehicle record - make, model,
+  // year, license plate, registration, and insurance details are filled
+  // in over time (the school knows who owns a vehicle before it knows
+  // these details). An instructor-owned vehicle must name WHICH
+  // instructor, since lessonService's auto-assignment logic looks up
+  // instructor-owned vehicles by owner_instructor_id.
+  if (data.ownershipType === 'instructor_owned' && !data.ownerInstructorId) {
+    throw new AppError('ownerInstructorId is required when ownershipType is instructor_owned', 400);
+  }
+
   try {
+    // NOTE: vehicles has no created_by/updated_by columns (unlike
+    // instructors/lessons) - the previous version of this INSERT named
+    // them anyway, so every vehicle creation attempt has always failed
+    // with "column \"created_by\" of relation \"vehicles\" does not
+    // exist," confirmed live.
     const result = await query(
       `INSERT INTO vehicles (
-        tenant_id, ownership_type, make, model, year, license_plate, vin, color,
+        tenant_id, ownership_type, owner_instructor_id, make, model, year, license_plate, vin, color,
         registration_expiration, insurance_provider, insurance_policy_number,
-        insurance_expiration, current_mileage, status, created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $14)
+        insurance_expiration, current_mileage, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active')
       RETURNING *`,
       [
         tenantId,
         data.ownershipType || 'school_owned',
-        data.make,
-        data.model,
-        data.year,
-        data.licensePlate,
+        data.ownerInstructorId || null,
+        data.make || null,
+        data.model || null,
+        data.year || null,
+        data.licensePlate || null,
         data.vin || null,
         data.color || null,
-        data.registrationExpiration,
+        data.registrationExpiration || null,
         data.insuranceProvider || null,
         data.insurancePolicyNumber || null,
-        data.insuranceExpiration,
+        data.insuranceExpiration || null,
         data.currentMileage || 0,
-        userId || null,
       ]
     );
 
@@ -127,8 +142,7 @@ export const createVehicle = async (
 export const updateVehicle = async (
   id: string,
   tenantId: string,
-  data: Partial<Vehicle>,
-  userId?: string
+  data: Partial<Vehicle>
 ): Promise<Vehicle> => {
   logger.info('Updating vehicle', {
     tenantId,
@@ -189,10 +203,11 @@ export const updateVehicle = async (
       fields.push(`registration_expiration = $${paramCount++}`);
       values.push(data.registrationExpiration);
     }
-    if (userId) {
-      fields.push(`updated_by = $${paramCount++}`);
-      values.push(userId);
-    }
+    // vehicles has no updated_by column (see the note in createVehicle
+    // above) - userId is accepted for interface consistency but not
+    // persisted; unlike createVehicle this only ever silently no-op'd
+    // (the `if (userId)` guard meant it was never actually reached in a
+    // way that surfaced the missing-column error until now).
 
     if (fields.length === 0) {
       logger.warn('No fields to update in vehicle', { tenantId, vehicleId: id });

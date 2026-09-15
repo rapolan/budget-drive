@@ -48,11 +48,14 @@ export const VehiclesPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const filteredVehicles = data?.data?.filter((vehicle) =>
-    vehicle.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.licensePlate.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredVehicles = data?.data?.filter((vehicle) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (vehicle.make || '').toLowerCase().includes(term) ||
+      (vehicle.model || '').toLowerCase().includes(term) ||
+      (vehicle.licensePlate || '').toLowerCase().includes(term)
+    );
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -184,9 +187,11 @@ export const VehiclesPage: React.FC = () => {
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-semibold text-tx-primary truncate">
-                        {vehicle.year} {vehicle.make}
+                        {vehicle.year || vehicle.make
+                          ? `${vehicle.year || ''} ${vehicle.make || ''}`.trim()
+                          : 'Details not yet entered'}
                       </h3>
-                      <p className="text-sm text-tx-muted truncate">{vehicle.model}</p>
+                      <p className="text-sm text-tx-muted truncate">{vehicle.model || '—'}</p>
                     </div>
                   </div>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${getStatusColor(vehicle.status)}`}>
@@ -198,7 +203,7 @@ export const VehiclesPage: React.FC = () => {
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center gap-2 text-sm">
                     <Hash className="h-4 w-4 text-tx-muted flex-shrink-0" />
-                    <span className="font-medium text-tx-primary">{vehicle.licensePlate}</span>
+                    <span className="font-medium text-tx-primary">{vehicle.licensePlate || 'No plate on file'}</span>
                   </div>
                   {vehicle.color && (
                     <div className="flex items-center gap-2 text-sm text-tx-secondary">
@@ -316,14 +321,16 @@ export const VehiclesPage: React.FC = () => {
                 <tr key={vehicle.id} className="hover:bg-surface2">
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="font-medium text-tx-primary">
-                      {vehicle.year} {vehicle.make} {vehicle.model}
+                      {vehicle.year || vehicle.make || vehicle.model
+                        ? `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim()
+                        : 'Details not yet entered'}
                     </div>
                     {vehicle.color && (
                       <div className="text-sm text-tx-muted">{vehicle.color}</div>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-tx-primary">
-                    {vehicle.licensePlate}
+                    {vehicle.licensePlate || 'No plate on file'}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="text-sm text-tx-primary">

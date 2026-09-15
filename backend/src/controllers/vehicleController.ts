@@ -74,9 +74,8 @@ export const getVehicle = asyncHandler(async (req: Request, res: Response) => {
  */
 export const createVehicle = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const userId = req.user?.userId;
 
-  const vehicle = await vehicleService.createVehicle(tenantId, req.body, userId);
+  const vehicle = await vehicleService.createVehicle(tenantId, req.body);
 
   res.status(201).json({
     success: true,
@@ -92,10 +91,9 @@ export const createVehicle = asyncHandler(async (req: Request, res: Response) =>
  */
 export const updateVehicle = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const userId = req.user?.userId;
   const { id } = req.params;
 
-  const vehicle = await vehicleService.updateVehicle(id, tenantId, req.body, userId);
+  const vehicle = await vehicleService.updateVehicle(id, tenantId, req.body);
 
   res.json({
     success: true,

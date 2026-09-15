@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
-import { vehiclesApi } from '@/api';
+import { vehiclesApi, instructorsApi } from '@/api';
 import type { Vehicle, CreateVehicleInput } from '@/types';
 
 interface VehicleModalProps {
@@ -15,6 +15,7 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
 
   const [formData, setFormData] = useState<CreateVehicleInput>({
     ownershipType: 'school_owned',
+    ownerInstructorId: null,
     make: '',
     model: '',
     year: new Date().getFullYear(),
@@ -29,20 +30,30 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
     notes: '',
   });
 
+  const { data: instructorsData } = useQuery({
+    queryKey: ['instructors'],
+    queryFn: () => instructorsApi.getAll(),
+  });
+
   useEffect(() => {
     if (vehicle) {
       setFormData({
         ownershipType: vehicle.ownershipType,
-        make: vehicle.make,
-        model: vehicle.model,
-        year: vehicle.year,
-        licensePlate: vehicle.licensePlate,
+        ownerInstructorId: vehicle.ownerInstructorId || null,
+        make: vehicle.make || '',
+        model: vehicle.model || '',
+        year: vehicle.year || new Date().getFullYear(),
+        licensePlate: vehicle.licensePlate || '',
         vin: vehicle.vin || '',
         color: vehicle.color || '',
-        registrationExpiration: new Date(vehicle.registrationExpiration).toISOString().split('T')[0],
+        registrationExpiration: vehicle.registrationExpiration
+          ? new Date(vehicle.registrationExpiration).toISOString().split('T')[0]
+          : '',
         insuranceProvider: vehicle.insuranceProvider || '',
         insurancePolicyNumber: vehicle.insurancePolicyNumber || '',
-        insuranceExpiration: new Date(vehicle.insuranceExpiration).toISOString().split('T')[0],
+        insuranceExpiration: vehicle.insuranceExpiration
+          ? new Date(vehicle.insuranceExpiration).toISOString().split('T')[0]
+          : '',
         currentMileage: vehicle.currentMileage || 0,
         notes: vehicle.notes || '',
       });
@@ -65,13 +76,21 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
     },
   });
 
+  const activeMutation = isEditing ? updateMutation : createMutation;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isEditing) {
-      await updateMutation.mutateAsync(formData);
-    } else {
-      await createMutation.mutateAsync(formData);
+    try {
+      if (isEditing) {
+        await updateMutation.mutateAsync(formData);
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
+    } catch {
+      // Already surfaced via activeMutation.isError below - swallow here
+      // so a rejected mutation doesn't also throw as an unhandled promise
+      // rejection out of this submit handler.
     }
   };
 
@@ -79,10 +98,18 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'number' ? parseInt(value) || 0 : value,
-    }));
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        [name]: type === 'number' ? (value === '' ? undefined : parseInt(value) || 0) : value,
+      };
+      // Owning instructor only makes sense for instructor-owned vehicles -
+      // clear it when switching away so a stale id never gets submitted.
+      if (name === 'ownershipType' && value !== 'instructor_owned') {
+        next.ownerInstructorId = null;
+      }
+      return next;
+    });
   };
 
   return (
@@ -107,16 +134,15 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* Make */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                Make *
+                Make
               </label>
               <input
                 type="text"
                 name="make"
                 value={formData.make}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
-                placeholder="e.g., Toyota"
+                placeholder="e.g., Toyota (can be filled in later)"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -124,16 +150,15 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* Model */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                Model *
+                Model
               </label>
               <input
                 type="text"
                 name="model"
                 value={formData.model}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
-                placeholder="e.g., Corolla"
+                placeholder="e.g., Corolla (can be filled in later)"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -141,17 +166,17 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* Year */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                Year *
+                Year
               </label>
               <input
                 type="number"
                 name="year"
-                value={formData.year}
+                value={formData.year || ''}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
                 min="1900"
                 max={new Date().getFullYear() + 1}
+                placeholder="Can be filled in later"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -175,16 +200,15 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* License Plate */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                License Plate *
+                License Plate
               </label>
               <input
                 type="text"
                 name="licensePlate"
                 value={formData.licensePlate}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
-                placeholder="e.g., ABC 1234"
+                placeholder="e.g., ABC 1234 (can be filled in later)"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
@@ -192,29 +216,30 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* VIN */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                VIN *
+                VIN
               </label>
               <input
                 type="text"
                 name="vin"
                 value={formData.vin}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
-                placeholder="Vehicle Identification Number"
+                placeholder="Vehicle Identification Number (optional)"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 
             {/* Ownership Type */}
             <div>
-              <label className="block text-sm font-medium text-tx-secondary">
-                Ownership Type
+              <label htmlFor="vehicle-ownership-type" className="block text-sm font-medium text-tx-secondary">
+                Ownership Type *
               </label>
               <select
+                id="vehicle-ownership-type"
                 name="ownershipType"
                 value={formData.ownershipType}
                 onChange={handleChange}
+                required
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="school_owned">School Owned</option>
@@ -222,6 +247,30 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
                 <option value="leased">Leased</option>
               </select>
             </div>
+
+            {/* Owner Instructor - only when instructor-owned, and required in that case */}
+            {formData.ownershipType === 'instructor_owned' && (
+              <div>
+                <label htmlFor="vehicle-owner-instructor" className="block text-sm font-medium text-tx-secondary">
+                  Owning Instructor *
+                </label>
+                <select
+                  id="vehicle-owner-instructor"
+                  name="ownerInstructorId"
+                  value={formData.ownerInstructorId || ''}
+                  onChange={handleChange}
+                  required
+                  className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Select an instructor...</option>
+                  {instructorsData?.data?.map((instructor) => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.fullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Current Mileage */}
             <div>
@@ -243,14 +292,13 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* Registration Expiration */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                Registration Expiration *
+                Registration Expiration
               </label>
               <input
                 type="date"
                 name="registrationExpiration"
                 value={formData.registrationExpiration}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -259,14 +307,13 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             {/* Insurance Expiration */}
             <div>
               <label className="block text-sm font-medium text-tx-secondary">
-                Insurance Expiration *
+                Insurance Expiration
               </label>
               <input
                 type="date"
                 name="insuranceExpiration"
                 value={formData.insuranceExpiration}
                 onChange={handleChange}
-                required
                 autoComplete="nope"
                 className="mt-1 w-full rounded-md border border-edge-strong px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
@@ -319,6 +366,17 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             </div>
           </div>
 
+          {/* Error - a failed create/update (e.g. an instructor-owned
+              vehicle with no owning instructor selected) must be visible,
+              not silent - previously this modal had no error display at
+              all, so a rejected request looked exactly like a dead button. */}
+          {activeMutation.isError && (
+            <p className="text-sm text-status-danger-text">
+              {(activeMutation.error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error
+                || 'Failed to save vehicle. Please try again.'}
+            </p>
+          )}
+
           {/* Submit Button */}
           <div className="flex justify-end space-x-3 pt-4 border-t border-edge mt-6">
             <button
@@ -330,9 +388,10 @@ export const VehicleModal: React.FC<VehicleModalProps> = ({ vehicle, onClose }) 
             </button>
             <button
               type="submit"
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:brightness-90 hover:bg-primary transition-colors"
+              disabled={activeMutation.isPending}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:brightness-90 hover:bg-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isEditing ? 'Update' : 'Create'} Vehicle
+              {activeMutation.isPending ? 'Saving...' : `${isEditing ? 'Update' : 'Create'} Vehicle`}
             </button>
           </div>
         </form>
