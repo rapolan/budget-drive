@@ -4,11 +4,21 @@
  */
 
 import React, { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
+import { tenantsApi, schedulingApi } from '@/api';
 import { Settings as SettingsIcon, Sparkles, Bell, Palette, Info, Calendar, Users } from 'lucide-react';
 import { TeamSettings } from './TeamSettings';
 
-const API_BASE = 'http://127.0.0.1:4000/api/v1';
+// Shared shape for every sub-tab's save-result banner below.
+type SaveMessage = { type: 'success' | 'error'; text: string } | null;
+
+/** Same '{response body's own error, or a generic fallback}' extraction
+ * this app already uses elsewhere (e.g. TeamSettings.tsx) for a failed
+ * mutation - never just "Failed to save. Please try again." with no real
+ * reason when the backend actually returned one. */
+const mutationErrorText = (error: unknown, fallback: string): string =>
+  (error as Error & { response?: { data?: { error?: string } } })?.response?.data?.error || fallback;
 
 // Backend-validated (backend/src/services/tenantService.ts checks against
 // Intl.supportedValuesOf('timeZone')) but this list is curated to the ~30
@@ -113,8 +123,7 @@ export const SettingsPage: React.FC = () => {
  */
 const GeneralSettings: React.FC = () => {
   const { settings, refreshSettings } = useTenant();
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<SaveMessage>(null);
 
   const [form, setForm] = useState({
     businessName:        settings?.businessName        || '',
@@ -217,28 +226,21 @@ const GeneralSettings: React.FC = () => {
     ];
   }, [form.timezone, detectedTimezone]);
 
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      setMessage(null);
-      const res = await fetch(`${API_BASE}/tenant/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
-        },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error('Save failed');
+  const saveMutation = useMutation({
+    mutationFn: () => tenantsApi.updateSettings(form),
+    onSuccess: async () => {
       await refreshSettings();
       setMessage({ type: 'success', text: 'General settings saved!' });
       setTimeout(() => setMessage(null), 3000);
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to save. Please try again.' });
-    } finally {
-      setSaving(false);
-    }
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: mutationErrorText(error, 'Failed to save. Please try again.') });
+    },
+  });
+
+  const handleSave = () => {
+    setMessage(null);
+    saveMutation.mutate();
   };
 
   return (
@@ -800,10 +802,10 @@ const GeneralSettings: React.FC = () => {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saveMutation.isPending}
           className="px-6 py-2.5 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
-          {saving ? 'Saving…' : 'Save General Settings'}
+          {saveMutation.isPending ? 'Saving…' : 'Save General Settings'}
         </button>
       </div>
     </div>
@@ -814,81 +816,49 @@ const GeneralSettings: React.FC = () => {
  * Scheduling Settings Tab
  */
 const SchedulingSettings: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState<SaveMessage>(null);
 
   // Form state
   const [defaultLessonDuration, setDefaultLessonDuration] = useState(120);
   const [bufferTimeBetweenLessons, setBufferTimeBetweenLessons] = useState(30);
   const [defaultMaxStudentsPerDay, setDefaultMaxStudentsPerDay] = useState(3);
 
-  // Load current settings
+  const { data: settingsData, isLoading: loading } = useQuery({
+    queryKey: ['scheduling-settings'],
+    queryFn: () => schedulingApi.getSchedulingSettings(),
+  });
+
+  // Seed the individually-editable fields above once the fetched settings
+  // arrive (or change out from under this tab - e.g. after a save
+  // elsewhere invalidates the query).
   React.useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE}/availability/settings`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-            'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
-          },
-        });
+    if (!settingsData) return;
+    setDefaultLessonDuration(settingsData.defaultLessonDuration || 120);
+    setBufferTimeBetweenLessons(settingsData.bufferTimeBetweenLessons || 30);
+    setDefaultMaxStudentsPerDay(settingsData.defaultMaxStudentsPerDay || 3);
+  }, [settingsData]);
 
-        if (response.ok) {
-          const data = await response.json();
-          setDefaultLessonDuration(data.data.defaultLessonDuration || 120);
-          setBufferTimeBetweenLessons(data.data.bufferTimeBetweenLessons || 30);
-          setDefaultMaxStudentsPerDay(data.data.defaultMaxStudentsPerDay || 3);
-        }
-      } catch (error) {
-        console.error('Failed to load scheduling settings:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadSettings();
-  }, []);
-
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      setMessage(null);
-
-      const response = await fetch(`${API_BASE}/availability/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
-        },
-        body: JSON.stringify({
-          defaultLessonDuration,
-          bufferTimeBetweenLessons,
-          defaultMaxStudentsPerDay,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update settings');
-      }
-
-      setMessage({
-        type: 'success',
-        text: 'Scheduling settings saved successfully!',
-      });
-
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      schedulingApi.updateSchedulingSettings({
+        defaultLessonDuration,
+        bufferTimeBetweenLessons,
+        defaultMaxStudentsPerDay,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduling-settings'] });
+      setMessage({ type: 'success', text: 'Scheduling settings saved successfully!' });
       setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      setMessage({
-        type: 'error',
-        text: 'Failed to save settings. Please try again.',
-      });
-    } finally {
-      setSaving(false);
-    }
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: mutationErrorText(error, 'Failed to save settings. Please try again.') });
+    },
+  });
+
+  const handleSave = () => {
+    setMessage(null);
+    saveMutation.mutate();
   };
 
   // Calculate example day end time
@@ -1145,10 +1115,10 @@ const SchedulingSettings: React.FC = () => {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saveMutation.isPending}
             className="px-6 py-3 bg-primary text-white rounded-lg hover:brightness-90 hover:bg-primary transition-colors font-medium disabled:bg-surface3 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
           >
-            {saving ? 'Saving...' : 'Save Scheduling Settings'}
+            {saveMutation.isPending ? 'Saving...' : 'Save Scheduling Settings'}
           </button>
         </div>
       </div>
@@ -1161,53 +1131,29 @@ const SchedulingSettings: React.FC = () => {
  */
 const FeaturesSettings: React.FC = () => {
   const { settings, refreshSettings } = useTenant();
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<SaveMessage>(null);
 
   // Get current power mode status (using snake_case from backend)
   const powerModeEnabled = (settings as any)?.enable_blockchain_payments === true;
 
-  const handleTogglePowerMode = async () => {
-    try {
-      setSaving(true);
-      setMessage(null);
-
-      // Call backend to update settings
-      const response = await fetch(`${API_BASE}/tenant/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
-        },
-        body: JSON.stringify({
-          enableBlockchainPayments: !powerModeEnabled,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update settings');
-      }
-
-      // Refresh settings in context
+  const toggleMutation = useMutation({
+    mutationFn: () => tenantsApi.updateSettings({ enableBlockchainPayments: !powerModeEnabled }),
+    onSuccess: async () => {
       await refreshSettings();
-
       setMessage({
         type: 'success',
         text: `Power mode ${!powerModeEnabled ? 'enabled' : 'disabled'} successfully!`,
       });
-
-      // Clear message after 3 seconds
       setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-      console.error('Failed to toggle power mode:', error);
-      setMessage({
-        type: 'error',
-        text: 'Failed to update setting. Please try again.',
-      });
-    } finally {
-      setSaving(false);
-    }
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: mutationErrorText(error, 'Failed to update setting. Please try again.') });
+    },
+  });
+
+  const handleTogglePowerMode = () => {
+    setMessage(null);
+    toggleMutation.mutate();
   };
 
   return (
@@ -1271,12 +1217,12 @@ const FeaturesSettings: React.FC = () => {
               onClick={handleTogglePowerMode}
               title="Toggle Power Mode"
               aria-label="Toggle Power Mode"
-              disabled={saving}
+              disabled={toggleMutation.isPending}
               className={`
                 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
                 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
                 ${powerModeEnabled ? 'bg-primary' : 'bg-surface3'}
-                ${saving ? 'opacity-50 cursor-not-allowed' : ''}
+                ${toggleMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
               `}
             >
               <span
@@ -1351,8 +1297,7 @@ const FeaturesSettings: React.FC = () => {
  */
 const BrandingSettings: React.FC = () => {
   const { settings, refreshSettings } = useTenant();
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<SaveMessage>(null);
 
   const [form, setForm] = useState({
     logoUrl:      settings?.logoUrl      || '',
@@ -1370,28 +1315,21 @@ const BrandingSettings: React.FC = () => {
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
 
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      setMessage(null);
-      const res = await fetch(`${API_BASE}/tenant/settings`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'X-Tenant-ID': localStorage.getItem('tenant_id') || '',
-        },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error('Save failed');
+  const saveMutation = useMutation({
+    mutationFn: () => tenantsApi.updateSettings(form),
+    onSuccess: async () => {
       await refreshSettings();
       setMessage({ type: 'success', text: 'Branding saved! Colors updated live.' });
       setTimeout(() => setMessage(null), 3000);
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to save. Please try again.' });
-    } finally {
-      setSaving(false);
-    }
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: mutationErrorText(error, 'Failed to save. Please try again.') });
+    },
+  });
+
+  const handleSave = () => {
+    setMessage(null);
+    saveMutation.mutate();
   };
 
   const presets = [
@@ -1513,10 +1451,10 @@ const BrandingSettings: React.FC = () => {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saveMutation.isPending}
           className="px-6 py-2.5 bg-primary text-white rounded-lg hover:brightness-90 transition-colors text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
-          {saving ? 'Saving…' : 'Save Branding'}
+          {saveMutation.isPending ? 'Saving…' : 'Save Branding'}
         </button>
       </div>
     </div>

@@ -817,15 +817,33 @@ export interface InstructorTimeOff {
   updatedAt: Date;
 }
 
+export interface LessonDurationTemplate {
+  name: string;
+  minutes: number;
+}
+
+// Matches backend/src/types/index.ts's SchedulingSettings and
+// availabilityService.ts's transformSchedulingSettings exactly - the
+// scheduling_settings table's real shape. This interface previously
+// described fields the table has never had (defaultBufferMinutes,
+// minimumNoticeHours, allowDoubleBooking, businessHoursStart/End), which
+// forced WeeklyAvailabilityGrid.tsx and AvailabilityEditor.tsx to work
+// around it with their own narrower/untyped casts instead of using this
+// type directly - fixed at the source rather than adding a third workaround.
 export interface SchedulingSettings {
   id: string;
   tenantId: string;
-  defaultBufferMinutes: number;
-  minimumNoticeHours: number;
-  maxAdvanceBookingDays: number;
-  allowDoubleBooking: boolean;
-  businessHoursStart: string; // HH:MM format
-  businessHoursEnd: string; // HH:MM format
+  bufferTimeBetweenLessons: number; // minutes
+  bufferTimeBeforeFirstLesson: number; // minutes
+  bufferTimeAfterLastLesson: number; // minutes
+  minHoursAdvanceBooking: number; // hours
+  maxDaysAdvanceBooking: number; // days
+  defaultLessonDuration: number; // minutes (default: 120)
+  defaultMaxStudentsPerDay: number; // max students per instructor per day (default: 3)
+  lessonDurationTemplates: LessonDurationTemplate[];
+  allowBackToBackLessons: boolean;
+  defaultWorkStartTime: string; // HH:MM:SS format
+  defaultWorkEndTime: string; // HH:MM:SS format
   createdAt: Date;
   updatedAt: Date;
 }

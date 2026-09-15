@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPage } from './Settings';
+import { tenantsApi, schedulingApi } from '@/api';
+
+function renderSettingsPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <SettingsPage />
+    </QueryClientProvider>
+  );
+}
 
 const mockRefreshSettings = vi.fn().mockResolvedValue(undefined);
 
@@ -49,11 +62,42 @@ vi.mock('@/contexts/TenantContext', () => ({
 
 vi.mock('./TeamSettings', () => ({ TeamSettings: () => null }));
 
-const originalFetch = global.fetch;
+vi.mock('@/api', async () => {
+  const actual = await vi.importActual<typeof import('@/api')>('@/api');
+  return {
+    ...actual,
+    tenantsApi: { ...actual.tenantsApi, updateSettings: vi.fn() },
+    schedulingApi: { ...actual.schedulingApi, getSchedulingSettings: vi.fn(), updateSchedulingSettings: vi.fn() },
+  };
+});
+
+// SettingsPage defaults to the Scheduling tab, whose own component fetches
+// scheduling settings via schedulingApi on mount - every describe block
+// below cares about a different tab, but this must always resolve or that
+// unrelated query hangs pending underneath whichever tab is actually
+// under test.
+function mockSchedulingSettingsLoad() {
+  vi.mocked(schedulingApi.getSchedulingSettings).mockResolvedValue({
+    id: 'settings-1',
+    tenantId: 'tenant-1',
+    bufferTimeBetweenLessons: 30,
+    bufferTimeBeforeFirstLesson: 0,
+    bufferTimeAfterLastLesson: 0,
+    minHoursAdvanceBooking: 24,
+    maxDaysAdvanceBooking: 60,
+    defaultLessonDuration: 120,
+    defaultMaxStudentsPerDay: 3,
+    lessonDurationTemplates: [],
+    allowBackToBackLessons: false,
+    defaultWorkStartTime: '07:00:00',
+    defaultWorkEndTime: '20:00:00',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+}
 
 afterEach(() => {
   cleanup();
-  global.fetch = originalFetch;
 });
 
 // Regression coverage for item 8: tenant_settings.timezone was readable/
@@ -64,17 +108,12 @@ describe('Settings - General tab timezone picker', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    // SettingsPage defaults to the Scheduling tab, whose own component
-    // fetches scheduling settings on mount - mock fetch globally so that
-    // (unrelated to this test) request resolves instead of hanging.
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('renders the timezone select defaulted to the tenant\'s current value', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
 
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
@@ -83,7 +122,7 @@ describe('Settings - General tab timezone picker', () => {
   });
 
   it('submits the newly-selected timezone through the existing save path', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const select = await screen.findByLabelText(/school timezone/i);
@@ -93,18 +132,10 @@ describe('Settings - General tab timezone picker', () => {
     fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/tenant/settings'),
-        expect.objectContaining({ method: 'PUT' })
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ timezone: 'America/Phoenix' })
       );
     });
-
-    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([, options]) => options?.method === 'PUT'
-    );
-    expect(putCall).toBeDefined();
-    const body = JSON.parse(putCall![1].body as string);
-    expect(body.timezone).toBe('America/Phoenix');
   });
 });
 
@@ -113,14 +144,12 @@ describe('Settings - General tab default lesson cost', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('renders the default lesson cost field defaulted to the tenant\'s current value', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/default lesson cost/i);
@@ -128,7 +157,7 @@ describe('Settings - General tab default lesson cost', () => {
   });
 
   it('submits the newly-entered default lesson cost through the existing save path', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/default lesson cost/i);
@@ -138,18 +167,10 @@ describe('Settings - General tab default lesson cost', () => {
     fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/tenant/settings'),
-        expect.objectContaining({ method: 'PUT' })
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultLessonCost: 175 })
       );
     });
-
-    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([, options]) => options?.method === 'PUT'
-    );
-    expect(putCall).toBeDefined();
-    const body = JSON.parse(putCall![1].body as string);
-    expect(body.defaultLessonCost).toBe(175);
   });
 });
 
@@ -161,14 +182,12 @@ describe('Settings - General tab DE course fee defaults', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('renders both DE cost fields defaulted to the tenant\'s current values', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const classroomInput = await screen.findByLabelText(/default classroom driver education cost/i);
@@ -178,7 +197,7 @@ describe('Settings - General tab DE course fee defaults', () => {
   });
 
   it('submits newly-entered classroom and online DE costs independently through the existing save path', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const classroomInput = await screen.findByLabelText(/default classroom driver education cost/i);
@@ -189,18 +208,10 @@ describe('Settings - General tab DE course fee defaults', () => {
     fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/tenant/settings'),
-        expect.objectContaining({ method: 'PUT' })
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultDeClassroomCost: 175, defaultDeOnlineCost: 125 })
       );
     });
-
-    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([, options]) => options?.method === 'PUT'
-    );
-    const body = JSON.parse(putCall![1].body as string);
-    expect(body.defaultDeClassroomCost).toBe(175);
-    expect(body.defaultDeOnlineCost).toBe(125);
   });
 });
 
@@ -212,14 +223,12 @@ describe('Settings - General tab DMV license number', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('renders the license number field in the School Identity section, empty when unset', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/dmv driving school license number/i);
@@ -227,7 +236,7 @@ describe('Settings - General tab DMV license number', () => {
   });
 
   it('submits the newly-entered license number through the existing save path', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/dmv driving school license number/i);
@@ -237,23 +246,15 @@ describe('Settings - General tab DMV license number', () => {
     fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/tenant/settings'),
-        expect.objectContaining({ method: 'PUT' })
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ licenseNumber: 'E1234' })
       );
     });
-
-    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([, options]) => options?.method === 'PUT'
-    );
-    expect(putCall).toBeDefined();
-    const body = JSON.parse(putCall![1].body as string);
-    expect(body.licenseNumber).toBe('E1234');
   });
 
   it('pre-fills from an already-saved license number', async () => {
     mockTenantSettings = { ...MOCK_SETTINGS, licenseNumber: 'E9999' } as typeof MOCK_SETTINGS;
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/dmv driving school license number/i);
@@ -266,14 +267,12 @@ describe('Settings - General tab max lessons per student per day', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('renders the max lessons per student per day field defaulted to the tenant\'s current value', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/max lessons per student per day/i);
@@ -281,7 +280,7 @@ describe('Settings - General tab max lessons per student per day', () => {
   });
 
   it('submits the newly-entered max lessons per student per day through the existing save path', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const input = await screen.findByLabelText(/max lessons per student per day/i);
@@ -291,18 +290,10 @@ describe('Settings - General tab max lessons per student per day', () => {
     fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/tenant/settings'),
-        expect.objectContaining({ method: 'PUT' })
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ maxLessonsPerStudentPerDay: 2 })
       );
     });
-
-    const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([, options]) => options?.method === 'PUT'
-    );
-    expect(putCall).toBeDefined();
-    const body = JSON.parse(putCall![1].body as string);
-    expect(body.maxLessonsPerStudentPerDay).toBe(2);
   });
 });
 
@@ -317,15 +308,13 @@ describe('Settings - General tab numeric field coercion', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('shows the matching quick-select as active when defaultHoursRequired arrives as a numeric string', async () => {
     mockTenantSettings = { ...MOCK_SETTINGS, defaultHoursRequired: '8.00' as unknown as number };
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const activeButton = await screen.findByRole('button', { name: '8h' });
@@ -334,7 +323,7 @@ describe('Settings - General tab numeric field coercion', () => {
 
   it('shows the matching quick-select as active when standardLessonLengthMinutes arrives as a numeric string', async () => {
     mockTenantSettings = { ...MOCK_SETTINGS, standardLessonLengthMinutes: '90.00' as unknown as number };
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const activeButton = await screen.findByRole('button', { name: '90m' });
@@ -352,10 +341,8 @@ describe('Settings - General tab timezone auto-detect suggestion', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
 
     resolvedOptionsSpy = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
       timeZone: 'America/Denver',
@@ -368,7 +355,7 @@ describe('Settings - General tab timezone auto-detect suggestion', () => {
 
   it('surfaces the browser-detected timezone as a suggestion when unset, and applies it only on explicit confirm', async () => {
     mockTenantSettings = UNSET_SETTINGS;
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const select = await screen.findByLabelText(/school timezone/i) as HTMLSelectElement;
@@ -387,18 +374,15 @@ describe('Settings - General tab timezone auto-detect suggestion', () => {
     // effect once the admin explicitly saves, same as any other field.
     fireEvent.click(screen.getByRole('button', { name: /save general settings/i }));
     await waitFor(() => {
-      const putCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
-        ([, options]) => options?.method === 'PUT'
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ timezone: 'America/Denver' })
       );
-      expect(putCall).toBeDefined();
-      const body = JSON.parse(putCall![1].body as string);
-      expect(body.timezone).toBe('America/Denver');
     });
   });
 
   it('never shows the suggestion, and never overrides the stored value, when a timezone is already explicitly set', async () => {
     mockTenantSettings = MOCK_SETTINGS; // timezone: 'America/New_York', explicitly set
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const select = await screen.findByLabelText(/school timezone/i) as HTMLSelectElement;
@@ -422,14 +406,12 @@ describe('Settings - General tab label association (accessibility)', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('every School Identity / Contact Information / Physical Address field is reachable via its label', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     for (const labelText of [
@@ -449,7 +431,7 @@ describe('Settings - General tab label association (accessibility)', () => {
   });
 
   it('Default Hours Required and Standard Lesson Length are reachable via their labels', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     expect(await screen.findByLabelText(/default hours required per student/i)).toBeInTheDocument();
@@ -457,7 +439,7 @@ describe('Settings - General tab label association (accessibility)', () => {
   });
 
   it('Lesson Completion Mode renders as a named, accessible button group with pressed state', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const group = await screen.findByRole('group', { name: /lesson completion mode/i });
@@ -473,7 +455,7 @@ describe('Settings - General tab label association (accessibility)', () => {
   });
 
   it('Who Collects the Fee renders as a named, accessible button group with pressed state', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const group = await screen.findByRole('group', { name: /who collects the fee/i });
@@ -489,7 +471,7 @@ describe('Settings - General tab label association (accessibility)', () => {
   });
 
   it('quick-select pill buttons for numeric fields announce pressed state', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /general/i }));
 
     const sixHours = await screen.findByRole('button', { name: '6h ⭐' });
@@ -510,16 +492,93 @@ describe('Settings - Branding tab label association (accessibility)', () => {
     vi.clearAllMocks();
     mockTenantSettings = MOCK_SETTINGS;
     mockRefreshSettings.mockResolvedValue(undefined);
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: {} }),
-    }) as unknown as typeof fetch;
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({ success: true, data: {} as any });
   });
 
   it('Logo URL is reachable via its label', async () => {
-    render(<SettingsPage />);
+    renderSettingsPage();
     fireEvent.click(screen.getByRole('button', { name: /branding/i }));
 
     expect(await screen.findByLabelText(/logo url/i)).toBeInTheDocument();
+  });
+});
+
+// Regression coverage for the actual reported production bug: Settings.tsx
+// hardcoded API_BASE = 'http://127.0.0.1:4000/api/v1' instead of using the
+// environment-aware apiClient every other page uses, so every Save button
+// on this page silently tried to reach the developer's own localhost in
+// production and failed with no real request ever reaching the backend.
+// Fixed by migrating every sub-tab to schedulingApi/tenantsApi + TanStack
+// Query - these tests confirm the Scheduling tab specifically, since it's
+// the tab the bug was originally reported against (buffer time showing 15
+// instead of a saved 30).
+describe('Settings - Scheduling tab (capacity-based scheduling)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTenantSettings = MOCK_SETTINGS;
+    mockRefreshSettings.mockResolvedValue(undefined);
+  });
+
+  it('loads and displays the real buffer time via schedulingApi, not a hardcoded default', async () => {
+    vi.mocked(schedulingApi.getSchedulingSettings).mockResolvedValue({
+      id: 'settings-1',
+      tenantId: 'tenant-1',
+      bufferTimeBetweenLessons: 45,
+      bufferTimeBeforeFirstLesson: 0,
+      bufferTimeAfterLastLesson: 0,
+      minHoursAdvanceBooking: 24,
+      maxDaysAdvanceBooking: 60,
+      defaultLessonDuration: 120,
+      defaultMaxStudentsPerDay: 3,
+      lessonDurationTemplates: [],
+      allowBackToBackLessons: false,
+      defaultWorkStartTime: '07:00:00',
+      defaultWorkEndTime: '20:00:00',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    renderSettingsPage(); // defaults to the Scheduling tab
+
+    const bufferInput = await screen.findByLabelText(/buffer time between lessons/i) as HTMLInputElement;
+    expect(bufferInput.value).toBe('45');
+  });
+
+  it('saves a changed buffer time through schedulingApi.updateSchedulingSettings, not a raw fetch to localhost', async () => {
+    mockSchedulingSettingsLoad(); // starts at 30
+    vi.mocked(schedulingApi.updateSchedulingSettings).mockResolvedValue({} as any);
+
+    renderSettingsPage();
+
+    const bufferInput = await screen.findByLabelText(/buffer time between lessons/i) as HTMLInputElement;
+    expect(bufferInput.value).toBe('30');
+
+    fireEvent.click(screen.getByRole('button', { name: /^45 min$/i }));
+    expect(bufferInput.value).toBe('45');
+
+    fireEvent.click(screen.getByRole('button', { name: /save scheduling settings/i }));
+
+    await waitFor(() => {
+      expect(schedulingApi.updateSchedulingSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ bufferTimeBetweenLessons: 45 })
+      );
+    });
+    expect(await screen.findByText(/scheduling settings saved successfully/i)).toBeInTheDocument();
+  });
+
+  it('shows a real error message (not silence) when the save request fails', async () => {
+    mockSchedulingSettingsLoad();
+    const error = Object.assign(new Error('request failed'), {
+      response: { data: { error: 'Scheduling settings not found' } },
+    });
+    vi.mocked(schedulingApi.updateSchedulingSettings).mockRejectedValue(error);
+
+    renderSettingsPage();
+    await screen.findByLabelText(/buffer time between lessons/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /save scheduling settings/i }));
+
+    expect(await screen.findByText(/scheduling settings not found/i)).toBeInTheDocument();
   });
 });
