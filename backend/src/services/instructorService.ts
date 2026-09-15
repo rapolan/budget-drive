@@ -134,11 +134,11 @@ export const updateInstructor = async (
     }
     if (data.dateOfBirth !== undefined) {
       fields.push(`date_of_birth = $${paramCount++}`);
-      values.push(data.dateOfBirth);
+      values.push(data.dateOfBirth || null);
     }
     if (data.hireDate !== undefined) {
       fields.push(`hire_date = $${paramCount++}`);
-      values.push(data.hireDate);
+      values.push(data.hireDate || null);
     }
     if (data.email !== undefined) {
       fields.push(`email = $${paramCount++}`);
@@ -190,7 +190,7 @@ export const updateInstructor = async (
     }
     if (data.instructorLicenseExpiration !== undefined) {
       fields.push(`instructor_license_expiration = $${paramCount++}`);
-      values.push(data.instructorLicenseExpiration);
+      values.push(data.instructorLicenseExpiration || null);
     }
     if (data.isDeTeacher !== undefined) {
       fields.push(`is_de_teacher = $${paramCount++}`);
@@ -202,7 +202,7 @@ export const updateInstructor = async (
     }
     if (data.deCredentialExpiration !== undefined) {
       fields.push(`de_credential_expiration = $${paramCount++}`);
-      values.push(data.deCredentialExpiration);
+      values.push(data.deCredentialExpiration || null);
     }
     if (userId) {
       fields.push(`updated_by = $${paramCount++}`);

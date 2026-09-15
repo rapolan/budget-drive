@@ -281,4 +281,44 @@ describe('PUT /api/v1/instructors/:id', () => {
     expect(params).toContain('DE-CRED-42');
     expect(params).toContain('2029-12-31');
   });
+
+  // Regression test for a real production 500: clearing a date field to ''
+  // (the form's natural "empty" value) was sent straight through to
+  // Postgres, which rejects '' for a date column ("invalid input syntax for
+  // type date"). createInstructor already normalized '' -> null for these
+  // same fields; updateInstructor didn't. Covers every date column
+  // updateInstructor writes.
+  describe('clearing a date field to an empty string normalizes to null, not a DB crash', () => {
+    it.each([
+      ['dateOfBirth', 'date_of_birth'],
+      ['hireDate', 'hire_date'],
+      ['instructorLicenseExpiration', 'instructor_license_expiration'],
+      ['deCredentialExpiration', 'de_credential_expiration'],
+    ])('%s -> %s', async (camelField, snakeField) => {
+      const { default: app } = await import('../app');
+      const token = signToken('staff-1');
+
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ id: INSTRUCTOR_ID, tenant_id: TENANT_ID, [snakeField]: null }])
+      );
+
+      const res = await request(app)
+        .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ [camelField]: '' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const updateCall = mockQuery.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+      );
+      expect(updateCall).toBeDefined();
+      const [, params] = updateCall!;
+      // The empty string must never reach the query params - it's
+      // normalized to null before the UPDATE is built.
+      expect(params).not.toContain('');
+      expect(params).toContain(null);
+    });
+  });
 });
