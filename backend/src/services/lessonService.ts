@@ -772,17 +772,23 @@ export const updateLesson = async (
     }
 
     if (data.vehicleId !== undefined) {
-      const vehicleCheck = await query(
-        'SELECT id FROM vehicles WHERE id = $1 AND tenant_id = $2',
-        [data.vehicleId, tenantId]
-      );
-      if (vehicleCheck.rows.length === 0) {
-        logger.error('Vehicle not found for lesson update', undefined, {
-          tenantId,
-          lessonId: id,
-          vehicleId: data.vehicleId,
-        });
-        throw new AppError('Vehicle not found or does not belong to this organization', 404);
+      // A null vehicleId explicitly clears the assignment (or leaves a
+      // vehicle-less lesson vehicle-less) - only a real id needs the
+      // existence/tenant check, matching createLesson's own `if
+      // (data.vehicleId)` guard above.
+      if (data.vehicleId) {
+        const vehicleCheck = await query(
+          'SELECT id FROM vehicles WHERE id = $1 AND tenant_id = $2',
+          [data.vehicleId, tenantId]
+        );
+        if (vehicleCheck.rows.length === 0) {
+          logger.error('Vehicle not found for lesson update', undefined, {
+            tenantId,
+            lessonId: id,
+            vehicleId: data.vehicleId,
+          });
+          throw new AppError('Vehicle not found or does not belong to this organization', 404);
+        }
       }
       fields.push(`vehicle_id = $${paramCount++}`);
       values.push(data.vehicleId);

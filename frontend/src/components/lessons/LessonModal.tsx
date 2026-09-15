@@ -254,8 +254,11 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     e.preventDefault();
     setSubmitError(null);
 
-    // Validate required fields
-    if (!formData.studentId || !formData.instructorId || !formData.vehicleId) {
+    // Validate required fields - vehicle is intentionally NOT required here:
+    // assignment can happen after booking (e.g. a tenant with no vehicles
+    // in its fleet yet), matching createLesson's own auto-assign-or-leave-
+    // unassigned behavior on the backend.
+    if (!formData.studentId || !formData.instructorId) {
       alert('Please select student and instructor');
       return;
     }
@@ -283,7 +286,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     const lessonData = {
       studentId: formData.studentId,
       instructorId: formData.instructorId,
-      vehicleId: formData.vehicleId,
+      vehicleId: formData.vehicleId || null,
       scheduledStart,
       scheduledEnd,
       lessonNumber: formData.lessonNumber,
