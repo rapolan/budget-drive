@@ -296,6 +296,20 @@ A third pass of the same health audit turned into general housekeeping - clearin
 
 See `docs/ARCHITECTURE.md` §24 for the full list and the evidence behind each decision.
 
+### A Dedicated Experience for Instructors
+
+An instructor logging in used to land on the exact same owner/admin Dashboard as everyone else, with only a few pieces hidden - the full sidebar (Payments, Certificates, Team Settings, other instructors' data, the whole-school Students list) was all still there and, worse, several of those pages were reachable and even writable by direct API call regardless of what the nav showed. Instructors now get their own focused home: three items only - **My Schedule**, **My Students**, **My Profile**.
+
+**My Schedule** is the landing page, opening straight into today - the exact same Now / Needs-marking / Upcoming / Completed-today view and Complete/No-show/Cancel actions every other schedule surface in the app already uses, just scoped to this instructor's own lessons, with a compact week-ahead strip above it to jump to another day.
+
+**My Students** shows only the students assigned to this instructor, not the school's full roster - an Active tab by default, a History tab for everyone ever assigned to them regardless of enrollment status. Enough to teach well (progress, contact info, notes) with payment and balance information deliberately left out - that stays admin-only, enforced server-side, not just hidden in the UI.
+
+**My Profile** is the instructor's own record - license info (with the same expiry-warning treatment the admin's instructor list already uses), contact info, and the calendar feed subscription link, reusing the exact same calendar-sync component the admin's instructor edit screen already had.
+
+Building this required auditing every endpoint an instructor could now reach, which surfaced several real access-control gaps predating this feature entirely - lesson status changes with no ownership check, a calendar-feed endpoint that let any tenant member regenerate any other instructor's subscription link, and payments/certificates/treasury/tenant-settings routes with no role restriction at all. All of it is fixed now, live-verified against real seeded data, not just the new instructor pages themselves.
+
+See `docs/ARCHITECTURE.md` §28 for the full access-control audit, the exact endpoints fixed, and how each was live-verified.
+
 ---
 
 ## 1. The 6-Dimensional (6D) Scheduling Engine
