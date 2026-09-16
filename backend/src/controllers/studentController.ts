@@ -26,7 +26,7 @@ export const getAllStudents = asyncHandler(async (req: Request, res: Response) =
     const students = await studentService.getStudentsByInstructor(tenantId, req.user.instructorId);
     // Payment/balance data stays admin-only - never shown to instructors.
     const safeStudents = students.map(
-      ({ paymentSummary, hasOutstandingFee, outstandingFeeAmount, ...rest }) => rest
+      ({ paymentSummary: _paymentSummary, hasOutstandingFee: _hasOutstandingFee, outstandingFeeAmount: _outstandingFeeAmount, ...rest }) => rest
     );
     res.json({
       success: true,
@@ -90,7 +90,7 @@ export const getStudent = asyncHandler(async (req: Request, res: Response) => {
 
   // Payment/balance data stays admin-only - never shown to instructors.
   if (req.user?.role === 'instructor') {
-    const { paymentSummary, hasOutstandingFee, outstandingFeeAmount, ...safeStudent } = student;
+    const { paymentSummary: _paymentSummary, hasOutstandingFee: _hasOutstandingFee, outstandingFeeAmount: _outstandingFeeAmount, ...safeStudent } = student;
     res.json({
       success: true,
       data: safeStudent,
@@ -236,7 +236,7 @@ export const getStudentsByInstructor = asyncHandler(async (req: Request, res: Re
   // calling this same endpoint (e.g. viewing another instructor's roster)
   // still needs the full financial picture.
   const safeStudents = req.user?.role === 'instructor'
-    ? students.map(({ paymentSummary, hasOutstandingFee, outstandingFeeAmount, ...rest }) => rest)
+    ? students.map(({ paymentSummary: _paymentSummary, hasOutstandingFee: _hasOutstandingFee, outstandingFeeAmount: _outstandingFeeAmount, ...rest }) => rest)
     : students;
 
   res.json({
