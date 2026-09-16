@@ -29,6 +29,12 @@ router.post(
   instructorController.createInstructor
 );
 
+// Get the logged-in instructor's own record (must be before /:id)
+router.get(
+  '/instructors/me',
+  instructorController.getMyInstructorProfile
+);
+
 // Get instructor by ID
 router.get(
   '/instructors/:id',

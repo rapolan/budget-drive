@@ -27,6 +27,38 @@ export const getAllInstructors = asyncHandler(async (req: Request, res: Response
 });
 
 /**
+ * @route   GET /api/v1/instructors/me
+ * @desc    Get the logged-in instructor's own instructor record
+ * @access  Private (instructor-role callers with a linked instructor record)
+ */
+export const getMyInstructorProfile = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  if (!req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'No instructor profile linked to this account',
+    });
+    return;
+  }
+
+  const instructor = await instructorService.getInstructorById(req.user.instructorId, tenantId);
+
+  if (!instructor) {
+    res.status(404).json({
+      success: false,
+      error: 'Instructor not found',
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: instructor,
+  });
+});
+
+/**
  * @route   GET /api/v1/instructors/:id
  * @desc    Get instructor by ID
  * @access  Private
