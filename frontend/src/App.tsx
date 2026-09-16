@@ -5,6 +5,8 @@ import { TenantProvider, useTenant } from '@/contexts/TenantContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { InstructorLayout } from '@/components/layout/InstructorLayout';
+import { RequireRole } from '@/components/routing/RequireRole';
 import { ErrorBoundary } from '@/components/common';
 import { DashboardPage } from '@/pages/Dashboard';
 import { StudentsPage } from '@/pages/Students';
@@ -23,8 +25,12 @@ import { NotificationSettingsPage } from '@/pages/NotificationSettings';
 import { PaymentsPage } from '@/pages/Payments';
 import NotificationHistory from '@/pages/NotificationHistory';
 import { SettingsPage } from '@/pages/Settings';
+import { InstructorMyTodayPage } from '@/pages/instructor/MyToday';
+import { InstructorMyStudentsPage } from '@/pages/instructor/MyStudents';
+import { InstructorMyProfilePage } from '@/pages/instructor/MyProfile';
 import { LoginPage } from '@/pages/Login';
 import { AcceptInvitePage } from '@/pages/AcceptInvite';
+import { landingPathForRole } from '@/utils/roleRouting';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -81,6 +87,30 @@ const FeatureFlagRoute: React.FC<{ flag: 'enableDriverEducation'; children: Reac
   return <>{children}</>;
 };
 
+// Root path ("/") branches by role rather than being gated by RequireRole -
+// both an admin and an instructor are allowed to land somewhere from "/",
+// they just land on different pages. Keeps instructor-landing logic out of
+// DashboardPage itself.
+const RoleLandingRedirect: React.FC = () => {
+  const { user } = useAuth();
+  const landingPath = landingPathForRole(user?.role);
+  if (landingPath !== '/') {
+    return <Navigate to={landingPath} replace />;
+  }
+  return (
+    <AppLayout>
+      <DashboardPage />
+    </AppLayout>
+  );
+};
+
+// Every route below except "/" and the instructor's own "/my/*" tree is
+// admin/staff territory - mirrors Sidebar.tsx's own per-item `roles`
+// arrays, so the route gates and the nav visibility stay in sync by
+// construction.
+const ADMIN_STAFF_ROLES = ['owner', 'admin', 'staff'] as const;
+const ADMIN_ONLY_ROLES = ['owner', 'admin'] as const;
+
 function AppRoutes() {
   return (
     <Routes>
@@ -93,19 +123,60 @@ function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <DashboardPage />
-            </AppLayout>
+            <RoleLandingRedirect />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Instructor-role experience - a focused shell, exclusively
+          instructor-facing (owner/admin/staff are excluded too, so a saved
+          URL never lands an admin in the stripped-down view). */}
+      <Route
+        path="/my/today"
+        element={
+          <ProtectedRoute>
+            <RequireRole allow={['instructor']}>
+              <InstructorLayout>
+                <InstructorMyTodayPage />
+              </InstructorLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
       <Route
+        path="/my/students"
+        element={
+          <ProtectedRoute>
+            <RequireRole allow={['instructor']}>
+              <InstructorLayout>
+                <InstructorMyStudentsPage />
+              </InstructorLayout>
+            </RequireRole>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my/profile"
+        element={
+          <ProtectedRoute>
+            <RequireRole allow={['instructor']}>
+              <InstructorLayout>
+                <InstructorMyProfilePage />
+              </InstructorLayout>
+            </RequireRole>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/students"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <StudentsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <StudentsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -113,9 +184,11 @@ function AppRoutes() {
         path="/instructors"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <InstructorsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <InstructorsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -123,9 +196,11 @@ function AppRoutes() {
         path="/vehicles"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <VehiclesPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <VehiclesPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -133,9 +208,11 @@ function AppRoutes() {
         path="/lessons"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <LessonsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <LessonsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -143,9 +220,11 @@ function AppRoutes() {
         path="/review-queue"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <ReviewQueuePage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <ReviewQueuePage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -153,9 +232,11 @@ function AppRoutes() {
         path="/scheduling"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <SchedulingPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <SchedulingPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -163,9 +244,11 @@ function AppRoutes() {
         path="/instructor-earnings"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <InstructorEarningsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_ONLY_ROLES]}>
+              <AppLayout>
+                <InstructorEarningsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -173,9 +256,11 @@ function AppRoutes() {
         path="/payments"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <PaymentsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <PaymentsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -183,9 +268,11 @@ function AppRoutes() {
         path="/treasury"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <TreasuryPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_ONLY_ROLES]}>
+              <AppLayout>
+                <TreasuryPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -193,9 +280,11 @@ function AppRoutes() {
         path="/certificates"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <CertificatesPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <CertificatesPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -205,7 +294,9 @@ function AppRoutes() {
         path="/certificates/:id/print"
         element={
           <ProtectedRoute>
-            <CertificatePrintPage />
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <CertificatePrintPage />
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -213,9 +304,11 @@ function AppRoutes() {
         path="/archive"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <ArchivePage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <ArchivePage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -223,11 +316,13 @@ function AppRoutes() {
         path="/classroom"
         element={
           <ProtectedRoute>
-            <FeatureFlagRoute flag="enableDriverEducation">
-              <AppLayout>
-                <ClassroomPage />
-              </AppLayout>
-            </FeatureFlagRoute>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <FeatureFlagRoute flag="enableDriverEducation">
+                <AppLayout>
+                  <ClassroomPage />
+                </AppLayout>
+              </FeatureFlagRoute>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -235,9 +330,11 @@ function AppRoutes() {
         path="/notifications"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <NotificationSettingsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <NotificationSettingsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -245,9 +342,11 @@ function AppRoutes() {
         path="/notification-history"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <NotificationHistory />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <AppLayout>
+                <NotificationHistory />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
@@ -255,13 +354,18 @@ function AppRoutes() {
         path="/settings"
         element={
           <ProtectedRoute>
-            <AppLayout>
-              <SettingsPage />
-            </AppLayout>
+            <RequireRole allow={[...ADMIN_ONLY_ROLES]}>
+              <AppLayout>
+                <SettingsPage />
+              </AppLayout>
+            </RequireRole>
           </ProtectedRoute>
         }
       />
-      {/* Catch all - redirect to dashboard */}
+      {/* Catch all - redirect to "/", which RoleLandingRedirect then sends
+          onward to each role's own landing page - so an unknown URL for an
+          instructor still resolves to their own page, never a blank/error
+          screen. */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

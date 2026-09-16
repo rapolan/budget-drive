@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Car, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { landingPathForRole } from '@/utils/roleRouting';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated, isLoading, error } = useAuth();
+  const { login, isAuthenticated, isLoading, error, user } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,13 +15,16 @@ export const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated. Falls back to this user's own
+  // role-based landing page (not always "/") - RequireRole would bounce an
+  // instructor away from an inappropriate `from` anyway, but landing them
+  // correctly on the first hop avoids a visible extra redirect.
   useEffect(() => {
     if (isAuthenticated) {
-      const from = (location.state as any)?.from?.pathname || '/';
+      const from = (location.state as any)?.from?.pathname || landingPathForRole(user?.role);
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, location]);
+  }, [isAuthenticated, navigate, location, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +45,12 @@ export const LoginPage: React.FC = () => {
     try {
       const success = await login(email.trim(), password);
       if (success) {
+        // `user` may not have updated in this closure yet immediately after
+        // login() resolves - reading role straight off the login response
+        // isn't available here, so this relies on `from` when present and
+        // otherwise falls back to admin's "/", which RoleLandingRedirect
+        // (rendered right after this navigate) still correctly re-routes an
+        // instructor onward from.
         const from = (location.state as any)?.from?.pathname || '/';
         navigate(from, { replace: true });
       }
