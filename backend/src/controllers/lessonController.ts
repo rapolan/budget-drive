@@ -12,6 +12,38 @@ import { createLogger } from '../utils/logger';
 const logger = createLogger('LessonController');
 
 /**
+ * Enforces that an instructor-role caller can only act on their own
+ * assigned lessons. Returns the lesson if the caller may proceed, or
+ * null after already sending a 404/403 response.
+ */
+const loadLessonForOwnerCheck = async (
+  req: Request,
+  res: Response,
+  id: string,
+  tenantId: string
+) => {
+  const lesson = await lessonService.getLessonById(id, tenantId);
+
+  if (!lesson) {
+    res.status(404).json({
+      success: false,
+      error: 'Lesson not found',
+    });
+    return null;
+  }
+
+  if (req.user?.role === 'instructor' && lesson.instructorId !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only update your own assigned lessons',
+    });
+    return null;
+  }
+
+  return lesson;
+};
+
+/**
  * @route   GET /api/v1/lessons
  * @desc    Get all lessons for current tenant (paginated)
  * @access  Private
@@ -152,6 +184,10 @@ export const cancelLesson = asyncHandler(async (req: Request, res: Response) => 
   const { id } = req.params;
   const allowCorrection = req.body?.allowCorrection === true;
 
+  if (!(await loadLessonForOwnerCheck(req, res, id, tenantId))) {
+    return;
+  }
+
   const lesson = await lessonService.cancelLesson(id, tenantId, userId, allowCorrection);
 
   res.json({
@@ -205,6 +241,14 @@ export const getMostRecentLessonByStudent = asyncHandler(async (req: Request, re
 export const getLessonsByInstructor = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { instructorId } = req.params;
+
+  if (req.user?.role === 'instructor' && instructorId !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only view your own assigned lessons',
+    });
+    return;
+  }
 
   const lessons = await lessonService.getLessonsByInstructor(tenantId, instructorId);
 
@@ -277,6 +321,10 @@ export const completeLesson = asyncHandler(async (req: Request, res: Response) =
   const { id } = req.params;
   const allowCorrection = req.body?.allowCorrection === true;
 
+  if (!(await loadLessonForOwnerCheck(req, res, id, tenantId))) {
+    return;
+  }
+
   const lesson = await lessonService.completeLesson(id, tenantId, userId, allowCorrection);
 
   res.json({
@@ -291,6 +339,10 @@ export const noShowLesson = asyncHandler(async (req: Request, res: Response) => 
   const userId = req.user?.userId;
   const { id } = req.params;
   const allowCorrection = req.body?.allowCorrection === true;
+
+  if (!(await loadLessonForOwnerCheck(req, res, id, tenantId))) {
+    return;
+  }
 
   const lesson = await lessonService.noShowLesson(id, tenantId, userId, allowCorrection);
 
