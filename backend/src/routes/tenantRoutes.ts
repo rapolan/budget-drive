@@ -7,6 +7,7 @@ import { Router } from 'express';
 import * as tenantController from '../controllers/tenantController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
+import { requireRole } from '../middleware/requireRole';
 import { validateUUID, validateRequired } from '../middleware/validate';
 
 const router = Router();
@@ -31,11 +32,13 @@ router.get(
   tenantController.getTenantSettings
 );
 
-// Update current tenant settings
+// Update current tenant settings - admin-only write; wide open to any
+// authenticated tenant member (instructor included) before this fix.
 router.put(
   '/tenant/settings',
   authenticate,
   requireTenantContext,
+  requireRole('owner', 'admin'),
   tenantController.updateTenantSettings
 );
 

@@ -6,13 +6,16 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
+import { requireRole } from '../middleware/requireRole';
 import * as treasuryController from '../controllers/treasuryController';
 
 const router = Router();
 
-// All treasury routes require authentication and tenant context
+// All treasury routes require authentication and tenant context. Treasury
+// is financial data - admin/staff only, same boundary as payments.
 router.use(authenticate);
 router.use(requireTenantContext);
+router.use(requireRole('owner', 'admin', 'staff'));
 
 /**
  * GET /api/v1/treasury/status

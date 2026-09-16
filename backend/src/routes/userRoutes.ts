@@ -10,9 +10,12 @@ const router = express.Router();
 router.use(authenticate);
 router.use(requireTenantContext);
 
-// Any authenticated tenant member can view the team
-router.get('/', userController.getTeamMembers);
-router.get('/:id', userController.getUserDetails);
+// Team roster visibility is admin/staff territory - not part of the
+// instructor-view design (instructors have no reason to browse the staff
+// directory, and previously any authenticated tenant member, instructor
+// included, could read it).
+router.get('/', requireRole('owner', 'admin', 'staff'), userController.getTeamMembers);
+router.get('/:id', requireRole('owner', 'admin', 'staff'), userController.getUserDetails);
 
 // Only owner/admin can manage team membership
 router.post('/', requireRole('owner', 'admin'), userController.createTeamMember);

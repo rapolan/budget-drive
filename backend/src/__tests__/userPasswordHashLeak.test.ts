@@ -50,6 +50,8 @@ describe('password_hash never leaves the database via a users-table response', (
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
 
+    // requireRole's fresh lookup - caller is an active admin.
+    mockQuery.mockResolvedValueOnce(queryResult([{ role: 'admin', status: 'active' }]));
     // getUsersByTenant's own query - the row genuinely HAS a password_hash
     // at the database level (a real active teammate), proving the fix is
     // in the SELECT's column list, not an accident of empty test data.
@@ -89,6 +91,8 @@ describe('password_hash never leaves the database via a users-table response', (
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
 
+    // requireRole's fresh lookup - caller is an active admin.
+    mockQuery.mockResolvedValueOnce(queryResult([{ role: 'admin', status: 'active' }]));
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {
