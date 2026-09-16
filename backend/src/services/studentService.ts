@@ -1229,17 +1229,23 @@ export const getStudentsByStatus = async (
 };
 
 /**
- * Get students assigned (via their active driver_training enrollment) to an
+ * Get students assigned (via a driver_training enrollment) to an
  * instructor. assigned_instructor_id moved to enrollments (Constraint A/D).
+ * By default only the student's currently *active* enrollment counts
+ * (the instructor's current roster); pass includeHistory to widen to every
+ * enrollment status ever assigned to them (completed/withdrawn/inactive/
+ * suspended included) - powers the instructor "My Students" History tab.
  */
 export const getStudentsByInstructor = async (
   tenantId: string,
-  instructorId: string
+  instructorId: string,
+  includeHistory = false
 ): Promise<Student[]> => {
+  const statusFilter = includeHistory ? '' : " AND e.status = 'active'";
   const result = await query(
-    `SELECT s.*
+    `SELECT DISTINCT s.*
      FROM students s
-     JOIN enrollments e ON e.student_id = s.id AND e.program_type = 'driver_training' AND e.status = 'active'
+     JOIN enrollments e ON e.student_id = s.id AND e.program_type = 'driver_training'${statusFilter}
      WHERE s.tenant_id = $1 AND e.tenant_id = $1 AND e.assigned_instructor_id = $2
      ORDER BY s.created_at DESC`,
     [tenantId, instructorId]

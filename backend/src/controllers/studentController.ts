@@ -24,13 +24,17 @@ export const getAllStudents = asyncHandler(async (req: Request, res: Response) =
   // Enforce role-based data isolation for instructors
   if (req.user?.role === 'instructor' && req.user?.instructorId) {
     const students = await studentService.getStudentsByInstructor(tenantId, req.user.instructorId);
+    // Payment/balance data stays admin-only - never shown to instructors.
+    const safeStudents = students.map(
+      ({ paymentSummary, hasOutstandingFee, outstandingFeeAmount, ...rest }) => rest
+    );
     res.json({
       success: true,
-      data: students,
+      data: safeStudents,
       pagination: {
         page: 1,
-        limit: students.length > 0 ? students.length : limit,
-        total: students.length,
+        limit: safeStudents.length > 0 ? safeStudents.length : limit,
+        total: safeStudents.length,
         totalPages: 1,
       },
     });
@@ -80,6 +84,16 @@ export const getStudent = asyncHandler(async (req: Request, res: Response) => {
     res.status(403).json({
       success: false,
       error: 'Access denied: You can only view your own assigned students',
+    });
+    return;
+  }
+
+  // Payment/balance data stays admin-only - never shown to instructors.
+  if (req.user?.role === 'instructor') {
+    const { paymentSummary, hasOutstandingFee, outstandingFeeAmount, ...safeStudent } = student;
+    res.json({
+      success: true,
+      data: safeStudent,
     });
     return;
   }
@@ -205,13 +219,30 @@ export const getStudentsByStatus = asyncHandler(async (req: Request, res: Respon
 export const getStudentsByInstructor = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { instructorId } = req.params;
+  const includeHistory = req.query.includeHistory === 'true';
 
-  const students = await studentService.getStudentsByInstructor(tenantId, instructorId);
+  if (req.user?.role === 'instructor' && instructorId !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only view your own assigned students',
+    });
+    return;
+  }
+
+  const students = await studentService.getStudentsByInstructor(tenantId, instructorId, includeHistory);
+
+  // Instructors never see payment/balance data for students - that stays
+  // admin-only. Strip it here rather than in the service, since an admin
+  // calling this same endpoint (e.g. viewing another instructor's roster)
+  // still needs the full financial picture.
+  const safeStudents = req.user?.role === 'instructor'
+    ? students.map(({ paymentSummary, hasOutstandingFee, outstandingFeeAmount, ...rest }) => rest)
+    : students;
 
   res.json({
     success: true,
-    data: students,
-    count: students.length,
+    data: safeStudents,
+    count: safeStudents.length,
   });
 });
 

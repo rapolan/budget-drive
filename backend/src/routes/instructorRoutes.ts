@@ -7,6 +7,7 @@ import { Router } from 'express';
 import * as instructorController from '../controllers/instructorController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
+import { requireRole } from '../middleware/requireRole';
 import { validateUUID, validateRequired } from '../middleware/validate';
 
 const router = Router();
@@ -63,10 +64,12 @@ router.get(
   instructorController.getServiceAreas
 );
 
-// Replace the full list of ZIP codes an instructor serves
+// Replace the full list of ZIP codes an instructor serves - admin-managed,
+// not instructor self-service.
 router.put(
   '/instructors/:id/service-areas',
   validateUUID('id'),
+  requireRole('owner', 'admin'),
   instructorController.setServiceAreas
 );
 

@@ -115,6 +115,14 @@ export const getInstructorEarnings = asyncHandler(async (req: Request, res: Resp
   const { id } = req.params;
   const { startDate, endDate } = req.query;
 
+  if (req.user?.role === 'instructor' && id !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only view your own earnings',
+    });
+    return;
+  }
+
   const earnings = await instructorService.getInstructorEarnings(
     id,
     tenantId,
@@ -136,6 +144,14 @@ export const getInstructorEarnings = asyncHandler(async (req: Request, res: Resp
 export const getServiceAreas = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { id } = req.params;
+
+  if (req.user?.role === 'instructor' && id !== req.user?.instructorId) {
+    res.status(403).json({
+      success: false,
+      error: 'Access denied: You can only view your own service areas',
+    });
+    return;
+  }
 
   const zipCodes = await instructorServiceAreaService.getServiceAreas(id, tenantId);
 
