@@ -36,6 +36,15 @@ router.use(requireTenantContext);
 const getBaseUrl = (req: express.Request): string => `${req.protocol}://${req.get('host')}`;
 
 /**
+ * An instructor may only view/manage their own calendar feed - never
+ * another instructor's. Without this, any authenticated tenant member
+ * (instructor-role included) could view or, worse, regenerate any other
+ * instructor's feed token by simply passing a different id in the URL.
+ */
+const isOwnFeedOrElevated = (req: express.Request, instructorId: string): boolean =>
+  req.user?.role !== 'instructor' || instructorId === req.user?.instructorId;
+
+/**
  * GET /feed/status/:instructorId
  * Get the calendar feed status for an instructor
  */
@@ -43,6 +52,10 @@ router.get('/feed/status/:instructorId', async (req, res) => {
   try {
     const { instructorId } = req.params;
     const tenantId = (req as any).tenantId;
+
+    if (!isOwnFeedOrElevated(req, instructorId)) {
+      return res.status(403).json({ success: false, error: 'Access denied: You can only view your own calendar feed' });
+    }
 
     const token = await calendarFeedService.getFeedToken(instructorId, tenantId);
 
@@ -67,6 +80,10 @@ router.post('/feed/setup/:instructorId', async (req, res) => {
     const { instructorId } = req.params;
     const tenantId = (req as any).tenantId;
     const regenerate = req.query.regenerate === 'true';
+
+    if (!isOwnFeedOrElevated(req, instructorId)) {
+      return res.status(403).json({ success: false, error: 'Access denied: You can only manage your own calendar feed' });
+    }
 
     let token: string;
     if (regenerate) {
