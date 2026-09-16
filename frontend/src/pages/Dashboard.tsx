@@ -31,6 +31,7 @@ import { computeStudentStatus } from '@/utils/studentStatus';
 import { needsTurning18Alert } from '@/utils/turning18';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useLessonStatusActions } from '@/hooks/useLessonStatusActions';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -222,57 +223,14 @@ export const DashboardPage: React.FC = () => {
 
   // Same status-transition mutations Lessons.tsx uses (lessonsApi.complete/
   // noShow/cancel) - one definition of what each action does, surfaced
-  // here too. Invalidates the same query keys Lessons.tsx's own
-  // invalidateAllLessonQueries AND ReviewQueue.tsx's own invalidate() use
-  // (predicate on 'lessons'/'instructor-lessons', plus the explicit
-  // ['dashboard', 'review-queue'] key, which that predicate does not
-  // match) - so a status change made from this widget is immediately
-  // visible on the Lessons page's table, its own widget instance, AND the
-  // review-queue alert/page, not just Dashboard's own ['lessons'] query.
-  const invalidateAllLessonQueries = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] === 'lessons' ||
-        query.queryKey[0] === 'instructor-lessons',
-    });
-    queryClient.invalidateQueries({ queryKey: ['dashboard', 'review-queue'] });
-  };
-
-  const completeLessonMutation = useMutation({
-    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
-      lessonsApi.complete(id, allowCorrection),
-    onSuccess: invalidateAllLessonQueries,
-  });
-
-  const noShowLessonMutation = useMutation({
-    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
-      lessonsApi.noShow(id, allowCorrection),
-    onSuccess: invalidateAllLessonQueries,
-  });
-
-  const cancelLessonMutation = useMutation({
-    mutationFn: ({ id, allowCorrection }: { id: string; allowCorrection?: boolean }) =>
-      lessonsApi.cancel(id, allowCorrection),
-    onSuccess: invalidateAllLessonQueries,
-  });
-
-  const handleCompleteLesson = async (id: string, allowCorrection = false) => {
-    if (window.confirm('Mark this lesson as completed?')) {
-      await completeLessonMutation.mutateAsync({ id, allowCorrection });
-    }
-  };
-
-  const handleNoShowLesson = async (id: string, allowCorrection = false) => {
-    if (window.confirm('Mark this lesson as no-show? The student did not arrive for their scheduled lesson.')) {
-      await noShowLessonMutation.mutateAsync({ id, allowCorrection });
-    }
-  };
-
-  const handleCancelLesson = async (id: string, allowCorrection = false) => {
-    if (window.confirm('Are you sure you want to cancel this lesson?')) {
-      await cancelLessonMutation.mutateAsync({ id, allowCorrection });
-    }
-  };
+  // here too, via the shared useLessonStatusActions hook (also used by the
+  // instructor-role My Schedule page). Its own invalidation covers the
+  // same query keys Lessons.tsx's own invalidateAllLessonQueries AND
+  // ReviewQueue.tsx's own invalidate() use, so a status change made from
+  // this widget is immediately visible on the Lessons page's table, its
+  // own widget instance, AND the review-queue alert/page, not just
+  // Dashboard's own ['lessons'] query.
+  const { handleCompleteLesson, handleNoShowLesson, handleCancelLesson } = useLessonStatusActions();
 
   // Get next 7 days of lessons, walking forward from the tenant's today.
   const weeklyLessons = useMemo(() => {
