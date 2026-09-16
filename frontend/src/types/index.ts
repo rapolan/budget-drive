@@ -1,5 +1,8 @@
 // Core API Types matching backend schema
 
+import type { UserRole } from './roles';
+export type { UserRole } from './roles';
+
 export type TenantType = 'school' | 'independent';
 
 export interface Tenant {
@@ -33,7 +36,7 @@ export interface UserTenantMembership {
   id: string;
   userId: string;
   tenantId: string;
-  role: 'owner' | 'admin' | 'instructor' | 'staff' | 'viewer';
+  role: UserRole;
   instructorId?: string;
   status: 'active' | 'suspended' | 'invited' | 'declined';
   isDefaultTenant: boolean;

@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ApiResponse } from '@/types';
+import type { ApiResponse, UserRole } from '@/types';
 
 export interface LoginRequest {
   email: string;
@@ -26,7 +26,7 @@ export interface CurrentUser {
   emailVerified: boolean;
   lastLoginAt: string | null;
   createdAt: string;
-  role: string;
+  role: UserRole;
   membershipStatus: string;
   instructorId: string | null;
 }

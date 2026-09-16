@@ -16,6 +16,14 @@ export const instructorsApi = {
     return response.data;
   },
 
+  // The logged-in instructor's own record - resolved server-side from the
+  // caller's JWT, not a by-id lookup. Powers the instructor-role My
+  // Profile page.
+  getMe: async () => {
+    const response = await apiClient.get<ApiResponse<Instructor>>('/instructors/me');
+    return response.data;
+  },
+
   create: async (data: CreateInstructorInput) => {
     const response = await apiClient.post<ApiResponse<Instructor>>('/instructors', data);
     return response.data;

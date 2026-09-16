@@ -83,6 +83,18 @@ export const studentsApi = {
     return response.data;
   },
 
+  // This instructor's own assigned students (via their active
+  // driver_training enrollment). For an instructor-role caller this is
+  // ownership-checked server-side and never includes payment/balance
+  // fields. `includeHistory` widens the result to every enrollment status
+  // ever assigned to this instructor, not just active - powers the
+  // instructor My Students page's History tab.
+  getByInstructor: async (instructorId: string, options?: { includeHistory?: boolean }) => {
+    const qs = options?.includeHistory ? '?includeHistory=true' : '';
+    const response = await apiClient.get<ApiResponse<Student[]>>(`/students/instructor/${instructorId}${qs}`);
+    return response.data;
+  },
+
   // Archive (Phase 4) - eligibility worklist, live-computed on every call,
   // never a background sweep. Sealing itself is always an explicit action
   // (archive/archiveEarly below).
