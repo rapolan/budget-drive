@@ -170,6 +170,104 @@ describe('InstructorModal form fields', () => {
   });
 });
 
+describe('InstructorModal - Grant Access (App Access section)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
+  });
+
+  function editingInstructor(overrides: Partial<Instructor> = {}): Instructor {
+    return {
+      id: 'instructor-1',
+      tenantId: 'tenant-1',
+      fullName: 'Jane Doe',
+      email: 'jane.doe@example.com',
+      phone: '5550100',
+      employmentType: 'w2_employee',
+      hireDate: new Date('2026-01-01'),
+      status: 'active',
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      ...overrides,
+    } as Instructor;
+  }
+
+  // Regression: handleGrantAccess previously did `if (!instructor?.email)
+  // return;` with no feedback of any kind - clicking the button on an
+  // instructor with no email on file looked completely broken (no error,
+  // no alert, nothing). This is a real, reachable state, not hypothetical -
+  // PUT /instructors/:id had no email validation, so the email field on
+  // this same edit form could be cleared and saved.
+  it('shows a clear error instead of silently doing nothing when the instructor has no email', async () => {
+    const { usersApi } = await import('@/api/users');
+    renderModalEditing(editingInstructor({ email: '' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /grant access/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/needs an email address before you can grant them access/i)).toBeInTheDocument();
+    });
+    expect(usersApi.invite).not.toHaveBeenCalled();
+  });
+
+  it('calls usersApi.invite with role instructor and the instructor id when email is present', async () => {
+    const { usersApi } = await import('@/api/users');
+    (usersApi.invite as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: {} });
+
+    renderModalEditing(editingInstructor());
+
+    fireEvent.click(screen.getByRole('button', { name: /grant access/i }));
+
+    await waitFor(() => {
+      expect(usersApi.invite).toHaveBeenCalledWith(
+        {
+          email: 'jane.doe@example.com',
+          role: 'instructor',
+          instructorId: 'instructor-1',
+        },
+        expect.anything()
+      );
+    });
+  });
+
+  // Regression: onError previously did `alert(err.message)` - for an axios
+  // error, .message is a generic transport string ("Request failed with
+  // status code 409"), never the backend's actual reason
+  // (err.response.data.error). The alert DID fire (not a silent failure),
+  // but it showed useless text instead of the real error - a real, distinct
+  // bug from the missing-email case.
+  it('surfaces the real backend error message on invite failure, not a generic axios message', async () => {
+    const { usersApi } = await import('@/api/users');
+    (usersApi.invite as ReturnType<typeof vi.fn>).mockRejectedValueOnce({
+      message: 'Request failed with status code 409',
+      response: { data: { error: 'This user is already a member of this tenant' } },
+    });
+
+    renderModalEditing(editingInstructor());
+
+    fireEvent.click(screen.getByRole('button', { name: /grant access/i }));
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('This user is already a member of this tenant');
+    });
+  });
+
+  it('falls back to a generic message if the backend error has no message at all', async () => {
+    const { usersApi } = await import('@/api/users');
+    (usersApi.invite as ReturnType<typeof vi.fn>).mockRejectedValueOnce({
+      message: 'Network Error',
+    });
+
+    renderModalEditing(editingInstructor());
+
+    fireEvent.click(screen.getByRole('button', { name: /grant access/i }));
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('Failed to invite instructor. Please try again.');
+    });
+  });
+});
+
 describe('InstructorModal driver education classroom teacher', () => {
   beforeEach(() => {
     vi.clearAllMocks();

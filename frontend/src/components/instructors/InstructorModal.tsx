@@ -19,6 +19,9 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
   const queryClient = useQueryClient();
   const isEditing = Boolean(instructor);
   const { tenantNow } = useTenant();
+  // Only set for the missing-email guard below - a real API failure surfaces
+  // through inviteMutation.error instead (see grantAccessErrorMessage).
+  const [missingEmailError, setMissingEmailError] = useState<string | null>(null);
   const licenseStatus = tenantNow
     ? computeLicenseStatus(instructor?.instructorLicenseExpiration ? String(instructor.instructorLicenseExpiration).split('T')[0] : null, tenantNow.today)
     : null;
@@ -123,16 +126,29 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
       alert('Instructor invited successfully to the app!');
     },
-    onError: (err: any) => {
-      alert(err.message || 'Failed to invite instructor');
+    onError: (err: Error & { response?: { data?: { error?: string } } }) => {
+      // err.message is axios's own generic transport string ("Request
+      // failed with status code 409"), never the backend's actual error
+      // text - which lives at err.response.data.error, matching the
+      // extraction pattern TeamSettings.tsx's own invite flow already uses.
+      alert(err.response?.data?.error || 'Failed to invite instructor. Please try again.');
     }
   });
 
   const handleGrantAccess = () => {
-    if (!instructor?.email) return;
+    if (!instructor?.email) {
+      // Previously a silent no-op - clicking Grant Access with no email on
+      // file gave zero feedback either way. This is a real, reachable state
+      // (the email field on this same edit form can be cleared and saved
+      // via the normal Update Instructor flow, which has no required-email
+      // validation), not just a hypothetical.
+      setMissingEmailError('This instructor needs an email address before you can grant them access. Add one above and save, then try again.');
+      return;
+    }
+    setMissingEmailError(null);
     inviteMutation.mutate({
       email: instructor.email,
-      role: 'instructor' as any,
+      role: 'instructor',
       instructorId: instructor.id
     });
   };
@@ -623,6 +639,12 @@ export const InstructorModal: React.FC<InstructorModalProps> = ({ instructor, on
                   {inviteMutation.isPending ? 'Sending Invite...' : 'Grant Access'}
                 </button>
               </div>
+              {missingEmailError && (
+                <div className="mt-2 bg-status-danger-bg rounded-lg px-4 py-3 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-status-danger-text mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-status-danger-text">{missingEmailError}</p>
+                </div>
+              )}
             </div>
           )}
 
