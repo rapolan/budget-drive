@@ -321,4 +321,99 @@ describe('PUT /api/v1/instructors/:id', () => {
       expect(params).toContain(null);
     });
   });
+
+  // Regression test: PUT /instructors/:id had no email validation at all
+  // (unlike POST /instructors, which requires it via validateRequired) - an
+  // admin could clear an instructor's email through the normal Edit form
+  // and save it with zero error, silently leaving the instructor in a state
+  // where InstructorModal.tsx's "Grant Access" button could never invite
+  // them (it guards on instructor.email being falsy). Fixed at the service
+  // layer rather than with a route-level validateRequired, since this
+  // route must keep supporting genuine partial updates that don't mention
+  // email at all (every other test in this file relies on that).
+  describe('email cannot be cleared via update, but omitting it entirely is still a valid partial update', () => {
+    it('rejects an update that explicitly clears email to an empty string', async () => {
+      const { default: app } = await import('../app');
+      const token = signToken('staff-1');
+
+      const res = await request(app)
+        .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: '' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Missing required fields: email/);
+
+      // The UPDATE must never have been issued - the guard fires before
+      // any query runs for this field.
+      const updateCall = mockQuery.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+      );
+      expect(updateCall).toBeUndefined();
+    });
+
+    it('rejects an update that sends email as null', async () => {
+      const { default: app } = await import('../app');
+      const token = signToken('staff-1');
+
+      const res = await request(app)
+        .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: null });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Missing required fields: email/);
+    });
+
+    it('persists a real, non-empty email change', async () => {
+      const { default: app } = await import('../app');
+      const token = signToken('staff-1');
+
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ id: INSTRUCTOR_ID, tenant_id: TENANT_ID, email: 'new@example.com' }])
+      );
+
+      const res = await request(app)
+        .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'new@example.com' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const updateCall = mockQuery.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+      );
+      expect(updateCall).toBeDefined();
+      const [sql, params] = updateCall!;
+      expect(sql).toMatch(/email/);
+      expect(params).toContain('new@example.com');
+    });
+
+    it('a partial update that omits email entirely still succeeds (not treated as clearing it)', async () => {
+      const { default: app } = await import('../app');
+      const token = signToken('staff-1');
+
+      mockQuery.mockResolvedValueOnce(
+        queryResult([{ id: INSTRUCTOR_ID, tenant_id: TENANT_ID, phone: '6195551234' }])
+      );
+
+      const res = await request(app)
+        .put(`/api/v1/instructors/${INSTRUCTOR_ID}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ phone: '6195551234' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const updateCall = mockQuery.mock.calls.find(
+        ([sql]) => typeof sql === 'string' && sql.includes('UPDATE instructors')
+      );
+      expect(updateCall).toBeDefined();
+      const [sql] = updateCall!;
+      // email must never appear in this UPDATE's field list - it was
+      // never mentioned in the request body, so it must be left untouched.
+      expect(sql).not.toMatch(/\bemail\b/);
+    });
+  });
 });

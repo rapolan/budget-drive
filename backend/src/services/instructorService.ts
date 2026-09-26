@@ -141,6 +141,18 @@ export const updateInstructor = async (
       values.push(data.hireDate || null);
     }
     if (data.email !== undefined) {
+      // Same requirement POST /instructors enforces via validateRequired -
+      // applied here instead of at the route layer because this route
+      // supports genuine partial updates (e.g. { employmentType: '...' }
+      // with no email key at all, which must keep working). email
+      // OMITTED from the payload is fine and leaves it untouched (the
+      // branch above); email PRESENT but empty/null means the caller is
+      // explicitly trying to clear it, which would silently break Grant
+      // Access (it no-ops with no email on file) - reject that specific
+      // case with the same message/shape create already uses.
+      if (!data.email) {
+        throw new AppError('Missing required fields: email', 400);
+      }
       fields.push(`email = $${paramCount++}`);
       values.push(data.email);
     }
