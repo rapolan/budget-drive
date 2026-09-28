@@ -19,10 +19,20 @@ export const getAllInstructors = asyncHandler(async (req: Request, res: Response
 
   const instructors = await instructorService.getAllInstructors(tenantId);
 
+  // driversLicenseNumber/driversLicenseExpiration is the instructor's own
+  // personal driver's license (a distinct credential from the Driving
+  // School Instructor License, intentionally unwired in the UI so far -
+  // see docs/BLUEPRINTS.md), not something one instructor should see on
+  // another instructor's record. Stripped for instructor-role callers the
+  // same way payment/balance fields are stripped from student responses.
+  const safeInstructors = req.user?.role === 'instructor'
+    ? instructors.map(({ driversLicenseNumber: _dln, driversLicenseExpiration: _dle, ...rest }) => rest)
+    : instructors;
+
   res.json({
     success: true,
-    data: instructors,
-    count: instructors.length,
+    data: safeInstructors,
+    count: safeInstructors.length,
   });
 });
 
@@ -73,6 +83,20 @@ export const getInstructor = asyncHandler(async (req: Request, res: Response) =>
     res.status(404).json({
       success: false,
       error: 'Instructor not found',
+    });
+    return;
+  }
+
+  // Same driversLicenseNumber/driversLicenseExpiration stripping as
+  // getAllInstructors - never shown to an instructor-role caller viewing a
+  // DIFFERENT instructor's record. Viewing their own record via this route
+  // (rather than the dedicated GET /instructors/me) still shows it - it's
+  // their own PII.
+  if (req.user?.role === 'instructor' && req.user?.instructorId !== id) {
+    const { driversLicenseNumber: _dln, driversLicenseExpiration: _dle, ...safeInstructor } = instructor;
+    res.json({
+      success: true,
+      data: safeInstructor,
     });
     return;
   }
