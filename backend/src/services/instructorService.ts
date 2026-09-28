@@ -64,11 +64,13 @@ export const createInstructor = async (
       `INSERT INTO instructors (
         tenant_id, full_name, email, phone, date_of_birth, address,
         address_line1, address_line2, city, state, zip_code,
-        employment_type, hire_date, status, hourly_rate,
+        employment_type, hire_date, termination_date, status, hourly_rate,
+        drivers_license_number, drivers_license_expiration,
         instructor_license_number, instructor_license_expiration,
+        provides_own_vehicle, mileage_reimbursement_rate,
         is_de_teacher, de_credential_number, de_credential_expiration,
-        created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active', $14, $15, $16, $17, $18, $19, $20, $20)
+        notes, created_by, updated_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $26)
       RETURNING *`,
       [
         tenantId,
@@ -84,12 +86,23 @@ export const createInstructor = async (
         data.zipCode || null,
         data.employmentType || 'w2_employee',
         data.hireDate || new Date(),
+        data.terminationDate || null,
         data.hourlyRate || null,
+        data.driversLicenseNumber || null,
+        data.driversLicenseExpiration || null,
         data.instructorLicenseNumber || null,
         data.instructorLicenseExpiration || null,
+        data.providesOwnVehicle === true,
+        // Matches the column's own DB default (0.67) explicitly, same as
+        // employmentType/hireDate above - this INSERT always supplies every
+        // value itself rather than omitting a column to let Postgres apply
+        // its default, so a bare `?? null` here would have silently
+        // overridden that default with NULL instead of 0.67.
+        data.mileageReimbursementRate ?? 0.67,
         data.isDeTeacher === true,
         data.deCredentialNumber || null,
         data.deCredentialExpiration || null,
+        data.notes || null,
         userId || null,
       ]
     );
@@ -139,6 +152,10 @@ export const updateInstructor = async (
     if (data.hireDate !== undefined) {
       fields.push(`hire_date = $${paramCount++}`);
       values.push(data.hireDate || null);
+    }
+    if (data.terminationDate !== undefined) {
+      fields.push(`termination_date = $${paramCount++}`);
+      values.push(data.terminationDate || null);
     }
     if (data.email !== undefined) {
       // Same requirement POST /instructors enforces via validateRequired -
@@ -196,6 +213,14 @@ export const updateInstructor = async (
       fields.push(`zip_code = $${paramCount++}`);
       values.push(data.zipCode);
     }
+    if (data.driversLicenseNumber !== undefined) {
+      fields.push(`drivers_license_number = $${paramCount++}`);
+      values.push(data.driversLicenseNumber);
+    }
+    if (data.driversLicenseExpiration !== undefined) {
+      fields.push(`drivers_license_expiration = $${paramCount++}`);
+      values.push(data.driversLicenseExpiration || null);
+    }
     if (data.instructorLicenseNumber !== undefined) {
       fields.push(`instructor_license_number = $${paramCount++}`);
       values.push(data.instructorLicenseNumber);
@@ -203,6 +228,18 @@ export const updateInstructor = async (
     if (data.instructorLicenseExpiration !== undefined) {
       fields.push(`instructor_license_expiration = $${paramCount++}`);
       values.push(data.instructorLicenseExpiration || null);
+    }
+    if (data.providesOwnVehicle !== undefined) {
+      fields.push(`provides_own_vehicle = $${paramCount++}`);
+      values.push(data.providesOwnVehicle);
+    }
+    if (data.mileageReimbursementRate !== undefined) {
+      fields.push(`mileage_reimbursement_rate = $${paramCount++}`);
+      values.push(data.mileageReimbursementRate);
+    }
+    if (data.notes !== undefined) {
+      fields.push(`notes = $${paramCount++}`);
+      values.push(data.notes || null);
     }
     if (data.isDeTeacher !== undefined) {
       fields.push(`is_de_teacher = $${paramCount++}`);
