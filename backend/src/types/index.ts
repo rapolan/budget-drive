@@ -258,11 +258,6 @@ export interface Instructor {
   providesOwnVehicle: boolean;
   mileageReimbursementRate: number;
 
-  // Capacity-based scheduling
-  maxStudentsPerDay: number | null; // Override for max students per day (null = use tenant default)
-  prefersOwnVehicle: boolean; // Whether instructor prefers their own vehicle
-  defaultVehicleId: string | null; // Default vehicle to use for lessons
-
   // Availability
   availability: any; // JSONB
   hourlyRate: number | null;
