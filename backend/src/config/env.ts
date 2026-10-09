@@ -42,6 +42,13 @@ interface EnvConfig {
   TAAL_API_KEY?: string; // For ARC transaction broadcasting
   TERANODE_RPC_URL?: string;
   TERANODE_API_KEY?: string;
+
+  // Google Calendar sync (per-instructor OAuth connection)
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  GOOGLE_OAUTH_REDIRECT_URI?: string;
+  GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY?: string;
+  GOOGLE_OAUTH_STATE_SECRET?: string;
 }
 
 const requiredEnvVars = [
@@ -81,6 +88,59 @@ if (process.env.BSV_ENABLED === 'true' && !process.env.BSV_PROTOCOL_WALLET_WIF) 
   );
 }
 
+// Same conditional-requirement pattern as BSV above: an environment that
+// never configures Google Calendar sync at all (GOOGLE_OAUTH_CLIENT_ID
+// unset - e.g. a fresh dev clone) isn't forced to set these unrelated
+// secrets, but one that DOES configure the OAuth client must also supply
+// everything the feature needs to run safely, checked here at the
+// earliest possible point - before any route binds - rather than failing
+// opaquely the first time an instructor tries to connect or a token is
+// encrypted.
+if (process.env.GOOGLE_OAUTH_CLIENT_ID) {
+  if (!process.env.GOOGLE_OAUTH_CLIENT_SECRET) {
+    throw new Error(
+      'GOOGLE_OAUTH_CLIENT_ID is set but GOOGLE_OAUTH_CLIENT_SECRET is not configured. ' +
+      'Set this environment variable before enabling Google Calendar sync.'
+    );
+  }
+  if (!process.env.GOOGLE_OAUTH_REDIRECT_URI) {
+    throw new Error(
+      'GOOGLE_OAUTH_CLIENT_ID is set but GOOGLE_OAUTH_REDIRECT_URI is not configured. ' +
+      'Set this environment variable (must exactly match the redirect URI registered in ' +
+      'Google Cloud Console) before enabling Google Calendar sync - it must never be derived ' +
+      'from request headers.'
+    );
+  }
+  if (!process.env.GOOGLE_OAUTH_STATE_SECRET) {
+    throw new Error(
+      'GOOGLE_OAUTH_CLIENT_ID is set but GOOGLE_OAUTH_STATE_SECRET is not configured. ' +
+      'Set this environment variable (a random value distinct from JWT_SECRET, e.g. via ' +
+      '`openssl rand -hex 32`) before enabling Google Calendar sync.'
+    );
+  }
+  if (!process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY) {
+    throw new Error(
+      'GOOGLE_OAUTH_CLIENT_ID is set but GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY is not configured. ' +
+      'Set this environment variable before enabling Google Calendar sync - a stored OAuth ' +
+      'token must never be written to the database unencrypted.'
+    );
+  }
+  // The decode/length check is inlined here (rather than importing
+  // utils/encryption.ts, which has no other reason to depend on this
+  // module's own load order) - AES-256-GCM requires precisely a 32-byte
+  // key, and a wrong-length value must fail here, at startup, not
+  // opaquely the first time a token is actually encrypted.
+  // encryption.ts's own getEncryptionKey() independently re-checks this
+  // exact thing as the second defensive boundary, same as the BSV
+  // wallet-key pattern.
+  if (Buffer.from(process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY, 'hex').length !== 32) {
+    throw new Error(
+      'GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes - ' +
+      'it must be a 32-byte value in hex, e.g. via `openssl rand -hex 32`.'
+    );
+  }
+}
+
 export const config: EnvConfig = {
   // Server
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -118,6 +178,13 @@ export const config: EnvConfig = {
   TAAL_API_KEY: process.env.TAAL_API_KEY,
   TERANODE_RPC_URL: process.env.TERANODE_RPC_URL,
   TERANODE_API_KEY: process.env.TERANODE_API_KEY,
+
+  // Google Calendar sync
+  GOOGLE_OAUTH_CLIENT_ID: process.env.GOOGLE_OAUTH_CLIENT_ID,
+  GOOGLE_OAUTH_CLIENT_SECRET: process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+  GOOGLE_OAUTH_REDIRECT_URI: process.env.GOOGLE_OAUTH_REDIRECT_URI,
+  GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY,
+  GOOGLE_OAUTH_STATE_SECRET: process.env.GOOGLE_OAUTH_STATE_SECRET,
 };
 
 export default config;
