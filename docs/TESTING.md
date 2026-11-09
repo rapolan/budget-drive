@@ -645,6 +645,16 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Do not do this against a real/shared environment** — this test is about confirming the *refusal to start* and the *absence of a logged key*, not about actually running with BSV enabled. See `docs/ARCHITECTURE.md` §23.
 
+### 2.53 Google Calendar sync for instructors
+
+**Requires one-time operator setup before this is runnable** — a Google Cloud OAuth client published to **"In production"** status (not left in "Testing," which issues refresh tokens that silently expire after 7 days), plus `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`/`GOOGLE_OAUTH_REDIRECT_URI`/`GOOGLE_OAUTH_STATE_SECRET`/`GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY` configured in the backend environment. See `docs/ARCHITECTURE.md` §29. **This full walkthrough has not yet been performed against a real Google account** — the steps below are what to run once setup is complete, not a confirmed-passing result.
+
+**Do:** As an instructor with some upcoming lessons already booked, open **My Profile** and click **Connect Google Calendar**. Complete the real Google sign-in/consent screen. After the redirect back, book a new lesson for this instructor, then edit it (date/time or reassign to a different instructor), mark one lesson completed/no-show, and cancel another. Check the instructor's actual Google Calendar after each action. Also try: revoking the app's access from Google's own "Manage third-party access" page, then changing a lesson again; reconnecting afterward; clicking **Resync now**; editing an event's time directly in Google Calendar and then changing that same lesson in this app; and finally **Disconnect**.
+
+**Pass looks like:** A dedicated "Driving Lessons" calendar appears in the instructor's Google account (separate from their primary calendar) containing every upcoming lesson that existed before connecting (the backfill). A new booking appears on that calendar within moments, not after a long delay. An edit updates the same event in place rather than creating a duplicate; reassigning to a different instructor removes it from the old instructor's calendar and adds it to the new one. Completing/no-showing a lesson leaves its event visibly unchanged (still a normal confirmed event); cancelling marks the Google event cancelled. After revoking access, the next lesson change does not error out or fail the booking — My Profile shows a "Reconnect needed" state instead. Reconnecting resumes syncing. "Resync now" re-pushes every upcoming lesson and reports completion. An edit made directly in Google Calendar is silently overwritten the next time that same lesson changes in this app — this is expected, one-directional behavior, not a bug. Disconnecting removes the dedicated calendar from the instructor's real Google account.
+
+**Do not treat a slow/failed Google API call as a booking failure** — every booking, update, and status change must succeed immediately regardless of whether the Google sync behind it succeeds, is slow, or fails; that's the whole point of the fire-and-forget design. If a lesson action in the app itself ever waits on or fails because of Google, that's a regression to report, not expected behavior.
+
 ---
 
 ## 3. Known issues to route around

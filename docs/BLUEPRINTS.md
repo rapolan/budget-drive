@@ -310,6 +310,16 @@ Building this required auditing every endpoint an instructor could now reach, wh
 
 See `docs/ARCHITECTURE.md` §28 for the full access-control audit, the exact endpoints fixed, and how each was live-verified.
 
+### Real-Time Google Calendar Sync for Instructors
+
+An instructor can now connect their own Google account from My Profile, and this app creates a dedicated "Driving Lessons" calendar in their Google account - separate from their personal calendar - that stays live-updated the moment a lesson is booked, changed, completed, marked no-show, or cancelled. This is purely additive: the existing no-setup ICS calendar feed is completely unchanged and remains the fallback for any instructor who doesn't connect Google.
+
+This app is always the source of truth. Any lesson change overwrites the matching Google event, and a manual edit made directly in Google Calendar is silently replaced the next time that lesson changes here - the connect screen says so up front. A failed sync is retried automatically only when that lesson changes again, or on demand via a "Resync now" button; connecting for the first time also backfills every upcoming lesson already on the books.
+
+Connecting is something only the instructor themselves can do - not an admin on their behalf - since the Google sign-in screen binds whichever account is logged into the browser, and an admin connecting "for" an instructor would really tie the admin's own Google account to that instructor's record.
+
+See `docs/ARCHITECTURE.md` §29 for the full technical design (OAuth flow, token encryption, deterministic event ids, the fire-and-forget write path, and the one-time Google Cloud setup an operator needs to complete before any instructor can connect).
+
 ---
 
 ## 1. The 6-Dimensional (6D) Scheduling Engine
