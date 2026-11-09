@@ -1,6 +1,6 @@
 # Budget Drive Protocol (BDP)
 
-A multi-tenant driving school management platform built on **BSV Blockchain** with micropayment economics.
+A multi-tenant driving school management platform built on **BSV Blockchain** with micropayment economics (blockchain layer in progress).
 
 **Version:** 1.0.0-beta  
 **Status:** Beta Implementation
@@ -29,11 +29,11 @@ BDP is **free forever software** for the driving instruction industry, funded by
 - **External Integration:** Live ICS calendar feeds for global compatibility.
 - **Developer Tools:** 60+ REST API endpoints and a React-based admin dashboard.
 
-### Blockchain & Financials (Beta)
-- **Hybrid Data Layer:** PostgreSQL for operations, BSV for immutability.
-- **Micropayment Treasury:** Satoshi-level fees (e.g., 5 sats) for sustainable funding.
-- **Protocol Standards:** Implementation of BRC-100, BRC-52, and BRC-24.
-- **Verifiable Records:** Audit trails for payments and certifications.
+### Blockchain & Financials (groundwork in place, not yet live)
+- **Hybrid data model:** PostgreSQL holds all operational and personal data. The design anchors hashes, never personal data, on the BSV ledger. Hashes are computed today; anchoring is not live (`BSV_ENABLED=false`).
+- **Micropayment fees:** planned. No fees are collected today.
+- **Protocol standards:** BRC-100, BRC-52, and BRC-24 are the planned targets and are not implemented yet.
+- **Verifiable records:** certificate and archive hashes are stored today for future on-chain verification.
 
 ---
 
