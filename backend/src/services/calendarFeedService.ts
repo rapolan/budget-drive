@@ -129,6 +129,142 @@ const formatICSDate = (date: Date): string => {
 };
 
 /**
+ * The raw per-lesson row shape both generateICSFeed's batch query and
+ * buildLessonEventContent's single-lesson query (googleCalendarSyncService.ts)
+ * produce - kept as snake_case/raw pg types since this is an internal,
+ * not-camelCased shape consumed only by these two calendar-content builders.
+ */
+export interface CalendarLessonRow {
+  id: string;
+  date: Date | string;
+  start_time: string;
+  end_time: string;
+  lesson_type: string;
+  status: string;
+  pickup_address: string | null;
+  notes: string | null;
+  duration: number;
+  lesson_number: number | null;
+  student_name: string;
+  student_phone: string | null;
+  parent_phone: string | null;
+  hours_required: string | null;
+}
+
+export interface LessonEventContent {
+  summary: string;
+  description: string;
+  location: string;
+  startInstant: Date;
+  endInstant: Date;
+  isCancelled: boolean;
+}
+
+/**
+ * Builds the title/description/location/instant content for a single
+ * lesson's calendar event - the exact same content the ICS feed emits
+ * for this lesson (student name, tenant-timezone date/time, pickup
+ * address, notes, lesson type), extracted here so the Google Calendar
+ * sync write path (googleCalendarSyncService.ts) and this file's own ICS
+ * generation stay byte-identical in substance, with each caller applying
+ * its own format-specific escaping/encoding on top (ICS text-escaping
+ * here, Google API JSON string fields there - neither escaping style
+ * belongs in this shared builder).
+ */
+export const buildLessonEventContent = (lesson: CalendarLessonRow, timezone: string): LessonEventContent => {
+  // lesson.date is a plain DATE column (no time component) - a Date
+  // instance from pg is always UTC midnight of that calendar date, so this
+  // split is safe (no wall-clock roll risk). start_time/end_time are
+  // already tenant wall-clock strings, stored directly by lessonService -
+  // zonedWallClockToUtc converts the pair to the correct UTC instant.
+  const dateStr = lesson.date instanceof Date
+    ? lesson.date.toISOString().split('T')[0]
+    : String(lesson.date).split('T')[0];
+  const startInstant = zonedWallClockToUtc(dateStr, lesson.start_time.slice(0, 5), timezone);
+  const endInstant = zonedWallClockToUtc(dateStr, lesson.end_time.slice(0, 5), timezone);
+
+  const descParts: string[] = [];
+
+  if (lesson.student_phone) {
+    descParts.push(`Student Phone: ${lesson.student_phone}`);
+  }
+  if (lesson.parent_phone) {
+    descParts.push(`Parent/Guardian: ${lesson.parent_phone}`);
+  }
+
+  // Lesson progress - this is an *estimate* for the description's
+  // numbering copy, not the student's real progress. See
+  // studentProgressService.computeStudentProgress for the single source
+  // of truth on actual progress.
+  if (lesson.lesson_number) {
+    const hoursRequired = parseFloat(lesson.hours_required || '6');
+    // Under-18 minimum is 3 lessons; use hours_required / 2hr lessons as estimate
+    const estimatedTotal = Math.max(3, Math.ceil(hoursRequired / 2));
+    descParts.push('');
+    descParts.push(`Lesson #${lesson.lesson_number} of ${estimatedTotal}`);
+  }
+
+  descParts.push(`Type: ${lesson.lesson_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}`);
+
+  const durationHours = Math.floor(lesson.duration / 60);
+  const durationMins = lesson.duration % 60;
+  const durationStr = durationHours > 0
+    ? durationMins > 0 ? `${durationHours}h ${durationMins}m` : `${durationHours} hour${durationHours > 1 ? 's' : ''}`
+    : `${durationMins} min`;
+  descParts.push(`Duration: ${durationStr}`);
+
+  if (lesson.notes) {
+    descParts.push('');
+    descParts.push(`Notes: ${lesson.notes}`);
+  }
+
+  return {
+    summary: `🚗 ${lesson.student_name}`,
+    description: descParts.join('\n'),
+    location: lesson.pickup_address || '',
+    startInstant,
+    endInstant,
+    isCancelled: lesson.status === 'cancelled',
+  };
+};
+
+/**
+ * Fetches a single lesson in the same shape buildLessonEventContent
+ * expects, for the Google Calendar sync write path (one lesson at a time,
+ * triggered by a create/update/complete/no-show/cancel), as opposed to
+ * generateICSFeed's own batch query below (the whole feed at once).
+ */
+export const getLessonForCalendarEvent = async (
+  lessonId: string,
+  tenantId: string
+): Promise<CalendarLessonRow | null> => {
+  const result = await query(
+    `SELECT
+      l.id,
+      l.date,
+      l.start_time,
+      l.end_time,
+      l.lesson_type,
+      l.status,
+      l.pickup_address,
+      l.notes,
+      l.duration,
+      l.lesson_number,
+      s.full_name as student_name,
+      s.phone as student_phone,
+      s.emergency_contact_phone as parent_phone,
+      e.hours_required
+     FROM lessons l
+     JOIN enrollments e ON l.enrollment_id = e.id
+     JOIN students s ON e.student_id = s.id
+     WHERE l.id = $1 AND l.tenant_id = $2`,
+    [lessonId, tenantId]
+  );
+
+  return result.rows.length > 0 ? (result.rows[0] as CalendarLessonRow) : null;
+};
+
+/**
  * Generate ICS calendar feed for an instructor
  */
 export const generateICSFeed = async (
@@ -212,82 +348,31 @@ export const generateICSFeed = async (
     'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
   ];
 
-  // Add each lesson as an event
-  for (const lesson of lessonsResult.rows) {
-    // lesson.date is a plain DATE column (no time component) - a Date
-    // instance from pg is always UTC midnight of that calendar date, so
-    // this split is safe (no wall-clock roll risk). start_time/end_time are
-    // already tenant wall-clock strings, stored directly by lessonService
-    // (see item 3) - zonedWallClockToUtc converts the pair to the correct
-    // UTC instant for DTSTART/DTEND below.
-    const dateStr = lesson.date instanceof Date
-      ? lesson.date.toISOString().split('T')[0]
-      : String(lesson.date).split('T')[0];
-    const startInstant = zonedWallClockToUtc(dateStr, lesson.start_time.slice(0, 5), timezone);
-    const endInstant = zonedWallClockToUtc(dateStr, lesson.end_time.slice(0, 5), timezone);
+  // Add each lesson as an event - content (title/description/location/
+  // instants) comes from the shared buildLessonEventContent builder above,
+  // so this stays byte-identical to what the Google Calendar sync write
+  // path pushes for the same lesson; only ICS-specific escaping/UID/
+  // STATUS formatting happens here.
+  for (const lesson of lessonsResult.rows as CalendarLessonRow[]) {
+    const content = buildLessonEventContent(lesson, timezone);
 
-    // Build description lines
-    const descParts: string[] = [];
-
-    // Contact info
-    if (lesson.student_phone) {
-      descParts.push(`Student Phone: ${lesson.student_phone}`);
-    }
-    if (lesson.parent_phone) {
-      descParts.push(`Parent/Guardian: ${lesson.parent_phone}`);
-    }
-
-    // Lesson progress - this is an *estimate* for the iCal description's
-    // numbering copy, not the student's real progress. See
-    // studentProgressService.computeStudentProgress for the single source
-    // of truth on actual progress.
-    if (lesson.lesson_number) {
-      const hoursRequired = parseFloat(lesson.hours_required || '6');
-      // Under-18 minimum is 3 lessons; use hours_required / 2hr lessons as estimate
-      const estimatedTotal = Math.max(3, Math.ceil(hoursRequired / 2));
-      descParts.push('');
-      descParts.push(`Lesson #${lesson.lesson_number} of ${estimatedTotal}`);
-    }
-
-    // Lesson details
-    descParts.push(`Type: ${lesson.lesson_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}`);
-    
-    const durationHours = Math.floor(lesson.duration / 60);
-    const durationMins = lesson.duration % 60;
-    const durationStr = durationHours > 0
-      ? durationMins > 0 ? `${durationHours}h ${durationMins}m` : `${durationHours} hour${durationHours > 1 ? 's' : ''}`
-      : `${durationMins} min`;
-    descParts.push(`Duration: ${durationStr}`);
-
-    // Notes (only if present)
-    if (lesson.notes) {
-      descParts.push('');
-      descParts.push(`Notes: ${lesson.notes}`);
-    }
-
-    // Event title: just the student's name
-    const summary = `🚗 ${lesson.student_name}`;
-    const description = descParts.join('\\n');
-
-    // Pickup address goes into LOCATION field (clickable map link in Google/Apple Calendar)
-    const location = lesson.pickup_address || '';
     // The SAME uid is kept for a cancelled lesson (not omitted, not a new
     // id) - this is what lets a subscribed client match the existing event
     // on its calendar and remove it, rather than just never seeing a new
     // one appear. no_show gets CONFIRMED like a normal lesson (see the
     // query comment above).
     const uid = `lesson-${lesson.id}@budgetdrivingschool.com`;
-    const status = lesson.status === 'cancelled' ? 'CANCELLED' : 'CONFIRMED';
+    const status = content.isCancelled ? 'CANCELLED' : 'CONFIRMED';
 
     lines.push(
       'BEGIN:VEVENT',
       `UID:${uid}`,
       `DTSTAMP:${formatICSDate(new Date())}`,
-      `DTSTART:${formatICSDate(startInstant)}`,
-      `DTEND:${formatICSDate(endInstant)}`,
-      `SUMMARY:${escapeICS(summary)}`,
-      `DESCRIPTION:${escapeICS(description)}`,
-      `LOCATION:${escapeICS(location)}`,
+      `DTSTART:${formatICSDate(content.startInstant)}`,
+      `DTEND:${formatICSDate(content.endInstant)}`,
+      `SUMMARY:${escapeICS(content.summary)}`,
+      `DESCRIPTION:${escapeICS(content.description)}`,
+      `LOCATION:${escapeICS(content.location)}`,
       `STATUS:${status}`,
       'END:VEVENT'
     );
@@ -306,4 +391,6 @@ export default {
   getInstructorByFeedToken,
   regenerateFeedToken,
   generateICSFeed,
+  buildLessonEventContent,
+  getLessonForCalendarEvent,
 };

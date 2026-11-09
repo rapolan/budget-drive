@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import type { GoogleCalendarConnectionRow } from '../services/googleCalendarService';
 
 vi.mock('../config/database', () => ({ query: mockQuery }));
 
@@ -14,8 +15,16 @@ let mockCredentials: Record<string, unknown> = {};
 
 const mockGenerateAuthUrl = vi.fn(() => 'https://accounts.google.com/o/oauth2/v2/auth?mock=1');
 
+interface MockOAuth2ClientInstance {
+  getToken: typeof mockGetToken;
+  setCredentials: (creds: Record<string, unknown>) => void;
+  getAccessToken: typeof mockGetAccessToken;
+  generateAuthUrl: typeof mockGenerateAuthUrl;
+  credentials: Record<string, unknown>;
+}
+
 vi.mock('google-auth-library', () => ({
-  OAuth2Client: vi.fn().mockImplementation(function (this: any) {
+  OAuth2Client: vi.fn().mockImplementation(function (this: MockOAuth2ClientInstance) {
     this.getToken = mockGetToken;
     this.setCredentials = (creds: Record<string, unknown>) => {
       mockCredentials = creds;
@@ -322,7 +331,7 @@ describe('googleCalendarService.ts - getAuthenticatedClient token refresh', () =
     resetEnv();
   });
 
-  function connectionRow(overrides: Partial<Record<string, unknown>> = {}) {
+  function connectionRow(overrides: Partial<GoogleCalendarConnectionRow> = {}): GoogleCalendarConnectionRow {
     return {
       id: 'row-1',
       tenantId: TENANT_ID,
@@ -344,7 +353,7 @@ describe('googleCalendarService.ts - getAuthenticatedClient token refresh', () =
     const row = connectionRow({
       encryptedAccessToken: encryptToken('old-access-token'),
       encryptedRefreshToken: encryptToken('refresh-token'),
-    }) as any;
+    });
 
     mockGetAccessToken.mockResolvedValueOnce({ token: 'brand-new-access-token' });
     mockCredentials = { expiry_date: Date.now() + 3600_000 };
@@ -366,7 +375,7 @@ describe('googleCalendarService.ts - getAuthenticatedClient token refresh', () =
     const row = connectionRow({
       encryptedAccessToken: encryptToken('same-access-token'),
       encryptedRefreshToken: encryptToken('refresh-token'),
-    }) as any;
+    });
 
     mockGetAccessToken.mockResolvedValueOnce({ token: 'same-access-token' });
 
@@ -381,7 +390,7 @@ describe('googleCalendarService.ts - getAuthenticatedClient token refresh', () =
     const row = connectionRow({
       encryptedAccessToken: encryptToken('old-access-token'),
       encryptedRefreshToken: encryptToken('revoked-refresh-token'),
-    }) as any;
+    });
 
     mockGetAccessToken.mockRejectedValueOnce(new Error('invalid_grant: Token has been expired or revoked.'));
     mockQuery.mockResolvedValueOnce(queryResult([])); // UPDATE last_sync_error
@@ -399,7 +408,7 @@ describe('googleCalendarService.ts - getAuthenticatedClient token refresh', () =
     const row = connectionRow({
       encryptedAccessToken: encryptToken('old-access-token'),
       encryptedRefreshToken: encryptToken('refresh-token'),
-    }) as any;
+    });
 
     mockGetAccessToken.mockRejectedValueOnce(new Error('network timeout'));
 

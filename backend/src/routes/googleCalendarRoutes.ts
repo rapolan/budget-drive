@@ -45,4 +45,13 @@ router.post(
   googleCalendarController.disconnect
 );
 
+// Resync - own record or elevated role. Re-syncs every upcoming lesson on
+// demand ("Resync now" button) - a failed sync otherwise only retries
+// when that lesson itself changes again.
+router.post(
+  '/google-calendar/resync/:instructorId',
+  validateUUID('instructorId'),
+  googleCalendarController.resync
+);
+
 export default router;

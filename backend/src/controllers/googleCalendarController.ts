@@ -10,6 +10,7 @@ import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { getTenantId } from '../middleware/tenantContext';
 import * as googleCalendarService from '../services/googleCalendarService';
+import { syncAllUpcomingLessonsForInstructor } from '../services/googleCalendarSyncService';
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('GoogleCalendarController');
@@ -124,8 +125,9 @@ export const oauthCallback = asyncHandler(async (req: Request, res: Response) =>
     throw new AppError('Missing code or state in Google OAuth callback', 400);
   }
 
+  let connectResult: { instructorId: string; tenantId: string };
   try {
-    await googleCalendarService.handleOAuthCallback(code, state);
+    connectResult = await googleCalendarService.handleOAuthCallback(code, state);
   } catch (err) {
     logger.warn('Google OAuth callback failed', {
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -134,5 +136,43 @@ export const oauthCallback = asyncHandler(async (req: Request, res: Response) =>
     return;
   }
 
+  // Backfill every upcoming lesson onto the newly-connected calendar so
+  // lessons booked before this connect aren't invisible in it. Fired
+  // non-blocking, same fire-and-forget rationale as lessonService.ts's
+  // own sync calls - the instructor shouldn't wait on this redirect for
+  // however many upcoming lessons they have.
+  syncAllUpcomingLessonsForInstructor(connectResult.instructorId, connectResult.tenantId).catch((err) => {
+    logger.warn('Backfill after Google Calendar connect failed (non-blocking)', {
+      tenantId: connectResult.tenantId,
+      instructorId: connectResult.instructorId,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+  });
+
   res.redirect(`${frontendBase}/profile?googleCalendar=connected`);
+});
+
+/**
+ * @route   POST /api/v1/google-calendar/resync/:instructorId
+ * @desc    Re-syncs every upcoming lesson for an instructor on demand -
+ *          a failed sync for a given lesson is only retried automatically
+ *          when that lesson itself changes again, so this is the explicit
+ *          "try again" action instead.
+ * @access  Private (own record or elevated role)
+ */
+export const resync = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { instructorId } = req.params;
+
+  if (!isOwnConnectionOrElevated(req, instructorId)) {
+    throw new AppError('Access denied: you can only resync your own Google Calendar', 403);
+  }
+
+  await syncAllUpcomingLessonsForInstructor(instructorId, tenantId);
+
+  res.json({
+    success: true,
+    data: null,
+    message: 'Resync complete',
+  });
 });

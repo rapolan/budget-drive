@@ -19,6 +19,7 @@ import * as notificationService from './notificationService';
 import * as feeFlagService from './feeFlagService';
 import { getActiveDriverTrainingEnrollment, hasCompletedInternalDriverEducation } from './enrollmentService';
 import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
+import { syncLessonToGoogle, removeLessonEventFromInstructorCalendar } from './googleCalendarSyncService';
 
 const logger = createLogger('LessonService');
 
@@ -30,6 +31,27 @@ const logger = createLogger('LessonService');
 const resolveTimezone = async (tenantId: string): Promise<string> => {
   const settings = await getTenantSettings(tenantId);
   return resolveTenantTimezone(settings?.timezone);
+};
+
+// Fires the Google Calendar sync for a lesson without awaiting it on the
+// request path - called after each of the 5 lesson-mutating functions'
+// own DB write has already succeeded (create/update/complete/no-show/
+// cancel), so a slow or failing Google call can never delay or fail the
+// lesson write itself. syncLessonToGoogle already catches and logs
+// everything internally (including recording last_sync_error), but this
+// wrapper catches here too as a last-resort guard against an unexpected
+// synchronous throw, since this call is intentionally not part of any
+// caller's try/catch (it runs after this function has already returned
+// conceptually - fire-and-forget).
+const triggerGoogleCalendarSync = (lessonId: string, instructorId: string, tenantId: string): void => {
+  syncLessonToGoogle(lessonId, instructorId, tenantId).catch((error) => {
+    logger.warn('Unexpected error firing Google Calendar sync (non-blocking)', {
+      tenantId,
+      instructorId,
+      lessonId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  });
 };
 
 export const getAllLessons = async (
@@ -713,6 +735,8 @@ export const createLesson = async (
       duration: `${totalDuration}ms`,
     });
 
+    triggerGoogleCalendarSync(lesson.id, lesson.instructorId, tenantId);
+
     return lesson;
   } catch (error) {
     logger.error('Failed to create lesson', error as Error, {
@@ -961,7 +985,26 @@ export const updateLesson = async (
       updatedFields: Object.keys(data),
     });
 
-    return keysToCamel(result.rows[0]) as Lesson;
+    const updatedLesson = keysToCamel(result.rows[0]) as Lesson;
+
+    // A reassignment (instructorId changed) must also remove the lesson
+    // from the PREVIOUS instructor's Google Calendar - otherwise they'd
+    // keep seeing a lesson they no longer teach. The new instructor picks
+    // it up via the normal sync below.
+    if (data.instructorId !== undefined && existing.instructorId !== updatedLesson.instructorId) {
+      removeLessonEventFromInstructorCalendar(id, existing.instructorId, tenantId).catch((error) => {
+        logger.warn('Unexpected error removing lesson from previous instructor\'s Google Calendar (non-blocking)', {
+          tenantId,
+          lessonId: id,
+          previousInstructorId: existing.instructorId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      });
+    }
+
+    triggerGoogleCalendarSync(id, updatedLesson.instructorId, tenantId);
+
+    return updatedLesson;
   } catch (error) {
     logger.error('Failed to update lesson', error as Error, {
       tenantId,
@@ -1047,6 +1090,8 @@ export const completeLesson = async (
       });
     }
 
+    triggerGoogleCalendarSync(lesson.id, lesson.instructorId, tenantId);
+
     return lesson;
   } catch (error) {
     logger.error('Failed to complete lesson', error as Error, {
@@ -1116,6 +1161,8 @@ export const noShowLesson = async (
         error: feeFlagError instanceof Error ? feeFlagError.message : 'Unknown error',
       });
     }
+
+    triggerGoogleCalendarSync(lesson.id, lesson.instructorId, tenantId);
 
     return lesson;
   } catch (error) {
@@ -1250,6 +1297,8 @@ export const cancelLesson = async (
     }
 
     logger.info('Lesson cancelled successfully', { tenantId, lessonId: id });
+
+    triggerGoogleCalendarSync(lesson.id, lesson.instructorId, tenantId);
 
     return lesson;
   } catch (error) {
