@@ -5,6 +5,7 @@ import { instructorsApi } from '@/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { CalendarFeedSettings } from '@/components/instructors/CalendarFeedSettings';
+import { GoogleCalendarSync } from '@/components/instructors/GoogleCalendarSync';
 import { computeLicenseStatus } from '@/utils/licenseExpiry';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
 
@@ -107,6 +108,7 @@ export const InstructorMyProfilePage: React.FC = () => {
       </div>
 
       <CalendarFeedSettings instructorId={instructor.id} />
+      <GoogleCalendarSync instructorId={instructor.id} />
     </div>
   );
 };

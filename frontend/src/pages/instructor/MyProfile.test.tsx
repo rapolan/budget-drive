@@ -22,6 +22,12 @@ vi.mock('@/components/instructors/CalendarFeedSettings', () => ({
   ),
 }));
 
+vi.mock('@/components/instructors/GoogleCalendarSync', () => ({
+  GoogleCalendarSync: ({ instructorId }: { instructorId: string }) => (
+    <div data-testid="google-calendar-sync">google sync for {instructorId}</div>
+  ),
+}));
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { role: 'instructor', instructorId: 'instructor-self-1' } }),
 }));

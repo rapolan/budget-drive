@@ -9,6 +9,7 @@ export { schedulingApi } from './scheduling';
 export { usersApi } from './users';
 export * as treasuryApi from './treasury';
 export { calendarFeedApi } from './calendarFeed';
+export { googleCalendarApi } from './googleCalendar';
 export { dashboardApi } from './dashboard';
 export { guardiansApi } from './guardians';
 export { searchApi } from './search';
