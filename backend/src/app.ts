@@ -36,6 +36,8 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import feeFlagRoutes from './routes/feeFlagRoutes';
 import calendarFeedRoutes from './routes/calendarFeedRoutes';
 import calendarFeedService from './services/calendarFeedService';
+import googleCalendarRoutes from './routes/googleCalendarRoutes';
+import * as googleCalendarController from './controllers/googleCalendarController';
 import certificateRoutes from './routes/certificateRoutes';
 import classroomRoutes from './routes/classroomRoutes';
 
@@ -189,6 +191,19 @@ app.use(API_PREFIX, classroomRoutes);
 
 // Authenticated calendar feed management (feed/status, feed/setup, regenerate)
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
+
+// -----------------------------------------------------------------------
+// PUBLIC: Google OAuth callback — no auth required, Google redirects the
+// bare browser here with no Authorization header. Registered directly on
+// the app, same exception as the ICS feed route above. The `state`
+// parameter (a short-lived, signed JWT) is what verifies this request
+// actually belongs to a real in-progress connect flow for a specific
+// instructor/tenant - see utils/googleOAuthState.ts.
+// -----------------------------------------------------------------------
+app.get(`${API_PREFIX}/google-calendar/oauth-callback`, googleCalendarController.oauthCallback);
+
+// Authenticated Google Calendar connection management (connect/status/disconnect)
+app.use(API_PREFIX, googleCalendarRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
