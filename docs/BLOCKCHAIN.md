@@ -7,20 +7,20 @@
 
 ## 1. Integration Progress
 
-### Core Protocol (Beta)
-- **Infrastructure:** Overlay Express with MongoDB integration.
-- **Topic Managers:** Production-ready `tm_bdp_lessons` and `tm_bdp_payments`.
-- **Lookup Services:** Multi-tenant query layer for operational audit.
-- **Wallet Integration:** BRC-100 compliant authentication and signing.
+### Implemented
+- Hash fields and reserved ledger columns (`enrollments.completion_hash`, `certificates.completion_hash`, `students.archive_hash`; `ledger_txid`/`archive_ledger_txid`, written nowhere today).
+- The `LedgerService` seam, with `BSV_ENABLED=false` (the current/default state) selecting the no-op implementation.
+- Wallet-key startup safety (the app refuses to start if BSV is enabled without a configured key; no key is ever auto-generated or logged).
 
-### Extended Functionality
-- **Structured Data:** Schema.org JSON-LD profiles for global AI discoverability.
-- **Active Micropayments:** Sub-satoshi fee models for agentic queries.
-- **Verifiable Identity:** BRC-52 digital certificates for certified instruction.
+### Planned (not in this repository today)
+- Overlay Express and topic managers (`tm_bdp_*`).
+- Lookup services.
+- BRC-100 wallet authentication.
+- BRC-52 certificates.
+- Schema.org JSON-LD profiles.
+- Agentic booking and queries.
 
-### Automated Commerce
-- **Agentic Booking:** Secure lesson booking via autonomous AI agents.
-- **Network Growth:** Optimized for 10,000+ school nodes and high-frequency queries.
+> **Note:** `deployment-info.json` references files under `backend/src/overlay/` that do not exist - it describes a planned layout, not a built one. Separately, the `treasury_transactions` table has no migration anywhere in this repository, so the treasury-split write on lesson booking has nowhere to land today.
 
 ---
 
