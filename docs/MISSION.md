@@ -40,11 +40,11 @@ Budget Drive Protocol (BDP) is a **free-forever software protocol** for the driv
 - **Admin Tools:** Management suites for students, instructors, vehicles, and payments.
 - **Authentication:** Secure login (JWT + bcrypt).
 - **Role-Based Access Control:** Enforced at the API layer (`owner` / `admin` / `instructor` / `staff` / `viewer`), with owner-role protections (last-owner cannot be removed or demoted, only an owner can grant ownership) and a team-management invite flow.
-- **Driver Education Cohorts & Attendance:** Cohort scheduling (4 sessions per curriculum day) with per-session attendance tracking.
+- **Driver Education Cohorts & Attendance:** Cohort scheduling (four sessions per cohort, one per curriculum day) with per-session attendance tracking.
 - **DMV Certificate Tracking:** Recording and void accounting for DL 400B/400C/400D certificates.
 - **Archive:** Student record archiving with a stored hash of the archived state.
 - **Payments Tracking:** Recording and reporting on payments received.
-- **Google Calendar Sync:** Each instructor can connect their own Google account; lessons sync in real time to a dedicated calendar.
+- **Google Calendar Sync:** Each instructor can connect their own Google account; lessons sync in real time to a dedicated calendar (built; awaiting live verification against a production Google OAuth app).
 - **Dedicated Instructor Experience:** A focused My Schedule / My Students / My Profile shell, scoped to each instructor's own data.
 
 ### Blockchain Integration (groundwork in place, not yet live)

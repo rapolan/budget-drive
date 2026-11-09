@@ -40,6 +40,8 @@ BDP uses **fixed satoshi-level fees**, not percentage-based splits, to align wit
 
 ## 3. Developer Quick-Start
 
+> This section describes the planned overlay layer; nothing in it runs in the repository today.
+
 ### Setting Up Local Development (LARS)
 1.  **Install Tools:**
     ```bash
@@ -70,6 +72,8 @@ export class BDPLessonTopicManager implements TopicManager {
 ---
 
 ## 4. Testing & Treasury Verification
+
+> This section describes the planned overlay layer; nothing in it runs in the repository today.
 
 ### Treasury Action Logs
 Use the following SQL to verify that Phase 1 "Virtual" satoshi fees are being tracked before Phase 2 "On-Chain" integration:

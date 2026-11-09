@@ -44,7 +44,7 @@ BDP is **free forever software** for the driving instruction industry, funded by
 | **Frontend** | React 18 + TypeScript + Vite + Tailwind CSS |
 | **Backend** | Node.js 18 + Express + TypeScript |
 | **Database** | PostgreSQL 14+ (multi-tenant) |
-| **Blockchain** | BSV + @bsv/sdk + @bsv/overlay-express |
+| **Blockchain** | BSV + @bsv/sdk (overlay services via @bsv/overlay-express: planned, not yet installed) |
 | **Development** | LARS (Local Automated Runtime System) |
 
 ---
