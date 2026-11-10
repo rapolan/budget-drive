@@ -39,11 +39,31 @@
  * lessons, or anything operational.
  */
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const { Client } = require('pg');
 const bcrypt = require('bcrypt');
 const prompts = require('prompts');
 
 const SALT_ROUNDS = 10; // matches backend/src/services/authService.ts's hashPassword exactly
+
+// This script requires the COMPILED tenantSignupService (dist/, built via
+// `npm run build`) rather than hand-maintaining a second copy of the
+// tenant-creation transaction - two copies of the same transactional SQL
+// is exactly the drift risk the shared-logic requirement exists to
+// prevent. Neither this script nor `npm run signup:invite` runs the
+// build itself (a silent build-on-run could mask a stale build or hide a
+// compile error behind an unrelated script's output) - instead, check
+// for the compiled file up front and fail with an actionable message if
+// it's missing. In a deployed environment `npm run build` already runs
+// as part of the normal deploy, so this check never fires there; it only
+// ever fires for a local developer who hasn't built yet.
+const COMPILED_TENANT_SIGNUP_SERVICE = path.join(__dirname, '..', 'dist', 'services', 'tenantSignupService.js');
+if (!fs.existsSync(COMPILED_TENANT_SIGNUP_SERVICE)) {
+  console.error('❌ dist/services/tenantSignupService.js not found. Run `npm run build` first, then re-run this script.');
+  process.exit(1);
+}
+const { createTenantWithOwner } = require(COMPILED_TENANT_SIGNUP_SERVICE);
 
 const REQUIRED_ENV = [
   'TENANT_NAME',
@@ -163,45 +183,40 @@ async function main() {
 
     await client.query('BEGIN');
 
-    const tenantResult = await client.query(
-      `INSERT INTO tenants (name, slug, email, phone, status, plan_tier)
-       VALUES ($1, $2, $3, $4, 'active', 'enterprise')
-       RETURNING id`,
-      [tenantName, tenantSlug, tenantEmail, tenantPhone]
+    // Delegates to the SAME function the new self-service signup
+    // endpoint calls (backend/src/services/tenantSignupService.ts), so
+    // this script and that endpoint can never drift apart - there is
+    // only one implementation of "create a tenant + settings + owner
+    // user + owner membership."
+    const result = await createTenantWithOwner(
+      {
+        tenantName,
+        tenantSlugBase: tenantSlug, // already slugified above; createTenantWithOwner re-slugifies harmlessly (idempotent on an already-valid slug)
+        tenantEmail,
+        tenantPhone,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        zipCode,
+        licenseNumber,
+        ownerEmail,
+        ownerFullName,
+        ownerPasswordHash: passwordHash,
+        planTier: 'enterprise', // bootstrap's existing, unchanged behavior
+      },
+      client
     );
-    const tenantId = tenantResult.rows[0].id;
-    console.log(`📦 Created tenant "${tenantName}" (${tenantId})`);
-
-    await client.query(
-      `INSERT INTO tenant_settings (
-         tenant_id, business_name, address_line1, address_line2, city, state, zip_code,
-         support_phone, license_number
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [tenantId, tenantName, addressLine1, addressLine2, city, state, zipCode, tenantPhone, licenseNumber]
-    );
+    console.log(`📦 Created tenant "${tenantName}" (${result.tenantId})`);
     console.log('📦 Created tenant_settings row');
-
-    const userResult = await client.query(
-      `INSERT INTO users (email, password_hash, full_name)
-       VALUES ($1, $2, $3)
-       RETURNING id`,
-      [ownerEmail, passwordHash, ownerFullName]
-    );
-    const userId = userResult.rows[0].id;
-    console.log(`📦 Created user "${ownerFullName}" (${userId})`);
-
-    await client.query(
-      `INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, accepted_at)
-       VALUES ($1, $2, 'owner', 'active', NOW())`,
-      [userId, tenantId]
-    );
+    console.log(`📦 Created user "${ownerFullName}" (${result.userId})`);
     console.log('📦 Created owner membership\n');
 
     await client.query('COMMIT');
 
     console.log('✅ Bootstrap complete!');
-    console.log(`   Tenant:  ${tenantName} (${tenantId})`);
-    console.log(`   Owner:   ${ownerFullName} <${ownerEmail}> (${userId})`);
+    console.log(`   Tenant:  ${tenantName} (${result.tenantId})`);
+    console.log(`   Owner:   ${ownerFullName} <${ownerEmail}> (${result.userId})`);
     console.log('   The owner can now log in at POST /api/v1/auth/login with the password just entered.');
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
