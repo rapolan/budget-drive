@@ -15,7 +15,6 @@ const router = Router();
 // so that session-check traffic like GET /me (called on every page load)
 // can't burn through the strict 10-req/15min budget meant for login attempts.
 router.post('/login', authLimiter, authController.login);
-router.post('/register', authLimiter, authController.register);
 router.post('/accept-invite', authLimiter, authController.acceptInvite);
 
 // Protected routes (require authentication)

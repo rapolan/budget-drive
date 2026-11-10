@@ -4,7 +4,7 @@
  */
 
 import { query } from '../config/database';
-import { Tenant, TenantSettings, TenantFullInfo } from '../types';
+import { TenantSettings, TenantFullInfo } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { keysToCamel } from '../utils/caseConversion';
 import {
@@ -33,8 +33,8 @@ export const getTenantById = async (id: string): Promise<TenantFullInfo | null> 
 };
 
 /**
- * Get tenant by slug - internal use only (currently: createTenant's
- * slug-collision check). This used to also back an unauthenticated public
+ * Get tenant by slug - internal use only (slug-collision checks when
+ * creating a tenant). This used to also back an unauthenticated public
  * route (GET /tenants/slug/:slug) that returned the FULL tenant_full_info
  * view - not just branding (name/slug/logo/theme), but contact details
  * (email, phone, support_email, support_phone, city, state),
@@ -58,139 +58,6 @@ export const getTenantBySlug = async (slug: string): Promise<TenantFullInfo | nu
   }
 
   return keysToCamel(result.rows[0]) as TenantFullInfo;
-};
-
-/**
- * Get all tenants (admin only)
- */
-export const getAllTenants = async (): Promise<Tenant[]> => {
-  const result = await query(
-    `SELECT * FROM tenants ORDER BY created_at DESC`
-  );
-
-  return result.rows.map(keysToCamel) as Tenant[];
-};
-
-/**
- * Create new tenant
- */
-export const createTenant = async (data: {
-  name: string;
-  slug: string;
-  email: string;
-  phone?: string;
-  domain?: string;
-  planTier?: 'basic' | 'professional' | 'enterprise';
-}): Promise<Tenant> => {
-  // Check if slug already exists
-  const existing = await getTenantBySlug(data.slug);
-  if (existing) {
-    throw new AppError('Tenant with this slug already exists', 400);
-  }
-
-  const result = await query(
-    `INSERT INTO tenants (name, slug, email, phone, domain, plan_tier)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [
-      data.name,
-      data.slug,
-      data.email,
-      data.phone || null,
-      data.domain || null,
-      data.planTier || 'enterprise',
-    ]
-  );
-
-  const tenant = result.rows[0] as Tenant;
-
-  // Create default tenant settings
-  await createDefaultTenantSettings(tenant.id, data.name);
-
-  return tenant;
-};
-
-/**
- * Create default tenant settings
- */
-const createDefaultTenantSettings = async (
-  tenantId: string,
-  businessName: string
-): Promise<void> => {
-  await query(
-    `INSERT INTO tenant_settings (tenant_id, business_name)
-     VALUES ($1, $2)`,
-    [tenantId, businessName]
-  );
-};
-
-/**
- * Update tenant
- */
-export const updateTenant = async (
-  id: string,
-  data: Partial<Tenant>
-): Promise<Tenant> => {
-  const fields: string[] = [];
-  const values: any[] = [];
-  let paramCount = 1;
-
-  // Build dynamic update query
-  if (data.name !== undefined) {
-    fields.push(`name = $${paramCount++}`);
-    values.push(data.name);
-  }
-  if (data.email !== undefined) {
-    fields.push(`email = $${paramCount++}`);
-    values.push(data.email);
-  }
-  if (data.phone !== undefined) {
-    fields.push(`phone = $${paramCount++}`);
-    values.push(data.phone);
-  }
-  if (data.domain !== undefined) {
-    fields.push(`domain = $${paramCount++}`);
-    values.push(data.domain);
-  }
-  if (data.status !== undefined) {
-    fields.push(`status = $${paramCount++}`);
-    values.push(data.status);
-  }
-  if (data.planTier !== undefined) {
-    fields.push(`plan_tier = $${paramCount++}`);
-    values.push(data.planTier);
-  }
-
-  if (fields.length === 0) {
-    throw new AppError('No fields to update', 400);
-  }
-
-  values.push(id);
-
-  const result = await query(
-    `UPDATE tenants SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
-    values
-  );
-
-  if (result.rows.length === 0) {
-    throw new AppError('Tenant not found', 404);
-  }
-
-  return result.rows[0] as Tenant;
-};
-
-/**
- * Delete tenant (soft delete by setting status to cancelled)
- */
-export const deleteTenant = async (id: string): Promise<void> => {
-  const result = await query(
-    `UPDATE tenants SET status = 'cancelled' WHERE id = $1 RETURNING id`,
-    [id]
-  );
-
-  if (result.rows.length === 0) {
-    throw new AppError('Tenant not found', 404);
-  }
 };
 
 /**

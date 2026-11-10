@@ -202,14 +202,26 @@ describe('tenantService camelCase conversion', () => {
 });
 
 // Regression test (bug found via a full codebase health audit): unlike
-// getTenantSettings above (already correct), getTenantById/getTenantBySlug/
-// getAllTenants all returned the raw snake_case DB row cast directly (`as
-// TenantFullInfo`/`as Tenant[]`), with no keysToCamel call - the exact same
-// bug class as the already-fixed getTenantSettings/paymentService.ts
-// history, recurring in this file. Live via GET /tenants/:id (also backs
-// GET /tenant/current, used by the frontend's TenantContext) and
-// GET /tenants.
-describe('tenantService.getTenantById/getTenantBySlug/getAllTenants camelCase conversion', () => {
+// getTenantSettings above (already correct), getTenantById/getTenantBySlug
+// both returned the raw snake_case DB row cast directly (`as
+// TenantFullInfo`), with no keysToCamel call - the exact same bug class as
+// the already-fixed getTenantSettings/paymentService.ts history, recurring
+// in this file. Live via GET /tenant/current (the frontend's TenantContext
+// consumer), which calls getTenantById internally.
+//
+// GET /tenants (list every tenant to any logged-in user) and
+// GET /tenants/:id (fetch any tenant by id, no ownership check) were
+// removed entirely - a security-audit finding, not a refactor: both had
+// only `authenticate`, no `requireRole` and no check that the caller
+// belonged to the tenant being read, and a repo-wide grep confirmed zero
+// frontend/test/docs/script callers of either. getTenantById itself is
+// kept (it backs the live GET /tenant/current route); getAllTenants had no
+// remaining caller once its route was removed and was deleted along with
+// this describe block's test of it - there is no replacement, since
+// listing every tenant to a non-privileged caller has no legitimate use
+// case in this single-tenant-per-login app (there is no platform-admin
+// role in UserRole).
+describe('tenantService.getTenantById/getTenantBySlug camelCase conversion', () => {
   beforeEach(() => {
     resetMockQuery();
   });
@@ -249,25 +261,7 @@ describe('tenantService.getTenantById/getTenantBySlug/getAllTenants camelCase co
     expect((tenant as unknown as { business_name?: string })?.business_name).toBeUndefined();
   });
 
-  it('getAllTenants returns every tenant with camelCase fields, not snake_case', async () => {
-    const tenantService = await import('../services/tenantService');
-
-    mockQuery.mockResolvedValueOnce(
-      queryResult([
-        { id: 'tenant-1', plan_tier: 'enterprise', created_at: '2026-08-23T00:00:00.000Z' },
-        { id: 'tenant-2', plan_tier: 'basic', created_at: '2026-08-24T00:00:00.000Z' },
-      ])
-    );
-
-    const tenants = await tenantService.getAllTenants();
-
-    expect(tenants).toHaveLength(2);
-    expect(tenants[0].planTier).toBe('enterprise');
-    expect(tenants[1].planTier).toBe('basic');
-    expect((tenants[0] as unknown as { plan_tier?: string }).plan_tier).toBeUndefined();
-  });
-
-  it('GET /api/v1/tenants/:id returns camelCase fields in the actual HTTP response shape', async () => {
+  it('GET /api/v1/tenant/current returns camelCase fields in the actual HTTP response shape', async () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', TENANT_UUID);
 
@@ -281,7 +275,7 @@ describe('tenantService.getTenantById/getTenantBySlug/getAllTenants camelCase co
     );
 
     const res = await request(app)
-      .get(`/api/v1/tenants/${TENANT_UUID}`)
+      .get('/api/v1/tenant/current')
       .set('Authorization', `Bearer ${token}`)
       .set('X-Tenant-Id', TENANT_UUID);
 
@@ -291,22 +285,70 @@ describe('tenantService.getTenantById/getTenantBySlug/getAllTenants camelCase co
     expect(res.body.data.business_name).toBeUndefined();
     expect(res.body.data.plan_tier).toBeUndefined();
   });
+});
 
-  it('GET /api/v1/tenants returns camelCase fields in the actual HTTP response shape', async () => {
+// Security-audit regression guard: GET /tenants, GET /tenants/:id,
+// PUT /tenants/:id, and DELETE /tenants/:id all previously existed with
+// only `authenticate` (no requireRole, no ownership check) - any logged-in
+// user, including an instructor, could list every tenant in the system,
+// read any other tenant's full business/contact/subscription info, or
+// edit/soft-delete any tenant by guessing/incrementing a UUID. All four
+// routes were removed entirely (confirmed via grep: zero callers anywhere
+// - frontend, tests, docs, scripts). This test locks that removal in so a
+// future change can't accidentally resurrect one of these routes without
+// at least this test failing first.
+describe('removed legacy tenant-management routes stay gone', () => {
+  it('GET /api/v1/tenants no longer exists', async () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', TENANT_UUID);
+    const res = await request(app).get('/api/v1/tenants').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
 
-    mockQuery.mockResolvedValueOnce(
-      queryResult([{ id: TENANT_UUID, plan_tier: 'enterprise', created_at: '2026-08-23T00:00:00.000Z' }])
-    );
+  it('GET /api/v1/tenants/:id no longer exists', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
+    const res = await request(app).get(`/api/v1/tenants/${TENANT_UUID}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
 
+  it('PUT /api/v1/tenants/:id no longer exists', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
+    const res = await request(app).put(`/api/v1/tenants/${TENANT_UUID}`).set('Authorization', `Bearer ${token}`).send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('DELETE /api/v1/tenants/:id no longer exists', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
+    const res = await request(app).delete(`/api/v1/tenants/${TENANT_UUID}`).set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /api/v1/tenants no longer exists', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
+    const res = await request(app).post('/api/v1/tenants').set('Authorization', `Bearer ${token}`).send({ name: 'x', slug: 'x', email: 'x@example.com' });
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /api/v1/auth/register no longer exists', async () => {
+    // A valid token is included so this request reaches the real 404
+    // handler rather than being intercepted en route by some other
+    // router's own unrelated `router.use(authenticate)` (every router
+    // mounted on the bare API_PREFIX applies that pair at its own top;
+    // an unauthenticated request to any genuinely nonexistent path under
+    // that prefix 401s at the first such router it falls through to,
+    // before ever reaching the 404 handler - a pre-existing, harmless
+    // quirk unrelated to this route's actual removal, not something this
+    // test is about).
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', TENANT_UUID);
     const res = await request(app)
-      .get('/api/v1/tenants')
+      .post('/api/v1/auth/register')
       .set('Authorization', `Bearer ${token}`)
-      .set('X-Tenant-Id', TENANT_UUID);
-
-    expect(res.status).toBe(200);
-    expect(res.body.data[0].planTier).toBe('enterprise');
-    expect(res.body.data[0].plan_tier).toBeUndefined();
+      .send({ email: 'a@example.com', password: 'password123', fullName: 'A' });
+    expect(res.status).toBe(404);
   });
 });

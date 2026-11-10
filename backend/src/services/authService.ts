@@ -119,55 +119,6 @@ export const login = async (email: string, password: string): Promise<LoginResul
 };
 
 /**
- * Register a new user
- */
-export const register = async (
-  email: string,
-  password: string,
-  fullName: string,
-  tenantId?: string
-): Promise<{ userId: string }> => {
-  // Check if email already exists
-  const existingUser = await query(
-    `SELECT id FROM users WHERE email = $1`,
-    [email.toLowerCase().trim()]
-  );
-
-  if (existingUser.rows.length > 0) {
-    throw new AppError('An account with this email already exists', 409);
-  }
-
-  // Validate password strength
-  if (password.length < 8) {
-    throw new AppError('Password must be at least 8 characters long', 400);
-  }
-
-  // Hash password
-  const passwordHash = await hashPassword(password);
-
-  // Create user
-  const userResult = await query(
-    `INSERT INTO users (email, password_hash, full_name, email_verified)
-     VALUES ($1, $2, $3, FALSE)
-     RETURNING id`,
-    [email.toLowerCase().trim(), passwordHash, fullName]
-  );
-
-  const userId = userResult.rows[0].id;
-
-  // If tenantId provided, create membership
-  if (tenantId) {
-    await query(
-      `INSERT INTO user_tenant_memberships (user_id, tenant_id, role, status, accepted_at)
-       VALUES ($1, $2, 'staff', 'active', NOW())`,
-      [userId, tenantId]
-    );
-  }
-
-  return { userId };
-};
-
-/**
  * Change user password
  */
 export const changePassword = async (

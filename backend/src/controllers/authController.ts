@@ -39,32 +39,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
- * @route   POST /api/v1/auth/register
- * @desc    Register a new user account
- * @access  Public (or restricted based on settings)
- */
-export const register = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, fullName, tenantId } = req.body;
-
-  // Validate required fields
-  if (!email || !password || !fullName) {
-    res.status(400).json({
-      success: false,
-      error: 'Email, password, and full name are required',
-    });
-    return;
-  }
-
-  const result = await authService.register(email, password, fullName, tenantId);
-
-  res.status(201).json({
-    success: true,
-    data: { userId: result.userId },
-    message: 'Account created successfully. Please log in.',
-  });
-});
-
-/**
  * @route   POST /api/v1/auth/logout
  * @desc    Logout user (client-side token removal, optional server-side blacklist)
  * @access  Private
