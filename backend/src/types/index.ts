@@ -134,6 +134,14 @@ export interface TenantSettings {
   termsOfServiceUrl: string | null;
   privacyPolicyUrl: string | null;
 
+  // Onboarding wizard resumability (migration 006) - nullable, set once
+  // the first-login wizard reaches its final step or is explicitly left.
+  // Backfilled to a non-null value for every tenant that existed before
+  // this column was added, so an established school is never redirected
+  // into the wizard. Deliberately NOT read by the Dashboard's
+  // getting-started checklist, which stays derived from real counts.
+  onboardingCompletedAt: string | null;
+
   createdAt: Date;
   updatedAt: Date;
 }
