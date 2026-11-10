@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { logger, logRequest, logResponse, logApiError } from '../utils/logger';
+import { redactSensitive } from '../utils/redact';
 
 /**
  * Middleware to log incoming requests and outgoing responses
@@ -28,11 +29,14 @@ export const requestLoggingMiddleware = (
     const duration = Date.now() - startTime;
     logResponse(req, res, duration);
 
-    // Log response body in development
+    // Log response body in development - redacted BEFORE stringifying/
+    // truncating, so a redacted key's replacement text can't itself get
+    // cut off into something misleading.
     if (process.env.NODE_ENV === 'development') {
+      const redactedBody = typeof body === 'object' ? redactSensitive(body) : body;
       logger.debug('Response Body', {
         path: req.path,
-        body: typeof body === 'object' ? JSON.stringify(body).substring(0, 500) : body,
+        body: typeof redactedBody === 'object' ? JSON.stringify(redactedBody).substring(0, 500) : redactedBody,
       });
     }
 
@@ -59,11 +63,14 @@ export const errorLoggingMiddleware = (
   _res: Response,
   next: NextFunction
 ): void => {
-  // Log the error with full context
+  // Log the error with full context - body/query/params redacted first,
+  // since a failed login or failed signup would otherwise log the
+  // submitted plaintext password/invite code straight into Winston
+  // output, which persists indefinitely on this app's hosting platform.
   logApiError(error, req, {
-    body: req.body,
-    query: req.query,
-    params: req.params,
+    body: redactSensitive(req.body),
+    query: redactSensitive(req.query),
+    params: redactSensitive(req.params),
   });
 
   // Pass error to next error handler
