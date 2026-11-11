@@ -3,14 +3,26 @@ import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
 
 vi.mock('../config/database', () => ({ query: mockQuery }));
 
-// Migration 006 adds tenant_settings.onboarding_completed_at and backfills
-// it to NOW() for every existing row, specifically so an established
-// school (created before this feature existed) is never redirected into
-// the first-login wizard. This test proves the frontend-facing
-// consequence of that backfill: a tenant whose settings already carry a
-// non-null onboarding_completed_at is reported as "already onboarded" by
-// the status endpoint, which is what the frontend's redirect-to-/onboarding
-// check keys off of.
+// IMPORTANT SCOPE NOTE: this file is a MOCKED, TEXT-LEVEL check only. It
+// never touches a real database and never runs migration 006's actual
+// backfill SQL - it only proves that tenantService.getTenantSettings
+// correctly camelCase-converts a hand-written mock row's
+// onboarding_completed_at value, nothing more. It does NOT prove the
+// backfill UPDATE statement itself behaves correctly against real data.
+// For that, see migration006RealBackfill.integration.test.ts, which runs
+// the exact statement from migration 006 against a real Postgres
+// instance (gated behind TEST_DATABASE_URL, same convention as
+// signupConcurrency.integration.test.ts).
+//
+// What this file actually demonstrates: migration 006 adds
+// tenant_settings.onboarding_completed_at and (per its own real SQL,
+// verified separately) backfills it to NOW() for every existing row, so
+// an established school is never redirected into the first-login
+// wizard. This test's job is narrower - confirming the application
+// layer (getTenantSettings -> keysToCamel -> the frontend-facing status
+// shape) correctly passes that value through once it's in the database,
+// which is what the frontend's redirect-to-/onboarding check actually
+// reads.
 
 describe('onboarding status reflects the migration 006 backfill', () => {
   beforeEach(() => {
