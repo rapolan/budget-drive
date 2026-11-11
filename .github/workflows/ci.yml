@@ -16,6 +16,34 @@ jobs:
     # that an enforced fact instead of an incidental one.
     env:
       TZ: UTC
+      # Real-Postgres tests (currently: the invite-code single-use
+      # concurrency test, signupConcurrency.integration.test.ts) connect
+      # directly via these - matching the postgres: service container
+      # below, not backend/.env (which doesn't exist in CI).
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/driving_school_test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: driving_school_test
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: driving_school_test
+        ports:
+          - 5432:5432
+        # Waits for Postgres to actually accept connections before any
+        # step below runs - a service container starts immediately but
+        # the database inside it isn't ready the same instant.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -39,6 +67,10 @@ jobs:
       - name: Lint
         working-directory: backend
         run: npm run lint
+
+      - name: Run migrations against the CI database
+        working-directory: backend
+        run: npm run migrate
 
       - name: Test
         working-directory: backend

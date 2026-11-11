@@ -16,11 +16,22 @@
  * including un-claiming the code).
  */
 
+import crypto from 'crypto';
 import { AppError } from '../middleware/errorHandler';
+import { query, getClient } from '../config/database';
+import { hashPassword } from './authService';
+import { generateToken } from '../utils/jwt';
+import { createLogger } from '../utils/logger';
+
+const logger = createLogger('TenantSignupService');
 
 export interface SqlClient {
   query: (sql: string, params?: unknown[]) => Promise<{ rows: any[]; rowCount: number | null }>;
 }
+
+/** Same fast-deterministic-hash reasoning as userService.ts's hashInviteToken and the signup:invite CLI's own hashSignupCode - a high-entropy random value, not a user-chosen secret. */
+export const hashSignupCode = (code: string): string =>
+  crypto.createHash('sha256').update(code).digest('hex');
 
 export interface CreateTenantWithOwnerInput {
   tenantName: string;
@@ -144,4 +155,129 @@ export const createTenantWithOwner = async (
   return { tenantId, tenantSlug, userId };
 };
 
-export default { slugify, resolveUniqueSlug, createTenantWithOwner };
+/**
+ * Read-only, NON-CLAIMING check - exists purely so the signup page can
+ * show "this looks valid" before the user fills out the whole form.
+ * Must never mark a code used itself (only the atomic claim inside
+ * signupNewTenant does that), or a user who checks then abandons the
+ * page would burn it for nothing.
+ */
+export const validateInviteCode = async (rawCode: string): Promise<boolean> => {
+  if (!rawCode || typeof rawCode !== 'string') return false;
+  const hash = hashSignupCode(rawCode);
+  const result = await query(
+    `SELECT 1 FROM signup_invite_codes
+     WHERE code_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > NOW()`,
+    [hash]
+  );
+  return result.rows.length > 0;
+};
+
+export interface SignupNewTenantInput {
+  code: string;
+  schoolName: string;
+  ownerFullName: string;
+  ownerEmail: string;
+  ownerPassword: string;
+  termsVersion: string;
+}
+
+export interface SignupNewTenantResult {
+  user: { id: string; email: string; fullName: string; role: 'owner' };
+  token: string;
+  tenantId: string;
+}
+
+/**
+ * The full atomic signup flow: claim the invite code, create the tenant
+ * (via createTenantWithOwner, on the SAME client/transaction), record
+ * terms acceptance, and issue a login token - all inside one
+ * transaction, so a failure anywhere rolls everything back together,
+ * including un-claiming the code.
+ *
+ * Ordering is deliberate: the atomic claim runs FIRST (before any other
+ * check), so a request with no valid code is rejected before touching
+ * the users table at all. The email-exists check runs AFTER the claim
+ * but BEFORE password hashing - hashing is deliberately expensive
+ * (that's the point of bcrypt), so an attempt that never held a valid
+ * code, or that collides on email, never pays that cost. See
+ * docs/ARCHITECTURE.md's new section for the full concurrency/threat
+ * argument, including the corrected reasoning on what the claim-before-
+ * email-check ordering actually bounds (a rolled-back claim un-burns the
+ * code - this is NOT a one-probe-per-code limit, it's bounded only by
+ * the rate limiter).
+ */
+export const signupNewTenant = async (input: SignupNewTenantInput): Promise<SignupNewTenantResult> => {
+  const normalizedEmail = input.ownerEmail.toLowerCase().trim();
+  const codeHash = hashSignupCode(input.code);
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const claim = await client.query(
+      `UPDATE signup_invite_codes
+       SET used_at = NOW()
+       WHERE code_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > NOW()
+       RETURNING id`,
+      [codeHash]
+    );
+    if (claim.rowCount === 0) {
+      await client.query('ROLLBACK');
+      throw new AppError('This invite code is invalid or has expired.', 400);
+    }
+    const inviteCodeId = claim.rows[0].id;
+
+    const existing = await client.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+    if (existing.rows.length > 0) {
+      await client.query('ROLLBACK'); // un-claims the code too - a mistyped-email retry isn't penalized
+      throw new AppError('An account with this email already exists. Try logging in instead.', 409);
+    }
+
+    // Hashed only now - after the code is confirmed valid/unclaimed and
+    // the email is confirmed free - so neither a garbage code nor an
+    // email collision ever pays bcrypt's deliberate cost.
+    const passwordHash = await hashPassword(input.ownerPassword);
+
+    const { tenantId, userId } = await createTenantWithOwner(
+      {
+        tenantName: input.schoolName,
+        tenantSlugBase: input.schoolName,
+        tenantEmail: normalizedEmail,
+        ownerEmail: normalizedEmail,
+        ownerFullName: input.ownerFullName,
+        ownerPasswordHash: passwordHash,
+        planTier: 'basic',
+      },
+      client
+    );
+
+    await client.query(
+      `UPDATE signup_invite_codes SET used_by_tenant_id = $1 WHERE id = $2`,
+      [tenantId, inviteCodeId]
+    );
+    await client.query(
+      `INSERT INTO terms_acceptances (user_id, tenant_id, version, accepted_at) VALUES ($1, $2, $3, NOW())`,
+      [userId, tenantId, input.termsVersion]
+    );
+
+    await client.query('COMMIT');
+
+    logger.info('New tenant created via self-service signup', { tenantId, userId });
+
+    const token = generateToken({ userId, tenantId, email: normalizedEmail, role: 'owner' });
+
+    return {
+      user: { id: userId, email: normalizedEmail, fullName: input.ownerFullName, role: 'owner' },
+      token,
+      tenantId,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+export default { slugify, resolveUniqueSlug, createTenantWithOwner, hashSignupCode, validateInviteCode, signupNewTenant };

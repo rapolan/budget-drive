@@ -10,8 +10,8 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import { query } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
-import { sanitizeBody } from './middleware/validate';
-import { apiLimiter } from './middleware/rateLimiter';
+import { sanitizeBody, validateRequired } from './middleware/validate';
+import { apiLimiter, signupCodeLimiter, signupLimiter } from './middleware/rateLimiter';
 import {
   requestLoggingMiddleware,
   errorLoggingMiddleware,
@@ -40,6 +40,7 @@ import googleCalendarRoutes from './routes/googleCalendarRoutes';
 import * as googleCalendarController from './controllers/googleCalendarController';
 import certificateRoutes from './routes/certificateRoutes';
 import classroomRoutes from './routes/classroomRoutes';
+import * as signupController from './controllers/signupController';
 
 // Create Express app
 const app: Application = express();
@@ -168,6 +169,20 @@ app.get(`${API_PREFIX}/calendar-feed/:token.ics`, async (req: Request, res: Resp
     return res.status(500).send('Error generating calendar feed');
   }
 });
+
+// -----------------------------------------------------------------------
+// PUBLIC: invite-code signup — no auth required, there is no account yet.
+// Registered directly on the app, same exception as the ICS feed and
+// Google OAuth callback above — never via a Router, so no router-level
+// middleware can ever apply here, by construction.
+// -----------------------------------------------------------------------
+app.post(`${API_PREFIX}/signup/validate-code`, signupCodeLimiter, signupController.validateCode);
+app.post(
+  `${API_PREFIX}/signup`,
+  signupLimiter,
+  validateRequired(['code', 'schoolName', 'ownerFullName', 'ownerEmail', 'ownerPassword']),
+  signupController.signup
+);
 
 app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (authLimiter applied per-route in authRoutes.ts, credential endpoints only)
 app.use(API_PREFIX, tenantRoutes);
