@@ -142,7 +142,11 @@ export const createUserAndAddToTenant = async (
   invitedBy?: string,
   callerRole?: UserRole
 ): Promise<UserWithMembership> => {
-  logger.info('Creating user and adding to tenant', { tenantId, email: userData.email });
+  // Same normalization fix as inviteUserToTenant - see its comment for
+  // the reproduced bug this closes (an unnormalized stored email could
+  // never match authService.login's own lowercased lookup).
+  const normalizedEmail = userData.email.toLowerCase().trim();
+  logger.info('Creating user and adding to tenant', { tenantId, email: normalizedEmail });
 
   if (role === 'owner' && callerRole !== 'owner') {
     throw new AppError('Only an owner can assign the owner role', 403);
@@ -152,7 +156,7 @@ export const createUserAndAddToTenant = async (
   // is actually needed from this lookup - selecting specific columns
   // rather than * so a real password_hash (for an EXISTING user matched
   // by email) can never end up spread into the response below.
-  const userRes = await query('SELECT id, email, full_name, phone, email_verified, created_at, updated_at FROM users WHERE email = $1', [userData.email]);
+  const userRes = await query('SELECT id, email, full_name, phone, email_verified, created_at, updated_at FROM users WHERE email = $1', [normalizedEmail]);
 
   let user = null;
   if (userRes.rows.length === 0) {
@@ -161,7 +165,7 @@ export const createUserAndAddToTenant = async (
       `INSERT INTO users (email, full_name, phone, password_hash, email_verified, created_at, updated_at)
        VALUES ($1,$2,$3,$4, FALSE, NOW(), NOW())
        RETURNING id, email, full_name, phone, email_verified, created_at, updated_at`,
-      [userData.email, userData.fullName || null, userData.phone || null, passwordHash]
+      [normalizedEmail, userData.fullName || null, userData.phone || null, passwordHash]
     );
     user = createRes.rows[0];
   } else {
@@ -389,13 +393,23 @@ export const removeUserFromTenant = async (
  *   invite link from this return value immediately.
  */
 export const inviteUserToTenant = async (
-  email: string,
+  rawEmail: string,
   tenantId: string,
   role: UserRole,
   invitedBy: string,
   instructorId?: string,
   callerRole?: UserRole
 ): Promise<UserWithMembership & { inviteToken: string }> => {
+  // Normalized the SAME way authService.login's own lookup normalizes -
+  // this was a real bug (reproduced against a throwaway database before
+  // this fix): an invite stored "Test@Example.com" verbatim, and login's
+  // WHERE email = $1 against email.toLowerCase().trim() never matched
+  // it, regardless of what case the user typed at login - not even the
+  // exact original case, since login always searches for the lowercase
+  // variant. An invited user could accept their invite and set a
+  // password, then never be able to log in at all, unless the email
+  // happened to be submitted fully lowercase to begin with.
+  const email = rawEmail.toLowerCase().trim();
   logger.info('Inviting user to tenant', { tenantId, email, role, invitedBy, instructorId });
 
   if (role === 'owner' && callerRole !== 'owner') {

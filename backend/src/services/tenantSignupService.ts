@@ -228,7 +228,12 @@ export const signupNewTenant = async (input: SignupNewTenantInput): Promise<Sign
     }
     const inviteCodeId = claim.rows[0].id;
 
-    const existing = await client.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
+    // LOWER(email) on the column side too, not just a normalized input -
+    // a defensive second layer in case any pre-existing row (e.g. from
+    // before the write-side normalization fix in userService.ts) still
+    // has non-lowercase casing, so this check can never miss a real
+    // duplicate due to a casing mismatch on either side.
+    const existing = await client.query('SELECT id FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
       await client.query('ROLLBACK'); // un-claims the code too - a mistyped-email retry isn't penalized
       throw new AppError('An account with this email already exists. Try logging in instead.', 409);
