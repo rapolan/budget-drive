@@ -40,6 +40,7 @@ import googleCalendarRoutes from './routes/googleCalendarRoutes';
 import * as googleCalendarController from './controllers/googleCalendarController';
 import certificateRoutes from './routes/certificateRoutes';
 import classroomRoutes from './routes/classroomRoutes';
+import onboardingRoutes from './routes/onboardingRoutes';
 import * as signupController from './controllers/signupController';
 
 // Create Express app
@@ -219,6 +220,9 @@ app.get(`${API_PREFIX}/google-calendar/oauth-callback`, googleCalendarController
 
 // Authenticated Google Calendar connection management (connect/status/disconnect)
 app.use(API_PREFIX, googleCalendarRoutes);
+
+// First-login onboarding wizard resume/redirect state
+app.use(API_PREFIX, onboardingRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
