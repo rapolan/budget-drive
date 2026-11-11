@@ -77,22 +77,45 @@ function queryDb(sql: string, params: unknown[]): any[] {
   }
 }
 
-test('dark mode: signup page renders correctly', async ({ browser }) => {
-  // Isolated in its own fresh browser context, entirely separate from the
-  // main flow below - interleaving theme toggles with the real signup/
-  // wizard/dashboard navigation proved flaky (localStorage writes
-  // sometimes didn't take effect before the following reload/goto raced
-  // ahead), so dark-mode is captured here as its own clean page with
-  // theme set via addInitScript before any app code runs.
+test('light/dark contrast: Signup and Login pages', async ({ browser }) => {
+  // Isolated in its own fresh browser context, separate from the main
+  // flow below - interleaving theme toggles with the real signup/wizard/
+  // dashboard navigation proved flaky (localStorage writes sometimes
+  // didn't take effect before the following reload/goto raced ahead), so
+  // both pages are captured here, each as its own clean load with theme
+  // set via addInitScript before any app code runs. Confirms the
+  // bg-appbg fix (replacing the light-only bg-gradient-to-br background)
+  // actually restores legible contrast in dark mode for both pages that
+  // shared the bug.
   const darkScreenshotCode = generateInviteCode();
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
-  await page.goto(`/signup#code=${darkScreenshotCode}`);
-  await expect(page).toHaveURL('/signup');
-  await expect(page.locator('html')).toHaveClass(/dark/);
-  await page.screenshot({ path: 'e2e-screenshots/__screenshots__/signup-dark.png' });
-  await context.close();
+
+  for (const theme of ['light', 'dark'] as const) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.addInitScript((t) => localStorage.setItem('theme', t), theme);
+
+    await page.goto(`/signup#code=${darkScreenshotCode}`);
+    await expect(page).toHaveURL('/signup');
+    if (theme === 'dark') {
+      await expect(page.locator('html')).toHaveClass(/dark/);
+    } else {
+      await expect(page.locator('html')).not.toHaveClass(/dark/);
+    }
+    // A screenshot taken the instant the "dark" class assertion passes
+    // can still catch a styling reflow in progress (observed directly:
+    // the class was present but the capture showed washed-out text) - an
+    // explicit settle avoids that without weakening the class assertion
+    // above, which is the real correctness check.
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `e2e-screenshots/__screenshots__/signup-${theme}.png` });
+
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `e2e-screenshots/__screenshots__/login-${theme}.png` });
+
+    await context.close();
+  }
 });
 
 test('full signup -> onboarding wizard -> dashboard checklist flow, with real DB rows and single-use enforcement', async ({ page }) => {
@@ -166,6 +189,7 @@ test('full signup -> onboarding wizard -> dashboard checklist flow, with real DB
   await page.getByRole('button', { name: /switch to dark mode/i }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await expect(page.getByTestId('getting-started-checklist')).toBeVisible();
+  await page.waitForTimeout(300);
   await page.screenshot({ path: 'e2e-screenshots/__screenshots__/dashboard-with-checklist-dark.png' });
   await page.getByRole('button', { name: /switch to light mode/i }).click();
 
