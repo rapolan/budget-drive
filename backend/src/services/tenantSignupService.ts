@@ -48,6 +48,19 @@ export interface CreateTenantWithOwnerInput {
   ownerFullName: string;
   ownerPasswordHash: string; // caller hashes BEFORE calling (bcrypt, SALT_ROUNDS=10)
   planTier?: 'basic' | 'professional' | 'enterprise'; // self-signup passes 'basic'; bootstrap keeps passing 'enterprise'
+  /**
+   * When true, tenant_settings.onboarding_completed_at is set to NOW()
+   * at creation time, so the new tenant is never redirected into the
+   * first-login wizard. bootstrap-first-tenant.js passes true - it's
+   * the operator-run first-tenant/rebuild tool, not the self-service
+   * signup path the wizard exists for, and an operator setting up a
+   * tenant by hand has already configured it out of band. Self-service
+   * signup leaves this undefined/false, so onboarding_completed_at
+   * stays NULL and the new owner is routed into the wizard on first
+   * login, same as migration 006's backfill leaves every pre-existing
+   * tenant already "onboarded" by the same reasoning.
+   */
+  onboardingCompleted?: boolean;
 }
 
 export interface CreateTenantWithOwnerResult {
@@ -123,8 +136,8 @@ export const createTenantWithOwner = async (
   await client.query(
     `INSERT INTO tenant_settings (
        tenant_id, business_name, address_line1, address_line2, city, state, zip_code,
-       support_phone, license_number
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       support_phone, license_number, onboarding_completed_at
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${input.onboardingCompleted ? 'NOW()' : 'NULL'})`,
     [
       tenantId,
       input.tenantName,

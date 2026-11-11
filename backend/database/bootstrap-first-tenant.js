@@ -204,6 +204,12 @@ async function main() {
         ownerFullName,
         ownerPasswordHash: passwordHash,
         planTier: 'enterprise', // bootstrap's existing, unchanged behavior
+        // This is the operator-run first-tenant/rebuild tool, not the
+        // self-service signup path the first-login wizard exists for -
+        // the operator has already configured this tenant by hand, so
+        // it's marked already-onboarded at creation and the new owner
+        // is never redirected into the wizard.
+        onboardingCompleted: true,
       },
       client
     );

@@ -152,6 +152,47 @@ describe('tenantSignupService.createTenantWithOwner', () => {
     expect(tenantInsert?.params).toContain('basic');
   });
 
+  it('onboardingCompleted: true sets tenant_settings.onboarding_completed_at to NOW() at creation (bootstrap path)', async () => {
+    const { createTenantWithOwner } = await import('../services/tenantSignupService');
+    const { client, calls } = makeFakeClient();
+
+    await createTenantWithOwner(
+      {
+        tenantName: 'Acme',
+        tenantSlugBase: 'Acme',
+        tenantEmail: 'acme@example.com',
+        ownerEmail: 'owner@example.com',
+        ownerFullName: 'Owner',
+        ownerPasswordHash: 'hash',
+        onboardingCompleted: true,
+      },
+      client
+    );
+
+    const settingsInsert = calls.find((c) => /INSERT INTO tenant_settings/.test(c.sql));
+    expect(settingsInsert?.sql).toMatch(/onboarding_completed_at\s*\)\s*VALUES.*NOW\(\)/s);
+  });
+
+  it('omitting onboardingCompleted leaves tenant_settings.onboarding_completed_at NULL at creation (self-signup path)', async () => {
+    const { createTenantWithOwner } = await import('../services/tenantSignupService');
+    const { client, calls } = makeFakeClient();
+
+    await createTenantWithOwner(
+      {
+        tenantName: 'Acme',
+        tenantSlugBase: 'Acme',
+        tenantEmail: 'acme@example.com',
+        ownerEmail: 'owner@example.com',
+        ownerFullName: 'Owner',
+        ownerPasswordHash: 'hash',
+      },
+      client
+    );
+
+    const settingsInsert = calls.find((c) => /INSERT INTO tenant_settings/.test(c.sql));
+    expect(settingsInsert?.sql).toMatch(/onboarding_completed_at\s*\)\s*VALUES.*NULL\)/s);
+  });
+
   it('propagates an error from any insert rather than swallowing it', async () => {
     const { createTenantWithOwner } = await import('../services/tenantSignupService');
     const client: SqlClient = {
