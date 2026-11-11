@@ -43,6 +43,8 @@ export const OnboardingWizardPage: React.FC = () => {
 
   const [currentStep, setCurrentStep] = useState<number | null>(null);
   const [driverEducationEnabled, setDriverEducationEnabled] = useState(settings?.enableDriverEducation ?? false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   // Resolve the resume step once settings have loaded.
   React.useEffect(() => {
@@ -52,10 +54,20 @@ export const OnboardingWizardPage: React.FC = () => {
   }, [loading, settings, currentStep]);
 
   const handleFinishLater = async () => {
+    setFinishError(null);
+    setIsFinishing(true);
     try {
       await onboardingApi.complete();
     } catch {
-      // Non-blocking - the user still reaches the dashboard either way.
+      // Blocking, unlike refreshSettings() below - if this call didn't
+      // reach the server, onboardingCompletedAt is still null there too,
+      // so navigating now would bounce the user straight back into the
+      // wizard with no explanation (the bug a live end-to-end run caught
+      // in the previous version of this function). Surface it and stay
+      // put instead, so the user can retry.
+      setFinishError("Couldn't save. Try again.");
+      setIsFinishing(false);
+      return;
     }
     // Refresh BEFORE navigating - TenantContext's in-memory settings still
     // has onboardingCompletedAt: null until this resolves. Without it,
@@ -67,7 +79,10 @@ export const OnboardingWizardPage: React.FC = () => {
     try {
       await refreshSettings();
     } catch {
-      // Non-blocking - worst case the next real settings fetch catches up.
+      // Non-blocking, unlike the complete() call above - complete()
+      // already succeeded server-side by this point, so the worst case
+      // is just that this client's in-memory settings stay stale until
+      // the next real fetch catches up, not a bounce-back loop.
     }
     navigate('/', { replace: true });
   };
@@ -112,15 +127,21 @@ export const OnboardingWizardPage: React.FC = () => {
           {currentStep === 4 && (
             <StepTeam onContinue={() => setCurrentStep(5)} onSkip={() => setCurrentStep(5)} />
           )}
-          {currentStep === 5 && <StepDone onGoToDashboard={handleFinishLater} />}
+          {currentStep === 5 && (
+            <StepDone onGoToDashboard={handleFinishLater} isSaving={isFinishing} saveError={finishError} />
+          )}
         </div>
 
         {currentStep < 5 && (
-          <div className="text-center mt-4">
+          <div className="text-center mt-4 space-y-2">
+            {finishError && (
+              <p className="text-sm text-status-danger-text">{finishError}</p>
+            )}
             <button
               type="button"
               onClick={handleFinishLater}
-              className="text-sm text-tx-muted hover:text-tx-secondary underline"
+              disabled={isFinishing}
+              className="text-sm text-tx-muted hover:text-tx-secondary underline disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Finish later
             </button>

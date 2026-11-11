@@ -104,7 +104,7 @@ describe('OnboardingWizardPage - finish later / go to dashboard', () => {
     expect(navigateCallIndex).toBeGreaterThan(0);
   });
 
-  it('still navigates even if onboardingApi.complete() rejects (non-blocking)', async () => {
+  it('shows an inline error and does NOT navigate when onboardingApi.complete() rejects', async () => {
     vi.mocked(onboardingApi.complete).mockRejectedValue(new Error('network error'));
     mockRefreshSettings.mockResolvedValue(undefined);
 
@@ -112,7 +112,36 @@ describe('OnboardingWizardPage - finish later / go to dashboard', () => {
     await waitFor(() => expect(screen.getByText(/finish later/i)).toBeInTheDocument());
     fireEvent.click(screen.getByText(/finish later/i));
 
+    await waitFor(() => expect(screen.getByText(/couldn't save\. try again\./i)).toBeInTheDocument());
+    expect(mockNavigate).not.toHaveBeenCalled();
+    // refreshSettings must never run - complete() never reached the
+    // server, so onboardingCompletedAt would still be null regardless.
+    expect(mockRefreshSettings).not.toHaveBeenCalled();
+  });
+
+  it('still navigates when onboardingApi.complete() succeeds but refreshSettings() rejects (non-blocking)', async () => {
+    vi.mocked(onboardingApi.complete).mockResolvedValue({ success: true, data: null });
+    mockRefreshSettings.mockRejectedValue(new Error('network error'));
+
+    renderWizard();
+    await waitFor(() => expect(screen.getByText(/finish later/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByText(/finish later/i));
+
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
     expect(mockRefreshSettings).toHaveBeenCalled();
+  });
+
+  it('clears a previous error and retries successfully on a second click', async () => {
+    vi.mocked(onboardingApi.complete).mockRejectedValueOnce(new Error('first attempt fails'));
+    vi.mocked(onboardingApi.complete).mockResolvedValueOnce({ success: true, data: null });
+    mockRefreshSettings.mockResolvedValue(undefined);
+
+    renderWizard();
+    await waitFor(() => expect(screen.getByText(/finish later/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByText(/finish later/i));
+    await waitFor(() => expect(screen.getByText(/couldn't save\. try again\./i)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText(/finish later/i));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true }));
   });
 });

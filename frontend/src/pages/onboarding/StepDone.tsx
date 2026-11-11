@@ -5,6 +5,8 @@ import { GettingStartedChecklist } from '@/components/dashboard/GettingStartedCh
 
 interface StepDoneProps {
   onGoToDashboard: () => void;
+  isSaving?: boolean;
+  saveError?: string | null;
 }
 
 /**
@@ -15,8 +17,10 @@ interface StepDoneProps {
  * stale when "/" redirected based on them, bouncing the user straight
  * back into the wizard at whatever step the resume heuristic computed
  * from the old data. Single source of truth now, on the actual exit.
+ * isSaving/saveError are passed straight through from that same call, so
+ * a failure here stays visible rather than silently stranding the user.
  */
-export const StepDone: React.FC<StepDoneProps> = ({ onGoToDashboard }) => {
+export const StepDone: React.FC<StepDoneProps> = ({ onGoToDashboard, isSaving = false, saveError = null }) => {
   return (
     <div className="space-y-6 text-center">
       <div>
@@ -31,7 +35,11 @@ export const StepDone: React.FC<StepDoneProps> = ({ onGoToDashboard }) => {
         <GettingStartedChecklist />
       </div>
 
-      <Button onClick={onGoToDashboard}>Go to Dashboard</Button>
+      {saveError && (
+        <p className="text-sm text-status-danger-text">{saveError}</p>
+      )}
+
+      <Button onClick={onGoToDashboard} loading={isSaving}>Go to Dashboard</Button>
     </div>
   );
 };
