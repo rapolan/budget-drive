@@ -26,6 +26,7 @@ import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { ModalShell } from '@/components/common/ModalShell';
 import { DashboardSkeleton } from '@/components/common/Skeleton';
 import { TodaysScheduleWidget } from '@/components/lessons/TodaysScheduleWidget';
+import { GettingStartedChecklist } from '@/components/dashboard/GettingStartedChecklist';
 import { formatTenantDateLabel, parseLocalDate, addCalendarDays } from '@/utils/timeFormat';
 import { computeStudentStatus } from '@/utils/studentStatus';
 import { needsTurning18Alert } from '@/utils/turning18';
@@ -370,6 +371,10 @@ export const DashboardPage: React.FC = () => {
 
           {/* ── Right — Stats + Week + Alerts ───────────────────────── */}
           <div className="lg:col-span-5 order-1 lg:order-2 flex flex-col gap-4">
+
+            {/* Getting-started checklist - hides itself once every item is
+                done or the owner dismisses it. */}
+            <GettingStartedChecklist />
 
             {/* Stats — compact rows */}
             <div className="bg-surface rounded-xl border border-edge overflow-hidden">

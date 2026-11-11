@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { authApi, CurrentUser } from '@/api/auth';
+import { signupApi, SignupRequest } from '@/api/signup';
 
 interface AuthContextType {
   user: CurrentUser | null;
@@ -7,6 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
+  signup: (data: SignupRequest) => Promise<boolean>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -105,6 +107,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const signup = async (data: SignupRequest): Promise<boolean> => {
+    setError(null);
+    // Same rule as login: do NOT set isLoading here - the Signup page
+    // manages its own isSubmitting state for the button.
+
+    try {
+      const response = await signupApi.signup(data);
+
+      if (response.success && response.data) {
+        localStorage.setItem('auth_token', response.data.token);
+        localStorage.setItem('tenant_id', response.data.tenantId);
+
+        await refreshUser();
+        return true;
+      } else {
+        setError(response.error || 'Signup failed');
+        return false;
+      }
+    } catch (err: any) {
+      const serverError = err.response?.data?.error;
+      const serverMessage = err.response?.data?.message;
+      const status = err.response?.status;
+      const errorMessage = serverError || serverMessage ||
+        (status === 500 ? 'Server error — please try again' : err.message) ||
+        'Signup failed';
+      setError(errorMessage);
+      return false;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('tenant_id');
@@ -122,6 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     error,
     login,
+    signup,
     logout,
     refreshUser,
   };

@@ -17,3 +17,5 @@ export { feeFlagsApi } from './feeFlags';
 export { enrollmentsApi } from './enrollments';
 export { certificatesApi } from './certificates';
 export { classroomApi } from './classroom';
+export { signupApi } from './signup';
+export { onboardingApi } from './onboarding';

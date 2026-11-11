@@ -30,6 +30,10 @@ import { InstructorMyStudentsPage } from '@/pages/instructor/MyStudents';
 import { InstructorMyProfilePage } from '@/pages/instructor/MyProfile';
 import { LoginPage } from '@/pages/Login';
 import { AcceptInvitePage } from '@/pages/AcceptInvite';
+import { SignupPage } from '@/pages/Signup';
+import { TermsPage } from '@/pages/Terms';
+import { PrivacyPage } from '@/pages/Privacy';
+import { OnboardingWizardPage } from '@/pages/onboarding/Onboarding';
 import { landingPathForRole } from '@/utils/roleRouting';
 
 // Create a query client
@@ -91,11 +95,24 @@ const FeatureFlagRoute: React.FC<{ flag: 'enableDriverEducation'; children: Reac
 // both an admin and an instructor are allowed to land somewhere from "/",
 // they just land on different pages. Keeps instructor-landing logic out of
 // DashboardPage itself.
+//
+// An owner/admin whose tenant hasn't finished onboarding (a brand-new
+// self-service signup - onboardingCompletedAt is null) is redirected into
+// the wizard instead of the dashboard. Deliberately scoped to the "/" path
+// only (never hijacks a direct navigation to some other page mid-session)
+// and to owner/admin only (an un-onboarded tenant's staff/instructor users
+// still land on their normal page - only the owner/admin who can actually
+// complete the wizard gets routed into it).
 const RoleLandingRedirect: React.FC = () => {
   const { user } = useAuth();
+  const { settings, loading: tenantLoading } = useTenant();
   const landingPath = landingPathForRole(user?.role);
   if (landingPath !== '/') {
     return <Navigate to={landingPath} replace />;
+  }
+  const isOwnerOrAdmin = user?.role === 'owner' || user?.role === 'admin';
+  if (!tenantLoading && isOwnerOrAdmin && settings && !settings.onboardingCompletedAt) {
+    return <Navigate to="/onboarding" replace />;
   }
   return (
     <AppLayout>
@@ -117,6 +134,22 @@ function AppRoutes() {
       {/* Public route - Login */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+
+      {/* First-login onboarding wizard - owner/admin only, no AppLayout
+          (a full-screen, focused flow, not part of the normal nav chrome) */}
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <RequireRole allow={[...ADMIN_ONLY_ROLES]}>
+              <OnboardingWizardPage />
+            </RequireRole>
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected routes */}
       <Route
