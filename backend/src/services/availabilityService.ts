@@ -828,8 +828,31 @@ export const updateSchedulingSettings = async (
   );
 
   if (result.rows.length === 0) {
-    logger.warn('Scheduling settings not found for update', { tenantId });
-    throw new AppError('Scheduling settings not found', 404);
+    // No row yet for this tenant - createTenantWithOwner now inserts one
+    // for every NEW tenant, but an existing tenant from before that fix
+    // (or one that otherwise never had this row created) would still hit
+    // this. Create the default row, same as getSchedulingSettings's own
+    // lazy-create, then immediately re-run the same UPDATE against it so
+    // the caller's actual field values still land - a bare default-row
+    // insert alone would silently drop whatever the caller asked to
+    // change.
+    logger.info('Scheduling settings row missing for update - creating default row first', { tenantId });
+    // ON CONFLICT DO NOTHING - tenant_id is UNIQUE, so a concurrent
+    // request hitting this same missing-row race (or getSchedulingSettings's
+    // own lazy-create, triggered by an in-flight GET) could insert first;
+    // either way the retry UPDATE below finds exactly one row to update.
+    await query(
+      `INSERT INTO scheduling_settings (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`,
+      [tenantId]
+    );
+    const retryResult = await query(
+      `UPDATE scheduling_settings SET ${fields.join(', ')}
+       WHERE tenant_id = $${paramCount}
+       RETURNING *`,
+      values
+    );
+    logger.info('Successfully updated scheduling settings after creating default row', { tenantId });
+    return transformSchedulingSettings(retryResult.rows[0]);
   }
 
   logger.info('Successfully updated scheduling settings', { tenantId });

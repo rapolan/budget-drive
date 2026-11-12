@@ -165,6 +165,21 @@ export const createTenantWithOwner = async (
     [userId, tenantId]
   );
 
+  // scheduling_settings is the other singleton-per-tenant table (a
+  // UNIQUE(tenant_id) constraint, same as tenant_settings above) - every
+  // column but id/tenant_id has a DB-level default, so inserting just
+  // tenant_id is enough, identical to availabilityService.ts's own
+  // lazy-create on first read. Without this, a brand-new tenant's first
+  // PUT /availability/settings call 404s ("Scheduling settings not
+  // found") because the UPDATE path doesn't create the row itself - only
+  // the read path does. Caught live: the onboarding wizard's Defaults
+  // step failed to save the buffer-between-lessons field for a tenant
+  // that had never yet called GET /availability/settings.
+  await client.query(
+    `INSERT INTO scheduling_settings (tenant_id) VALUES ($1)`,
+    [tenantId]
+  );
+
   return { tenantId, tenantSlug, userId };
 };
 
