@@ -106,3 +106,20 @@ export const completeAllInDay = asyncHandler(async (req: Request, res: Response)
     message: `${completed.length} lesson(s) marked as completed`,
   });
 });
+
+/**
+ * @route   GET /api/v1/dashboard/getting-started-counts
+ * @desc    Four cheap counts (instructors/vehicles/students/lessons)
+ *          backing the Dashboard's getting-started checklist.
+ * @access  Private (owner/admin/staff)
+ */
+export const getGettingStartedCounts = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const counts = await dashboardService.getGettingStartedCounts(tenantId);
+
+  res.json({
+    success: true,
+    data: counts,
+  });
+});

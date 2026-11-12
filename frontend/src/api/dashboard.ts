@@ -38,7 +38,19 @@ export interface ReviewQueueResponse {
   totalCount: number;
 }
 
+export interface GettingStartedCounts {
+  instructorCount: number;
+  vehicleCount: number;
+  studentCount: number;
+  lessonCount: number;
+}
+
 export const dashboardApi = {
+  getGettingStartedCounts: async () => {
+    const response = await apiClient.get<ApiResponse<GettingStartedCounts>>('/dashboard/getting-started-counts');
+    return response.data;
+  },
+
   getNoShowAlerts: async () => {
     const response = await apiClient.get<ApiResponse<NoShowAlert[]>>('/dashboard/no-show-alerts');
     return response.data;

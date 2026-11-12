@@ -152,6 +152,15 @@ export interface TenantSettings {
   // classroom delivery mode (Phase 3 of the compliance-records arc).
   enableDriverEducation?: boolean;
 
+  // Onboarding wizard resumability (migration 006) - null until the
+  // first-login wizard reaches its final step or is explicitly left via
+  // "finish later". A tenant created by the operator's bootstrap script,
+  // or that existed before this column was added, has this set already
+  // and is never redirected into the wizard. Deliberately never read by
+  // the Dashboard's getting-started checklist, which stays derived from
+  // real counts instead.
+  onboardingCompletedAt?: string | null;
+
   createdAt: Date;
   updatedAt: Date;
 }

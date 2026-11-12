@@ -10,6 +10,7 @@
     "migrate": "node database/run-all-migrations.js",
     "seed": "node database/run-seed.js",
     "bootstrap:tenant": "node database/bootstrap-first-tenant.js",
+    "signup:invite": "node dist/scripts/signupInviteCli.js",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts --max-warnings 142",

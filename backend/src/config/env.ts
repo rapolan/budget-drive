@@ -49,6 +49,13 @@ interface EnvConfig {
   GOOGLE_OAUTH_REDIRECT_URI?: string;
   GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY?: string;
   GOOGLE_OAUTH_STATE_SECRET?: string;
+
+  // Self-service invite-code signup - the base URL the signup:invite CLI
+  // builds its one-time signup link against. Already set in the
+  // production environment; declared here so the running app can
+  // actually read it (a deployed env var existing is independent of
+  // whether this config module ever reads it).
+  FRONTEND_URL: string;
 }
 
 const requiredEnvVars = [
@@ -185,6 +192,8 @@ export const config: EnvConfig = {
   GOOGLE_OAUTH_REDIRECT_URI: process.env.GOOGLE_OAUTH_REDIRECT_URI,
   GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY: process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY,
   GOOGLE_OAUTH_STATE_SECRET: process.env.GOOGLE_OAUTH_STATE_SECRET,
+
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
 };
 
 export default config;

@@ -226,3 +226,40 @@ export const getInstructorsWithExpiringLicenses = async (tenantId: string): Prom
 
   return alerts;
 };
+
+export interface GettingStartedCounts {
+  instructorCount: number;
+  vehicleCount: number;
+  studentCount: number;
+  lessonCount: number;
+}
+
+/**
+ * Four cheap scalar counts backing the Dashboard's getting-started
+ * checklist - deliberately NOT the studentsApi.getAll(1,1000)-then-
+ * .length pattern already used elsewhere on the Dashboard for other
+ * stats, since that would mean fetching up to 1000 full rows from four
+ * tables just to read four numbers, every time the checklist is
+ * visible. A pure COUNT(*) is the textbook case this service's own
+ * aggregation-endpoint precedent exists for. Every item's "done" state
+ * is derived live from these counts on every render - nothing about
+ * done-ness is ever persisted, so the checklist can never drift from
+ * what's actually true.
+ */
+export const getGettingStartedCounts = async (tenantId: string): Promise<GettingStartedCounts> => {
+  const result = await query(
+    `SELECT
+       (SELECT COUNT(*) FROM instructors WHERE tenant_id = $1) AS instructor_count,
+       (SELECT COUNT(*) FROM vehicles WHERE tenant_id = $1) AS vehicle_count,
+       (SELECT COUNT(*) FROM students WHERE tenant_id = $1) AS student_count,
+       (SELECT COUNT(*) FROM lessons WHERE tenant_id = $1) AS lesson_count`,
+    [tenantId]
+  );
+  const row = result.rows[0];
+  return {
+    instructorCount: parseInt(row.instructor_count, 10),
+    vehicleCount: parseInt(row.vehicle_count, 10),
+    studentCount: parseInt(row.student_count, 10),
+    lessonCount: parseInt(row.lesson_count, 10),
+  };
+};

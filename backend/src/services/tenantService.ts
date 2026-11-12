@@ -76,6 +76,26 @@ export const getTenantSettings = async (tenantId: string): Promise<TenantSetting
   return keysToCamel(result.rows[0]) as TenantSettings;
 };
 
+/**
+ * Marks the first-login onboarding wizard as finished for this tenant -
+ * either because every step was completed, or because the owner/admin
+ * explicitly left via the global "finish later" exit. Idempotent
+ * (calling it again just re-sets the same timestamp to NOW(), never
+ * errors). Used ONLY to drive the wizard's own resume logic and the
+ * /onboarding redirect decision - never read by the Dashboard's
+ * getting-started checklist.
+ */
+export const markOnboardingCompleted = async (tenantId: string): Promise<void> => {
+  const result = await query(
+    `UPDATE tenant_settings SET onboarding_completed_at = NOW() WHERE tenant_id = $1 RETURNING tenant_id`,
+    [tenantId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Tenant settings not found', 404);
+  }
+};
+
 export interface TenantNow {
   timezone: string;
   today: string;            // YYYY-MM-DD
