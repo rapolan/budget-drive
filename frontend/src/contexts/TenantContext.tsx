@@ -52,7 +52,11 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const tenantType: TenantType = tenant?.tenantType || 'school';
 
   const updateTheme = (newSettings: TenantSettings) => {
-    const name = tenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
+    // settings.businessName (tenant_settings.business_name) is what a
+    // rename in Settings actually writes - nothing in the frontend ever
+    // writes localStorage('tenant_name'), so that fallback never fires
+    // except as the final generic default.
+    const name = newSettings.businessName || tenant?.businessName || 'Driving School';
     applyTheme(newSettings, name);
   };
 
@@ -78,7 +82,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (settingsResponse.success && settingsResponse.data) {
         setSettings(settingsResponse.data);
         setTenantNow(settingsResponse.data.tenantNow ?? null);
-        const name = resolvedTenant?.businessName || localStorage.getItem('tenant_name') || 'Driving School';
+        const name = settingsResponse.data.businessName || resolvedTenant?.businessName || 'Driving School';
         applyTheme(settingsResponse.data, name);
       }
     } catch (err: any) {
