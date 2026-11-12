@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Car, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { landingPathForRole } from '@/utils/roleRouting';
+import { AuthPageShell, GlassInput } from '@/components/common';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -71,120 +72,88 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-appbg flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo/Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl shadow-lg mb-4">
-            <Car className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-tx-primary">Welcome Back</h1>
-          <p className="text-tx-secondary mt-1">Sign in to your driving school account</p>
+    <AuthPageShell>
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl shadow-lg mb-4">
+          <Car className="h-8 w-8 text-white" />
         </div>
+        <h1 className="text-2xl font-bold text-tx-primary">Welcome Back</h1>
+        <p className="text-tx-secondary mt-1">Sign in to your driving school account</p>
+      </div>
 
-        {/* Login Form */}
-        <div className="bg-surface rounded-2xl shadow-xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Error Message */}
-            {displayError && (
-              <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-status-danger-text flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-status-danger-text">{displayError}</p>
-              </div>
-            )}
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {displayError && (
+          <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-status-danger-text flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-status-danger-text">{displayError}</p>
+          </div>
+        )}
 
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-tx-secondary mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-tx-muted" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  className="block w-full pl-10 pr-4 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
-                  disabled={isSubmitting}
-                />
-              </div>
-            </div>
+        <GlassInput
+          label="Email Address"
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoComplete="email"
+          icon={<Mail className="h-5 w-5" />}
+          disabled={isSubmitting}
+        />
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-tx-secondary mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-tx-muted" />
-                </div>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  className="block w-full pl-10 pr-12 py-3 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-tx-primary placeholder-gray-400"
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-tx-muted hover:text-tx-secondary"
-                  tabIndex={-1}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button */}
+        <GlassInput
+          label="Password"
+          id="password"
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Enter your password"
+          autoComplete="current-password"
+          icon={<Lock className="h-5 w-5" />}
+          disabled={isSubmitting}
+          trailing={
             <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-primary text-white py-3 px-4 rounded-lg font-medium hover:brightness-90 hover:bg-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="text-tx-muted hover:text-tx-secondary"
+              tabIndex={-1}
             >
-              {isSubmitting ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
-              )}
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
-          </form>
+          }
+        />
 
-          {/* Footer */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-tx-muted">
-              Forgot your password?{' '}
-              <button className="text-primary hover:text-primary font-medium">
-                Reset it here
-              </button>
-            </p>
-          </div>
-        </div>
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full h-11 bg-primary text-white rounded-xl font-medium hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+        >
+          {isSubmitting ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Signing in...
+            </>
+          ) : (
+            'Sign In'
+          )}
+        </button>
+      </form>
 
-        {/* Copyright */}
-        <p className="text-center text-sm text-tx-muted mt-8">
-          Budget Drive Protocol
+      <div className="mt-6 text-center">
+        <p className="text-sm text-tx-muted">
+          Forgot your password?{' '}
+          <button className="text-primary hover:text-primary font-medium">
+            Reset it here
+          </button>
         </p>
       </div>
-    </div>
+
+      <p className="text-center text-xs text-tx-muted mt-6">
+        Budget Drive Protocol
+      </p>
+    </AuthPageShell>
   );
 };

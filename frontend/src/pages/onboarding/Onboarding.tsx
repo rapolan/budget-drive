@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car } from 'lucide-react';
-import { ProgressStepper } from '@/components/common';
+import { ProgressStepper, AuthPageShell } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
 import { onboardingApi } from '@/api';
 import { StepSchoolDetails } from './StepSchoolDetails';
@@ -96,43 +96,10 @@ export const OnboardingWizardPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-10 px-4">
-      <div className="w-full max-w-xl mx-auto">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-primary rounded-2xl shadow-lg mb-3">
-            <Car className="h-7 w-7 text-white" />
-          </div>
-          <h1 className="text-xl font-bold text-tx-primary">Set up your school</h1>
-        </div>
-
-        <ProgressStepper steps={STEPS} currentStep={currentStep} />
-
-        <div className="bg-surface rounded-2xl shadow-xl p-8 mt-4">
-          {currentStep === 1 && <StepSchoolDetails onContinue={() => setCurrentStep(2)} />}
-          {currentStep === 2 && (
-            <StepOfferings
-              onContinue={(enabledDe) => {
-                setDriverEducationEnabled(enabledDe);
-                setCurrentStep(3);
-              }}
-            />
-          )}
-          {currentStep === 3 && (
-            <StepDefaults
-              driverEducationEnabled={driverEducationEnabled}
-              onContinue={() => setCurrentStep(4)}
-              onSkip={() => setCurrentStep(4)}
-            />
-          )}
-          {currentStep === 4 && (
-            <StepTeam onContinue={() => setCurrentStep(5)} onSkip={() => setCurrentStep(5)} />
-          )}
-          {currentStep === 5 && (
-            <StepDone onGoToDashboard={handleFinishLater} isSaving={isFinishing} saveError={finishError} />
-          )}
-        </div>
-
-        {currentStep < 5 && (
+    <AuthPageShell
+      maxWidth="max-w-xl"
+      footer={
+        currentStep < 5 ? (
           <div className="text-center mt-4 space-y-2">
             {finishError && (
               <p className="text-sm text-status-danger-text">{finishError}</p>
@@ -146,9 +113,43 @@ export const OnboardingWizardPage: React.FC = () => {
               Finish later
             </button>
           </div>
+        ) : undefined
+      }
+    >
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-14 h-14 bg-primary rounded-2xl shadow-lg mb-3">
+          <Car className="h-7 w-7 text-white" />
+        </div>
+        <h1 className="text-xl font-bold text-tx-primary">Set up your school</h1>
+      </div>
+
+      <ProgressStepper steps={STEPS} currentStep={currentStep} />
+
+      <div className="mt-4">
+        {currentStep === 1 && <StepSchoolDetails onContinue={() => setCurrentStep(2)} />}
+        {currentStep === 2 && (
+          <StepOfferings
+            onContinue={(enabledDe) => {
+              setDriverEducationEnabled(enabledDe);
+              setCurrentStep(3);
+            }}
+          />
+        )}
+        {currentStep === 3 && (
+          <StepDefaults
+            driverEducationEnabled={driverEducationEnabled}
+            onContinue={() => setCurrentStep(4)}
+            onSkip={() => setCurrentStep(4)}
+          />
+        )}
+        {currentStep === 4 && (
+          <StepTeam onContinue={() => setCurrentStep(5)} onSkip={() => setCurrentStep(5)} />
+        )}
+        {currentStep === 5 && (
+          <StepDone onGoToDashboard={handleFinishLater} isSaving={isFinishing} saveError={finishError} />
         )}
       </div>
-    </div>
+    </AuthPageShell>
   );
 };
 

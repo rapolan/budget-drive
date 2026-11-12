@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/common';
+import { Button, GlassInput, GlassSelect } from '@/components/common';
 import { tenantsApi } from '@/api';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatPhoneNumber } from '@/utils/phoneFormat';
@@ -77,96 +77,71 @@ export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue
       </div>
 
       {saveError && (
-        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-3 text-sm text-status-danger-text">
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-3 text-sm text-status-danger-text">
           {saveError}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Phone</label>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Phone"
+        type="tel"
+        value={phone}
+        onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Address line 1</label>
-        <input
-          type="text"
-          value={addressLine1}
-          onChange={(e) => setAddressLine1(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Address line 1"
+        type="text"
+        value={addressLine1}
+        onChange={(e) => setAddressLine1(e.target.value)}
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Address line 2 (optional)</label>
-        <input
-          type="text"
-          value={addressLine2}
-          onChange={(e) => setAddressLine2(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Address line 2 (optional)"
+        type="text"
+        value={addressLine2}
+        onChange={(e) => setAddressLine2(e.target.value)}
+      />
 
       <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">City</label>
-          <input
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">State</label>
-          <input
-            type="text"
-            value={state}
-            onChange={(e) => setState(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">ZIP</label>
-          <input
-            type="text"
-            value={zipCode}
-            onChange={(e) => setZipCode(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">
-          DMV driving school license number <span className="text-tx-muted">(optional - add it later if you don't have it yet)</span>
-        </label>
-        <input
+        <GlassInput
+          label="City"
           type="text"
-          value={licenseNumber}
-          onChange={(e) => setLicenseNumber(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+        />
+        <GlassInput
+          label="State"
+          type="text"
+          value={state}
+          onChange={(e) => setState(e.target.value)}
+        />
+        <GlassInput
+          label="ZIP"
+          type="text"
+          value={zipCode}
+          onChange={(e) => setZipCode(e.target.value)}
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Timezone</label>
-        <select
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        >
-          <option value="">Select a timezone</option>
-          {US_TIMEZONES.map((tz) => (
-            <option key={tz} value={tz}>{tz}</option>
-          ))}
-        </select>
-      </div>
+      <GlassInput
+        label="DMV driving school license number"
+        hint="Optional - add it later if you don't have it yet"
+        type="text"
+        value={licenseNumber}
+        onChange={(e) => setLicenseNumber(e.target.value)}
+      />
+
+      <GlassSelect
+        label="Timezone"
+        value={timezone}
+        onChange={(e) => setTimezone(e.target.value)}
+      >
+        <option value="">Select a timezone</option>
+        {US_TIMEZONES.map((tz) => (
+          <option key={tz} value={tz}>{tz}</option>
+        ))}
+      </GlassSelect>
 
       <div className="flex justify-end pt-2">
         <Button onClick={handleContinue} loading={isSaving}>

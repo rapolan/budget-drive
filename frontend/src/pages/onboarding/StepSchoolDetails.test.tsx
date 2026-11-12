@@ -16,13 +16,10 @@ vi.mock('@/contexts/TenantContext', () => ({
 
 afterEach(cleanup);
 
-// The real component uses <label> text without htmlFor/id association, so
-// getByLabelText can't resolve it - find the label's sibling input instead.
+// GlassInput/GlassSelect properly associate label <-> input via htmlFor/id,
+// so plain getByLabelText resolves correctly.
 function getInputByLabel(labelPattern: RegExp): HTMLElement {
-  const label = screen.getByText(labelPattern);
-  const input = label.parentElement?.querySelector('input, select');
-  if (!input) throw new Error(`No input/select found next to label matching ${labelPattern}`);
-  return input as HTMLElement;
+  return screen.getByLabelText(labelPattern);
 }
 
 describe('StepSchoolDetails', () => {

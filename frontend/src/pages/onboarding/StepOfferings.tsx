@@ -52,12 +52,12 @@ export const StepOfferings: React.FC<StepOfferingsProps> = ({ onContinue }) => {
       </div>
 
       {saveError && (
-        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-3 text-sm text-status-danger-text">
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-3 text-sm text-status-danger-text">
           {saveError}
         </div>
       )}
 
-      <div className="flex items-center justify-between p-4 bg-surface2 rounded-lg border border-edge">
+      <div className="flex items-center justify-between p-4 bg-surface2/60 backdrop-blur-sm rounded-xl border border-edge-strong/80">
         <div>
           <p className="text-sm font-medium text-tx-primary">Behind-the-wheel lessons</p>
           <p className="text-xs text-tx-muted mt-0.5">Always included.</p>
@@ -65,7 +65,7 @@ export const StepOfferings: React.FC<StepOfferingsProps> = ({ onContinue }) => {
         <span className="text-xs bg-status-success-bg text-status-success-text px-2 py-1 rounded-full font-medium">Always on</span>
       </div>
 
-      <div className="flex items-center justify-between p-4 bg-surface2 rounded-lg border border-edge">
+      <div className="flex items-center justify-between p-4 bg-surface2/60 backdrop-blur-sm rounded-xl border border-edge-strong/80">
         <div>
           <p className="text-sm font-medium text-tx-primary">Driver Education classroom</p>
           <p className="text-xs text-tx-muted mt-0.5">Adds the Classroom page and DE enrollment tracking.</p>
@@ -87,7 +87,7 @@ export const StepOfferings: React.FC<StepOfferingsProps> = ({ onContinue }) => {
         </button>
       </div>
 
-      <div className="flex items-center justify-between p-4 bg-surface2 rounded-lg border border-edge">
+      <div className="flex items-center justify-between p-4 bg-surface2/60 backdrop-blur-sm rounded-xl border border-edge-strong/80">
         <div>
           <p className="text-sm font-medium text-tx-primary">Certificate tracking</p>
           <p className="text-xs text-tx-muted mt-0.5">Record DMV completion certificates as you issue them.</p>

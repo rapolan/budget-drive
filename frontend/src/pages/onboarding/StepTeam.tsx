@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/common';
+import { Button, GlassInput } from '@/components/common';
 import { instructorsApi } from '@/api';
 
 interface StepTeamProps {
@@ -58,40 +58,31 @@ export const StepTeam: React.FC<StepTeamProps> = ({ onContinue, onSkip }) => {
       </div>
 
       {saveError && (
-        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-3 text-sm text-status-danger-text">
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-3 text-sm text-status-danger-text">
           {saveError}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Full name</label>
-        <input
-          type="text"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Full name"
+        type="text"
+        value={fullName}
+        onChange={(e) => setFullName(e.target.value)}
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Email"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Phone</label>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Phone"
+        type="tel"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
 
       <div className="flex justify-between pt-2">
         <Button variant="ghost" onClick={onSkip} disabled={isSaving}>
