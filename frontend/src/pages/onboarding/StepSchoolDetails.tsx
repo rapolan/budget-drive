@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/common';
 import { tenantsApi } from '@/api';
 import { useTenant } from '@/contexts/TenantContext';
+import { formatPhoneNumber } from '@/utils/phoneFormat';
 import type { TenantSettings } from '@/types';
 
 interface StepSchoolDetailsProps {
@@ -86,7 +87,7 @@ export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue
         <input
           type="tel"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
           className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
         />
       </div>

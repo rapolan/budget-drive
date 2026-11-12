@@ -39,17 +39,80 @@ describe('StepSchoolDetails', () => {
 
     render(<StepSchoolDetails onContinue={onContinue} />);
 
-    fireEvent.change(getInputByLabel(/^Phone$/i), { target: { value: '555-1234' } });
+    fireEvent.change(getInputByLabel(/^Phone$/i), { target: { value: '6195550142' } });
     fireEvent.change(getInputByLabel(/^Address line 1$/i), { target: { value: '123 Main St' } });
     fireEvent.change(getInputByLabel(/^City$/i), { target: { value: 'Springfield' } });
 
     fireEvent.click(screen.getByRole('button', { name: /Save & Continue/i }));
 
     await waitFor(() => expect(tenantsApi.updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ supportPhone: '555-1234', addressLine1: '123 Main St', city: 'Springfield' })
+      expect.objectContaining({ supportPhone: '(619) 555-0142', addressLine1: '123 Main St', city: 'Springfield' })
     ));
     await waitFor(() => expect(mockRefreshSettings).toHaveBeenCalled());
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
+  });
+
+  // Regression coverage: this field previously stored whatever raw text
+  // was typed, with no formatting - reusing utils/phoneFormat.ts (already
+  // used by StudentModal, InstructorModal, GuardianModal, MyProfile) so
+  // this field formats and stores exactly like every other phone field in
+  // the app: progressively, as "(XXX) XXX-XXXX", via the same
+  // onChange={(e) => setX(formatPhoneNumber(e.target.value))} pattern.
+  describe('phone field formatting', () => {
+    it('formats progressively while typing digit by digit', () => {
+      render(<StepSchoolDetails onContinue={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      fireEvent.change(phoneInput, { target: { value: '6' } });
+      expect(phoneInput).toHaveValue('(6');
+
+      fireEvent.change(phoneInput, { target: { value: '(619' } });
+      expect(phoneInput).toHaveValue('(619');
+
+      fireEvent.change(phoneInput, { target: { value: '(619) 555' } });
+      expect(phoneInput).toHaveValue('(619) 555');
+
+      fireEvent.change(phoneInput, { target: { value: '(619) 555-0142' } });
+      expect(phoneInput).toHaveValue('(619) 555-0142');
+    });
+
+    it('formats a pasted raw digit string in one go', () => {
+      render(<StepSchoolDetails onContinue={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      // Simulates a paste: the browser delivers the full new value in a
+      // single change event, same as typing it would, just all at once.
+      fireEvent.change(phoneInput, { target: { value: '6195550142' } });
+
+      expect(phoneInput).toHaveValue('(619) 555-0142');
+    });
+
+    it('caps at 10 digits - a pasted longer string (e.g. with a leading 1) is truncated, not rejected', () => {
+      render(<StepSchoolDetails onContinue={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      fireEvent.change(phoneInput, { target: { value: '16195550142' } });
+
+      expect(phoneInput).toHaveValue('(161) 955-5014');
+    });
+
+    it('reformats correctly after backspacing past a formatting character', () => {
+      render(<StepSchoolDetails onContinue={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      fireEvent.change(phoneInput, { target: { value: '(619) 555-0142' } });
+      expect(phoneInput).toHaveValue('(619) 555-0142');
+
+      // Backspacing one character off the full value, as the browser
+      // would deliver it mid-edit - the formatter re-derives from the
+      // remaining digits rather than requiring any particular shape.
+      fireEvent.change(phoneInput, { target: { value: '(619) 555-014' } });
+      expect(phoneInput).toHaveValue('(619) 555-014');
+
+      // Backspacing all the way down to nothing clears the field cleanly.
+      fireEvent.change(phoneInput, { target: { value: '' } });
+      expect(phoneInput).toHaveValue('');
+    });
   });
 
   it('shows an error and does not continue when the save fails', async () => {
