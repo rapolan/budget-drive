@@ -6,25 +6,32 @@ interface GlassSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement>
   hint?: string;
 }
 
-/** Select counterpart to GlassInput - same visual treatment, same surface. */
+/**
+ * Select counterpart to GlassInput - same height/radius/border/focus-glow
+ * treatment. Native <select> elements can't support a floating label the
+ * same way an <input> can (no placeholder concept to float away from),
+ * so this keeps a plain label above the control instead - still visually
+ * consistent with GlassInput's floated state (same size/color/position
+ * once an input has floated), just not animated.
+ */
 export const GlassSelect = React.forwardRef<HTMLSelectElement, GlassSelectProps>(
   ({ label, error, hint, id, className = '', children, ...rest }, ref) => {
     const selectId = id || `glass-select-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
     return (
       <div>
-        <label htmlFor={selectId} className="block text-sm font-medium text-tx-secondary mb-1.5">
+        <label htmlFor={selectId} className="block text-xs font-medium text-tx-secondary mb-1.5">
           {label}
         </label>
         <select
           ref={ref}
           id={selectId}
           className={`
-            block w-full h-11 px-4 rounded-xl border bg-surface2/60 backdrop-blur-sm
+            block w-full h-12 px-4 rounded-[14px] border bg-surface2/70 dark:bg-white/5
             text-tx-primary
             transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary focus:bg-surface2
-            ${error ? 'border-status-danger-border focus:ring-status-danger-border/50 focus:border-status-danger-border' : 'border-edge-strong/80'}
+            focus:outline-none focus:border-primary focus:shadow-[0_0_0_4px_rgb(var(--color-primary-rgb)/0.18)]
+            ${error ? 'border-status-danger-border focus:border-status-danger-border' : 'border-edge-strong/70'}
             ${className}
           `}
           aria-invalid={error ? true : undefined}
@@ -34,7 +41,7 @@ export const GlassSelect = React.forwardRef<HTMLSelectElement, GlassSelectProps>
           {children}
         </select>
         {error ? (
-          <p id={`${selectId}-error`} className="mt-1.5 text-sm text-status-danger-text">
+          <p id={`${selectId}-error`} className="mt-1.5 text-xs text-status-danger-text">
             {error}
           </p>
         ) : hint ? (

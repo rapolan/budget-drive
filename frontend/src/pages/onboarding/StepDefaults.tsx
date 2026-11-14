@@ -58,10 +58,10 @@ export const StepDefaults: React.FC<StepDefaultsProps> = ({ driverEducationEnabl
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-tx-primary">Pricing &amp; scheduling defaults</h2>
-        <p className="text-sm text-tx-secondary mt-1">A starting point - every lesson's price and length can still be changed individually.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">Pricing &amp; scheduling defaults</h2>
+        <p className="text-sm text-tx-muted mt-1">A starting point - every lesson's price and length can still be changed individually.</p>
       </div>
 
       {saveError && (
@@ -70,22 +70,24 @@ export const StepDefaults: React.FC<StepDefaultsProps> = ({ driverEducationEnabl
         </div>
       )}
 
-      <GlassInput
-        label="Default lesson price ($)"
-        type="number"
-        min="0"
-        step="0.01"
-        value={lessonCost}
-        onChange={(e) => setLessonCost(e.target.value)}
-      />
+      <div className="grid grid-cols-2 gap-3">
+        <GlassInput
+          label="Default lesson price ($)"
+          type="number"
+          min="0"
+          step="0.01"
+          value={lessonCost}
+          onChange={(e) => setLessonCost(e.target.value)}
+        />
 
-      <GlassInput
-        label="Default lesson length (minutes)"
-        type="number"
-        min="1"
-        value={lessonLength}
-        onChange={(e) => setLessonLength(e.target.value)}
-      />
+        <GlassInput
+          label="Lesson length (minutes)"
+          type="number"
+          min="1"
+          value={lessonLength}
+          onChange={(e) => setLessonLength(e.target.value)}
+        />
+      </div>
 
       <GlassInput
         label="Buffer between lessons (minutes)"

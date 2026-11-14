@@ -45,10 +45,10 @@ export const StepOfferings: React.FC<StepOfferingsProps> = ({ onContinue }) => {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-tx-primary">What does your school offer?</h2>
-        <p className="text-sm text-tx-secondary mt-1">You can change these any time in Settings.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">What does your school offer?</h2>
+        <p className="text-sm text-tx-muted mt-1">You can change these any time in Settings.</p>
       </div>
 
       {saveError && (

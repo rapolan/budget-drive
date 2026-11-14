@@ -7,6 +7,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CURRENT_TERMS_VERSION } from '@/content/legalContent';
 import { AuthPageShell, GlassInput } from '@/components/common';
 
+const BENEFITS = [
+  'Scheduling, payments, and student records in one place',
+  'Your data is always yours - export it any time',
+  'Set up in a few minutes, no credit card required',
+];
+
 /**
  * Public school signup page. The invite code is read from the URL
  * FRAGMENT (#code=...), never a query param - a fragment is never sent
@@ -99,13 +105,13 @@ export const SignupPage: React.FC = () => {
   };
 
   return (
-    <AuthPageShell>
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl shadow-lg mb-4">
-          <Car className="h-8 w-8 text-white" />
+    <AuthPageShell headline="Set up your school in a few minutes" benefits={BENEFITS}>
+      <div className="text-center mb-7">
+        <div className="inline-flex items-center justify-center w-14 h-14 bg-primary rounded-2xl shadow-lg mb-4">
+          <Car className="h-7 w-7 text-white" />
         </div>
-        <h1 className="text-2xl font-bold text-tx-primary">Create Your School's Account</h1>
-        <p className="text-tx-secondary mt-1">Set up your driving school in a few minutes</p>
+        <h1 className="text-2xl font-bold tracking-tight text-tx-primary">Create your school's account</h1>
+        <p className="text-tx-secondary mt-1 text-sm">Set up your driving school in a few minutes</p>
       </div>
 
       {!code && codeReadAttempted ? (
@@ -116,7 +122,7 @@ export const SignupPage: React.FC = () => {
           </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {displayError && (
             <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-4 flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-status-danger-text flex-shrink-0 mt-0.5" />
@@ -139,9 +145,9 @@ export const SignupPage: React.FC = () => {
             type="text"
             value={schoolName}
             onChange={(e) => setSchoolName(e.target.value)}
-            placeholder="Acme Driving School"
             icon={<Building2 className="h-5 w-5" />}
             disabled={isSubmitting}
+            valid={schoolName.trim().length > 0}
           />
 
           <GlassInput
@@ -150,9 +156,9 @@ export const SignupPage: React.FC = () => {
             type="text"
             value={ownerFullName}
             onChange={(e) => setOwnerFullName(e.target.value)}
-            placeholder="Jane Smith"
             icon={<User className="h-5 w-5" />}
             disabled={isSubmitting}
+            valid={ownerFullName.trim().length > 0}
           />
 
           <GlassInput
@@ -161,10 +167,10 @@ export const SignupPage: React.FC = () => {
             type="email"
             value={ownerEmail}
             onChange={(e) => setOwnerEmail(e.target.value)}
-            placeholder="jane@example.com"
             autoComplete="email"
             icon={<Mail className="h-5 w-5" />}
             disabled={isSubmitting}
+            valid={/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)}
           />
 
           <GlassInput
@@ -173,9 +179,9 @@ export const SignupPage: React.FC = () => {
             type={showPassword ? 'text' : 'password'}
             value={ownerPassword}
             onChange={(e) => setOwnerPassword(e.target.value)}
-            placeholder="At least 8 characters"
             autoComplete="new-password"
             icon={<Lock className="h-5 w-5" />}
+            hint={ownerPassword.length === 0 ? 'At least 8 characters' : undefined}
             disabled={isSubmitting}
             trailing={
               <button
@@ -183,6 +189,7 @@ export const SignupPage: React.FC = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 className="text-tx-muted hover:text-tx-secondary"
                 tabIndex={-1}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -195,13 +202,13 @@ export const SignupPage: React.FC = () => {
             type={showPassword ? 'text' : 'password'}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Re-enter your password"
             autoComplete="new-password"
             icon={<Lock className="h-5 w-5" />}
             disabled={isSubmitting}
+            valid={confirmPassword.length > 0 && confirmPassword === ownerPassword}
           />
 
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2 pt-1">
             <input
               id="termsAccepted"
               type="checkbox"
@@ -226,7 +233,7 @@ export const SignupPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-11 bg-primary text-white rounded-xl font-medium hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+            className="w-full h-12 bg-primary text-white rounded-[14px] font-medium hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
           >
             {isSubmitting ? (
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">

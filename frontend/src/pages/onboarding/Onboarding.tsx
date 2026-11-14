@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car } from 'lucide-react';
-import { ProgressStepper, AuthPageShell } from '@/components/common';
+import { AuthPageShell } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
 import { onboardingApi } from '@/api';
 import { StepSchoolDetails } from './StepSchoolDetails';
@@ -11,13 +11,7 @@ import { StepTeam } from './StepTeam';
 import { StepDone } from './StepDone';
 import type { TenantSettings } from '@/types';
 
-const STEPS = [
-  { number: 1, label: 'School Details' },
-  { number: 2, label: 'Offerings' },
-  { number: 3, label: 'Defaults' },
-  { number: 4, label: 'Team' },
-  { number: 5, label: 'Done' },
-];
+const STEPS = ['School', 'Offerings', 'Defaults', 'Team'];
 
 /**
  * Best-effort resume heuristic, derived from already-fetched real
@@ -35,6 +29,42 @@ function resolveStartStep(settings: TenantSettings | null): number {
   if (settings.enableDriverEducation === undefined) return 2;
   if (!settings.defaultLessonCost || !settings.standardLessonLengthMinutes) return 3;
   return 4;
+}
+
+/**
+ * Slim top progress bar with step names - replaces ProgressStepper's
+ * circle/connector-line look for just this wizard (ProgressStepper
+ * itself is shared with SmartBookingForm and stays untouched). Step 5
+ * ("Done") has no entry here since the bar's purpose is "how far through
+ * setup am I," which stops mattering once setup is finished - StepDone
+ * has its own "you're all set" treatment instead.
+ */
+function WizardProgressBar({ currentStep }: { currentStep: number }) {
+  const activeIndex = Math.min(currentStep, STEPS.length) - 1;
+  const pct = currentStep > STEPS.length ? 100 : (activeIndex / (STEPS.length - 1)) * 100;
+
+  return (
+    <div className="mb-7">
+      <div className="h-1 w-full rounded-full bg-surface3/60 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-2 flex justify-between">
+        {STEPS.map((label, i) => (
+          <span
+            key={label}
+            className={`text-xs font-medium transition-colors duration-300 ${
+              i <= activeIndex ? 'text-primary' : 'text-tx-muted'
+            }`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export const OnboardingWizardPage: React.FC = () => {
@@ -95,6 +125,14 @@ export const OnboardingWizardPage: React.FC = () => {
     );
   }
 
+  // prefers-reduced-motion check follows the same pattern already used
+  // elsewhere in this app (StudentModal.tsx, SmartBookingForm/index.tsx):
+  // read window.matchMedia directly rather than a CSS-only rule, since
+  // the step-change animation is keyed by React remount, not a toggled
+  // class.
+  const prefersReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return (
     <AuthPageShell
       maxWidth="max-w-xl"
@@ -120,12 +158,15 @@ export const OnboardingWizardPage: React.FC = () => {
         <div className="inline-flex items-center justify-center w-14 h-14 bg-primary rounded-2xl shadow-lg mb-3">
           <Car className="h-7 w-7 text-white" />
         </div>
-        <h1 className="text-xl font-bold text-tx-primary">Set up your school</h1>
+        <h1 className="text-xl font-bold tracking-tight text-tx-primary">Set up your school</h1>
       </div>
 
-      <ProgressStepper steps={STEPS} currentStep={currentStep} />
+      {currentStep <= STEPS.length && <WizardProgressBar currentStep={currentStep} />}
 
-      <div className="mt-4">
+      <div
+        key={currentStep}
+        className={prefersReducedMotion ? '' : 'animate-[step-fade-rise_280ms_ease-out]'}
+      >
         {currentStep === 1 && <StepSchoolDetails onContinue={() => setCurrentStep(2)} />}
         {currentStep === 2 && (
           <StepOfferings
@@ -149,6 +190,17 @@ export const OnboardingWizardPage: React.FC = () => {
           <StepDone onGoToDashboard={handleFinishLater} isSaving={isFinishing} saveError={finishError} />
         )}
       </div>
+
+      {/* Scoped keyframes for the step-change transition - not added to
+          index.css (out of scope per the explicit constraint): a plain
+          component-local <style> tag, same effect as a Tailwind arbitrary
+          animate-[...] value needs a keyframes name to resolve against. */}
+      <style>{`
+        @keyframes step-fade-rise {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </AuthPageShell>
   );
 };

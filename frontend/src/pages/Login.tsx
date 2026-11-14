@@ -72,16 +72,19 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <AuthPageShell>
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl shadow-lg mb-4">
-          <Car className="h-8 w-8 text-white" />
+    <AuthPageShell
+      headline="Welcome back"
+      benefits={['Run your whole school from one dashboard', 'Scheduling, payments, and student records in sync']}
+    >
+      <div className="text-center mb-7">
+        <div className="inline-flex items-center justify-center w-14 h-14 bg-primary rounded-2xl shadow-lg mb-4">
+          <Car className="h-7 w-7 text-white" />
         </div>
-        <h1 className="text-2xl font-bold text-tx-primary">Welcome Back</h1>
-        <p className="text-tx-secondary mt-1">Sign in to your driving school account</p>
+        <h1 className="text-2xl font-bold tracking-tight text-tx-primary">Sign in</h1>
+        <p className="text-tx-secondary mt-1 text-sm">Sign in to your driving school account</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {displayError && (
           <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-status-danger-text flex-shrink-0 mt-0.5" />
@@ -95,7 +98,6 @@ export const LoginPage: React.FC = () => {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
           autoComplete="email"
           icon={<Mail className="h-5 w-5" />}
           disabled={isSubmitting}
@@ -107,7 +109,6 @@ export const LoginPage: React.FC = () => {
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter your password"
           autoComplete="current-password"
           icon={<Lock className="h-5 w-5" />}
           disabled={isSubmitting}
@@ -117,6 +118,7 @@ export const LoginPage: React.FC = () => {
               onClick={() => setShowPassword(!showPassword)}
               className="text-tx-muted hover:text-tx-secondary"
               tabIndex={-1}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -126,7 +128,7 @@ export const LoginPage: React.FC = () => {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full h-11 bg-primary text-white rounded-xl font-medium hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
+          className="w-full h-12 bg-primary text-white rounded-[14px] font-medium hover:brightness-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center"
         >
           {isSubmitting ? (
             <>

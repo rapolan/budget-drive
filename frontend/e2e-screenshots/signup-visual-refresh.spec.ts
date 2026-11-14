@@ -105,7 +105,7 @@ test('visual refresh: light/dark screenshots + contrast checks for Signup, Login
 
     // --- Login ---
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /sign in/i })).toBeVisible();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `e2e-screenshots/__screenshots__/refresh-login-${theme}.png` });
 
@@ -189,4 +189,45 @@ test('visual refresh: wizard steps, light, via a real signup + real navigation',
 test('visual refresh: wizard steps, dark, via a real signup + real navigation', async ({ page }) => {
   const code = generateInviteCode();
   await runWizardPass(page, 'dark', code);
+});
+
+test('visual refresh: mobile width (390px) - Signup and one wizard step, light and dark', async ({ browser }) => {
+  test.setTimeout(90_000);
+  for (const theme of ['light', 'dark'] as const) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await page.addInitScript((t) => localStorage.setItem('theme', t), theme);
+
+    const code = generateInviteCode();
+    await page.goto(`/signup#code=${code}`);
+    await expect(page).toHaveURL('/signup');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `e2e-screenshots/__screenshots__/refresh-mobile-signup-${theme}.png` });
+
+    // Verify the two-column layout actually collapses to a single
+    // centered card at this width - the left branded panel is
+    // hidden lg:flex, so it must not be visible/taking space here.
+    const heading = page.getByRole('heading', { name: /create your school/i });
+    await expect(heading).toBeVisible();
+    const box = await heading.boundingBox();
+    expect(box, 'Signup heading should be laid out within the mobile viewport').not.toBeNull();
+    if (box) {
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(390);
+    }
+
+    await page.locator('#schoolName').fill('Mobile Visual School');
+    await page.locator('#ownerFullName').fill('Mobile Owner');
+    await page.locator('#ownerEmail').fill(`mobile-owner-${theme}-${Date.now()}@example.com`);
+    await page.locator('#ownerPassword').fill('MobilePassword123!');
+    await page.locator('#confirmPassword').fill('MobilePassword123!');
+    await page.locator('#termsAccepted').check();
+    await page.getByRole('button', { name: /create account/i }).click();
+    await page.waitForURL('/onboarding');
+    await expect(page.getByRole('heading', { name: /school details/i })).toBeVisible();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `e2e-screenshots/__screenshots__/refresh-mobile-wizard-step1-${theme}.png` });
+
+    await context.close();
+  }
 });
