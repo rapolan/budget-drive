@@ -53,15 +53,52 @@ describe('StepTeam', () => {
 
     fireEvent.change(getInputByLabel(/^Full name$/i), { target: { value: 'John Doe' } });
     fireEvent.change(getInputByLabel(/^Email$/i), { target: { value: 'john@example.com' } });
-    fireEvent.change(getInputByLabel(/^Phone$/i), { target: { value: '555-0000' } });
+    fireEvent.change(getInputByLabel(/^Phone$/i), { target: { value: '6195550000' } });
     fireEvent.click(screen.getByRole('button', { name: /Save & Continue/i }));
 
     await waitFor(() => expect(instructorsApi.create).toHaveBeenCalledWith({
       fullName: 'John Doe',
       email: 'john@example.com',
-      phone: '555-0000',
+      phone: '(619) 555-0000',
     }));
     await waitFor(() => expect(onContinue).toHaveBeenCalled());
+  });
+
+  // Regression coverage: this field previously stored whatever raw text
+  // was typed, with no formatting - now reuses utils/phoneFormat.ts, same
+  // as StepSchoolDetails.tsx's phone field. Uses real userEvent.type/paste
+  // (actual DOM keystroke/clipboard events), not fireEvent.change, per the
+  // live-reproduction standard for this bug class.
+  describe('phone field formatting', () => {
+    it('formats progressively while typing digit by digit via real keystrokes', async () => {
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      render(<StepTeam onContinue={vi.fn()} onSkip={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      await user.type(phoneInput, '6195550000');
+      expect(phoneInput).toHaveValue('(619) 555-0000');
+    });
+
+    it('formats a pasted raw digit string in one go', async () => {
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      render(<StepTeam onContinue={vi.fn()} onSkip={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      await user.click(phoneInput);
+      await user.paste('6195550000');
+      expect(phoneInput).toHaveValue('(619) 555-0000');
+    });
+
+    it('reformats on blur as a defensive safety net', () => {
+      render(<StepTeam onContinue={vi.fn()} onSkip={vi.fn()} />);
+      const phoneInput = getInputByLabel(/^Phone$/i);
+
+      fireEvent.change(phoneInput, { target: { value: '6195550000' } });
+      fireEvent.blur(phoneInput);
+      expect(phoneInput).toHaveValue('(619) 555-0000');
+    });
   });
 
   it('calls onSkip directly when Skip for now is clicked', () => {

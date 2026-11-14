@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button, GlassInput } from '@/components/common';
 import { instructorsApi } from '@/api';
+import { formatPhoneNumber } from '@/utils/phoneFormat';
 
 interface StepTeamProps {
   onContinue: () => void;
@@ -51,10 +52,10 @@ export const StepTeam: React.FC<StepTeamProps> = ({ onContinue, onSkip }) => {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-tx-primary">Add your first instructor</h2>
-        <p className="text-sm text-tx-secondary mt-1">Optional - you can add instructors any time from the Instructors page.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">Add your first instructor</h2>
+        <p className="text-sm text-tx-muted mt-1">Optional - you can add instructors any time from the Instructors page.</p>
       </div>
 
       {saveError && (
@@ -80,8 +81,10 @@ export const StepTeam: React.FC<StepTeamProps> = ({ onContinue, onSkip }) => {
       <GlassInput
         label="Phone"
         type="tel"
+        autoComplete="tel"
         value={phone}
-        onChange={(e) => setPhone(e.target.value)}
+        onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+        onBlur={(e) => setPhone(formatPhoneNumber(e.target.value))}
       />
 
       <div className="flex justify-between pt-2">

@@ -27,7 +27,7 @@ const US_TIMEZONES = [
 export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue }) => {
   const { settings, refreshSettings } = useTenant();
 
-  const [phone, setPhone] = useState(settings?.supportPhone || '');
+  const [phone, setPhone] = useState(formatPhoneNumber(settings?.supportPhone || ''));
   const [addressLine1, setAddressLine1] = useState(settings?.addressLine1 || '');
   const [addressLine2, setAddressLine2] = useState(settings?.addressLine2 || '');
   const [city, setCity] = useState(settings?.city || '');
@@ -70,10 +70,10 @@ export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-tx-primary">School details</h2>
-        <p className="text-sm text-tx-secondary mt-1">How students and the DMV can reach your school.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">School details</h2>
+        <p className="text-sm text-tx-muted mt-1">How students and the DMV can reach your school.</p>
       </div>
 
       {saveError && (
@@ -85,8 +85,17 @@ export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue
       <GlassInput
         label="Phone"
         type="tel"
+        autoComplete="tel"
         value={phone}
         onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+        // Defensive re-format on blur: autofill (browser-suggested phone
+        // numbers) and some paste paths can set the input's DOM value
+        // directly in a way that still fires onChange, but with this
+        // field's own stale-closure risk around rapid programmatic
+        // value-setting - reformatting from the input's own current value
+        // on blur guarantees the display is never left unformatted, cheap
+        // insurance beyond the onChange path alone.
+        onBlur={(e) => setPhone(formatPhoneNumber(e.target.value))}
       />
 
       <GlassInput
