@@ -185,6 +185,29 @@ app.post(
   signupController.signup
 );
 
+// -----------------------------------------------------------------------
+// PUBLIC: Google OAuth callback — no auth required, Google redirects the
+// bare browser here with no Authorization header. Registered directly on
+// the app, same exception as the ICS feed and signup routes above. The
+// `state` parameter (a short-lived, signed JWT) is what verifies this
+// request actually belongs to a real in-progress connect flow for a
+// specific instructor/tenant - see utils/googleOAuthState.ts.
+//
+// MUST stay above every app.use(API_PREFIX, ...) router mount below. Any
+// router that applies `router.use(authenticate)` as a blanket (no path
+// argument - studentRoutes, vehicleRoutes, lessonRoutes, instructorRoutes,
+// and most others) runs that middleware for EVERY request under
+// API_PREFIX that reaches it, rejecting with 401 before Express ever
+// checks whether the path matches one of that router's own routes. This
+// route previously sat below several such routers (studentRoutes,
+// vehicleRoutes, lessonRoutes among them) and was rejected with 401
+// before its own handler ever ran - reproduced live in production: the
+// browser landed on {"success":false,"error":"Authentication required.
+// No token provided."} after the instructor approved on Google's own
+// consent screen.
+// -----------------------------------------------------------------------
+app.get(`${API_PREFIX}/google-calendar/oauth-callback`, googleCalendarController.oauthCallback);
+
 app.use(`${API_PREFIX}/auth`, authRoutes); // Auth routes (authLimiter applied per-route in authRoutes.ts, credential endpoints only)
 app.use(API_PREFIX, tenantRoutes);
 app.use(API_PREFIX, studentRoutes);
@@ -208,17 +231,10 @@ app.use(API_PREFIX, classroomRoutes);
 // Authenticated calendar feed management (feed/status, feed/setup, regenerate)
 app.use(`${API_PREFIX}/calendar-feed`, calendarFeedRoutes);
 
-// -----------------------------------------------------------------------
-// PUBLIC: Google OAuth callback — no auth required, Google redirects the
-// bare browser here with no Authorization header. Registered directly on
-// the app, same exception as the ICS feed route above. The `state`
-// parameter (a short-lived, signed JWT) is what verifies this request
-// actually belongs to a real in-progress connect flow for a specific
-// instructor/tenant - see utils/googleOAuthState.ts.
-// -----------------------------------------------------------------------
-app.get(`${API_PREFIX}/google-calendar/oauth-callback`, googleCalendarController.oauthCallback);
-
 // Authenticated Google Calendar connection management (connect/status/disconnect)
+// The public oauth-callback route itself is registered much earlier,
+// above the first blanket-authenticate router - see that registration's
+// own comment for why.
 app.use(API_PREFIX, googleCalendarRoutes);
 
 // First-login onboarding wizard resume/redirect state
