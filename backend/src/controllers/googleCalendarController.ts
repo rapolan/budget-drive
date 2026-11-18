@@ -117,7 +117,7 @@ export const oauthCallback = asyncHandler(async (req: Request, res: Response) =>
 
   if (googleError) {
     logger.info('Google OAuth consent denied or errored', { googleError });
-    res.redirect(`${frontendBase}/profile?googleCalendar=denied`);
+    res.redirect(`${frontendBase}/my/profile?googleCalendar=denied`);
     return;
   }
 
@@ -132,7 +132,7 @@ export const oauthCallback = asyncHandler(async (req: Request, res: Response) =>
     logger.warn('Google OAuth callback failed', {
       error: err instanceof Error ? err.message : 'Unknown error',
     });
-    res.redirect(`${frontendBase}/profile?googleCalendar=error`);
+    res.redirect(`${frontendBase}/my/profile?googleCalendar=error`);
     return;
   }
 
@@ -149,7 +149,7 @@ export const oauthCallback = asyncHandler(async (req: Request, res: Response) =>
     });
   });
 
-  res.redirect(`${frontendBase}/profile?googleCalendar=connected`);
+  res.redirect(`${frontendBase}/my/profile?googleCalendar=connected`);
 });
 
 /**
