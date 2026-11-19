@@ -658,4 +658,32 @@ Everything above is covered by unit/integration tests against mocked Google API 
 
 ---
 
+## 30. Lesson Edit Path: Nonexistent Column Write and a Silently-Dropped Date/Time Change
+
+Two independently-confirmed bugs making every edit of an existing lesson via `LessonModal.tsx`'s pencil-icon path fail or misbehave, reproduced live in production (HTTP 500 on any edit) and fixed together since both sit in the same `updateLesson` call.
+
+### Bug 1: `UPDATE lessons SET student_id = ...` against a column that has never existed
+
+`lessons` (`001_baseline.sql`) has no `student_id` column - a lesson's student resolves only through `enrollment_id -> enrollments.student_id`. `lessonService.updateLesson` unconditionally pushed `student_id = $n` onto its dynamic `UPDATE` whenever `data.studentId` was present, regardless of whether it was actually changing. `LessonModal.tsx` always sends `studentId` on every edit (even a notes-only change), so **every single edit through the modal failed** with `column "student_id" of relation "lessons" does not exist`. `createLesson` never had this bug - it correctly only ever writes `enrollment_id`.
+
+- **Fixed**: `updateLesson` now only acts when `data.studentId !== existing.studentId` (a genuine reassignment) - and even then it never writes `student_id`. It validates the new student exists, resolves their active `driver_training` enrollment (rejecting with 400 if they have none), and writes `enrollment_id` to that enrollment's id. The same `!== existing.studentId` comparison also gates `touchesSchedule` (below), so a pure notes/cost edit that happens to also carry an unchanged `studentId` never pays for a wasted conflict re-check either.
+- **Regression-proved**: reverting this fix and rerunning the new real-Postgres test suite (below) reproduces the exact production error string for the two cases that send `studentId` on an update - confirming the fix addresses the actual root cause, not a coincidentally-similar symptom.
+- **Audited**: every dynamic `fields.push(...)` call in `lessonService.ts` (17 total) and every `UPDATE`/`INSERT INTO lessons` statement, plus a sweep of `studentService.ts` and the other services' dynamic `SET` builders, cross-referenced against live `information_schema.columns` - no other write targets a nonexistent column. The `RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = lessons.enrollment_id) AS student_id` pattern used in several places is a read-only computed alias, not a write, and is unaffected.
+
+### Bug 2: `updateLesson` has no `scheduledStart`/`scheduledEnd` conversion path at all
+
+`createLesson` accepts either `date`/`startTime`/`endTime` directly or `scheduledStart`/`scheduledEnd` (converted via `formatInTenantZone`). `updateLesson` only ever reads `data.date`/`data.startTime`/`data.endTime`/`data.duration` - it has no equivalent `scheduledStart`/`scheduledEnd` branch. `LessonModal.tsx` sent `scheduledStart`/`scheduledEnd` on every edit, so **every date/time change made through the modal was silently ignored** - the request succeeded (once Bug 1 was also fixed) but the lesson's schedule never actually moved.
+
+- **Fixed in the frontend**: `LessonModal.tsx`'s edit-mode submit now sends `date`/`startTime`/`endTime`/`duration` (the fields `updateLesson` actually reads) instead of `scheduledStart`/`scheduledEnd`; the create-mode path is unchanged. A useful side-finding: `CreateLessonInput` (the frontend type) has no `scheduledStart`/`scheduledEnd` fields at all, which is why `tsc` never caught this - both mutation calls previously relied on an `as any` cast. The edit-mode payload now genuinely satisfies `Partial<CreateLessonInput>` with no cast needed; the create-mode branch still casts, since `scheduledStart`/`scheduledEnd` remain outside the declared type (a separate, pre-existing, out-of-scope gap).
+
+### Scheduling-conflict re-check on edit already worked correctly
+
+Investigating this bug confirmed `updateLesson` already re-runs the full 6D scheduling-conflict check (`validateLessonBooking`, with `excludeLessonId` correctly excluding the lesson's own current slot) whenever an edit touches a schedule-relevant field - this was not part of either bug and needed no fix. `docs/TESTING.md` §2.14 previously described this path as having no conflict validation at all; that note was stale (true at some earlier point, not true by the time this bug was investigated) and has been corrected.
+
+### Tests
+
+`backend/src/__tests__/lessonServiceUpdateRealDb.integration.test.ts` (new) exercises the real `updateLesson`/`createLesson` against an actual Postgres instance, gated behind `TEST_DATABASE_URL` - a mocked test can't see a nonexistent column, since a mock simply returns whatever row shape the test author already assumed. Covers: notes-only edit, date/time edit (asserts the real DB row changed), `studentId`-unchanged edit (the literal production bug), reassignment to an actively-enrolled student (`enrollment_id` repointed), reassignment to a student with no enrollment (400), reschedule into a conflict (409, nothing changed), and edit-does-not-conflict-with-itself. `lessonServiceUpdateConflicts.test.ts`'s mocked reassignment test was also corrected - it previously asserted the `UPDATE` wrote a `student_id` column, which was itself wrong and would have masked this exact bug if ever treated as proof the write was safe.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

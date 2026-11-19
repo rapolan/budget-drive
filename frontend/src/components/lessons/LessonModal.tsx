@@ -279,16 +279,10 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       return;
     }
 
-    // Transform frontend fields to backend format
-    const scheduledStart = `${formData.date}T${formData.startTime}:00`;
-    const scheduledEnd = `${formData.date}T${formData.endTime}:00`;
-
-    const lessonData = {
+    const sharedFields = {
       studentId: formData.studentId,
       instructorId: formData.instructorId,
       vehicleId: formData.vehicleId || null,
-      scheduledStart,
-      scheduledEnd,
       lessonNumber: formData.lessonNumber,
       lessonType: formData.lessonType,
       cost: formData.cost,
@@ -298,9 +292,33 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
 
     try {
       if (isEditing) {
-        await updateMutation.mutateAsync(lessonData as any);
+        // updateLesson (backend) only ever reads date/startTime/endTime/
+        // duration directly - unlike createLesson, it has no
+        // scheduledStart/scheduledEnd conversion path at all, so sending
+        // those on edit silently dropped every date/time change (the
+        // fields were present in the payload but nothing on the backend
+        // ever looked at them). formData already holds these in the
+        // correct native shape (populated straight from the lesson being
+        // edited), so no client-side date math is needed here - unlike
+        // scheduledStart/scheduledEnd's `${date}T${time}:00` construction
+        // below, which has no timezone marker and is a separate, already-
+        // working (if timezone-naive) behavior on the create path this
+        // fix intentionally leaves unchanged.
+        await updateMutation.mutateAsync({
+          ...sharedFields,
+          date: formData.date,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          duration: formData.duration,
+        });
       } else {
-        await createMutation.mutateAsync(lessonData as any);
+        const scheduledStart = `${formData.date}T${formData.startTime}:00`;
+        const scheduledEnd = `${formData.date}T${formData.endTime}:00`;
+        await createMutation.mutateAsync({
+          ...sharedFields,
+          scheduledStart,
+          scheduledEnd,
+        } as any);
       }
     } catch (err: any) {
       const conflictType = err.response?.data?.conflictType;
