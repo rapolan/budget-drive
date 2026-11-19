@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, AlertTriangle, CheckCircle, Clock, Hash, Calendar, User, FileText, MapPin } from 'lucide-react';
+import { X, AlertTriangle, Clock, Hash, Calendar, User, FileText, MapPin } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, vehiclesApi } from '@/api';
 import type { Lesson, CreateLessonInput } from '@/types';
 import { getConflictMessage } from '@/utils/conflictMessages';
+import { ModalShell } from '@/components/common/ModalShell';
 
 interface LessonModalProps {
   lesson: Lesson | null;
@@ -30,15 +31,25 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     notes: '',
   });
 
-  // Fetch related data for dropdowns
+  // Fetch related data for dropdowns. Students/instructors are only needed
+  // for the CREATE path's pickers (this component's create branch is
+  // currently unreachable from the UI - Lessons.tsx's "Add Lesson" opens
+  // SmartBookingForm instead - but kept working rather than deleted here;
+  // see the lesson-edit-redesign plan for the follow-up that removes this
+  // component once LessonDetailsPanel ships). Gated off when editing, since
+  // edit mode already knows its student/instructor from the lesson prop
+  // and previously paid for an unscoped, uncapped fetch of every student/
+  // instructor in the tenant on every single edit-modal open for no reason.
   const { data: studentsData } = useQuery({
     queryKey: ['students'],
     queryFn: () => studentsApi.getAll(1, 1000),
+    enabled: !isEditing,
   });
 
   const { data: instructorsData } = useQuery({
     queryKey: ['instructors'],
     queryFn: () => instructorsApi.getAll(),
+    enabled: !isEditing,
   });
 
   const { data: vehiclesData } = useQuery({
@@ -56,12 +67,6 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     }
   }, [vehiclesData, formData.vehicleId]);
 
-  // Fetch all lessons to calculate student's lesson count
-  const { data: allLessonsData } = useQuery({
-    queryKey: ['lessons'],
-    queryFn: () => lessonsApi.getAll(1, 10000),
-  });
-
   // Helper: build full address string from student record
   const getStudentFullAddress = (student: any): string => {
     if (student?.addressLine1) {
@@ -77,14 +82,15 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     return student?.address || '';
   };
 
-  // Calculate how many lessons the selected student has (excluding current if editing)
+  // Suggested lesson number (create-only, below) used to need every lesson
+  // in the tenant (lessonsApi.getAll(1, 10000) - a full-table-scan-shaped
+  // fetch repeated on every modal open, edit included, just to count one
+  // student's lessons client-side). Since this UI is unreachable for
+  // create today (see note above) and is never used in edit mode (gated
+  // to !isEditing just below), it's dropped entirely rather than replaced
+  // with a smaller scoped fetch - there is no live caller left that reads
+  // suggestedLessonNumber/estimatedTotalLessons.
   const selectedStudent = studentsData?.data?.find(s => s.id === formData.studentId);
-  const studentLessons = allLessonsData?.data?.filter(l =>
-    l.studentId === formData.studentId &&
-    l.status !== 'cancelled' &&
-    (!isEditing || l.id !== lesson?.id)
-  ) || [];
-  const suggestedLessonNumber = studentLessons.length + 1;
   // hoursRequired moved off the student onto their driver_training
   // enrollment - read it via the already-attached progress object rather
   // than a field that no longer exists on Student.
@@ -94,74 +100,6 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   // student's real progress. See studentProgressService.computeStudentProgress
   // for the single source of truth on actual progress.
   const estimatedTotalLessons = Math.ceil(totalHoursRequired / 2);
-
-  // Fetch instructor's lessons for the selected date to check availability
-  const { data: instructorLessonsData } = useQuery({
-    queryKey: ['instructor-lessons', formData.instructorId, formData.date],
-    queryFn: () => lessonsApi.getByInstructor(formData.instructorId),
-    enabled: !!formData.instructorId && !!formData.date,
-  });
-
-  const instructorLessons = instructorLessonsData?.data || [];
-
-  // Filter lessons for the selected date only
-  const sameDayLessons = instructorLessons.filter((l) => {
-    if (!formData.date) return false;
-    const lessonDate = new Date(l.date).toISOString().split('T')[0];
-    return lessonDate === formData.date && l.status === 'scheduled';
-  });
-
-  // Check if there's a time conflict
-  const hasTimeConflict = () => {
-    if (!formData.startTime || !formData.endTime || sameDayLessons.length === 0) {
-      return false;
-    }
-
-    const newStart = formData.startTime;
-    const newEnd = formData.endTime;
-
-    return sameDayLessons.some((existingLesson) => {
-      // Skip if we're editing the same lesson
-      if (lesson && existingLesson.id === lesson.id) return false;
-
-      const existingStart = existingLesson.startTime.substring(0, 5);
-      const existingEnd = existingLesson.endTime.substring(0, 5);
-
-      // Check for overlap: new lesson starts before existing ends AND new lesson ends after existing starts
-      return newStart < existingEnd && newEnd > existingStart;
-    });
-  };
-
-  // Find next available slot
-  const findNextAvailableSlot = () => {
-    if (sameDayLessons.length === 0 || !formData.duration) {
-      return null;
-    }
-
-    // Sort lessons by start time
-    const sortedLessons = [...sameDayLessons].sort((a, b) =>
-      a.startTime.localeCompare(b.startTime)
-    );
-
-    // Check after the last lesson
-    const lastLesson = sortedLessons[sortedLessons.length - 1];
-    const lastEnd = lastLesson.endTime.substring(0, 5);
-
-    // Calculate suggested start time (30 min after last lesson ends)
-    const [hours, minutes] = lastEnd.split(':').map(Number);
-    const suggestedStartMinutes = hours * 60 + minutes + 30;
-    const suggestedHours = Math.floor(suggestedStartMinutes / 60);
-    const suggestedMins = suggestedStartMinutes % 60;
-
-    if (suggestedHours < 18) { // Before 6 PM
-      return `${String(suggestedHours).padStart(2, '0')}:${String(suggestedMins).padStart(2, '0')}`;
-    }
-
-    return null;
-  };
-
-  const conflict = hasTimeConflict();
-  const nextAvailable = conflict ? findNextAvailableSlot() : null;
 
   useEffect(() => {
     if (lesson) {
@@ -201,12 +139,20 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
     }
   }, [formData.startTime, formData.endTime]);
 
-  // Auto-suggest lesson number when student changes (only for new lessons)
+  // Auto-suggest lesson number when student changes (create-only). Used to
+  // count the student's existing lessons via an unscoped
+  // lessonsApi.getAll(1, 10000) fetch of every lesson in the tenant,
+  // repeated on every modal open including edits that never used the
+  // result - removed per the lesson-edit-redesign performance pass. This
+  // path is also currently unreachable from the UI (Lessons.tsx's "Add
+  // Lesson" opens SmartBookingForm, not this component), so a plain
+  // default rather than a real count is a reasonable interim behavior
+  // until LessonModal's create branch is removed outright.
   useEffect(() => {
-    if (!isEditing && formData.studentId && suggestedLessonNumber > 0) {
-      setFormData(prev => ({ ...prev, lessonNumber: suggestedLessonNumber }));
+    if (!isEditing && formData.studentId && !formData.lessonNumber) {
+      setFormData(prev => ({ ...prev, lessonNumber: 1 }));
     }
-  }, [formData.studentId, suggestedLessonNumber, isEditing]);
+  }, [formData.studentId, isEditing, formData.lessonNumber]);
 
   // Auto-fill pickup address from student's home address when student changes (new lessons only)
   useEffect(() => {
@@ -273,12 +219,9 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
       return;
     }
 
-    // Conflict is already shown inline and blocks submission via disabled button
-    // No need to proceed if there's a conflict
-    if (conflict) {
-      return;
-    }
-
+    // No client-side conflict pre-check here (see note above the submit
+    // button below) - the server re-runs the real scheduling-conflict
+    // check on save and reports it via submitError/getConflictMessage.
     const sharedFields = {
       studentId: formData.studentId,
       instructorId: formData.instructorId,
@@ -338,10 +281,9 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
-        {/* Header */}
-        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
+    <ModalShell maxWidth="max-w-2xl">
+      {/* Header */}
+      <div className="sticky top-0 bg-surface/95 border-b border-edge-glass/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
@@ -627,78 +569,18 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
             />
           </div>
 
-          {/* Availability Indicator */}
-          {formData.instructorId && formData.date && (
-            <div className="space-y-3">
-              {sameDayLessons.length === 0 ? (
-                <div className="flex items-start gap-3 rounded-lg border border-status-success-border bg-status-success-bg p-4">
-                  <CheckCircle className="h-5 w-5 flex-shrink-0 text-status-success-text mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-status-success-text">
-                      Instructor is available all day
-                    </p>
-                    <p className="text-xs text-status-success-text mt-0.5">
-                      No other lessons scheduled for this date
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 rounded-lg border border-status-info-border bg-status-info-bg p-4">
-                    <Clock className="h-5 w-5 flex-shrink-0 text-primary mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-status-info-text">
-                        Instructor's schedule for this day:
-                      </p>
-                      <div className="mt-2 space-y-1">
-                        {sameDayLessons.map((l, idx) => (
-                          <p key={idx} className="text-xs text-primary">
-                            • {l.startTime.substring(0, 5)} - {l.endTime.substring(0, 5)} (Busy)
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {conflict && (
-                    <div className="flex items-start gap-3 rounded-lg border border-status-danger-border bg-status-danger-bg p-4">
-                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-status-danger-text mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-status-danger-text">
-                          Time conflict detected
-                        </p>
-                        <p className="text-xs text-status-danger-text mt-0.5">
-                          The instructor is already booked during this time.
-                          {nextAvailable && (
-                            <span className="ml-1 font-medium">
-                              Next available: {nextAvailable}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {!conflict && formData.startTime && formData.endTime && (
-                    <div className="flex items-start gap-3 rounded-lg border border-status-success-border bg-status-success-bg p-4">
-                      <CheckCircle className="h-5 w-5 flex-shrink-0 text-status-success-text mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-status-success-text">
-                          Selected time is available
-                        </p>
-                        <p className="text-xs text-status-success-text mt-0.5">
-                          No conflicts with existing lessons
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Server-side conflict / error banner (e.g. an edit that collides
-              with another lesson once the 6D scheduling check runs) */}
+              with another lesson once the full scheduling-conflict check
+              runs) - this is now the ONLY conflict signal in this
+              component. A client-side "instructor's schedule today" /
+              time-conflict preview used to live here, computed from an
+              unscoped lessonsApi.getByInstructor fetch of that
+              instructor's entire lesson history recomputed inline on every
+              render - removed per the lesson-edit-redesign performance
+              pass, since the server already re-runs the real 8-dimension
+              check on save (correctly excluding the lesson's own current
+              slot on edit) and this client preview was always advisory-
+              only duplication of that, never a substitute. */}
           {submitError && (
             <div className="flex items-start gap-3 rounded-lg border border-status-danger-border bg-status-danger-bg p-4">
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-status-danger-text mt-0.5" />
@@ -728,7 +610,7 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
             </button>
             <button
               type="submit"
-              disabled={conflict || createMutation.isPending || updateMutation.isPending}
+              disabled={createMutation.isPending || updateMutation.isPending}
               className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
             >
               {createMutation.isPending || updateMutation.isPending
@@ -739,7 +621,6 @@ export const LessonModal: React.FC<LessonModalProps> = ({ lesson, onClose }) => 
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 };

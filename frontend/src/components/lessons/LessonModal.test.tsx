@@ -4,31 +4,29 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LessonModal } from './LessonModal';
 import type { Lesson } from '@/types';
 
-const { updateMock } = vi.hoisted(() => ({
+const { updateMock, studentsGetAllMock, instructorsGetAllMock, lessonsGetAllMock, getByInstructorMock } = vi.hoisted(() => ({
   updateMock: vi.fn().mockResolvedValue({ data: {} }),
+  studentsGetAllMock: vi.fn().mockResolvedValue({
+    data: [{ id: 'student-1', fullName: 'Test Student', activeEnrollment: { status: 'active' } }],
+  }),
+  instructorsGetAllMock: vi.fn().mockResolvedValue({
+    data: [{ id: 'instructor-1', fullName: 'Test Instructor', status: 'active' }],
+  }),
+  lessonsGetAllMock: vi.fn().mockResolvedValue({ data: [] }),
+  getByInstructorMock: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
   return {
     ...actual,
-    studentsApi: {
-      ...actual.studentsApi,
-      getAll: vi.fn().mockResolvedValue({
-        data: [{ id: 'student-1', fullName: 'Test Student', activeEnrollment: { status: 'active' } }],
-      }),
-    },
-    instructorsApi: {
-      ...actual.instructorsApi,
-      getAll: vi.fn().mockResolvedValue({
-        data: [{ id: 'instructor-1', fullName: 'Test Instructor', status: 'active' }],
-      }),
-    },
+    studentsApi: { ...actual.studentsApi, getAll: studentsGetAllMock },
+    instructorsApi: { ...actual.instructorsApi, getAll: instructorsGetAllMock },
     vehiclesApi: { ...actual.vehiclesApi, getAll: vi.fn().mockResolvedValue({ data: [] }) },
     lessonsApi: {
       ...actual.lessonsApi,
-      getAll: vi.fn().mockResolvedValue({ data: [] }),
-      getByInstructor: vi.fn().mockResolvedValue({ data: [] }),
+      getAll: lessonsGetAllMock,
+      getByInstructor: getByInstructorMock,
       update: updateMock,
     },
   };
@@ -37,6 +35,10 @@ vi.mock('@/api', async () => {
 afterEach(() => {
   cleanup();
   updateMock.mockClear();
+  studentsGetAllMock.mockClear();
+  instructorsGetAllMock.mockClear();
+  lessonsGetAllMock.mockClear();
+  getByInstructorMock.mockClear();
 });
 
 function renderModal(lesson: Lesson) {
@@ -119,5 +121,28 @@ describe('LessonModal - edit submit payload shape', () => {
     });
     expect(payload).not.toHaveProperty('scheduledStart');
     expect(payload).not.toHaveProperty('scheduledEnd');
+  });
+});
+
+// Regression: opening the edit modal used to unconditionally fetch
+// studentsApi.getAll(1, 1000), instructorsApi.getAll(), lessonsApi.getAll
+// (1, 10000, every lesson in the tenant), and lessonsApi.getByInstructor
+// (that instructor's entire lesson history) - 4 of the 5 requests on open
+// serving a client-side conflict pre-check that was always advisory-only
+// duplication of the server's own validation. Editing a lesson needs none
+// of these: student/instructor are fixed and known from the lesson prop,
+// and the server re-runs the real scheduling-conflict check on save.
+describe('LessonModal - edit-mode request scope', () => {
+  it('does not fetch students, instructors, all-lessons, or instructor-lessons when editing', async () => {
+    renderModal(editingLesson());
+
+    await waitFor(() => {
+      expect((screen.getByTitle('Select Date') as HTMLInputElement).value).toBe('2026-08-20');
+    });
+
+    expect(studentsGetAllMock).not.toHaveBeenCalled();
+    expect(instructorsGetAllMock).not.toHaveBeenCalled();
+    expect(lessonsGetAllMock).not.toHaveBeenCalled();
+    expect(getByInstructorMock).not.toHaveBeenCalled();
   });
 });
