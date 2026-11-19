@@ -818,7 +818,15 @@ export const updateLesson = async (
       values.push(data.vehicleId);
     }
 
-    if (data.studentId !== undefined) {
+    // lessons has NO student_id column (001_baseline.sql) - a lesson's
+    // student resolves only through enrollment_id -> enrollments.student_id.
+    // This block used to unconditionally push `student_id = $n` onto the
+    // UPDATE regardless of whether the student actually changed, which
+    // failed every single edit through LessonModal.tsx (it always sends
+    // studentId) with "column student_id of relation lessons does not
+    // exist" - reproduced live in production. Only touch enrollment_id,
+    // and only when the student is genuinely being reassigned.
+    if (data.studentId !== undefined && data.studentId !== existing.studentId) {
       const studentCheck = await query(
         'SELECT id FROM students WHERE id = $1 AND tenant_id = $2',
         [data.studentId, tenantId]
@@ -843,8 +851,6 @@ export const updateLesson = async (
         throw new AppError('Student has no active driver_training enrollment', 400);
       }
 
-      fields.push(`student_id = $${paramCount++}`);
-      values.push(data.studentId);
       fields.push(`enrollment_id = $${paramCount++}`);
       values.push(activeEnrollment.id);
     }
@@ -914,13 +920,18 @@ export const updateLesson = async (
     // Only re-run the 6D scheduling check when this edit actually touches a
     // schedule-relevant field. Edits to notes/status/cost/etc. never conflict
     // with anything and shouldn't pay the cost of (or be blocked by) it.
+    // studentId only counts as "touching" the schedule when it's actually
+    // changing - LessonModal.tsx always sends studentId on every edit
+    // (even a notes-only change), so comparing against the unchanged value
+    // (same fix as the student_id write above) keeps a pure notes/status/
+    // cost edit from paying for a conflict re-check it can never affect.
     const touchesSchedule =
       data.date !== undefined ||
       data.startTime !== undefined ||
       data.endTime !== undefined ||
       data.instructorId !== undefined ||
       data.vehicleId !== undefined ||
-      data.studentId !== undefined;
+      (data.studentId !== undefined && data.studentId !== existing.studentId);
 
     if (touchesSchedule) {
       const mergedInstructorId = data.instructorId ?? existing.instructorId;

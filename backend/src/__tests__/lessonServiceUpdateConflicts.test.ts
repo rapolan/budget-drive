@@ -121,13 +121,17 @@ describe('lessonService.updateLesson - scheduling conflict validation', () => {
     expect(callArgs[6]).toBe(LESSON_ID); // excludeLessonId - the lesson's own id
   });
 
-  // Regression coverage: reassigning a lesson's student previously wrote
-  // student_id alone, leaving enrollment_id pointing at the OLD student's
-  // enrollment - a silent misattribution bug found while auditing the
-  // deferred lessons.student_id/payments.student_id cleanup. Fixed to
-  // resolve and write the NEW student's active driver_training
-  // enrollment_id in the same UPDATE, or reject if they have none.
-  it('reassigning a lesson to a new student updates both student_id and enrollment_id', async () => {
+  // Regression coverage: reassigning a lesson's student must repoint
+  // enrollment_id to the NEW student's active driver_training enrollment.
+  // lessons has NO student_id column (001_baseline.sql) - a lesson's
+  // student resolves only through enrollment_id -> enrollments.student_id,
+  // so the UPDATE must never attempt to write student_id onto lessons
+  // (doing so throws "column student_id of relation lessons does not
+  // exist" - reproduced live in production, see lesson-edit-fix). This
+  // test previously asserted the UPDATE wrote a student_id column, which
+  // was itself wrong and would have masked the production bug if this
+  // mocked test were ever treated as proof the write was safe.
+  it('reassigning a lesson to a new student updates enrollment_id only, never a student_id column', async () => {
     const { updateLesson } = await import('../services/lessonService');
     const NEW_STUDENT_ID = 'student-2';
     const NEW_ENROLLMENT_ID = 'enrollment-2';
@@ -140,7 +144,7 @@ describe('lessonService.updateLesson - scheduling conflict validation', () => {
       ) // getActiveDriverTrainingEnrollment
       .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // resolveTimezone
       .mockResolvedValueOnce(
-        queryResult([{ ...existingLessonRow, student_id: NEW_STUDENT_ID, enrollment_id: NEW_ENROLLMENT_ID }])
+        queryResult([{ ...existingLessonRow, enrollment_id: NEW_ENROLLMENT_ID }])
       ); // UPDATE ... RETURNING *
 
     mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
@@ -152,10 +156,10 @@ describe('lessonService.updateLesson - scheduling conflict validation', () => {
     );
     expect(updateCall).toBeDefined();
     const [sql, params] = updateCall!;
-    expect(sql).toMatch(/student_id/);
-    expect(sql).toMatch(/enrollment_id/);
-    expect(params).toContain(NEW_STUDENT_ID);
+    expect(sql).not.toMatch(/\bstudent_id\s*=/);
+    expect(sql).toMatch(/enrollment_id\s*=/);
     expect(params).toContain(NEW_ENROLLMENT_ID);
+    expect(params).not.toContain(NEW_STUDENT_ID);
   });
 
   it('reassigning a lesson to a student with no active driver_training enrollment is rejected with 400, before any UPDATE runs', async () => {
