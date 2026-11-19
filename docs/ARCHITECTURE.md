@@ -686,4 +686,31 @@ Investigating this bug confirmed `updateLesson` already re-runs the full 6D sche
 
 ---
 
+## 31. Lesson-Edit Redesign, Group A: Edit-Path Performance and Scrolling-Blur Cost
+
+First of a multi-group redesign (see the lesson-edit-redesign plan) addressing a real performance complaint: opening `LessonModal.tsx` to edit a lesson was slow and scrolling it was laggy on a tenant with a non-trivial amount of data. Two independent causes, both fixed here; the rest of the redesign (reschedule-via-`SmartBookingForm`, a dedicated details panel) lands in later groups.
+
+### Oversized/unscoped queries on every edit-modal open
+
+`LessonModal.tsx` fired 5 queries unconditionally on open: `studentsApi.getAll(1, 1000)` (every student, tenant-wide), `instructorsApi.getAll()`, `vehiclesApi.getAll()`, `lessonsApi.getAll(1, 10000)` (**every lesson in the tenant**, used only to client-side-compute one student's lesson count for an auto-suggested lesson number), and `lessonsApi.getByInstructor(instructorId)` (that instructor's **entire lesson history**, filtered client-side to one day). Two of these (the 10,000-lesson and per-instructor-history fetches) are effectively full-table scans shipped to the browser on every single edit, regardless of tenant size.
+
+- **Fixed**: `studentsApi.getAll`/`instructorsApi.getAll` are now gated `enabled: !isEditing` - edit mode already knows its student/instructor from the `lesson` prop and never rendered a picker for either, so these were always wasted work on edit. `lessonsApi.getAll(1, 10000)` and `lessonsApi.getByInstructor` are removed entirely, along with their only consumers: the client-side `suggestedLessonNumber`/`studentLessons` computation (now a plain default rather than a real count - this UI path is create-only and, per a separate finding below, currently unreachable from the app anyway) and the unmemoized `hasTimeConflict`/`findNextAvailableSlot` functions, which were re-run inline on every render over the fetched instructor-history array.
+- **The client-side conflict pre-check was always advisory-only duplication**, never a substitute for real validation: `lessonService.ts`'s `updateLesson` already re-runs the full scheduling-conflict check on save (§30), correctly excluding the lesson's own current slot. Removing the client pre-check loses nothing - the server's `submitError` banner (via `getConflictMessage`) was already the real signal.
+- **Side finding: `LessonModal.tsx`'s create path is currently unreachable from the UI.** `Lessons.tsx`'s "Add Lesson" button (`handleAddNew`) opens `SmartBookingForm`, not `LessonModal` - confirmed by reading every caller of `LessonModal` in the repo; it is only ever opened via `handleEdit`, always with a non-null `lesson`. This is flagged here, not acted on yet - a later redesign group removes `LessonModal.tsx` outright once its edit responsibilities move to a dedicated details panel.
+
+### Backdrop-blur on scrolling/sticky elements
+
+`backdrop-blur-3xl` on a scrollable panel, or `backdrop-blur-xl` on a sticky header pinned over scrolling content, forces the browser to recomposite the blur every scroll frame - confirmed live via `getComputedStyle(el).backdropFilter`, which read literally `blur(64px)` on the pre-fix panel in both themes. The fixed, non-scrolling overlay behind the modal (`backdrop-blur-[2px]`) is cheap and unaffected by this - nothing scrolls beneath it, so it blurs once per modal-open, not per frame.
+
+- **Fixed in `frontend/src/components/common/ModalShell.tsx`** (the shared modal-chrome component, also used by `StudentModal` and `SmartBookingForm`'s wrapper): the scrollable content panel dropped `backdrop-blur-3xl` in favor of a higher-opacity solid background (`bg-surface/95` instead of `/80` + blur) - a similar "glassy but readable" look with no compositing cost. Fixing it here benefits every caller of `ModalShell`, not just lessons.
+- **`LessonModal.tsx` now routes through `ModalShell`** instead of maintaining its own inline copy of equivalent markup (it previously had its own `fixed inset-0`/`overflow-y-auto rounded-3xl`/sticky-header declarations, duplicating `ModalShell`'s chrome) - one less place to keep blur cost in sync, and its sticky header switched to the same `bg-surface/95` treatment.
+- **`SmartBookingForm/index.tsx`'s own internal panel** (nested inside its caller's `ModalShell` wrapper) had a second, separate `backdrop-blur-3xl`/`backdrop-blur-xl` declaration - the same literal defect in a sibling flow. Fixed the same way (`bg-surface/95`, no blur).
+- **Not touched in this pass**: `CertificateView.tsx`, `GuardianModal.tsx`, `StudentModal.tsx`'s own inline sticky header, and `DayDetailModal.tsx` have the identical `sticky ... backdrop-blur-xl` pattern - out of scope for a lesson-edit-focused task, flagged here as a candidate for a future consistency pass rather than fixed piecemeal.
+
+### Verification
+
+Live Playwright screenshots (`frontend/e2e-screenshots/lesson-edit-performance-blur.spec.ts`), both themes, confirm the fixed panel/header's computed `backdropFilter` is `none` (asserted, not just eyeballed); a matching "before" pair was captured by temporarily checking out the pre-fix versions of the three files from `main` and re-running the same page interaction, confirming the pre-fix value was genuinely `blur(64px)` in both themes. A new frontend regression test (`LessonModal.test.tsx`, "edit-mode request scope") asserts `studentsApi.getAll`/`instructorsApi.getAll`/`lessonsApi.getAll`/`lessonsApi.getByInstructor` are never called when editing - confirmed to fail against the pre-fix code (reverted, reran, restored) before being accepted as a real regression guard.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

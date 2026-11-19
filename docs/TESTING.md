@@ -657,6 +657,19 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Do not treat a slow/failed Google API call as a booking failure** — every booking, update, and status change must succeed immediately regardless of whether the Google sync behind it succeeds, is slow, or fails; that's the whole point of the fire-and-forget design. If a lesson action in the app itself ever waits on or fails because of Google, that's a regression to report, not expected behavior.
 
+### 2.54 Lesson edit modal: no blur on the scrolling panel, scoped requests only (screenshot script, manual, on-demand)
+
+Not part of the automated suite or CI — a Playwright script verifying the lesson-edit-redesign Group A performance/blur fixes (`docs/ARCHITECTURE.md` §31).
+
+**Do:**
+```bash
+cd frontend
+npx playwright test lesson-edit-performance-blur.spec.ts --config=playwright.config.ts
+```
+Requires both dev servers already running (backend on `:4000`, frontend on `:5173` — see §1) with the repo's seed data loaded, and at least one lesson in the Lessons table to click Edit on.
+
+**Pass looks like:** Both light and dark runs pass. The script itself asserts `getComputedStyle(el).backdropFilter` is `none` on both the modal's scrollable panel and its sticky header (the pre-fix value was `blur(64px)` in both themes) and saves `e2e-screenshots/__screenshots__/lesson-edit-after-{light,dark}.png`. Open the screenshots and confirm the card still reads clearly as a distinct surface over the dimmed page behind it — the fix traded the scrollable panel's own blur for a higher-opacity solid background, not for a flat, indistinguishable look.
+
 ---
 
 ## 3. Known issues to route around

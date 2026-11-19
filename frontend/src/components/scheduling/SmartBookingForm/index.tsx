@@ -490,9 +490,9 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   }, [step]);
 
   return (
-    <div ref={rootRef} className="max-w-4xl mx-auto rounded-3xl bg-surface/80 backdrop-blur-3xl shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
+    <div ref={rootRef} className="max-w-4xl mx-auto rounded-3xl bg-surface/95 shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60">
       {/* Header */}
-      <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
+      <div className="sticky top-0 bg-surface/95 border-b border-edge-glass/40 px-6 py-4 z-10">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-status-info-bg rounded-lg">
