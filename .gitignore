@@ -56,3 +56,7 @@ frontend/playwright-report/
 # Playwright saved auth session (contains a live auth token) - see
 # frontend/e2e-screenshots/auth.setup.ts
 frontend/e2e-screenshots/.auth/
+
+# Raw CDP performance-trace captures (large, point-in-time measurement
+# artifacts - see frontend/e2e-screenshots/lesson-edit-scroll-trace.spec.ts)
+frontend/e2e-screenshots/__traces__/

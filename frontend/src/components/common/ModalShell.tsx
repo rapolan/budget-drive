@@ -25,22 +25,38 @@ interface ModalShellProps {
  * elements one layer apart, and used a darker, unblurred backdrop - which
  * is what made its modal look chrome-broken next to StudentModal's.
  *
- * The backdrop blur on the fixed, non-scrolling overlay below is cheap -
- * nothing scrolls behind it, so the browser blurs it once per modal open,
- * not per frame. The scrollable card itself used to ALSO carry
- * backdrop-blur-3xl, which forces a blur recomposite on every scroll
- * frame - removed in favor of a higher-opacity solid background
- * (bg-surface/95) that reads the same "glassy but readable" way without
- * the compositing cost. Found via a real performance complaint on the
- * lesson-edit modal (large tenant data made scrolling laggy); this
- * component is shared, so the fix applies to every modal that uses it.
+ * The scrollable card itself used to ALSO carry backdrop-blur-3xl, which
+ * forces a blur recomposite on every scroll frame - removed in favor of a
+ * higher-opacity solid background (bg-surface/95) that reads the same
+ * "glassy but readable" way without the compositing cost.
+ *
+ * The fixed, non-scrolling overlay's own backdrop-blur-[2px] was assumed
+ * cheap (nothing scrolls behind a fixed, full-viewport element, so the
+ * reasoning went that the browser blurs it once per modal-open, not per
+ * frame) - that assumption was WRONG, measured directly via a real CDP
+ * performance trace (see the lesson-edit-redesign investigation notes in
+ * docs/ARCHITECTURE.md) after a user report that scrolling was still
+ * janky even after the card's own blur was removed. A backdrop-filter
+ * element keeps a LIVE composited blur surface for as long as it exists,
+ * independent of whether the pixels behind it are changing - any frame
+ * the browser redraws (including one driven by scrolling the modal's own
+ * content on top of it) pays to re-raster and re-composite that surface,
+ * and that cost scales with how complex the page behind the modal is (a
+ * large seeded tenant's Lessons table, in this case). Traced on a
+ * ~2,000-row tenant: with this blur present, every modal tested
+ * (lesson-edit, StudentModal, SmartBookingForm) dropped frames during an
+ * internal scroll (9-18 dropped frames per 20-step scroll, 51-68ms max
+ * frame time); with it removed, all three measured a clean 0 dropped
+ * frames and ~16.3ms average frame time (the 60fps budget) with no other
+ * change. Removed entirely - the dim backdrop (bg-black/40) alone is kept
+ * for the same visual separation without the live blur surface.
  *
  * No backdrop-click-to-close - StudentModal never had one, so this
  * doesn't introduce new behavior.
  */
 export const ModalShell: React.FC<ModalShellProps> = ({ children, maxWidth, contentRef }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
         ref={contentRef}
         className={`w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-3xl bg-surface/95 shadow-[0_4px_40px_-5px_rgba(0,0,0,0.2)] border border-edge-glass/60`}

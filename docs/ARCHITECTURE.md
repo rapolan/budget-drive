@@ -713,4 +713,47 @@ Live Playwright screenshots (`frontend/e2e-screenshots/lesson-edit-performance-b
 
 ---
 
+## 32. Lesson-Edit-Redesign Follow-Up: Measuring the REAL Cause of Remaining Scroll Jank (the Fixed Overlay's Blur)
+
+§31's fix removed `backdrop-blur-3xl`/`backdrop-blur-xl` from the lesson-edit modal's scrolling panel and sticky header. After merge, a user report said scrolling was **still** slow. Per explicit instruction, this was investigated by measurement - a real Chrome DevTools Protocol performance trace against a large seeded tenant - not by re-reading the code and guessing.
+
+### Method
+
+A throwaway seed added 300 students (each with an active `driver_training` enrollment) and 2,000 lessons, spread across ~300 distinct dates and the two existing instructors/three vehicles, to the primary dev tenant (tagged `notes = 'PERFSEED'` for identification; removed after the investigation - see Cleanup below). A new Playwright spec (`frontend/e2e-screenshots/lesson-edit-scroll-trace.spec.ts`, not committed as a permanent CI test - a one-off measurement tool) opened a real Chromium page, started a `Tracing.start`/`Tracing.end` CDP session per scenario, drove a scripted mouse-wheel scroll (20 steps) inside the element under test, and recorded both the raw trace events (for a Recalculate Style/Layout/Paint/Composite/Scripting breakdown) and client-side `requestAnimationFrame` deltas (for a frame-drop count independent of trace-event category-matching accuracy). Four scenarios were measured for comparison: the lesson-edit modal, the Lessons page behind it (modal closed, to isolate the page's own fetch/render cost), the Lessons page behind the **open** modal (to check for background polling), `StudentModal`, and `SmartBookingForm` - the last two specifically to answer "is this lesson-edit-specific, or shared across every modal using the same chrome."
+
+A fourth check used a minimal injected `window.__REACT_DEVTOOLS_GLOBAL_HOOK__` (counting `onCommitFiberRoot` calls) to rule out React re-renders during scroll as a contributor - result: **0 commits during a 20-step scroll**, so React re-rendering was never part of the problem.
+
+### Finding: the fixed overlay's `backdrop-blur-[2px]` - the one piece §31 assumed was cheap - is the actual cause, shared by every modal
+
+§31's own reasoning (now corrected) was: *"nothing scrolls behind a fixed, full-viewport overlay, so the browser blurs it once per modal-open, not per frame."* That assumption is wrong. A `backdrop-filter` element keeps a **live composited blur surface** for as long as it exists in the DOM - independent of whether the pixels behind it are visibly changing, the browser pays to re-raster and re-composite that surface on every frame it redraws, including a frame driven only by scrolling the modal's own content sitting on top of it. The trace data for the lesson-edit modal showed `Layerize` running 56 times and `RasterTask` 144 times across only ~9 actually-drawn frames in a 20-step scroll - a highly disproportionate amount of layer/raster work for a scroll whose own Style/Layout/Paint cost (combined) was under 7ms. 18 `DroppedFrame` events were recorded directly in the trace for that same scroll.
+
+Measured with `requestAnimationFrame` deltas, before vs. after removing `backdrop-blur-[2px]` from `ModalShell.tsx`'s fixed overlay (the only change in this pass - the §31 blur removals on the panel/header stayed as they were):
+
+| Flow | Before (avg / max / dropped of 20) | After |
+|---|---|---|
+| Lesson edit modal | 28.01ms / 68.60ms / 9 | **16.10ms / 18.70ms / 0** |
+| StudentModal | 26.44ms / 51.60ms / 11 | **16.55ms / 18.10ms / 0** |
+| SmartBookingForm | 22.18ms / 64.00ms / 4 | **16.05ms / 18.80ms / 0** |
+| Lessons page alone (no modal, for reference) | 16.55ms / 19.70ms / 0 | unchanged |
+
+Every modal measured converged to a clean ~16.1-16.5ms average frame time (the 60fps budget) and **zero dropped frames** with the single change. This confirms the jank was never lesson-edit-specific - it was the shared `ModalShell` overlay, and it got measurably worse as the seeded tenant's data (and therefore the page content sitting behind the blurred overlay) grew larger, which is exactly why it wasn't obvious on the small pre-seed dataset `main` ships with.
+
+The "Lessons page behind the OPEN modal" check found no evidence of background polling or re-render activity keeping the page busy while the modal sits open - ruling that out as a contributing factor.
+
+### Fix
+
+- **`frontend/src/components/common/ModalShell.tsx`**: removed `backdrop-blur-[2px]` from the fixed overlay entirely. The dim backdrop (`bg-black/40`) alone is kept for the same visual separation between the modal and the page behind it - confirmed by eye in both themes (screenshots below) that the modal still reads clearly as a distinct, elevated surface without the blur.
+- **`frontend/src/components/students/StudentModal.tsx`**: its own sticky header still carried `backdrop-blur-xl` (not fixed in §31, which only touched the lesson-edit/SmartBookingForm/ModalShell files) - fixed the same way as §31's other sticky headers (`bg-surface/95` instead of blur), since StudentModal was directly in the comparison set measured above and showed the identical defect pattern.
+- **Not touched in this pass** (same reasoning as §31): `CertificateView.tsx`, `GuardianModal.tsx`, and `DayDetailModal.tsx` still have their own inline `fixed inset-0 ... backdrop-blur-[2px]` overlay and/or sticky-header blur, outside this lesson-edit-focused task's scope. Given this pass's finding that the overlay blur specifically (not just sticky-header blur) is a real, measurable cost, these are flagged again here as stronger candidates for a future consistency pass than §31 realized at the time.
+
+### Verification
+
+`frontend/e2e-screenshots/lesson-edit-performance-blur.spec.ts` was extended to also assert the fixed overlay's computed `backdropFilter` is `none` (previously only checked the panel/sticky header) - confirmed to fail with the exact error `Modal overlay still has a backdrop-filter: blur(2px)` when the fix was temporarily reverted, confirming the test is a real regression guard. `ModalShell.test.tsx`'s assertion that the overlay carries `backdrop-blur-[2px]` was replaced with an assertion that it does **not**. Updated "after" screenshots (`lesson-edit-after-{light,dark}.png`) show the Lessons table behind the modal rendering sharp/legible instead of blurred, confirmed by eye in both themes.
+
+### Cleanup
+
+The 300-student/2,000-lesson `PERFSEED`-tagged dataset used for measurement was deleted from the primary dev tenant after the investigation - this section documents the method and findings, not a dataset left behind for future use. A future performance investigation on this app should re-seed similarly rather than assume this data still exists.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).
