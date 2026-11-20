@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, X, CheckCircle, Calendar, RefreshCw, CalendarDays, MapPin, CalendarRange, Clock, TrendingUp, AlertCircle, Keyboard, LayoutGrid, LayoutList } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, schedulingApi } from '@/api';
 import type { Lesson, Instructor } from '@/types';
-import { LessonModal, LessonsCalendarView, TodaysScheduleWidget, StatusMenu } from '@/components/lessons';
+import { LessonDetailsPanel, LessonsCalendarView, TodaysScheduleWidget, StatusMenu } from '@/components/lessons';
 import type { LessonsCalendarViewRef } from '@/components/lessons';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
@@ -186,6 +186,17 @@ export const LessonsPage: React.FC = () => {
     queryFn: () => instructorsApi.getAll(),
   });
 
+  // Scoped by-id fetch for the student being rescheduled - studentsData
+  // above is capped at 1000 rows (page 1 only), so a
+  // `studentsData?.data?.find(...)` lookup silently resolves to undefined
+  // for any student outside that page on a tenant with more students than
+  // that. Fetching this one student directly by id, keyed off the lesson
+  // being rescheduled, is correct regardless of tenant size.
+  const { data: reschedulingStudentData } = useQuery({
+    queryKey: ['students', 'by-id', reschedulingLesson?.studentId],
+    queryFn: () => studentsApi.getById(reschedulingLesson!.studentId),
+    enabled: !!reschedulingLesson,
+  });
 
   // Fetch availability data for calendar view
   const { data: availabilityData } = useQuery({
@@ -1547,14 +1558,26 @@ export const LessonsPage: React.FC = () => {
         </div>
       )}
 
-      {/* LessonModal - for quick edits */}
-      {isModalOpen && (
-        <LessonModal
+      {/* LessonDetailsPanel - edit a lesson's non-schedule fields (notes,
+          cost, pickup, vehicle) and status; Reschedule hands off to
+          SmartBookingForm's existingLesson mode for anything schedule-
+          related instead of being editable here. */}
+      {isModalOpen && selectedLesson && (
+        <LessonDetailsPanel
           lesson={selectedLesson}
           onClose={() => {
             setIsModalOpen(false);
             setSelectedLesson(null);
           }}
+          canReschedule={isRescheduleEligible(selectedLesson)}
+          onReschedule={(lesson) => {
+            setIsModalOpen(false);
+            setSelectedLesson(null);
+            handleReschedule(lesson);
+          }}
+          onComplete={(id) => handleComplete(id)}
+          onNoShow={(id) => handleNoShow(id)}
+          onCancel={(id) => handleCancel(id)}
         />
       )}
 
@@ -1570,7 +1593,7 @@ export const LessonsPage: React.FC = () => {
             }
             preselectedStudent={
               reschedulingLesson
-                ? studentsData?.data?.find(s => s.id === reschedulingLesson.studentId)
+                ? reschedulingStudentData?.data
                 : preselectedStudentId
                 ? studentsData?.data?.find(s => s.id === preselectedStudentId)
                 : undefined

@@ -1392,6 +1392,12 @@ export interface AvailabilityRequest {
   // iteration. Callers outside schedulingService should omit this -
   // findAvailableSlots resolves it itself when absent.
   timezone?: string;
+  // Rescheduling an existing lesson: excludes that lesson's own row from
+  // both the instructor-busy and student-busy/student-daily-limit checks
+  // below, so searching for a new slot for a lesson never treats that
+  // SAME lesson's current slot (and day, for the per-day student limit) as
+  // already-occupied. Omitted for every other caller (new bookings).
+  excludeLessonId?: string;
 }
 
 // A TimeSlot annotated with proximity info, for the ranked-slots endpoint
@@ -1421,6 +1427,10 @@ export interface RankedAvailabilityRequest {
   endDate?: string;
   timePreference?: 'any' | 'morning' | 'afternoon' | 'evening';
   instructorId?: string; // Optional: scope to a single instructor
+  // Rescheduling an existing lesson - see AvailabilityRequest's identical
+  // field for the full reasoning. Threaded straight through to every
+  // per-instructor findAvailableSlots call this makes.
+  excludeLessonId?: string;
 }
 
 // Result of a ranked-slots search

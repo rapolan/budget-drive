@@ -1,4 +1,4 @@
-export { LessonModal } from './LessonModal';
+export { LessonDetailsPanel } from './LessonDetailsPanel';
 export { LessonsCalendarView } from './LessonsCalendarView';
 export type { LessonsCalendarViewRef } from './LessonsCalendarView';
 export { DayDetailModal } from './DayDetailModal';

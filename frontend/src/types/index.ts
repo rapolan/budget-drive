@@ -952,6 +952,11 @@ export interface FindRankedSlotsRequest {
   endDate?: string;
   timePreference?: 'any' | 'morning' | 'afternoon' | 'evening';
   instructorId?: string;
+  // Rescheduling an existing lesson (SmartBookingForm's existingLesson
+  // mode) - excludes that lesson's own row from the search so it never
+  // shows as already-occupying its own current slot/day. Omitted for
+  // every other caller (new bookings, "Book again").
+  excludeLessonId?: string;
 }
 
 export interface FindRankedSlotsResult {

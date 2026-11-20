@@ -278,7 +278,7 @@ export const updateSchedulingSettings = asyncHandler(async (req: Request, res: R
  */
 export const findAvailableSlots = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const { instructorId, vehicleId, startDate, endDate, duration, studentId } = req.body;
+  const { instructorId, vehicleId, startDate, endDate, duration, studentId, excludeLessonId } = req.body;
 
   const slots = await schedulingService.findAvailableSlots({
     tenantId,
@@ -288,6 +288,7 @@ export const findAvailableSlots = asyncHandler(async (req: Request, res: Respons
     endDate: new Date(endDate),
     duration,
     studentId,
+    excludeLessonId,
   });
 
   res.json({
@@ -304,7 +305,7 @@ export const findAvailableSlots = asyncHandler(async (req: Request, res: Respons
  */
 export const findRankedAvailableSlots = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
-  const { studentId, pickupZip, duration, startDate, endDate, timePreference, instructorId } = req.body;
+  const { studentId, pickupZip, duration, startDate, endDate, timePreference, instructorId, excludeLessonId } = req.body;
 
   const result = await schedulingService.findRankedAvailableSlots({
     tenantId,
@@ -315,6 +316,7 @@ export const findRankedAvailableSlots = asyncHandler(async (req: Request, res: R
     endDate,
     timePreference,
     instructorId,
+    excludeLessonId,
   });
 
   res.json({

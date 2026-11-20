@@ -42,11 +42,16 @@ interface SmartBookingFormProps {
   // free-choice selector via prefilledInstructorId (never locked - the
   // whole point of rescheduling is finding a possibly-different slot),
   // confirm calls lessonsApi.update(existingLesson.id, ...) instead of
-  // lessonsApi.create(...), and excludeLessonId is threaded into the
-  // confirm-time validation so the lesson never spuriously conflicts with
-  // its own current slot. Never combined with preselectedInstructor/
-  // preselectedDate/preselectedTime/canSkipToConfirm - rescheduling always
-  // runs a fresh search, it never jumps straight to Confirm.
+  // lessonsApi.create(...), and existingLesson.id is sent as
+  // excludeLessonId to BOTH the ranked-slots search and (automatically,
+  // server-side) the confirm/update's own conflict check - without the
+  // search-time exclusion, the lesson being rescheduled shows up as
+  // already occupying its own slot/day, which (confirmed live) can hide
+  // the ENTIRE day's availability for the student whenever
+  // maxLessonsPerStudentPerDay is already met by the lesson being moved.
+  // Never combined with preselectedInstructor/preselectedDate/
+  // preselectedTime/canSkipToConfirm - rescheduling always runs a fresh
+  // search, it never jumps straight to Confirm.
   existingLesson?: Lesson;
   onBookingComplete?: (lessonId: string) => void;
   onCancel?: () => void;
@@ -299,10 +304,17 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
         startDate: searchStartDate ?? undefined,
         endDate: searchEndDate ?? undefined,
         timePreference,
-        // A locked preselection (Reschedule) always wins; otherwise use
-        // whatever "Book again"'s free-choice selector currently holds
-        // (empty string means "any instructor").
+        // A locked preselectedInstructor (calendar/weekly-view slot click)
+        // always wins; otherwise use whatever "Book again"/Reschedule's
+        // free-choice selector currently holds (empty string means "any
+        // instructor").
         instructorId: preselectedInstructor?.id ?? (selectedInstructorId || undefined),
+        // Reschedule mode: excludes the lesson being moved from the search
+        // itself, not just the final confirm/update - without this, the
+        // lesson shows up as already occupying its own slot/day, which can
+        // hide the whole day's availability once maxLessonsPerStudentPerDay
+        // is met by the lesson being rescheduled (confirmed live).
+        excludeLessonId: existingLesson?.id,
       }),
     onSuccess: (result) => {
       setSlotsWithProximity(result.slots);

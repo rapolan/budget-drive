@@ -519,6 +519,62 @@ describe('SmartBookingForm - existingLesson reschedule mode', () => {
     await waitFor(() => expect(onBookingComplete).toHaveBeenCalledWith(EXISTING_LESSON.id));
     expect(screen.queryByText('Lesson Booked!')).not.toBeInTheDocument();
   });
+
+  // Regression: the search call used to omit excludeLessonId entirely,
+  // despite a code comment claiming it was "threaded into the
+  // confirm-time validation." Without it, the real backend search treats
+  // the lesson being rescheduled as still occupying its own slot/day -
+  // confirmed live to hide the ENTIRE day's availability once the
+  // tenant's maxLessonsPerStudentPerDay (default 1) is already met by the
+  // lesson being moved. See the real-Postgres test in
+  // schedulingServiceExcludeLessonIdRealDb.integration.test.ts for the
+  // backend-side proof; this test proves the frontend actually SENDS it.
+  it('passes existingLesson.id as excludeLessonId on the search call', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: EXISTING_LESSON.instructorId,
+      prefilledDuration: Number(EXISTING_LESSON.duration),
+      prefilledLessonType: EXISTING_LESSON.lessonType,
+      prefilledPickupAddress: EXISTING_LESSON.pickupAddress ?? undefined,
+      existingLesson: EXISTING_LESSON,
+    });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    await waitFor(() => expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1));
+    expect(findRankedAvailableSlots).toHaveBeenCalledWith(
+      expect.objectContaining({ excludeLessonId: EXISTING_LESSON.id })
+    );
+  });
+
+  // Create-mode (no existingLesson) must never send excludeLessonId at all -
+  // confirms the field is reschedule-specific, not a stray always-on value.
+  it('does NOT send excludeLessonId when not rescheduling (plain "Book again" prefill mode)', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: 'instructor-1',
+      prefilledDuration: 90,
+      prefilledLessonType: 'classroom',
+      prefilledTimePreference: 'afternoon',
+      prefilledPickupAddress: '456 Prior Lesson Ave, 90008',
+    });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    await waitFor(() => expect(findRankedAvailableSlots).toHaveBeenCalledTimes(1));
+    const [callArgs] = findRankedAvailableSlots.mock.calls[0];
+    expect(callArgs.excludeLessonId).toBeUndefined();
+  });
 });
 
 // Locked-slot-click flow regression guard (calendar/weekly-view "click an
