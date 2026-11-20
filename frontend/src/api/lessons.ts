@@ -54,6 +54,18 @@ export const lessonsApi = {
     return response.data;
   },
 
+  // The student's most recent COMPLETED lesson's date/notes, excluding the
+  // lesson currently being viewed - powers LessonDetailsPanel's "Last
+  // lesson" note. A deliberately separate, narrower lookup from
+  // getMostRecentByStudent above (no status filter there, no exclusion).
+  getLastCompletedNoteByStudent: async (studentId: string, excludeLessonId: string) => {
+    const response = await apiClient.get<ApiResponse<{ date: string; notes: string | null } | null>>(
+      `/lessons/student/${studentId}/last-completed-note`,
+      { params: { excludeLessonId } }
+    );
+    return response.data;
+  },
+
   getByInstructor: async (instructorId: string) => {
     const response = await apiClient.get<ApiResponse<Lesson[]>>(`/lessons/instructor/${instructorId}`);
     return response.data;

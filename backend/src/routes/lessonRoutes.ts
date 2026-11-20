@@ -35,6 +35,15 @@ router.get(
   lessonController.getMostRecentLessonByStudent
 );
 
+// The student's most recent COMPLETED lesson's date/notes, excluding a
+// given lesson - powers LessonDetailsPanel's "Last lesson" note (must be
+// before the more general /lessons/student/:studentId below)
+router.get(
+  '/lessons/student/:studentId/last-completed-note',
+  validateUUID('studentId'),
+  lessonController.getLastCompletedLessonNoteByStudent
+);
+
 // Get lessons by student (must be before /:id)
 router.get(
   '/lessons/student/:studentId',

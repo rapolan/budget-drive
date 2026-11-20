@@ -4,7 +4,7 @@
  */
 
 import { Request, Response } from 'express';
-import { asyncHandler } from '../middleware/errorHandler';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as lessonService from '../services/lessonService';
 import { getTenantId } from '../middleware/tenantContext';
 import { createLogger } from '../utils/logger';
@@ -230,6 +230,31 @@ export const getMostRecentLessonByStudent = asyncHandler(async (req: Request, re
   res.json({
     success: true,
     data: lesson,
+  });
+});
+
+/**
+ * @route   GET /api/v1/lessons/student/:studentId/last-completed-note?excludeLessonId=<id>
+ * @desc    The student's most recent COMPLETED lesson's date/notes, excluding
+ *          a given lesson - powers LessonDetailsPanel's "Last lesson" note.
+ *          A deliberately separate, narrower lookup from the most-recent
+ *          endpoint above (no status filter there, and no exclusion).
+ * @access  Private
+ */
+export const getLastCompletedLessonNoteByStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { studentId } = req.params;
+  const excludeLessonId = String(req.query.excludeLessonId || '');
+
+  if (!excludeLessonId) {
+    throw new AppError('excludeLessonId query param is required', 400);
+  }
+
+  const note = await lessonService.getLastCompletedLessonNoteForStudent(tenantId, studentId, excludeLessonId);
+
+  res.json({
+    success: true,
+    data: note,
   });
 });
 

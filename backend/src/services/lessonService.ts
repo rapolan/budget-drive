@@ -190,6 +190,37 @@ export const getMostRecentLessonForStudent = async (
   return keysToCamel(result.rows[0]) as Lesson;
 };
 
+// Small, single-purpose lookup for LessonDetailsPanel's "Last lesson" note -
+// deliberately a SEPARATE function from getMostRecentLessonForStudent
+// above (which powers "Book again" prefill and has no status filter or
+// exclusion - reusing it here would have surfaced the lesson currently
+// being viewed, or a future scheduled one, instead of a genuinely PAST
+// completed lesson's notes). Scoped by studentId, LIMIT 1, excludes the
+// lesson currently being viewed. Returns only the two fields the panel
+// actually displays (date, notes) rather than a full Lesson row.
+export const getLastCompletedLessonNoteForStudent = async (
+  tenantId: string,
+  studentId: string,
+  excludeLessonId: string
+): Promise<{ date: Date; notes: string | null } | null> => {
+  const result = await query(
+    `SELECT l.date, l.notes
+     FROM lessons l
+     JOIN enrollments e ON e.id = l.enrollment_id
+     WHERE l.tenant_id = $1 AND e.student_id = $2
+       AND l.status = 'completed' AND l.id != $3
+     ORDER BY l.date DESC, l.start_time DESC
+     LIMIT 1`,
+    [tenantId, studentId, excludeLessonId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return keysToCamel(result.rows[0]) as { date: Date; notes: string | null };
+};
+
 export const getLessonsByInstructor = async (
   tenantId: string,
   instructorId: string
