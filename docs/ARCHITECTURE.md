@@ -818,4 +818,32 @@ Two issues found during review of §33's implementation, both confirmed by measu
 
 ---
 
+## 35. Lesson-Edit-Redesign, Group C: `LessonDetailsPanel` Replaces `LessonModal`
+
+Final group of the lesson-edit-redesign. `LessonModal.tsx` and its test file are **removed entirely**, replaced by a new `LessonDetailsPanel.tsx` - not kept alongside it. §31 had already flagged `LessonModal`'s create path as unreachable from the UI (`Lessons.tsx`'s "Add Lesson" opens `SmartBookingForm`, not `LessonModal`) and confirmed every call site of `handleEdit`/`handleViewLessonFromWeekly` (the only two places that ever open it) always passes a real, non-null `lesson` - there was no live caller left that needed the create branch, so there was nothing worth preserving by keeping the file around.
+
+### What `LessonDetailsPanel` does
+
+Edit entry point for an **existing** lesson's non-schedule fields only: `lessonType`, `cost`, `pickupAddress`, `vehicleId`, `notes`, `lessonNumber`, plus the read-only `deDiscountApplied` auditability line ported verbatim from the old `LessonModal.tsx`. Student, instructor, date, and time are **read-only display**, never editable here - moving a lesson to a new time/instructor goes through the Reschedule button (added by Group B), which hands off to `SmartBookingForm`'s `existingLesson` mode entirely. `vehicleId` is the one editable field here that's still schedule-relevant per `lessonService.ts`'s `touchesSchedule` gate (changing it re-runs the full conflict check server-side) - the panel has no client-side pre-check for that, it just surfaces the server's rejection via the same `submitError`/`getConflictMessage` pattern every other field here already uses, same as how the Group A-era `LessonModal.tsx` handled its own server-side conflicts.
+
+Status transitions reuse `StatusMenu` unchanged (confirmed in §33's planning to be pure/presentational, no API calls of its own) as the trigger wrapping a small status badge; the panel wires it straight to `Lessons.tsx`'s already-existing `handleComplete`/`handleNoShow`/`handleCancel` handlers (passed down as props) rather than duplicating their `window.confirm`/toast/`invalidateAllLessonQueries` logic.
+
+### Student/instructor resolved by id, not the capped page-level list
+
+Following the exact same reasoning as §34's reschedule-student fix: `Lessons.tsx`'s own `studentsData`/`instructorsData` (used for its table) are capped (`getAll(1, 1000)`/`getAll()`), so a `.find()` lookup against them could silently resolve to nothing for a student/instructor outside that page on a large tenant. `LessonDetailsPanel` instead calls `studentsApi.getById(lesson.studentId)`/`instructorsApi.getById(lesson.instructorId)` directly, scoped to the one lesson being viewed - correct regardless of tenant size, and still cheaper than the capped lists it replaces (one row each, not up to 1000).
+
+### Data needs (confirms §33's planned sizing)
+
+Per edit-panel open: **1 student-by-id + 1 instructor-by-id + 1 vehicles-list request** - no students list, no instructors list, no lessons list of any kind. The lesson itself is already held by the caller (`Lessons.tsx`'s own table query), no separate fetch. A dedicated frontend test (`LessonDetailsPanel.test.tsx`) asserts exactly these three calls happen and nothing else.
+
+### Where this lives in the UI
+
+`Lessons.tsx`'s existing `handleEdit`/`isModalOpen`/`selectedLesson` wiring now renders `LessonDetailsPanel` instead of `LessonModal` - `isModalOpen && selectedLesson` (the `selectedLesson` guard matters now that there's no create branch to fall back to). The panel's Reschedule button calls `onReschedule`, which closes the details panel and opens the existing Group B reschedule flow (`handleReschedule`) - `canReschedule` is `isRescheduleEligible(selectedLesson)`, the same tenant-time eligibility check the table-row Reschedule buttons already use, so the details panel and the table rows can never disagree about whether a given lesson is reschedulable.
+
+### Tests and live verification
+
+`LessonDetailsPanel.test.tsx` (new): confirms the exact request scope above; confirms no `studentId`/`instructorId`/`date`/`startTime`/`endTime`/`duration` select or input renders anywhere, while `lessonType`/`vehicleId`/`cost`/`pickupAddress`/`notes` do; confirms the submit payload contains only the details-only fields (confirmed to fail with the exact expected symptom - a stray `studentId` in the payload - when temporarily reverted); confirms the Reschedule button's presence is driven by the `canReschedule` prop and calls `onReschedule` with the full lesson object; confirms `StatusMenu` wiring calls `onComplete`/`onNoShow`/`onCancel` with the lesson id, and that the status trigger is disabled for a non-`scheduled` lesson. Live-verified against the real running app in both themes (`frontend/e2e-screenshots/lesson-details-panel.spec.ts`) - screenshots confirm the student/instructor resolve to real names, the read-only schedule summary and status badge render correctly, and no `studentId` `<select>` exists anywhere (the structural check this spec asserts). Separately confirmed live with a genuinely future lesson that the Reschedule button appears, and that clicking it correctly opens `SmartBookingForm` with the student locked and the instructor/pickup/duration pre-filled from the lesson being rescheduled - the full Group B + Group C integration working together, not just each piece in isolation.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

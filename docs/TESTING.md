@@ -696,6 +696,19 @@ Delete the throwaway lesson afterward if you inserted one for this run.
 
 **Pass looks like:** the test passes, meaning: a "Reschedule lesson" button was found and clicked, the student was shown locked (no "Change" button — proves `existingLesson` mode, not a blank new booking), a real `findRankedAvailableSlots` search ran and returned results, picking a slot and confirming closed the modal immediately (no "Book Another" offered), and a screenshot was saved to `e2e-screenshots/__screenshots__/lesson-reschedule-after-live.png`. Separately confirm directly against Postgres that the lesson count is unchanged and the SAME `lessons.id` now carries the new date/time — the test's own `console.log` output shows the row's before-state and the slot picked, but doesn't itself assert against the database.
 
+### 2.57 Lesson details panel (screenshot script, manual, on-demand)
+
+Not part of the automated suite or CI — a Playwright screenshot of `LessonDetailsPanel` (`docs/ARCHITECTURE.md` §35, the component that replaced `LessonModal`), both light and dark theme.
+
+**Do:**
+```bash
+cd frontend
+npx playwright test lesson-details-panel.spec.ts --config=playwright.config.ts
+```
+Requires both dev servers already running (backend on `:4000`, frontend on `:5173` — see §1) with at least one scheduled lesson in the Lessons table to click Edit on.
+
+**Pass looks like:** both light and dark runs pass. The script asserts no `<select name="studentId">` exists anywhere in the panel (a structural guard that this is genuinely the new details panel, not the old flat `LessonModal` form) and saves `e2e-screenshots/__screenshots__/lesson-details-panel-{light,dark}.png`. Open the screenshots and confirm the student/instructor names resolve correctly (not blank or "Loading..."), the read-only schedule summary and status badge render, and the editable fields are limited to lesson type, vehicle, cost, pickup address, and notes — no date/time/student/instructor inputs.
+
 ---
 
 ## 3. Known issues to route around

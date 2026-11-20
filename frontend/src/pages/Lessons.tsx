@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Plus, Search, Edit, X, CheckCircle, Calendar, RefreshCw, CalendarDays, MapPin, CalendarRange, Clock, TrendingUp, AlertCircle, Keyboard, LayoutGrid, LayoutList } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, schedulingApi } from '@/api';
 import type { Lesson, Instructor } from '@/types';
-import { LessonModal, LessonsCalendarView, TodaysScheduleWidget, StatusMenu } from '@/components/lessons';
+import { LessonDetailsPanel, LessonsCalendarView, TodaysScheduleWidget, StatusMenu } from '@/components/lessons';
 import type { LessonsCalendarViewRef } from '@/components/lessons';
 import { SmartBookingForm } from '@/components/scheduling/SmartBookingForm';
 import { InstructorWeeklySchedule } from '@/components/scheduling/InstructorWeeklySchedule';
@@ -1558,14 +1558,26 @@ export const LessonsPage: React.FC = () => {
         </div>
       )}
 
-      {/* LessonModal - for quick edits */}
-      {isModalOpen && (
-        <LessonModal
+      {/* LessonDetailsPanel - edit a lesson's non-schedule fields (notes,
+          cost, pickup, vehicle) and status; Reschedule hands off to
+          SmartBookingForm's existingLesson mode for anything schedule-
+          related instead of being editable here. */}
+      {isModalOpen && selectedLesson && (
+        <LessonDetailsPanel
           lesson={selectedLesson}
           onClose={() => {
             setIsModalOpen(false);
             setSelectedLesson(null);
           }}
+          canReschedule={isRescheduleEligible(selectedLesson)}
+          onReschedule={(lesson) => {
+            setIsModalOpen(false);
+            setSelectedLesson(null);
+            handleReschedule(lesson);
+          }}
+          onComplete={(id) => handleComplete(id)}
+          onNoShow={(id) => handleNoShow(id)}
+          onCancel={(id) => handleCancel(id)}
         />
       )}
 
