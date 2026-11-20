@@ -17,7 +17,10 @@ import { test, type Page } from '@playwright/test';
  *     date so canReschedule is true (shows the full action row).
  *   - Benjamin Hayes - a COMPLETED lesson with notes (shows the read-only
  *     summary + "Last lesson" block from an earlier completed lesson for
- *     the same student/enrollment).
+ *     the same student/enrollment - this student needs a SECOND, earlier
+ *     completed lesson with its own notes for the "Last lesson" block to
+ *     have something to show; created via POST /lessons + POST
+ *     /lessons/:id/complete, not seeded in migrations).
  *   - Olivia Martin - a CANCELLED lesson (shows "Book Again").
  */
 
@@ -57,9 +60,21 @@ for (const theme of ['light', 'dark'] as const) {
       await searchBox.fill(studentName);
       await page.waitForTimeout(400);
 
-      const editButton = page.getByRole('button', { name: /edit lesson/i }).first();
-      await editButton.waitFor({ state: 'visible' });
-      await editButton.click();
+      // Scheduled rows open via "Edit lesson"; completed/no_show rows via
+      // the "View lesson" discoverability-fix button added this session;
+      // cancelled rows have no dedicated open button at all (only "Book
+      // again"), but the row/card's own onClick already opens the panel
+      // for any status - click the row itself for that case.
+      let openTrigger = status === 'scheduled'
+        ? page.getByRole('button', { name: /edit lesson/i }).first()
+        : page.getByRole('button', { name: /view lesson/i }).first();
+
+      if (status === 'cancelled') {
+        openTrigger = page.locator('tr', { hasText: studentName }).first();
+      }
+
+      await openTrigger.waitFor({ state: 'visible' });
+      await openTrigger.click();
       await page.waitForTimeout(800);
 
       const card = page.locator('.overflow-y-auto.rounded-3xl').first();
