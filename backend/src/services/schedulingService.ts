@@ -59,7 +59,7 @@ const formatDate = (date: Date, timezone: string): string =>
 export const findAvailableSlots = async (
   request: AvailabilityRequest
 ): Promise<TimeSlot[]> => {
-  const { tenantId, instructorId, vehicleId, startDate, endDate, studentId } = request;
+  const { tenantId, instructorId, vehicleId, startDate, endDate, studentId, excludeLessonId } = request;
 
   // Coerced once, here, rather than at every downstream use - duration is a
   // number in the type system but Postgres numeric columns (and any caller
@@ -137,14 +137,19 @@ export const findAvailableSlots = async (
   }
 
   // Query 3: lessons for ALL candidate instructors in the date range (used
-  // for the Instructor dimension's overlap exclusion).
+  // for the Instructor dimension's overlap exclusion). excludeLessonId
+  // (rescheduling an existing lesson) drops that lesson's own row here -
+  // otherwise its current slot shows as already-occupied by itself.
   const lessonsResult = await query(
     `SELECT instructor_id, date, start_time, end_time
      FROM lessons
      WHERE instructor_id = ANY($1) AND tenant_id = $2
      AND date >= $3 AND date <= $4
-     AND status NOT IN ('cancelled', 'no_show')`,
-    [instructorsToCheck, tenantId, startDateStr, endDateStr]
+     AND status NOT IN ('cancelled', 'no_show')
+     ${excludeLessonId ? 'AND id != $5' : ''}`,
+    excludeLessonId
+      ? [instructorsToCheck, tenantId, startDateStr, endDateStr, excludeLessonId]
+      : [instructorsToCheck, tenantId, startDateStr, endDateStr]
   );
   const lessonsByInstructorDate = new Map<string, any[]>();
   for (const row of lessonsResult.rows) {
@@ -169,14 +174,25 @@ export const findAvailableSlots = async (
   // indistinguishable from the old direct-column filter (both ~0.15-0.2ms).
   const studentLessonsByDate = new Map<string, any[]>();
   if (studentId) {
+    // excludeLessonId matters MOST here, not just for overlap: without it,
+    // rescheduling a lesson for a student already at
+    // maxLessonsPerStudentPerDay (default 1) skips their ENTIRE day below
+    // (studentLessonsToday.length >= maxLessonsPerStudentPerDay), since the
+    // lesson being rescheduled still counts as "already has a lesson that
+    // day" - confirmed live: searching with the lesson's own studentId
+    // returned 0 slots for a day with real capacity, a different studentId
+    // for the identical instructor/day/duration returned 2.
     const studentLessonsResult = await query(
       `SELECT date, start_time, end_time
        FROM lessons
        WHERE enrollment_id IN (SELECT id FROM enrollments WHERE student_id = $1 AND tenant_id = $2)
        AND tenant_id = $2
        AND date >= $3 AND date <= $4
-       AND status NOT IN ('cancelled', 'no_show')`,
-      [studentId, tenantId, startDateStr, endDateStr]
+       AND status NOT IN ('cancelled', 'no_show')
+       ${excludeLessonId ? 'AND id != $5' : ''}`,
+      excludeLessonId
+        ? [studentId, tenantId, startDateStr, endDateStr, excludeLessonId]
+        : [studentId, tenantId, startDateStr, endDateStr]
     );
     for (const row of studentLessonsResult.rows) {
       // Same DATE-column reasoning as the instructor lessons map above.
@@ -713,7 +729,7 @@ export const MAX_DATE_RANGE_DAYS = 180;
 export const findRankedAvailableSlots = async (
   request: RankedAvailabilityRequest
 ): Promise<RankedAvailabilityResult> => {
-  const { tenantId, studentId, pickupZip, duration, startDate: requestedStart, endDate: requestedEnd, timePreference, instructorId } = request;
+  const { tenantId, studentId, pickupZip, duration, startDate: requestedStart, endDate: requestedEnd, timePreference, instructorId, excludeLessonId } = request;
 
   const timezone = await resolveTimezone(tenantId);
 
@@ -775,13 +791,19 @@ export const findRankedAvailableSlots = async (
 
   // Lessons for all candidate instructors in the search window, used to work
   // out each instructor's "coming from" location for a given slot.
+  // excludeLessonId drops the lesson being rescheduled from this too - its
+  // own current slot shouldn't be used to compute where the instructor is
+  // "coming from" for its own replacement slot.
   const lessonsResult = await query(
     `SELECT instructor_id, date, start_time, end_time, pickup_address
      FROM lessons
      WHERE instructor_id = ANY($1) AND tenant_id = $2
      AND date >= $3 AND date <= $4
-     AND status NOT IN ('cancelled', 'no_show')`,
-    [candidateIds, tenantId, startDateStr, endDateStr]
+     AND status NOT IN ('cancelled', 'no_show')
+     ${excludeLessonId ? 'AND id != $5' : ''}`,
+    excludeLessonId
+      ? [candidateIds, tenantId, startDateStr, endDateStr, excludeLessonId]
+      : [candidateIds, tenantId, startDateStr, endDateStr]
   );
   const lessonsByInstructorDate = new Map<string, any[]>();
   for (const row of lessonsResult.rows) {
@@ -866,6 +888,7 @@ export const findRankedAvailableSlots = async (
         duration,
         studentId,
         timezone,
+        excludeLessonId,
       });
 
       const filteredSlots = filterByTimePreference(slots);

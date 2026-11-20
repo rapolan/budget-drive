@@ -16,7 +16,11 @@ vi.mock('@/api', async () => {
   return {
     ...actual,
     lessonsApi: { ...actual.lessonsApi, getAll: vi.fn() },
-    studentsApi: { ...actual.studentsApi, getAll: vi.fn().mockResolvedValue({ data: [] }) },
+    studentsApi: {
+      ...actual.studentsApi,
+      getAll: vi.fn().mockResolvedValue({ data: [] }),
+      getById: vi.fn(),
+    },
     instructorsApi: { ...actual.instructorsApi, getAll: vi.fn().mockResolvedValue({ data: [] }) },
     schedulingApi: { ...actual.schedulingApi, getAllInstructorsAvailability: vi.fn().mockResolvedValue({ data: [] }) },
   };
@@ -252,6 +256,49 @@ describe('Lessons - hostile clock (tenant America/Los_Angeles, browser America/N
         expect(screen.getAllByRole('row').length).toBeGreaterThan(1);
       });
       expect(screen.queryByLabelText('Reschedule lesson')).not.toBeInTheDocument();
+    });
+  });
+
+  // Regression: Lessons.tsx used to resolve the reschedule flow's locked
+  // student via `studentsData?.data?.find(...)` against the SAME capped
+  // studentsApi.getAll(1, 1000) fetch the page uses for its own table -
+  // only ever the first 1000 students. On a tenant with more students than
+  // that, a student outside that page resolved to undefined, silently
+  // opening SmartBookingForm with NO student locked (a free-text picker)
+  // instead of the intended existingLesson reschedule mode. Fixed with a
+  // dedicated studentsApi.getById(lesson.studentId) fetch, scoped to the
+  // lesson being rescheduled - this suite's own studentsApi.getAll mock
+  // already simulates "not in the loaded list" (it always resolves to an
+  // empty array), so these tests exercise the fix directly.
+  describe('Reschedule resolves the locked student by id, not from the paginated students list', () => {
+    it('opens with the student locked even though studentsApi.getAll never returned that student', async () => {
+      const user = userEvent.setup();
+      (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [lesson({
+          id: 'future-lesson',
+          studentId: 'student-not-on-page-1',
+          status: 'scheduled',
+          date: TENANT_NOW.tomorrow as unknown as Date,
+        })],
+        pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+      });
+      (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { id: 'student-not-on-page-1', tenantId: 'tenant-1', fullName: 'Student Beyond Page One', email: 'beyond@example.com' },
+      });
+
+      renderLessons();
+
+      const rescheduleButton = await screen.findByLabelText('Reschedule lesson');
+      await user.click(rescheduleButton);
+
+      // The locked student card (no search box, no "Change" button) shows
+      // the real student's name - proving existingLesson mode actually
+      // locked the right student, not an empty/undefined one.
+      await waitFor(() => {
+        expect(screen.getByText('Student Beyond Page One')).toBeInTheDocument();
+      });
+      expect(screen.queryByPlaceholderText(/search by name or email/i)).not.toBeInTheDocument();
+      expect((studentsApi.getById as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('student-not-on-page-1');
     });
   });
 });

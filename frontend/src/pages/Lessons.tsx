@@ -186,6 +186,17 @@ export const LessonsPage: React.FC = () => {
     queryFn: () => instructorsApi.getAll(),
   });
 
+  // Scoped by-id fetch for the student being rescheduled - studentsData
+  // above is capped at 1000 rows (page 1 only), so a
+  // `studentsData?.data?.find(...)` lookup silently resolves to undefined
+  // for any student outside that page on a tenant with more students than
+  // that. Fetching this one student directly by id, keyed off the lesson
+  // being rescheduled, is correct regardless of tenant size.
+  const { data: reschedulingStudentData } = useQuery({
+    queryKey: ['students', 'by-id', reschedulingLesson?.studentId],
+    queryFn: () => studentsApi.getById(reschedulingLesson!.studentId),
+    enabled: !!reschedulingLesson,
+  });
 
   // Fetch availability data for calendar view
   const { data: availabilityData } = useQuery({
@@ -1570,7 +1581,7 @@ export const LessonsPage: React.FC = () => {
             }
             preselectedStudent={
               reschedulingLesson
-                ? studentsData?.data?.find(s => s.id === reschedulingLesson.studentId)
+                ? reschedulingStudentData?.data
                 : preselectedStudentId
                 ? studentsData?.data?.find(s => s.id === preselectedStudentId)
                 : undefined
