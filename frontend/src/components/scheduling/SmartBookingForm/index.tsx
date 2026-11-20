@@ -17,9 +17,14 @@ import { SuccessStep } from './SuccessStep';
 
 interface SmartBookingFormProps {
   preselectedStudent?: Student;
-  // Locks the instructor as a read-only display card (Reschedule flow) -
-  // distinct from prefilledInstructorId below, which seeds a SELECTABLE
-  // choice ("Book again"). The two are never both passed by the same caller.
+  // Locks the instructor as a read-only display card. Historically also
+  // doubled as "the Reschedule flow," but Reschedule now has its own
+  // explicit existingLesson prop below - preselectedInstructor on its own
+  // (no existingLesson) is only reachable today via
+  // handleAvailabilityClick/handleWeeklyBookSlot (clicking an open slot on
+  // the calendar/weekly view to book a NEW lesson there), which also
+  // always sets preselectedDate/preselectedTime and triggers
+  // canSkipToConfirm.
   preselectedInstructor?: Instructor;
   preselectedDate?: Date;
   preselectedTime?: { start: string; end: string };
@@ -31,6 +36,18 @@ interface SmartBookingFormProps {
   prefilledLessonType?: LessonType;
   prefilledTimePreference?: TimePreference;
   prefilledPickupAddress?: string;
+  // Presence of this prop IS reschedule mode: the student is locked (same
+  // treatment preselectedStudent already gives for free - see SetupStep,
+  // no component change needed there), the instructor seeds the
+  // free-choice selector via prefilledInstructorId (never locked - the
+  // whole point of rescheduling is finding a possibly-different slot),
+  // confirm calls lessonsApi.update(existingLesson.id, ...) instead of
+  // lessonsApi.create(...), and excludeLessonId is threaded into the
+  // confirm-time validation so the lesson never spuriously conflicts with
+  // its own current slot. Never combined with preselectedInstructor/
+  // preselectedDate/preselectedTime/canSkipToConfirm - rescheduling always
+  // runs a fresh search, it never jumps straight to Confirm.
+  existingLesson?: Lesson;
   onBookingComplete?: (lessonId: string) => void;
   onCancel?: () => void;
 }
@@ -57,9 +74,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   prefilledLessonType,
   prefilledTimePreference,
   prefilledPickupAddress,
+  existingLesson,
   onBookingComplete,
   onCancel,
 }) => {
+  const isReschedule = Boolean(existingLesson);
   const canSkipToConfirm = Boolean(
     preselectedStudent && preselectedInstructor && preselectedDate && preselectedTime
   );
@@ -139,17 +158,24 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
 
   const queryClient = useQueryClient();
 
-  // Fetch data
+  // Fetch data. Skipped entirely when a student is already preselected
+  // (Reschedule, or any other preselectedStudent caller - Dashboard.tsx,
+  // Students.tsx's "book again") - the search/dropdown UI this fetch feeds
+  // never renders in that case, so a 100-row fetch on every such modal
+  // open was pure waste. Found during the lesson-edit-redesign work.
   const { data: studentsData } = useQuery({
     queryKey: ['students', 'booking'],
     queryFn: () => studentsApi.getAll(1, 100),
+    enabled: !preselectedStudent,
   });
 
   const students = studentsData?.data || [];
 
-  // Only needed for "Book again"'s free-choice instructor selector, which
-  // only renders when there's no LOCKED preselectedInstructor (Reschedule)
-  // - skip the fetch entirely for every other entry point.
+  // Only needed for the free-choice instructor selector - "Book again"
+  // (prefilledInstructorId, no lock) or Reschedule (same prefill
+  // mechanism, via existingLesson below) - never for a LOCKED
+  // preselectedInstructor (calendar/weekly-view slot booking), which skips
+  // the fetch entirely since it renders a read-only card instead.
   const showInstructorSelector = !preselectedInstructor && prefilledInstructorId !== undefined;
   const { data: instructorsData } = useQuery({
     queryKey: ['instructors', 'booking'],
@@ -189,7 +215,11 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   });
   const studentLessons = studentLessonsData?.data || [];
 
-  const selectedStudent = students.find((s: Student) => s.id === selectedStudentId);
+  // students is empty whenever preselectedStudent is set (its fetch is
+  // disabled above, since the search/dropdown it feeds never renders in
+  // that case) - fall back to preselectedStudent directly so this doesn't
+  // silently resolve to undefined for every preselected-student caller.
+  const selectedStudent = preselectedStudent ?? students.find((s: Student) => s.id === selectedStudentId);
 
   // Auto-fill pickup address when student is selected. "Book again"'s
   // prefilledPickupAddress (the most recent lesson's actual pickup
@@ -310,7 +340,15 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   };
 
   const confirmBookingMutation = useMutation({
-    mutationFn: (lessonData: CreateLessonInput) => lessonsApi.create(lessonData),
+    // Reschedule mode calls update(), never create() - PUT /lessons/:id
+    // always excludes the lesson being updated from its own conflict
+    // check server-side (lessonService.ts's updateLesson passes `id` as
+    // excludeLessonId automatically), so no client-side exclusion param is
+    // needed here.
+    mutationFn: (lessonData: CreateLessonInput | Partial<CreateLessonInput>) =>
+      isReschedule
+        ? lessonsApi.update(existingLesson!.id, lessonData)
+        : lessonsApi.create(lessonData as CreateLessonInput),
     onSuccess: () => {
       // Match Lessons.tsx's invalidateAllLessonQueries: catches the Weekly
       // view's 'instructor-lessons'-keyed queries too, not just 'lessons'.
@@ -338,11 +376,16 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     // timezone offset, not the tenant's - see docs/ARCHITECTURE.md §7).
     // Sent as separate date/startTime/endTime fields (matching what
     // lessonService.ts's else branch already parses with zero timezone
-    // conversion) instead of hand-composing a timezone-naive datetime string.
-    const lessonData: CreateLessonInput = {
-      studentId: selectedStudentId,
+    // conversion) instead of hand-composing a timezone-naive datetime string -
+    // this is the SAME field shape updateLesson reads on the reschedule
+    // path below, unlike LessonModal.tsx's old create path, which sent a
+    // scheduledStart/scheduledEnd shape updateLesson has no conversion for
+    // at all (a real, already-fixed-once production bug - see
+    // docs/ARCHITECTURE.md §30). Getting this shape right on both branches
+    // is the single highest-risk detail of reschedule mode.
+    const scheduleFields = {
       instructorId: selectedSlot.instructorId,
-      vehicleId: null,
+      vehicleId: selectedSlot.vehicleId,
       date: selectedSlot.date,
       startTime: `${selectedSlot.startTimeLocal}:00`,
       endTime: `${selectedSlot.endTimeLocal}:00`,
@@ -354,14 +397,27 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       lessonNumber: lessonNumber || null,
     };
 
+    // Reschedule never sends studentId at all - the student is locked/
+    // fixed, and updateLesson treats studentId's mere PRESENCE (even when
+    // unchanged) as a potential reassignment, running its own
+    // enrollment-resolution branch for no reason. Omitting the key
+    // entirely is simplest and safest. Create always needs studentId
+    // (CreateLessonInput requires it); vehicleId is auto-assigned
+    // server-side on create if left null, matching create's existing
+    // behavior - the slot's own vehicleId is only meaningful on reschedule,
+    // where it reflects what the search actually found available.
+    const lessonData: CreateLessonInput | Partial<CreateLessonInput> = isReschedule
+      ? scheduleFields
+      : { ...scheduleFields, studentId: selectedStudentId, vehicleId: null };
+
     try {
       const lesson = await confirmBookingMutation.mutateAsync(lessonData);
       const bookedLessonId = lesson.data?.id || '';
-      if (canSkipToConfirm) {
-        // Reschedule flow: student/instructor/date/time were all locked in
-        // by the caller - there's no meaningful "book another" here, so
-        // preserve today's exact behavior (fire immediately, let the
-        // parent close the wizard).
+      if (isReschedule || canSkipToConfirm) {
+        // Reschedule, or the locked calendar/weekly-view slot-click flow
+        // (canSkipToConfirm) - both are "exactly one lesson, done in one
+        // shot," with no meaningful "book another" here, so fire
+        // immediately and let the parent close the wizard.
         onBookingComplete?.(bookedLessonId);
       } else {
         // Normal search-driven flow (including "Book again") - offer
@@ -371,7 +427,8 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       }
     } catch (err: any) {
       const conflictType = err.response?.data?.conflictType;
-      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create lesson';
+      const fallbackMsg = isReschedule ? 'Failed to reschedule lesson' : 'Failed to create lesson';
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || fallbackMsg;
 
       if (RACE_CONDITION_CONFLICT_TYPES.has(conflictType)) {
         // Another booking landed between search and confirm - the slot we
@@ -387,7 +444,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       } else {
         setError(getConflictMessage(conflictType, errorMsg));
       }
-      console.error('Error creating lesson:', err);
+      console.error(isReschedule ? 'Error rescheduling lesson:' : 'Error creating lesson:', err);
     }
   };
 

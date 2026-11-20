@@ -4,7 +4,7 @@ import { render, screen, waitFor, within, cleanup } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SmartBookingForm } from '../index';
-import type { Student, Instructor, RankedTimeSlot } from '@/types';
+import type { Student, Instructor, RankedTimeSlot, Lesson } from '@/types';
 
 // This file previously had no afterEach(cleanup), so DOM from earlier
 // tests in the same file could remain mounted for later ones (harmless for
@@ -16,6 +16,7 @@ afterEach(cleanup);
 const findRankedAvailableSlots = vi.fn();
 const getDatePresets = vi.fn();
 const createLesson = vi.fn();
+const updateLesson = vi.fn();
 const getAllStudents = vi.fn();
 const getByStudent = vi.fn();
 const getAllInstructors = vi.fn();
@@ -27,6 +28,7 @@ vi.mock('@/api', () => ({
   },
   lessonsApi: {
     create: (...args: unknown[]) => createLesson(...args),
+    update: (...args: unknown[]) => updateLesson(...args),
     getByStudent: (...args: unknown[]) => getByStudent(...args),
   },
   studentsApi: {
@@ -86,6 +88,28 @@ const SLOT: RankedTimeSlot = {
   outsideServiceArea: false,
 };
 
+const EXISTING_LESSON: Lesson = {
+  id: 'lesson-to-reschedule',
+  tenantId: 'tenant-1',
+  studentId: 'student-1',
+  enrollmentId: 'enrollment-1',
+  instructorId: 'instructor-1',
+  vehicleId: 'vehicle-1',
+  date: new Date('2026-07-20T00:00:00'),
+  startTime: '09:00:00',
+  endTime: '10:30:00',
+  duration: 90,
+  lessonNumber: 3,
+  lessonType: 'classroom',
+  status: 'scheduled',
+  cost: 75,
+  pickupAddress: '789 Original Pickup Rd, 90008',
+  notes: '',
+  completionVerified: false,
+  createdAt: new Date('2026-07-01'),
+  updatedAt: new Date('2026-07-01'),
+} as Lesson;
+
 function renderForm(props: Partial<React.ComponentProps<typeof SmartBookingForm>> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -133,6 +157,7 @@ beforeEach(() => {
   findRankedAvailableSlots.mockReset();
   getDatePresets.mockReset();
   createLesson.mockReset();
+  updateLesson.mockReset();
   getAllStudents.mockReset();
   getByStudent.mockReset();
   getAllInstructors.mockReset();
@@ -396,7 +421,7 @@ describe('SmartBookingForm - "Book again" prefill mode', () => {
     expect(typeof callArgs.duration).toBe('number');
   });
 
-  it('does not render the free-choice instructor selector for the Reschedule flow (locked preselectedInstructor)', async () => {
+  it('does not render the free-choice instructor selector when preselectedInstructor is locked', async () => {
     renderForm({ preselectedStudent: STUDENT, preselectedInstructor: INSTRUCTOR });
 
     // The locked display card renders (already covered by the
@@ -407,11 +432,103 @@ describe('SmartBookingForm - "Book again" prefill mode', () => {
   });
 });
 
-// Reschedule flow regression guard: when student+instructor+date+time are
-// ALL preselected (canSkipToConfirm), there's no meaningful "book another"
-// - onBookingComplete must still fire immediately on confirm, exactly as
-// it did before the success step existed.
-describe('SmartBookingForm - Reschedule flow (canSkipToConfirm) skips the success step', () => {
+// existingLesson reschedule mode: presence of the prop locks the student
+// (same free lock preselectedStudent already gives - no SetupStep change
+// needed, confirmed by reading it directly), seeds the instructor/duration/
+// type/pickup-address fields via the same prefilled* mechanism "Book
+// again" already uses (a real, changeable selection, never locked), always
+// runs a fresh search rather than skipping to confirm, and calls
+// lessonsApi.update(existingLesson.id, ...) on confirm instead of create().
+describe('SmartBookingForm - existingLesson reschedule mode', () => {
+  it('locks the student, seeds instructor/duration/type/pickup-address as changeable prefills, and never skips to confirm', async () => {
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: EXISTING_LESSON.instructorId,
+      prefilledDuration: Number(EXISTING_LESSON.duration),
+      prefilledLessonType: EXISTING_LESSON.lessonType,
+      prefilledPickupAddress: EXISTING_LESSON.pickupAddress ?? undefined,
+      existingLesson: EXISTING_LESSON,
+    });
+
+    // Student locked (read-only card, no "Change" button) - not skipped to confirm.
+    expect(await screen.findByText('Aisha Williams')).toBeInTheDocument();
+    expect(screen.queryByText('Booking Summary')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^change$/i })).not.toBeInTheDocument();
+
+    // Instructor is a real, changeable <select>, pre-populated from the
+    // existing lesson - never the locked display card.
+    const instructorSelect = await screen.findByLabelText(/instructor/i) as HTMLSelectElement;
+    expect(instructorSelect.tagName).toBe('SELECT');
+    expect(instructorSelect.value).toBe(EXISTING_LESSON.instructorId);
+
+    const durationSelect = await screen.findByTitle('Select lesson duration') as HTMLSelectElement;
+    expect(durationSelect.value).toBe('90');
+
+    expect(findRankedAvailableSlots).not.toHaveBeenCalled();
+  });
+
+  it('calls lessonsApi.update with plain date/startTime/endTime/duration (never scheduledStart/scheduledEnd) and never sends studentId', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+    updateLesson.mockResolvedValue({ data: { id: EXISTING_LESSON.id } });
+
+    const { onBookingComplete } = renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: EXISTING_LESSON.instructorId,
+      prefilledDuration: Number(EXISTING_LESSON.duration),
+      prefilledLessonType: EXISTING_LESSON.lessonType,
+      prefilledPickupAddress: EXISTING_LESSON.pickupAddress ?? undefined,
+      existingLesson: EXISTING_LESSON,
+    });
+
+    // "Find Available Instructors" (not "Find Available Times") - the
+    // instructor is a free-choice prefill in reschedule mode, never a
+    // locked preselectedInstructor, same label logic as "Book again".
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    // Expand the instructor group, then pick the slot.
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm booking/i });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(updateLesson).toHaveBeenCalledTimes(1));
+    expect(createLesson).not.toHaveBeenCalled();
+
+    const [calledId, payload] = updateLesson.mock.calls[0];
+    expect(calledId).toBe(EXISTING_LESSON.id);
+    // This is the single highest-risk detail of reschedule mode - the
+    // exact payload-shape bug already happened once in LessonModal.tsx's
+    // edit path (see docs/ARCHITECTURE.md §30).
+    expect(payload).toMatchObject({
+      date: SLOT.date,
+      startTime: `${SLOT.startTimeLocal}:00`,
+      endTime: `${SLOT.endTimeLocal}:00`,
+    });
+    expect(payload).not.toHaveProperty('scheduledStart');
+    expect(payload).not.toHaveProperty('scheduledEnd');
+    expect(payload).not.toHaveProperty('studentId');
+
+    // Fires onBookingComplete immediately - no "book another" for a
+    // reschedule, same as the locked slot-click flow above.
+    await waitFor(() => expect(onBookingComplete).toHaveBeenCalledWith(EXISTING_LESSON.id));
+    expect(screen.queryByText('Lesson Booked!')).not.toBeInTheDocument();
+  });
+});
+
+// Locked-slot-click flow regression guard (calendar/weekly-view "click an
+// open slot to book it" - handleAvailabilityClick/handleWeeklyBookSlot in
+// Lessons.tsx, NOT the existingLesson reschedule-an-existing-lesson mode
+// above, despite this describe block's name predating that feature): when
+// student+instructor+date+time are ALL preselected (canSkipToConfirm),
+// there's no meaningful "book another" - onBookingComplete must still fire
+// immediately on confirm, exactly as it did before the success step existed.
+describe('SmartBookingForm - locked slot-click flow (canSkipToConfirm) skips the success step', () => {
   it('calls onBookingComplete immediately on confirm, without showing the success step', async () => {
     const user = userEvent.setup();
     createLesson.mockResolvedValue({ data: { id: 'lesson-reschedule-1' } });
