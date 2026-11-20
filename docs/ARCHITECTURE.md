@@ -713,4 +713,85 @@ Live Playwright screenshots (`frontend/e2e-screenshots/lesson-edit-performance-b
 
 ---
 
+## 32. Lesson-Edit-Redesign Follow-Up: Measuring the REAL Cause of Remaining Scroll Jank (the Fixed Overlay's Blur)
+
+§31's fix removed `backdrop-blur-3xl`/`backdrop-blur-xl` from the lesson-edit modal's scrolling panel and sticky header. After merge, a user report said scrolling was **still** slow. Per explicit instruction, this was investigated by measurement - a real Chrome DevTools Protocol performance trace against a large seeded tenant - not by re-reading the code and guessing.
+
+### Method
+
+A throwaway seed added 300 students (each with an active `driver_training` enrollment) and 2,000 lessons, spread across ~300 distinct dates and the two existing instructors/three vehicles, to the primary dev tenant (tagged `notes = 'PERFSEED'` for identification; removed after the investigation - see Cleanup below). A new Playwright spec (`frontend/e2e-screenshots/lesson-edit-scroll-trace.spec.ts`, not committed as a permanent CI test - a one-off measurement tool) opened a real Chromium page, started a `Tracing.start`/`Tracing.end` CDP session per scenario, drove a scripted mouse-wheel scroll (20 steps) inside the element under test, and recorded both the raw trace events (for a Recalculate Style/Layout/Paint/Composite/Scripting breakdown) and client-side `requestAnimationFrame` deltas (for a frame-drop count independent of trace-event category-matching accuracy). Four scenarios were measured for comparison: the lesson-edit modal, the Lessons page behind it (modal closed, to isolate the page's own fetch/render cost), the Lessons page behind the **open** modal (to check for background polling), `StudentModal`, and `SmartBookingForm` - the last two specifically to answer "is this lesson-edit-specific, or shared across every modal using the same chrome."
+
+A fourth check used a minimal injected `window.__REACT_DEVTOOLS_GLOBAL_HOOK__` (counting `onCommitFiberRoot` calls) to rule out React re-renders during scroll as a contributor - result: **0 commits during a 20-step scroll**, so React re-rendering was never part of the problem.
+
+### Finding: the fixed overlay's `backdrop-blur-[2px]` - the one piece §31 assumed was cheap - is the actual cause, shared by every modal
+
+§31's own reasoning (now corrected) was: *"nothing scrolls behind a fixed, full-viewport overlay, so the browser blurs it once per modal-open, not per frame."* That assumption is wrong. A `backdrop-filter` element keeps a **live composited blur surface** for as long as it exists in the DOM - independent of whether the pixels behind it are visibly changing, the browser pays to re-raster and re-composite that surface on every frame it redraws, including a frame driven only by scrolling the modal's own content sitting on top of it. The trace data for the lesson-edit modal showed `Layerize` running 56 times and `RasterTask` 144 times across only ~9 actually-drawn frames in a 20-step scroll - a highly disproportionate amount of layer/raster work for a scroll whose own Style/Layout/Paint cost (combined) was under 7ms. 18 `DroppedFrame` events were recorded directly in the trace for that same scroll.
+
+Measured with `requestAnimationFrame` deltas, before vs. after removing `backdrop-blur-[2px]` from `ModalShell.tsx`'s fixed overlay (the only change in this pass - the §31 blur removals on the panel/header stayed as they were):
+
+| Flow | Before (avg / max / dropped of 20) | After |
+|---|---|---|
+| Lesson edit modal | 28.01ms / 68.60ms / 9 | **16.10ms / 18.70ms / 0** |
+| StudentModal | 26.44ms / 51.60ms / 11 | **16.55ms / 18.10ms / 0** |
+| SmartBookingForm | 22.18ms / 64.00ms / 4 | **16.05ms / 18.80ms / 0** |
+| Lessons page alone (no modal, for reference) | 16.55ms / 19.70ms / 0 | unchanged |
+
+Every modal measured converged to a clean ~16.1-16.5ms average frame time (the 60fps budget) and **zero dropped frames** with the single change. This confirms the jank was never lesson-edit-specific - it was the shared `ModalShell` overlay, and it got measurably worse as the seeded tenant's data (and therefore the page content sitting behind the blurred overlay) grew larger, which is exactly why it wasn't obvious on the small pre-seed dataset `main` ships with.
+
+The "Lessons page behind the OPEN modal" check found no evidence of background polling or re-render activity keeping the page busy while the modal sits open - ruling that out as a contributing factor.
+
+### Fix
+
+- **`frontend/src/components/common/ModalShell.tsx`**: removed `backdrop-blur-[2px]` from the fixed overlay entirely. The dim backdrop (`bg-black/40`) alone is kept for the same visual separation between the modal and the page behind it - confirmed by eye in both themes (screenshots below) that the modal still reads clearly as a distinct, elevated surface without the blur.
+- **`frontend/src/components/students/StudentModal.tsx`**: its own sticky header still carried `backdrop-blur-xl` (not fixed in §31, which only touched the lesson-edit/SmartBookingForm/ModalShell files) - fixed the same way as §31's other sticky headers (`bg-surface/95` instead of blur), since StudentModal was directly in the comparison set measured above and showed the identical defect pattern.
+- **Not touched in this pass** (same reasoning as §31): `CertificateView.tsx`, `GuardianModal.tsx`, and `DayDetailModal.tsx` still have their own inline `fixed inset-0 ... backdrop-blur-[2px]` overlay and/or sticky-header blur, outside this lesson-edit-focused task's scope. Given this pass's finding that the overlay blur specifically (not just sticky-header blur) is a real, measurable cost, these are flagged again here as stronger candidates for a future consistency pass than §31 realized at the time.
+
+### Verification
+
+`frontend/e2e-screenshots/lesson-edit-performance-blur.spec.ts` was extended to also assert the fixed overlay's computed `backdropFilter` is `none` (previously only checked the panel/sticky header) - confirmed to fail with the exact error `Modal overlay still has a backdrop-filter: blur(2px)` when the fix was temporarily reverted, confirming the test is a real regression guard. `ModalShell.test.tsx`'s assertion that the overlay carries `backdrop-blur-[2px]` was replaced with an assertion that it does **not**. Updated "after" screenshots (`lesson-edit-after-{light,dark}.png`) show the Lessons table behind the modal rendering sharp/legible instead of blurred, confirmed by eye in both themes.
+
+### Cleanup
+
+The 300-student/2,000-lesson `PERFSEED`-tagged dataset used for measurement was deleted from the primary dev tenant after the investigation - this section documents the method and findings, not a dataset left behind for future use. A future performance investigation on this app should re-seed similarly rather than assume this data still exists.
+
+---
+
+## 33. Lesson-Edit-Redesign, Group B: A Real In-Place Reschedule, and Correcting a Misread "Bug"
+
+Adds `existingLesson` reschedule mode to `SmartBookingForm` (student locked, instructor/duration/type/pickup-address seeded but freely changeable, a fresh availability search always runs, Confirm calls `lessonsApi.update` instead of `create`) and wires it to a genuinely new "Reschedule" affordance on scheduled, future lessons in `Lessons.tsx`. Along the way, an earlier planning pass's framing of the pre-existing cancelled-lesson "Reschedule" button as a "duplicate-booking bug" was found to be a misread, corrected before any code changed its behavior - see below.
+
+### The pre-existing "Reschedule" button was never a bug
+
+Both existing call sites of `Lessons.tsx`'s old `handleReschedule` render **only** when `lesson.status === 'cancelled'` - there was never a Reschedule affordance for a scheduled lesson at all. On a cancelled lesson, that button opens `SmartBookingForm` with the student preselected and calls `lessonsApi.create(...)` on submit, producing a brand-new lesson while the cancelled one stays a closed, cancelled record. A cancelled lesson already carries `reviewed_at`/`reviewed_by` (set by `cancelLesson`) and possibly a fee flag created against it - flipping its `status` back to `'scheduled'` via a plain field update (which `updateLesson`'s dynamic field builder technically allows, since it has no state-machine guard on `status`) would silently bypass all of that: no fee-flag reversal, no re-fired notification, no cleared review fields. Creating a fresh lesson instead - exactly what "Book Again" already does elsewhere in this app - is the correct, safe behavior, not a bug to fix.
+
+**Renamed, behavior unchanged**: both buttons (and `handleReschedule`, renamed to `handleBookAgainFromCancelled`) now read "Book Again," matching what they actually do, since a real Reschedule now exists elsewhere and the shared name was confusing. Terminal lesson statuses (`completed`, `cancelled`, `no_show`) stay immutable records; any correction to one is a new record, consistent with this app's append-only direction for completion/certificate records (`completion_hash`, `archive_hash` - single-column snapshots of a terminal state, not a change-history table - see below).
+
+### The new Reschedule: `existingLesson` mode
+
+`SmartBookingForm`'s new `existingLesson?: Lesson` prop - its presence IS reschedule mode:
+- **Student locked** via the existing `preselectedStudent` prop, resolved by the caller from `existingLesson.studentId` - confirmed by reading `SetupStep.tsx` directly that `preselectedStudent` alone already renders a locked, non-editable card with no "Change" button, independent of whether an instructor is also locked. No `SetupStep.tsx` change was needed.
+- **Instructor/duration/lessonType/pickupAddress seeded, never locked** - via the same `prefilledInstructorId`/`prefilledDuration`/`prefilledLessonType`/`prefilledPickupAddress` mechanism "Book again" already uses, passed by the caller from `existingLesson`'s own fields. The whole point of rescheduling is a fresh search that might land on a different instructor or time.
+- **Never skips to Confirm** - `canSkipToConfirm` stays false; a real `findRankedAvailableSlots` search always runs. `excludeLessonId` is NOT threaded through the search (left as the first draft's recommendation: the search is a well-tested, performance-sensitive shared path, and the only place a bad exclusion would cause real harm - the final confirm/update - is already safe).
+- **Confirm calls `lessonsApi.update(existingLesson.id, ...)`, never `create`** - `PUT /lessons/:id` already excludes the lesson being updated from its own conflict check server-side (`lessonService.ts`'s `updateLesson` passes `id` as `excludeLessonId` to `validateLessonBooking` unconditionally), so no client-side exclusion param is needed. The update payload uses the same plain `date`/`startTime`/`endTime`/`duration` field shape `updateLesson` already reads directly - never `scheduledStart`/`scheduledEnd` (the create path's shape), which is the exact payload-shape bug already fixed once in `LessonModal.tsx`'s edit path (§30). `studentId` is never sent on the update payload at all, since the student is fixed and `updateLesson` treats its mere presence as a potential reassignment.
+- **Success routes like the existing locked-slot-click flow** - `onBookingComplete` fires immediately (no "Book Another" offered), since `SuccessStep` is simply never reached when `isReschedule` is true - confirmed by reading the routing logic directly; no `SuccessStep.tsx` change was needed either.
+- **A real, pre-existing waste fixed along the way**: `SmartBookingForm`'s `studentsApi.getAll(1, 100)` query had no `enabled` gate at all, firing on every mount even when `preselectedStudent` already made its result unused (the search/dropdown UI it feeds never renders in that case). Fixed with `enabled: !preselectedStudent`, benefiting every `preselectedStudent` caller (Dashboard.tsx, Students.tsx's "Book again," and this new Reschedule flow), not just this one. A second latent bug surfaced by that fix: `selectedStudent` was derived only from the (now-sometimes-empty) `students` list, with no fallback to `preselectedStudent` - fixed to fall back directly, since `ConfirmStep`/`SuccessStep` both read `selectedStudent`.
+
+### `isRescheduleEligible`: scheduled AND still in the future, by tenant time
+
+`Lessons.tsx`'s `isRescheduleEligible(lesson)` gates the new Reschedule button: `lesson.status === 'scheduled'` AND the lesson's start is still after `tenantNow`'s current wall-clock time - never the browser's own clock (`docs/ARCHITECTURE.md` §7's rule). A scheduled lesson whose time has already passed (missed without being marked completed/no-show yet) is excluded - there's nothing meaningful to reschedule it *to* until its status is resolved one way or the other. Live-verified against the real dev database: every pre-existing seeded lesson in this tenant was dated September 2026, genuinely in the past relative to the real system date (November 2026) despite still carrying `status: 'scheduled'` - `isRescheduleEligible` correctly hid the Reschedule button for all of them, which was the correct behavior, not a bug, once traced back to the actual current date.
+
+### Live verification (real app, real Postgres)
+
+A throwaway future-dated lesson was inserted directly, then rescheduled end-to-end through the real running app (`frontend/e2e-screenshots/lesson-reschedule-live.spec.ts`, kept as a manual verification tool, not a CI test - mutates a real row, requires a genuinely future scheduled lesson to exist). Confirmed: the student stayed locked throughout, a real `findRankedAvailableSlots` search returned real results (grouped by instructor, expandable), picking a slot and confirming showed the toast "Lesson rescheduled - the lesson has been moved to its new time" (not the generic booking-success message), and the lesson's row in the Lessons table reflected the new date/time immediately. Confirmed directly against Postgres: the total lesson count was unchanged before and after (no duplicate row created) and the same `lessons.id` now carried the new `date`/`start_time`/`end_time` - a genuine in-place update. The throwaway lesson was deleted after verification.
+
+### Tests
+
+`SmartBookingForm.test.tsx`'s new `existingLesson reschedule mode` suite: confirms the student lock, the changeable instructor/duration prefill, that no search fires until the user clicks "Find," and - the single highest-risk assertion - that confirm calls `lessonsApi.update` with the plain-fields payload shape and never `scheduledStart`/`scheduledEnd` or `studentId`. Confirmed to fail with the exact expected symptom (falls through to `create`, never reaches `update`) when temporarily reverted. `Lessons.hostileClock.test.tsx`'s new eligibility suite exercises all four `isRescheduleEligible` branches (future day, later today, earlier today, cancelled, completed) under the suite's existing browser-vs-tenant timezone mismatch setup - confirmed to fail on the two time-sensitive cases when the function was temporarily swapped for a browser-clock-based check, proving the test actually exercises tenant-time correctness and not just the status check.
+
+### Follow-up, not built now: append-only lesson-reschedule history
+
+Per explicit instruction, this is documented as a future item, not implemented in this pass. Checked first how this app's existing hash/ledger columns work, since a reschedule-history table would be a related but DIFFERENT pattern: `enrollments.completion_hash` (and the identical pattern on `students`/certificates) is a single `sha256` digest over a JSON snapshot of key fields, computed once at a terminal event and stored as one mutable column on the row itself - there is no existing append-only "change history" table anywhere in this schema today. A genuine reschedule history (who, when, old and new schedule values, on every reschedule) would need a new table and a new write path inside `updateLesson`'s schedule-touching branch, intentionally out of scope here - flagged for a future task, not designed in this pass.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

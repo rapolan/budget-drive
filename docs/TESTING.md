@@ -657,9 +657,9 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Do not treat a slow/failed Google API call as a booking failure** — every booking, update, and status change must succeed immediately regardless of whether the Google sync behind it succeeds, is slow, or fails; that's the whole point of the fire-and-forget design. If a lesson action in the app itself ever waits on or fails because of Google, that's a regression to report, not expected behavior.
 
-### 2.54 Lesson edit modal: no blur on the scrolling panel, scoped requests only (screenshot script, manual, on-demand)
+### 2.54 Lesson edit modal: no blur anywhere in the modal chrome, scoped requests only (screenshot script, manual, on-demand)
 
-Not part of the automated suite or CI — a Playwright script verifying the lesson-edit-redesign Group A performance/blur fixes (`docs/ARCHITECTURE.md` §31).
+Not part of the automated suite or CI — a Playwright script verifying the lesson-edit-redesign performance/blur fixes (`docs/ARCHITECTURE.md` §31, §32).
 
 **Do:**
 ```bash
@@ -668,7 +668,33 @@ npx playwright test lesson-edit-performance-blur.spec.ts --config=playwright.con
 ```
 Requires both dev servers already running (backend on `:4000`, frontend on `:5173` — see §1) with the repo's seed data loaded, and at least one lesson in the Lessons table to click Edit on.
 
-**Pass looks like:** Both light and dark runs pass. The script itself asserts `getComputedStyle(el).backdropFilter` is `none` on both the modal's scrollable panel and its sticky header (the pre-fix value was `blur(64px)` in both themes) and saves `e2e-screenshots/__screenshots__/lesson-edit-after-{light,dark}.png`. Open the screenshots and confirm the card still reads clearly as a distinct surface over the dimmed page behind it — the fix traded the scrollable panel's own blur for a higher-opacity solid background, not for a flat, indistinguishable look.
+**Pass looks like:** Both light and dark runs pass. The script asserts `getComputedStyle(el).backdropFilter` is `none` on the modal's scrollable panel, its sticky header, AND the fixed outer overlay (§32 — the overlay's blur turned out to be the actual cause of remaining scroll jank, not the panel/header fixed in §31) and saves `e2e-screenshots/__screenshots__/lesson-edit-after-{light,dark}.png`. Open the screenshots and confirm the card still reads clearly as a distinct surface over the dimmed page behind it, and that the page content behind the modal (e.g. the Lessons table) renders sharp, not blurred — the fix traded blur everywhere in the modal chrome for solid/near-solid backgrounds and a plain dim backdrop, not for a flat, indistinguishable look.
+
+### 2.55 Lesson edit scroll performance trace (measurement script, manual, on-demand)
+
+Not part of the automated suite or CI, and not a pass/fail test — a Chrome DevTools Protocol trace-capture tool used to find the actual cause of a reported scroll-jank regression (`docs/ARCHITECTURE.md` §32), not to re-check that the fix stays in place (§2.54 above does that). Re-run this if a future scrolling-performance report needs real measurement rather than reading the code.
+
+**Do:**
+```bash
+cd frontend
+npx playwright test lesson-edit-scroll-trace.spec.ts --config=playwright.config.ts
+```
+Requires both dev servers running and a large seeded tenant — a throwaway script inserted 300 students (each with an active `driver_training` enrollment) and 2,000 lessons directly via SQL into the primary tenant, tagged `notes = 'PERFSEED'` for identification and cleanup; see §32 for the method. Without a comparably large dataset, every scenario will measure as smooth regardless of whether a real regression exists, since the jank scales with how much content sits behind the modal's (now-removed) blurred overlay.
+
+**Pass looks like:** There is no pass/fail here — the script prints a summary table (average/max frame time and dropped-frame count per scenario, from real `requestAnimationFrame` sampling during a scripted scroll) to stdout and saves raw CDP trace JSON to `e2e-screenshots/__traces__/*.json` (gitignored) for deeper inspection in `chrome://tracing` if needed. Read the printed numbers against the table in `docs/ARCHITECTURE.md` §32 to judge whether a new regression has appeared.
+
+### 2.56 Reschedule a real lesson in place (manual, on-demand)
+
+Not part of the automated suite or CI — live verification of the `existingLesson` reschedule flow (`docs/ARCHITECTURE.md` §33) against the real running app and real Postgres, not mocks. **Mutates a real lesson row** — only run this against a local dev database you can freely modify, never a shared or production one.
+
+**Do:** confirm at least one `scheduled` lesson in the tenant has a date/time genuinely in the FUTURE relative to the real current date — a lesson that's `scheduled` but already past (missed without being closed out) is correctly excluded from reschedule eligibility and won't show the button. If none exists, insert one directly (see the spec file's own header comment for the exact `INSERT`), then:
+```bash
+cd frontend
+npx playwright test lesson-reschedule-live.spec.ts --config=playwright.config.ts
+```
+Delete the throwaway lesson afterward if you inserted one for this run.
+
+**Pass looks like:** the test passes, meaning: a "Reschedule lesson" button was found and clicked, the student was shown locked (no "Change" button — proves `existingLesson` mode, not a blank new booking), a real `findRankedAvailableSlots` search ran and returned results, picking a slot and confirming closed the modal immediately (no "Book Another" offered), and a screenshot was saved to `e2e-screenshots/__screenshots__/lesson-reschedule-after-live.png`. Separately confirm directly against Postgres that the lesson count is unchanged and the SAME `lessons.id` now carries the new date/time — the test's own `console.log` output shows the row's before-state and the slot picked, but doesn't itself assert against the database.
 
 ---
 

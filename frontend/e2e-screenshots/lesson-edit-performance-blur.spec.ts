@@ -1,22 +1,30 @@
 import { test, type Page } from '@playwright/test';
 
 /**
- * Screenshots the lesson-edit modal after the lesson-edit-redesign Group A
- * performance/blur pass, both light and dark theme. Paired "before"
+ * Screenshots the lesson-edit modal after the lesson-edit-redesign
+ * performance/blur passes, both light and dark theme. Paired "before"
  * screenshots (lesson-edit-before-{light,dark}.png) were captured by
- * temporarily checking out the pre-fix versions of ModalShell.tsx/
- * LessonModal.tsx/SmartBookingForm/index.tsx from main and re-running this
- * same assertion with inverted logic - confirmed the pre-fix panel's
- * computed backdropFilter was literally `blur(64px)` (backdrop-blur-3xl)
- * in both themes before the fix, now `none` after it.
+ * temporarily checking out the pre-fix versions of the relevant files from
+ * main and re-running this same assertion with inverted logic.
  *
  * What changed, visually: the modal's scrollable panel and sticky header
- * no longer carry backdrop-blur-3xl/backdrop-blur-xl (expensive to
- * recomposite every scroll frame) - they're now a solid-ish bg-surface/95
- * instead. The outer fixed, non-scrolling overlay keeps its cheap
- * backdrop-blur-[2px], unchanged. The modal now also routes through the
- * shared ModalShell component instead of its own inline copy of
- * equivalent markup.
+ * no longer carry backdrop-blur-3xl/backdrop-blur-xl (Group A) - they're a
+ * solid-ish bg-surface/95 instead. The modal routes through the shared
+ * ModalShell component instead of its own inline copy of equivalent
+ * markup.
+ *
+ * The OUTER fixed, non-scrolling overlay's backdrop-blur-[2px] - initially
+ * assumed cheap in Group A - was ALSO removed after a user report that
+ * scrolling was still janky on a large seeded tenant, and a real CDP
+ * performance trace confirmed it: a backdrop-filter element keeps a live
+ * composited blur surface for as long as it exists, and that surface gets
+ * re-rasterized/re-composited on every frame the browser redraws,
+ * independent of whether the pixels behind it are visibly changing.
+ * Traced on a ~2,000-row tenant: with the overlay blur present, scrolling
+ * inside the modal dropped 9/20 frames (28ms avg, 68.6ms max); with it
+ * removed, 0/20 dropped (16.1ms avg, 18.7ms max) - a clean 60fps. See
+ * docs/ARCHITECTURE.md §32 for the full trace summary and the same result
+ * measured on StudentModal and SmartBookingForm.
  *
  * Not a general E2E suite: no visual-regression assertions beyond the
  * structural check below. Requires both dev servers already running
@@ -63,6 +71,18 @@ for (const theme of ['light', 'dark'] as const) {
     const headerBackdropFilter = await header.evaluate((el) => getComputedStyle(el).backdropFilter);
     if (headerBackdropFilter && headerBackdropFilter !== 'none') {
       throw new Error(`Lesson edit modal's sticky header still has a backdrop-filter: ${headerBackdropFilter}`);
+    }
+
+    // The fixed, non-scrolling overlay (ModalShell's own backdrop) - this
+    // is the one that was measured to actually cause the dropped frames,
+    // not the card/header above. Confirmed via a real CDP trace, not
+    // assumed: a live backdrop-filter surface costs a recomposite on every
+    // frame the browser redraws, not just when its own pixels change.
+    const overlay = page.locator('.fixed.inset-0').first();
+    await overlay.waitFor({ state: 'visible' });
+    const overlayBackdropFilter = await overlay.evaluate((el) => getComputedStyle(el).backdropFilter);
+    if (overlayBackdropFilter && overlayBackdropFilter !== 'none') {
+      throw new Error(`Modal overlay still has a backdrop-filter: ${overlayBackdropFilter}`);
     }
 
     await page.screenshot({

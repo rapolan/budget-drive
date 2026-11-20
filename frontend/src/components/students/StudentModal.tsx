@@ -1347,8 +1347,11 @@ export const StudentModal: React.FC<StudentModalProps> = ({ student, onClose, on
 
   return (
     <ModalShell maxWidth="max-w-2xl" contentRef={scrollContainerRef}>
-        {/* Header - Clean & Minimal */}
-        <div className="sticky top-0 bg-surface/40 backdrop-blur-xl border-b border-edge-glass/40 px-6 py-4 z-10">
+        {/* Header - Clean & Minimal. No backdrop-blur-xl here - a sticky
+            header pinned over scrolling content keeps a live composited
+            blur surface that costs a recomposite every scroll frame; see
+            the lesson-edit-redesign investigation (ModalShell.tsx). */}
+        <div className="sticky top-0 bg-surface/95 border-b border-edge-glass/40 px-6 py-4 z-10">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <div className="h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">

@@ -44,6 +44,11 @@ export const LessonsPage: React.FC = () => {
   const [preselectedDate, setPreselectedDate] = useState<Date | null>(null);
   const [preselectedTime, setPreselectedTime] = useState<{ start: string; end: string } | null>(null);
   const [preselectedStudentId, setPreselectedStudentId] = useState<string | null>(null);
+  // The lesson being rescheduled IN PLACE - presence of this is what puts
+  // SmartBookingForm into existingLesson mode (updates instead of
+  // creates). Distinct from preselectedStudentId above, which is only
+  // ever used for handleBookAgainFromCancelled's create-a-new-lesson flow.
+  const [reschedulingLesson, setReschedulingLesson] = useState<Lesson | null>(null);
   const [dateRange, setDateRange] = useState<DateRangeValue>({ start: '', end: '', preset: 'all' });
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const queryClient = useQueryClient();
@@ -233,13 +238,59 @@ export const LessonsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleReschedule = (lesson: Lesson) => {
-    // Open SmartBookingForm with the student preselected
+  // Offered only on a CANCELLED lesson - that row is a closed, reviewed
+  // record (reviewed_at/reviewed_by set, possibly a fee flag already
+  // created against it) and stays that way. This opens SmartBookingForm
+  // with the student preselected and creates a genuinely NEW lesson on
+  // submit, identical to Students.tsx's "Book Again" - this was
+  // previously labeled "Reschedule," which read as if it moved the
+  // existing lesson; renamed to "Book Again" to match what it actually
+  // does, now that a real in-place Reschedule exists for scheduled
+  // lessons (see handleReschedule below, new in this pass).
+  // Never un-cancels a lesson in place - updateLesson has no logic to
+  // reverse a fee flag, re-fire cancellation notifications, or clear
+  // reviewed_at/reviewed_by, so flipping status back via a plain field
+  // update would be unsafe. Terminal statuses stay immutable; a
+  // correction is a new record.
+  const handleBookAgainFromCancelled = (lesson: Lesson) => {
     setPreselectedStudentId(lesson.studentId);
     setPreselectedInstructorId(null);
     setPreselectedDate(null);
     setPreselectedTime(null);
     setIsSmartBookingOpen(true);
+  };
+
+  // Reschedules a SCHEDULED, future lesson in place - opens SmartBookingForm
+  // in existingLesson mode (student locked, instructor seeded but
+  // changeable, a fresh availability search always runs, and Confirm calls
+  // updateLesson instead of create). Only offered for scheduled, future
+  // lessons - a completed/cancelled/no-show lesson is a closed record (see
+  // handleBookAgainFromCancelled above for the cancelled case), and a
+  // scheduled lesson already in the past has nothing meaningful to move
+  // it to. Gated at both render sites below, not just here, since this
+  // function has no way to re-check "is this lesson actually still in the
+  // future" itself without the tenant's current time.
+  const handleReschedule = (lesson: Lesson) => {
+    setReschedulingLesson(lesson);
+    setIsSmartBookingOpen(true);
+  };
+
+  // A lesson is reschedulable only while it's still scheduled AND its
+  // start is still in the future, by the TENANT's current wall-clock time
+  // - never the browser's (see docs/ARCHITECTURE.md §7). A lesson that's
+  // scheduled but already in the past (missed without being marked
+  // no-show/completed yet) has no meaningful "reschedule to when" - the
+  // details panel should show it read-only, same as a terminal status.
+  const isRescheduleEligible = (lesson: Lesson): boolean => {
+    if (lesson.status !== 'scheduled') return false;
+    if (!tenantNow) return false;
+    const lessonDateStr = String(lesson.date).split('T')[0];
+    if (lessonDateStr > tenantNow.today) return true;
+    if (lessonDateStr < tenantNow.today) return false;
+    // Same calendar day - compare start time against the tenant's current
+    // time, both as plain HH:MM strings (timezone-safe string/number math,
+    // never a Date instant - same pattern as isUpcoming below).
+    return lesson.startTime.substring(0, 5) > tenantNow.currentTime;
   };
 
 
@@ -313,17 +364,23 @@ export const LessonsPage: React.FC = () => {
   };
 
   const handleBookingComplete = async (_lessonId: string) => {
+    const wasReschedule = Boolean(reschedulingLesson);
     setIsSmartBookingOpen(false);
     setPreselectedInstructorId(null);
     setPreselectedStudentId(null);
     setPreselectedDate(null);
     setPreselectedTime(null);
+    setReschedulingLesson(null);
     // Invalidate ALL lesson-related queries (including Weekly view's complex keys)
     invalidateAllLessonQueries();
     // Also invalidate availability since booking changes available slots
     await queryClient.invalidateQueries({ queryKey: ['availability'] });
     // Show success notification
-    success('Lesson booked successfully!', 'The lesson has been added to the schedule.');
+    if (wasReschedule) {
+      success('Lesson rescheduled', 'The lesson has been moved to its new time.');
+    } else {
+      success('Lesson booked successfully!', 'The lesson has been added to the schedule.');
+    }
   };
 
   // Helper functions to get names from IDs
@@ -626,6 +683,20 @@ export const LessonsPage: React.FC = () => {
                     >
                       <Edit className="h-4 w-4" />
                     </button>
+                    {isRescheduleEligible(lesson) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReschedule(lesson);
+                        }}
+                        aria-label="Reschedule lesson"
+                        title="Reschedule lesson"
+                        className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -669,10 +740,10 @@ export const LessonsPage: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleReschedule(lesson);
+                      handleBookAgainFromCancelled(lesson);
                     }}
-                    aria-label="Reschedule lesson"
-                    title="Reschedule lesson"
+                    aria-label="Book again"
+                    title="Book again"
                     className="p-1.5 text-primary hover:brightness-75 hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
                   >
                     <RefreshCw className="h-4 w-4" />
@@ -1230,6 +1301,19 @@ export const LessonsPage: React.FC = () => {
                           >
                             <Edit className="h-4 w-4" />
                           </button>
+                          {isRescheduleEligible(lesson) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReschedule(lesson);
+                              }}
+                              className="p-2 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-colors"
+                              title="Reschedule"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1248,12 +1332,12 @@ export const LessonsPage: React.FC = () => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleReschedule(lesson);
+                            handleBookAgainFromCancelled(lesson);
                           }}
                           className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:brightness-90 hover:bg-primary transition-colors"
                         >
                           <RefreshCw className="h-4 w-4" />
-                          Reschedule
+                          Book Again
                         </button>
                       )}
                       {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
@@ -1474,7 +1558,8 @@ export const LessonsPage: React.FC = () => {
         />
       )}
 
-      {/* SmartBookingForm - for new bookings */}
+      {/* SmartBookingForm - for new bookings AND, when reschedulingLesson
+          is set, for rescheduling an existing scheduled lesson in place */}
       {isSmartBookingOpen && (
         <ModalShell maxWidth="max-w-3xl">
           <SmartBookingForm
@@ -1484,12 +1569,25 @@ export const LessonsPage: React.FC = () => {
                 : undefined
             }
             preselectedStudent={
-              preselectedStudentId
+              reschedulingLesson
+                ? studentsData?.data?.find(s => s.id === reschedulingLesson.studentId)
+                : preselectedStudentId
                 ? studentsData?.data?.find(s => s.id === preselectedStudentId)
                 : undefined
             }
             preselectedDate={preselectedDate || undefined}
             preselectedTime={preselectedTime || undefined}
+            // Reschedule seeds the instructor/duration/type/pickup-address
+            // fields via the same mechanism "Book again" already uses -
+            // a real, freely-changeable selection (never locked, unlike
+            // preselectedInstructor above), since the whole point of
+            // rescheduling is a fresh search that might land on a
+            // different instructor or time.
+            prefilledInstructorId={reschedulingLesson?.instructorId}
+            prefilledDuration={reschedulingLesson ? Number(reschedulingLesson.duration) : undefined}
+            prefilledLessonType={reschedulingLesson?.lessonType}
+            prefilledPickupAddress={reschedulingLesson?.pickupAddress || undefined}
+            existingLesson={reschedulingLesson || undefined}
             onBookingComplete={handleBookingComplete}
             onCancel={() => {
               setIsSmartBookingOpen(false);
@@ -1497,6 +1595,7 @@ export const LessonsPage: React.FC = () => {
               setPreselectedStudentId(null);
               setPreselectedDate(null);
               setPreselectedTime(null);
+              setReschedulingLesson(null);
             }}
           />
         </ModalShell>
