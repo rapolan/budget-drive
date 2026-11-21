@@ -4,7 +4,7 @@
  */
 
 import { Request, Response } from 'express';
-import { asyncHandler, AppError } from '../middleware/errorHandler';
+import { asyncHandler } from '../middleware/errorHandler';
 import * as lessonService from '../services/lessonService';
 import { getTenantId } from '../middleware/tenantContext';
 import { createLogger } from '../utils/logger';
@@ -244,11 +244,9 @@ export const getMostRecentLessonByStudent = asyncHandler(async (req: Request, re
 export const getLastCompletedLessonNoteByStudent = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { studentId } = req.params;
-  const excludeLessonId = String(req.query.excludeLessonId || '');
-
-  if (!excludeLessonId) {
-    throw new AppError('excludeLessonId query param is required', 400);
-  }
+  // Presence and UUID shape are already enforced by validateUUIDQuery at
+  // the route layer - a malformed or missing value never reaches here.
+  const excludeLessonId = req.query.excludeLessonId as string;
 
   const note = await lessonService.getLastCompletedLessonNoteForStudent(tenantId, studentId, excludeLessonId);
 

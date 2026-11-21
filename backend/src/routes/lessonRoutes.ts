@@ -7,7 +7,7 @@ import { Router } from 'express';
 import * as lessonController from '../controllers/lessonController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import { validateUUID, validateRequired, validateRequiredOneOf } from '../middleware/validate';
+import { validateUUID, validateUUIDQuery, validateRequired, validateRequiredOneOf } from '../middleware/validate';
 
 const router = Router();
 
@@ -41,6 +41,7 @@ router.get(
 router.get(
   '/lessons/student/:studentId/last-completed-note',
   validateUUID('studentId'),
+  validateUUIDQuery('excludeLessonId'),
   lessonController.getLastCompletedLessonNoteByStudent
 );
 

@@ -195,23 +195,41 @@ export const getMostRecentLessonForStudent = async (
 // above (which powers "Book again" prefill and has no status filter or
 // exclusion - reusing it here would have surfaced the lesson currently
 // being viewed, or a future scheduled one, instead of a genuinely PAST
-// completed lesson's notes). Scoped by studentId, LIMIT 1, excludes the
-// lesson currently being viewed. Returns only the two fields the panel
-// actually displays (date, notes) rather than a full Lesson row.
+// completed lesson's notes). Scoped by studentId, LIMIT 1.
+//
+// "Last" means the most recent COMPLETED lesson that happened strictly
+// BEFORE the lesson being viewed (by date, then start_time) - not merely
+// "some other completed lesson," which could be a later one and would
+// show a note from the future relative to what the viewer is looking at.
+// The viewed lesson's own date/start_time are looked up server-side by
+// excludeLessonId (tenant-scoped), rather than trusted from the caller,
+// so this can't be fed a mismatched date/time for a different lesson.
 export const getLastCompletedLessonNoteForStudent = async (
   tenantId: string,
   studentId: string,
   excludeLessonId: string
 ): Promise<{ date: Date; notes: string | null } | null> => {
+  const viewedLesson = await query(
+    `SELECT date, start_time FROM lessons WHERE id = $1 AND tenant_id = $2`,
+    [excludeLessonId, tenantId]
+  );
+
+  if (viewedLesson.rows.length === 0) {
+    return null;
+  }
+
+  const { date: viewedDate, start_time: viewedStartTime } = viewedLesson.rows[0];
+
   const result = await query(
     `SELECT l.date, l.notes
      FROM lessons l
      JOIN enrollments e ON e.id = l.enrollment_id
      WHERE l.tenant_id = $1 AND e.student_id = $2
        AND l.status = 'completed' AND l.id != $3
+       AND (l.date, l.start_time) < ($4, $5)
      ORDER BY l.date DESC, l.start_time DESC
      LIMIT 1`,
-    [tenantId, studentId, excludeLessonId]
+    [tenantId, studentId, excludeLessonId, viewedDate, viewedStartTime]
   );
 
   if (result.rows.length === 0) {
