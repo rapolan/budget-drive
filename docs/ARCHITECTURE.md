@@ -917,4 +917,36 @@ All four verified via the re-captured `lesson-details-panel-v2-*` screenshots (s
 
 ---
 
+## 38. "Lesson #4 of 3": Reschedule Inflating `lessonNumber`, and Every "N of M" Site Auditing That Assumption
+
+### The bug
+
+Rescheduling a lesson could silently inflate its stored `lessonNumber` past the student's actual `hoursRequired`-derived estimate, which then showed as a nonsensical `"Lesson #4 of 3"` everywhere that number got displayed - the Google Calendar event description, the ICS feed description (both built from the same shared `calendarFeedService.buildLessonEventContent`), the lesson invite email, and `LessonDetailsPanel`'s Progress cell.
+
+### Root cause: `SmartBookingForm`'s auto-suggest ran in reschedule mode too, and overwrote the stored number
+
+`SmartBookingForm/index.tsx`'s lesson-number auto-suggest effect computed `completedOrScheduled.length + 1` from `studentLessons` with no gate for reschedule mode. The lesson being rescheduled is itself still `status: 'scheduled'` at the moment this effect runs (status only changes via Complete/No-show, never during a reschedule), so it counted *itself* in that total - always suggesting one number higher than it should. Separately, `scheduleFields` (the object sent to the server) included `lessonNumber: lessonNumber || null` unconditionally, and reschedule mode sent that exact object as the update payload - overwriting the lesson's already-correct stored number with the inflated suggestion on every single reschedule, not just occasionally.
+
+Fixed both halves: the auto-suggest effect now returns immediately when `isReschedule` is true (nothing to suggest - the stored number stays whatever it already was), and `lessonNumber` is now only added to the payload on the create branch, never the reschedule branch. Reschedule's `updateLesson` call omits the key entirely, so the server-side value is simply never touched.
+
+### Every other "N of M" site built from `lessonNumber`, audited
+
+Grepped the whole repo for `lessonNumber`/`lesson_number` and checked each result for an "N of M"-style string construction (as opposed to a plain field read, a column selection, or an unrelated pagination count like `Lessons.tsx`'s `"{filteredLessons.length} of {data.pagination.total} lessons"`, which is not `lessonNumber`-derived at all):
+
+- **`calendarFeedService.ts` (~line 199, `buildLessonEventContent`)** - the ONE shared description-builder behind both `generateICSFeed` (the ICS subscription feed) and `googleCalendarSyncService.ts`'s real Google Calendar sync (`googleCalendarSyncService.ts` imports `buildLessonEventContent` directly - it has no separate description-building code of its own). Printed `Lesson #N of estimatedTotal` (`estimatedTotal = Math.max(3, Math.ceil(hoursRequired / 2))`, a rough estimate, not a hard cap) unconditionally. Fixed: prints `"of M"` only when `N <= M`, otherwise just `"Lesson #N"`.
+- **`lessonInviteService.ts` (~line 82, the invite email's ICS description)** - the exact same bug, independently: `Lesson: N of estimatedTotalLessons` (`Math.ceil(hoursRequired / 2)`, no floor this time) with no `N <= M` guard. The function already had an `else if (data.lessonNumber)` fallback to the bare `"Lesson: #N"` form for the no-`hoursRequired` case - extended that same fallback to the N-exceeds-M case too, rather than inventing new wording.
+- **`LessonDetailsPanel.tsx`'s Progress cell (§36/§37)** - already uses `lesson.lessonNumber` for `"Lesson N of M"` (added in §37's polish pass, which predates this fix). Same missing guard: `lesson.lessonNumber <= progress.lessonsRequired` now gates whether `"of M"` prints, falling back to the bare `"Lesson N"` form otherwise.
+- **`ConfirmStep.tsx`'s lesson-number `<select>`** - a plain numeric input field, no "N of M" string built anywhere in it. Not a site of this bug.
+- Everywhere else `lessonNumber`/`lesson_number` appears in the codebase (`types/index.ts`, `lessonService.ts`'s column list, various test fixtures) is either a type declaration, a column selection, or test data - not a description-building site.
+
+### Existing stored numbers are not rewritten
+
+This fix only prevents the number from being inflated or displayed nonsensically going forward - it does not backfill or correct any `lessonNumber` value already inflated by the bug before this fix landed. If a tenant has a lesson whose stored `lessonNumber` is already wrong, it can be corrected by hand via `LessonDetailsPanel`'s Admin details section (the plain numeric field, unaffected by this fix).
+
+### Tests
+
+`SmartBookingForm.test.tsx` gained a regression test asserting the reschedule-mode `updateLesson` payload has no `lessonNumber` key at all (confirmed to fail with the key present when the fix was temporarily reverted). `calendarFeedService.test.ts` and `lessonInviteService.test.ts` each gained a pair of tests - `N <= M` prints the full `"of M"` form, `N > M` prints the bare `"#N"`/`N` form with no `"of"` - both confirmed to fail against the reverted code with the exact `"N of M"` string still present. `LessonDetailsPanel.test.tsx` gained the matching `N > M` case alongside its existing `N <= M` test from §37.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

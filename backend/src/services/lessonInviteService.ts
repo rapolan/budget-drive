@@ -79,9 +79,20 @@ export function generateICSContent(data: LessonInviteData): string {
   // invite email's numbering copy, not the student's real progress. See
   // studentProgressService.computeStudentProgress for the single source of
   // truth on actual progress.
+  //
+  // estimatedTotalLessons is a rough estimate, not a hard cap - a
+  // reschedule or a student needing extra lessons can legitimately push
+  // lessonNumber past it. "Lesson: 4 of 3" reads as nonsensical, so this
+  // falls back to the bare "#N" form (same as the no-hoursRequired case
+  // below) once N exceeds the estimate, rather than show a total that's
+  // visibly wrong.
   if (data.lessonNumber && data.hoursRequired) {
     const estimatedTotalLessons = Math.ceil(data.hoursRequired / 2);
-    descriptionParts.push(`Lesson: ${data.lessonNumber} of ${estimatedTotalLessons}`);
+    descriptionParts.push(
+      data.lessonNumber <= estimatedTotalLessons
+        ? `Lesson: ${data.lessonNumber} of ${estimatedTotalLessons}`
+        : `Lesson: #${data.lessonNumber}`
+    );
   } else if (data.lessonNumber) {
     descriptionParts.push(`Lesson: #${data.lessonNumber}`);
   }

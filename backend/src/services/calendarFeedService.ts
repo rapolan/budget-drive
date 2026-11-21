@@ -201,7 +201,16 @@ export const buildLessonEventContent = (lesson: CalendarLessonRow, timezone: str
     // Under-18 minimum is 3 lessons; use hours_required / 2hr lessons as estimate
     const estimatedTotal = Math.max(3, Math.ceil(hoursRequired / 2));
     descParts.push('');
-    descParts.push(`Lesson #${lesson.lesson_number} of ${estimatedTotal}`);
+    // estimatedTotal is a rough estimate, not a hard cap - a reschedule or
+    // a student needing extra lessons can legitimately push lesson_number
+    // past it. Printing "of M" when N > M reads as a nonsensical "Lesson
+    // #4 of 3", so drop the "of M" half entirely once N exceeds the
+    // estimate, rather than show a total that's visibly wrong.
+    descParts.push(
+      lesson.lesson_number <= estimatedTotal
+        ? `Lesson #${lesson.lesson_number} of ${estimatedTotal}`
+        : `Lesson #${lesson.lesson_number}`
+    );
   }
 
   descParts.push(`Type: ${lesson.lesson_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}`);

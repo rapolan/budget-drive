@@ -84,3 +84,23 @@ describe('generateICSContent - UTC DTSTART/DTEND, no hardcoded Pacific VTIMEZONE
     expect(afterDst).toMatch(/DTSTART:20260315T210000Z/);
   });
 });
+
+// Regression: estimatedTotalLessons (Math.ceil(hoursRequired / 2)) is a
+// rough estimate, not a hard cap - a reschedule or a student needing extra
+// lessons can legitimately push lessonNumber past it. Printing
+// "Lesson: N of M" when N > M reads as a nonsensical "Lesson: 4 of 3" in
+// the invite email description.
+describe('generateICSContent - "Lesson: N of M" description only when N <= M', () => {
+  it('prints "Lesson: N of M" when the lesson number is within the estimate', () => {
+    // hoursRequired 6 / 2hr lessons -> estimatedTotalLessons = 3; lessonNumber 3 <= 3.
+    const ics = generateICSContent(baseInviteData({ lessonNumber: 3, hoursRequired: 6 }));
+    expect(ics).toMatch(/Lesson: 3 of 3/);
+  });
+
+  it('prints just "Lesson: #N" (no "of M") when the lesson number exceeds the estimate', () => {
+    // hoursRequired 6 / 2hr lessons -> estimatedTotalLessons = 3; lessonNumber 4 > 3.
+    const ics = generateICSContent(baseInviteData({ lessonNumber: 4, hoursRequired: 6 }));
+    expect(ics).toMatch(/Lesson: #4/);
+    expect(ics).not.toMatch(/Lesson: 4 of/);
+  });
+});

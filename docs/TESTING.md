@@ -760,6 +760,24 @@ npx vitest run src/__tests__/validateUUIDQuery.test.ts
 
 **Pass looks like:** a well-formed UUID passes through; a malformed string, a missing value, a SQL-injection-shaped string, and an array value (Express's shape for a repeated query key) all throw a 400 `AppError` without calling `next()`.
 
+### 2.62 "Lesson #N of M" only when N <= M, everywhere it's built (automated)
+
+Part of the automated suite — covers `docs/ARCHITECTURE.md` §38: rescheduling a lesson could inflate its stored `lessonNumber` past the estimated total, producing a nonsensical "Lesson #4 of 3" in the Google Calendar/ICS description, the invite email, and `LessonDetailsPanel`'s Progress cell.
+
+**Do:**
+```bash
+cd frontend
+npx vitest run src/components/scheduling/SmartBookingForm/__tests__/SmartBookingForm.test.tsx
+npx vitest run src/components/lessons/LessonDetailsPanel.test.tsx
+cd ../backend
+npx vitest run src/__tests__/calendarFeedService.test.ts
+npx vitest run src/__tests__/lessonInviteService.test.ts
+```
+
+**Pass looks like:** `SmartBookingForm.test.tsx`'s reschedule-mode update call never includes a `lessonNumber` key at all (the stored number is left untouched server-side). `calendarFeedService.test.ts` and `lessonInviteService.test.ts` each print the full "N of M" form when `N <= M`, and only the bare "#N" form (no "of M") when `N > M`. `LessonDetailsPanel.test.tsx`'s Progress cell does the same: "Lesson N of M" when `N <= M`, bare "Lesson N" otherwise.
+
+**Known limitation, by design:** this fix only prevents new inflation and nonsensical display going forward — it does not rewrite any `lessonNumber` already inflated by the bug before this fix. Correct an already-wrong stored number by hand via `LessonDetailsPanel`'s Admin details section.
+
 ---
 
 ## 3. Known issues to route around

@@ -253,14 +253,23 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
   // correct even from an empty array (a student with zero prior lessons
   // suggests "1"), so this only needs to wait for a student to be selected,
   // not for studentLessons to be non-empty.
+  //
+  // Never runs in reschedule mode: studentLessons still includes the
+  // lesson being rescheduled itself (status 'scheduled'), so the count
+  // would include its own existing row and suggest a number one higher
+  // than it should be - the exact cause of "Lesson #4 of 3" after a
+  // reschedule. Reschedule keeps the lesson's already-stored lessonNumber
+  // unchanged (see the scheduleFields/lessonData construction below),
+  // so there is nothing to suggest here at all.
   useEffect(() => {
+    if (isReschedule) return;
     if (selectedStudentId) {
       const completedOrScheduled = studentLessons.filter(
         (l: Lesson) => l.status === 'completed' || l.status === 'scheduled'
       );
       setLessonNumber(completedOrScheduled.length + 1);
     }
-  }, [selectedStudentId, studentLessons]);
+  }, [isReschedule, selectedStudentId, studentLessons]);
 
   // When student, instructor, date, and time are all preselected, skip the
   // search entirely and seed the confirm step directly from those props.
@@ -406,7 +415,6 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
       cost,
       pickupAddress: pickupAddress || null,
       notes: notes || undefined,
-      lessonNumber: lessonNumber || null,
     };
 
     // Reschedule never sends studentId at all - the student is locked/
@@ -418,9 +426,17 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
     // server-side on create if left null, matching create's existing
     // behavior - the slot's own vehicleId is only meaningful on reschedule,
     // where it reflects what the search actually found available.
+    //
+    // lessonNumber is ALSO never sent on reschedule - it's omitted from
+    // scheduleFields entirely above and only added back in for create,
+    // below. Sending it on reschedule would overwrite the lesson's already-
+    // stored number with the (reschedule-mode-disabled, so stale/default)
+    // auto-suggested value - the lessonNumber effect above never runs in
+    // reschedule mode for exactly this reason. The stored number stays
+    // whatever it already was.
     const lessonData: CreateLessonInput | Partial<CreateLessonInput> = isReschedule
       ? scheduleFields
-      : { ...scheduleFields, studentId: selectedStudentId, vehicleId: null };
+      : { ...scheduleFields, studentId: selectedStudentId, vehicleId: null, lessonNumber: lessonNumber || null };
 
     try {
       const lesson = await confirmBookingMutation.mutateAsync(lessonData);
