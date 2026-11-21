@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/common';
+import { Button, GlassInput } from '@/components/common';
 import { tenantsApi, schedulingApi } from '@/api';
 import { useTenant } from '@/contexts/TenantContext';
 
@@ -58,64 +58,54 @@ export const StepDefaults: React.FC<StepDefaultsProps> = ({ driverEducationEnabl
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-tx-primary">Pricing &amp; scheduling defaults</h2>
-        <p className="text-sm text-tx-secondary mt-1">A starting point - every lesson's price and length can still be changed individually.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">Pricing &amp; scheduling defaults</h2>
+        <p className="text-sm text-tx-muted mt-1">A starting point - every lesson's price and length can still be changed individually.</p>
       </div>
 
       {saveError && (
-        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-3 text-sm text-status-danger-text">
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-3 text-sm text-status-danger-text">
           {saveError}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Default lesson price ($)</label>
-        <input
+      <div className="grid grid-cols-2 gap-3">
+        <GlassInput
+          label="Default lesson price ($)"
           type="number"
           min="0"
           step="0.01"
           value={lessonCost}
           onChange={(e) => setLessonCost(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
         />
-      </div>
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Default lesson length (minutes)</label>
-        <input
+        <GlassInput
+          label="Lesson length (minutes)"
           type="number"
           min="1"
           value={lessonLength}
           onChange={(e) => setLessonLength(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Buffer between lessons (minutes)</label>
-        <input
-          type="number"
-          min="0"
-          value={bufferMinutes}
-          onChange={(e) => setBufferMinutes(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Buffer between lessons (minutes)"
+        type="number"
+        min="0"
+        value={bufferMinutes}
+        onChange={(e) => setBufferMinutes(e.target.value)}
+      />
 
       {driverEducationEnabled && (
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">Driver Education classroom course price ($)</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={classroomCost}
-            onChange={(e) => setClassroomCost(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
+        <GlassInput
+          label="Driver Education classroom course price ($)"
+          type="number"
+          min="0"
+          step="0.01"
+          value={classroomCost}
+          onChange={(e) => setClassroomCost(e.target.value)}
+        />
       )}
 
       <div className="flex justify-between pt-2">

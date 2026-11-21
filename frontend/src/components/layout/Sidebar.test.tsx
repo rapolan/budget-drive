@@ -94,6 +94,117 @@ describe('Sidebar - Certificates nav link feature-flag gating', () => {
   });
 });
 
+describe('Sidebar - school name in the nav', () => {
+  // Regression coverage: tenantName previously read ONLY
+  // localStorage.getItem('tenant_name'), which nothing in the frontend
+  // ever writes - every school, not just new signups, saw the generic
+  // "Driving School" / "My Business" fallback regardless of its real
+  // name. Now reads settings.businessName (tenant_settings.business_name,
+  // the field a rename in Settings actually writes), falling back to
+  // tenant.businessName, then the generic label.
+  beforeEach(() => {
+    cleanup();
+    mockUseTenant.mockReset();
+    try {
+      localStorage.clear();
+    } catch {
+      // ignore
+    }
+  });
+
+  it('shows settings.businessName when present, even if localStorage has nothing', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: 'Riverside Driving School' },
+      tenant: { tenantType: 'school' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('Riverside Driving School')).toBeInTheDocument();
+  });
+
+  it('falls back to tenant.businessName when settings.businessName is absent', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: undefined },
+      tenant: { tenantType: 'school', businessName: 'Fallback Name Co' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('Fallback Name Co')).toBeInTheDocument();
+  });
+
+  it('falls back to the generic school label when neither is present', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: undefined },
+      tenant: { tenantType: 'school' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    // The top-line name AND the unrelated bottom-line type label (and
+    // possibly an image alt text alongside it) all legitimately read
+    // "Driving School" in this particular fallback case - at least one
+    // match is the real assertion; an exact count isn't the point here.
+    expect(screen.getAllByText('Driving School').length).toBeGreaterThan(0);
+  });
+
+  it('falls back to "My Business" (not "Driving School") for an independent tenant with no name set', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: undefined },
+      tenant: { tenantType: 'independent' },
+      tenantType: 'independent',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('My Business')).toBeInTheDocument();
+  });
+
+  it('ignores a stale localStorage tenant_name value entirely', () => {
+    localStorage.setItem('tenant_name', 'Stale Cached Name');
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: 'Current Real Name' },
+      tenant: { tenantType: 'school' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('Current Real Name')).toBeInTheDocument();
+    expect(screen.queryByText('Stale Cached Name')).not.toBeInTheDocument();
+  });
+
+  it('shows the correct type label alongside the school name for a school tenant', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: 'Riverside Driving School' },
+      tenant: { tenantType: 'school' },
+      tenantType: 'school',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('Riverside Driving School')).toBeInTheDocument();
+    expect(screen.getByText('School')).toBeInTheDocument();
+  });
+
+  it('shows the correct type label alongside the name for an independent tenant', () => {
+    mockUseTenant.mockReturnValue({
+      settings: { ...baseSettings, businessName: 'Jane the Instructor' },
+      tenant: { tenantType: 'independent' },
+      tenantType: 'independent',
+    });
+
+    renderSidebar();
+
+    expect(screen.getByText('Jane the Instructor')).toBeInTheDocument();
+    expect(screen.getByText('Solo')).toBeInTheDocument();
+  });
+});
+
 describe('Sidebar - Classroom nav link feature-flag gating', () => {
   beforeEach(() => {
     cleanup();

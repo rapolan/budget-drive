@@ -10,7 +10,7 @@ import { defineConfig, devices } from '@playwright/test';
 // kept as a record alongside the other e2e-screenshots specs.
 export default defineConfig({
   testDir: './e2e-screenshots',
-  testMatch: /signup-onboarding-e2e\.spec\.ts/,
+  testMatch: /(signup-onboarding-e2e|signup-visual-refresh)\.spec\.ts/,
   timeout: 60_000,
   retries: 0,
   workers: 1,

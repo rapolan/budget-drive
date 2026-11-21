@@ -27,8 +27,8 @@ export const StepDone: React.FC<StepDoneProps> = ({ onGoToDashboard, isSaving = 
         <div className="inline-flex items-center justify-center w-16 h-16 bg-status-success-bg rounded-2xl mb-4">
           <CheckCircle2 className="h-8 w-8 text-status-success-text" />
         </div>
-        <h2 className="text-lg font-semibold text-tx-primary">You're all set</h2>
-        <p className="text-sm text-tx-secondary mt-1">Here's what's next for getting your school up and running.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">You're all set</h2>
+        <p className="text-sm text-tx-muted mt-1">Here's what's next for getting your school up and running.</p>
       </div>
 
       <div className="text-left">

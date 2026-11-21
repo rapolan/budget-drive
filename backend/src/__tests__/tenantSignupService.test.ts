@@ -193,6 +193,37 @@ describe('tenantSignupService.createTenantWithOwner', () => {
     expect(settingsInsert?.sql).toMatch(/onboarding_completed_at\s*\)\s*VALUES.*NULL\)/s);
   });
 
+  it('inserts a default scheduling_settings row, after the membership insert', async () => {
+    // Regression test: availabilityService.updateSchedulingSettings
+    // previously 404'd ("Scheduling settings not found") for any
+    // brand-new tenant, because only the READ path lazily created this
+    // row - createTenantWithOwner never did, so a new school's first
+    // buffer-between-lessons save in the onboarding wizard always failed.
+    const { createTenantWithOwner } = await import('../services/tenantSignupService');
+    const { client, calls } = makeFakeClient();
+
+    await createTenantWithOwner(
+      {
+        tenantName: 'Acme',
+        tenantSlugBase: 'Acme',
+        tenantEmail: 'acme@example.com',
+        ownerEmail: 'owner@example.com',
+        ownerFullName: 'Owner',
+        ownerPasswordHash: 'hash',
+      },
+      client
+    );
+
+    const sqlSequence = calls.map((c) => c.sql);
+    const membershipIdx = sqlSequence.findIndex((s) => /INSERT INTO user_tenant_memberships/.test(s));
+    const schedulingIdx = sqlSequence.findIndex((s) => /INSERT INTO scheduling_settings/.test(s));
+
+    expect(schedulingIdx).toBeGreaterThan(membershipIdx);
+
+    const schedulingCall = calls[schedulingIdx];
+    expect(schedulingCall.params).toEqual(['tenant-id-1']);
+  });
+
   it('propagates an error from any insert rather than swallowing it', async () => {
     const { createTenantWithOwner } = await import('../services/tenantSignupService');
     const client: SqlClient = {

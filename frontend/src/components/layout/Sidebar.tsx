@@ -136,7 +136,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
     return acc;
   }, {} as Record<string, NavItem[]>);
 
-  const tenantName = localStorage.getItem('tenant_name') || (tenantType === 'independent' ? 'My Business' : 'Driving School');
+  // settings.businessName (tenant_settings.business_name) is the field the
+  // Settings page actually writes to on a rename - tenant.businessName
+  // (from GET /tenant/current) is a separate, not-kept-in-sync copy, and
+  // localStorage('tenant_name') is written by nothing in the frontend at
+  // all, so every school - not just new signups - was showing this
+  // generic fallback regardless of its real name.
+  const tenantName = settings?.businessName || tenant?.businessName || (tenantType === 'independent' ? 'My Business' : 'Driving School');
 
   // Mock data for account switcher - in real implementation, this would come from API/context
   const mockMemberships = [

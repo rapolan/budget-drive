@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Button } from '@/components/common';
+import { Button, GlassInput, GlassSelect } from '@/components/common';
 import { tenantsApi } from '@/api';
 import { useTenant } from '@/contexts/TenantContext';
+import { formatPhoneNumber } from '@/utils/phoneFormat';
 import type { TenantSettings } from '@/types';
 
 interface StepSchoolDetailsProps {
@@ -26,7 +27,7 @@ const US_TIMEZONES = [
 export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue }) => {
   const { settings, refreshSettings } = useTenant();
 
-  const [phone, setPhone] = useState(settings?.supportPhone || '');
+  const [phone, setPhone] = useState(formatPhoneNumber(settings?.supportPhone || ''));
   const [addressLine1, setAddressLine1] = useState(settings?.addressLine1 || '');
   const [addressLine2, setAddressLine2] = useState(settings?.addressLine2 || '');
   const [city, setCity] = useState(settings?.city || '');
@@ -69,103 +70,87 @@ export const StepSchoolDetails: React.FC<StepSchoolDetailsProps> = ({ onContinue
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-tx-primary">School details</h2>
-        <p className="text-sm text-tx-secondary mt-1">How students and the DMV can reach your school.</p>
+        <h2 className="text-xl font-bold tracking-tight text-tx-primary">School details</h2>
+        <p className="text-sm text-tx-muted mt-1">How students and the DMV can reach your school.</p>
       </div>
 
       {saveError && (
-        <div className="bg-status-danger-bg border border-status-danger-border rounded-lg p-3 text-sm text-status-danger-text">
+        <div className="bg-status-danger-bg border border-status-danger-border rounded-xl p-3 text-sm text-status-danger-text">
           {saveError}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Phone</label>
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Phone"
+        type="tel"
+        autoComplete="tel"
+        value={phone}
+        onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+        // Defensive re-format on blur: autofill (browser-suggested phone
+        // numbers) and some paste paths can set the input's DOM value
+        // directly in a way that still fires onChange, but with this
+        // field's own stale-closure risk around rapid programmatic
+        // value-setting - reformatting from the input's own current value
+        // on blur guarantees the display is never left unformatted, cheap
+        // insurance beyond the onChange path alone.
+        onBlur={(e) => setPhone(formatPhoneNumber(e.target.value))}
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Address line 1</label>
-        <input
-          type="text"
-          value={addressLine1}
-          onChange={(e) => setAddressLine1(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Address line 1"
+        type="text"
+        value={addressLine1}
+        onChange={(e) => setAddressLine1(e.target.value)}
+      />
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Address line 2 (optional)</label>
-        <input
-          type="text"
-          value={addressLine2}
-          onChange={(e) => setAddressLine2(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        />
-      </div>
+      <GlassInput
+        label="Address line 2 (optional)"
+        type="text"
+        value={addressLine2}
+        onChange={(e) => setAddressLine2(e.target.value)}
+      />
 
       <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">City</label>
-          <input
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">State</label>
-          <input
-            type="text"
-            value={state}
-            onChange={(e) => setState(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-tx-secondary mb-1">ZIP</label>
-          <input
-            type="text"
-            value={zipCode}
-            onChange={(e) => setZipCode(e.target.value)}
-            className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">
-          DMV driving school license number <span className="text-tx-muted">(optional - add it later if you don't have it yet)</span>
-        </label>
-        <input
+        <GlassInput
+          label="City"
           type="text"
-          value={licenseNumber}
-          onChange={(e) => setLicenseNumber(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+        />
+        <GlassInput
+          label="State"
+          type="text"
+          value={state}
+          onChange={(e) => setState(e.target.value)}
+        />
+        <GlassInput
+          label="ZIP"
+          type="text"
+          value={zipCode}
+          onChange={(e) => setZipCode(e.target.value)}
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-tx-secondary mb-1">Timezone</label>
-        <select
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
-          className="block w-full px-3 py-2 border border-edge-strong rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-tx-primary"
-        >
-          <option value="">Select a timezone</option>
-          {US_TIMEZONES.map((tz) => (
-            <option key={tz} value={tz}>{tz}</option>
-          ))}
-        </select>
-      </div>
+      <GlassInput
+        label="DMV driving school license number"
+        hint="Optional - add it later if you don't have it yet"
+        type="text"
+        value={licenseNumber}
+        onChange={(e) => setLicenseNumber(e.target.value)}
+      />
+
+      <GlassSelect
+        label="Timezone"
+        value={timezone}
+        onChange={(e) => setTimezone(e.target.value)}
+      >
+        <option value="">Select a timezone</option>
+        {US_TIMEZONES.map((tz) => (
+          <option key={tz} value={tz}>{tz}</option>
+        ))}
+      </GlassSelect>
 
       <div className="flex justify-end pt-2">
         <Button onClick={handleContinue} loading={isSaving}>
