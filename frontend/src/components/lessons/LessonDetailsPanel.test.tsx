@@ -151,7 +151,25 @@ describe('LessonDetailsPanel - summary content', () => {
     expect(subtitle?.textContent).toContain('Aug 20, 2026');
     expect(subtitle?.textContent).toContain('9:00 AM');
     expect(subtitle?.textContent).toContain('10:00 AM');
-    expect(subtitle?.textContent).toContain('60 min');
+    expect(subtitle?.textContent).toContain('1 hour');
+  });
+
+  it('formats duration in whole minutes/hours, never a raw decimal', async () => {
+    const { container, unmount } = renderPanel({ lesson: { ...LESSON, duration: 90 } as Lesson });
+    await waitForLoaded();
+    expect(container.querySelector('p.text-tx-muted')?.textContent).toContain('90 min');
+    unmount();
+
+    const { container: container2 } = renderPanel({ lesson: { ...LESSON, duration: 120 } as Lesson });
+    await waitForLoaded();
+    expect(container2.querySelector('p.text-tx-muted')?.textContent).toContain('2 hours');
+    expect(container2.querySelector('p.text-tx-muted')?.textContent).not.toContain('120.00');
+  });
+
+  it('formats duration correctly when it arrives as a Postgres numeric string', async () => {
+    const { container } = renderPanel({ lesson: { ...LESSON, duration: '120.00' as unknown as number } as Lesson });
+    await waitForLoaded();
+    expect(container.querySelector('p.text-tx-muted')?.textContent).toContain('2 hours');
   });
 
   it('renders phone as a tel: link, instructor, pickup as a maps link, and vehicle', async () => {
@@ -169,12 +187,44 @@ describe('LessonDetailsPanel - summary content', () => {
     expect(screen.getAllByText(/Toyota Corolla \(ABC123\)/).length).toBeGreaterThan(0);
   });
 
-  it('renders Progress and Payment from the lesson\'s own enrollment', async () => {
+  it('renders Progress as "N of M completed" when the lesson has no lessonNumber of its own, and the enrollment balance under its own label', async () => {
     renderPanel();
     await waitForLoaded();
 
-    expect(screen.getByText('Lesson 4 of 10')).toBeInTheDocument();
+    // lessonNumber isn't set on the base fixture - "4 of 10 completed" is
+    // the honest count-so-far, NOT "Lesson 4 of 10" (which would wrongly
+    // imply this lesson is #4 in the sequence).
+    expect(screen.getByText('4 of 10 completed')).toBeInTheDocument();
+    expect(screen.getByText('Enrollment balance')).toBeInTheDocument();
     expect(screen.getByText(/\$100\.00 paid, \$50\.00 owed/)).toBeInTheDocument();
+  });
+
+  it('renders Progress as "Lesson N of M" when the lesson\'s own lessonNumber is set', async () => {
+    renderPanel({ lesson: { ...LESSON, lessonNumber: 4 } as Lesson });
+    await waitForLoaded();
+
+    expect(screen.getByText('Lesson 4 of 10')).toBeInTheDocument();
+  });
+
+  it('hides the Payment cell entirely when paymentStatus is "unknown"', async () => {
+    studentGetByIdMock.mockResolvedValueOnce({
+      data: {
+        id: 'student-1',
+        fullName: 'Test Student',
+        phone: '555-0100',
+        enrollments: [
+          {
+            id: 'enrollment-1',
+            progress: { lessonsCompleted: 4, lessonsRequired: 10 },
+            paymentSummary: { totalPaid: 0, outstandingBalance: null, paymentStatus: 'unknown' },
+          },
+        ],
+      },
+    });
+    renderPanel();
+    await waitForLoaded();
+
+    expect(screen.queryByText('Enrollment balance')).not.toBeInTheDocument();
   });
 
   it('shows the "Last lesson" note when present and hides it when absent', async () => {

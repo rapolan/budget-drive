@@ -892,4 +892,29 @@ Found while live-testing this redesign, not part of the original spec: `Lessons.
 
 ---
 
+## 37. `LessonDetailsPanel` Follow-Ups: "Last Lesson" Ordering, Validation, Polish
+
+Two rounds of fixes on top of §36's redesign, before it reached `main`.
+
+### "Last lesson" could show a note from the FUTURE relative to the lesson being viewed
+
+§36's `getLastCompletedLessonNoteForStudent` excluded only the viewed lesson's own id - it had no constraint that the result be chronologically *before* the lesson being viewed, so opening an older completed lesson could show a later completed lesson's note, which reads as "what happened last time" but is actually describing something that hadn't happened yet relative to the lesson on screen. Fixed by looking up the viewed lesson's own `date`/`start_time` server-side first (by `excludeLessonId`, tenant-scoped - never trusted from the caller), then requiring the candidate row to satisfy `(l.date, l.start_time) < ($viewedDate, $viewedStartTime)` - a row-value comparison that correctly breaks same-day ties on `start_time` too. Proven via a new real-Postgres integration test (`lessonServiceLastCompletedNoteRealDb.integration.test.ts`): opening an older completed lesson never surfaces a later one's note (even when a later one exists), a same-day tie resolves to the earlier `start_time`, and a lesson with nothing before it shows nothing. Reverting the fix and re-running confirmed 3 of 4 cases fail with exactly the expected symptom first.
+
+### `excludeLessonId` was never shape-checked
+
+The existing `validateUUID` middleware only ever reads `req.params` - it has no way to validate `excludeLessonId`, which arrives as a query string value (`?excludeLessonId=<id>`), so a malformed value previously reached `lessonService` as a raw string and would have surfaced as an unhandled 500 from Postgres rejecting the parameter, not a clean 400. Added `validateUUIDQuery` (same `isValidUUID` check, reading `req.query` instead) and wired it onto the route alongside the existing `validateUUID('studentId')`.
+
+### Polish pass (post-screenshot-review)
+
+Four small fixes found by reviewing the §36 screenshots themselves:
+
+1. **Duration formatting** - the subtitle showed the raw Postgres numeric string unconverted (`"120.00 min"`). A new `formatDuration` helper coerces to a number and renders whole-hour durations as `"2 hours"`/`"1 hour"`, anything else as whole minutes (`"90 min"`) - never a decimal.
+2. **Progress wording was actively misleading** - `progress.lessonsCompleted` was being labeled `"Lesson N of M"`, which reads as "this lesson is #N in the sequence." It isn't - `lessonsCompleted` is just the completed-count-so-far, so an upcoming or cancelled lesson always showed `"Lesson 0 of 3"` regardless of where it actually falls. Fixed to use the lesson's own `lessonNumber` field (already on the lesson row, zero new requests) for the `"Lesson N of M"` phrasing ONLY when it's actually set - `lessonNumber` is a plain optional field, not auto-assigned at booking time, so it's frequently null. Otherwise falls back to the honest `"N of M completed"` wording, which is correct regardless of this lesson's position.
+3. **Payment relabeled "Enrollment balance"** - the cell showed the enrollment's running totals (`totalPaid`/`outstandingBalance`), not anything about this specific lesson's own cost, and "Payment" invited reading it as the latter.
+4. **Payment cell hidden entirely when `paymentStatus === 'unknown'`** - previously rendered a bare "Unknown" label with no other information, which is not useful enough to take up grid space for.
+
+All four verified via the re-captured `lesson-details-panel-v2-*` screenshots (scheduled shows "2 hours" and "Lesson 1 of 3" - this fixture has a real `lessonNumber`; completed shows "1 hour" and "2 of 2 completed" - no `lessonNumber` on that fixture; cancelled shows "0 of 3 completed" and no Payment/Enrollment-balance cell at all, since that fixture's `paymentStatus` is `unknown`).
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

@@ -57,6 +57,19 @@ const formatDate = (date: Date | string) => {
   });
 };
 
+// lesson.duration is a Postgres numeric column, serialized as a string
+// ("120.00", not 120) - coerce before formatting. Whole-hour durations
+// read as "N hour(s)"; anything else as whole minutes ("90 min"), never
+// the raw decimal ("120.00 min").
+const formatDuration = (duration: number | string) => {
+  const minutes = Math.round(Number(duration));
+  if (minutes > 0 && minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+  return `${minutes} min`;
+};
+
 /**
  * Quick-reference summary first, edit form second: the owner opens a
  * lesson to answer "who, where, which car, what happened last time," not
@@ -218,7 +231,7 @@ export const LessonDetailsPanel: React.FC<LessonDetailsPanelProps> = ({
             </div>
             <p className="text-sm text-tx-muted mt-0.5">
               {formatDate(lesson.date)} &middot; {format12Hour(lesson.startTime.substring(0, 5))}&ndash;
-              {format12Hour(lesson.endTime.substring(0, 5))} &middot; {lesson.duration} min
+              {format12Hour(lesson.endTime.substring(0, 5))} &middot; {formatDuration(lesson.duration)}
             </p>
           </div>
           <button
@@ -277,29 +290,37 @@ export const LessonDetailsPanel: React.FC<LessonDetailsPanelProps> = ({
             </p>
           </div>
           {/* Omitted when lesson-counts aren't cheaply available (no progress
-              on this lesson's own enrollment) rather than showing 0 of 0. */}
+              on this lesson's own enrollment) rather than showing 0 of 0.
+              "Lesson N of M" (N = this lesson's own position) only when
+              lesson.lessonNumber is actually set - it's a plain, optional
+              field on the lesson row (not auto-numbered), so it's often
+              null. Otherwise falls back to "N of M completed," which is
+              always correct regardless of where THIS lesson falls in the
+              sequence (the earlier "Lesson 0 of 3" wording incorrectly
+              implied this lesson was #0 for any upcoming/cancelled lesson,
+              when 0 was really just the completed-count so far). */}
           {progress?.lessonsCompleted != null && progress?.lessonsRequired != null && (
             <div>
               <p className="text-xs font-medium text-tx-muted uppercase tracking-wide">Progress</p>
               <p className="text-tx-primary mt-0.5">
-                Lesson {progress.lessonsCompleted} of {progress.lessonsRequired}
+                {lesson.lessonNumber != null
+                  ? `Lesson ${lesson.lessonNumber} of ${progress.lessonsRequired}`
+                  : `${progress.lessonsCompleted} of ${progress.lessonsRequired} completed`}
               </p>
             </div>
           )}
           {/* Omitted when no payment field exists on this lesson's
-              enrollment - see PR description for this as a follow-up where
-              it doesn't apply. */}
-          {paymentSummary && (
+              enrollment, AND when the status is "unknown" (nothing useful
+              to show either way) - see PR description for the no-payment-
+              field case as a follow-up where it doesn't apply. Labeled
+              "Enrollment balance," not "Payment," since this is the
+              enrollment's running total, not a per-lesson payment. */}
+          {paymentSummary && paymentSummary.paymentStatus !== 'unknown' && (
             <div>
-              <p className="text-xs font-medium text-tx-muted uppercase tracking-wide">Payment</p>
-              <p className="text-tx-primary mt-0.5 capitalize">
-                {paymentSummary.paymentStatus === 'unknown'
-                  ? 'Unknown'
-                  : `$${paymentSummary.totalPaid.toFixed(2)} paid${
-                      paymentSummary.outstandingBalance
-                        ? `, $${paymentSummary.outstandingBalance.toFixed(2)} owed`
-                        : ''
-                    }`}
+              <p className="text-xs font-medium text-tx-muted uppercase tracking-wide">Enrollment balance</p>
+              <p className="text-tx-primary mt-0.5">
+                ${paymentSummary.totalPaid.toFixed(2)} paid
+                {paymentSummary.outstandingBalance ? `, $${paymentSummary.outstandingBalance.toFixed(2)} owed` : ''}
               </p>
             </div>
           )}
