@@ -206,6 +206,17 @@ describe('LessonDetailsPanel - summary content', () => {
     expect(screen.getByText('Lesson 4 of 10')).toBeInTheDocument();
   });
 
+  // Regression: a reschedule or a student needing extra lessons can
+  // legitimately push lessonNumber past lessonsRequired - "Lesson 11 of
+  // 10" reads as nonsensical, so drop the "of M" half once N exceeds M.
+  it('renders just "Lesson N" (no "of M") when lessonNumber exceeds lessonsRequired', async () => {
+    renderPanel({ lesson: { ...LESSON, lessonNumber: 11 } as Lesson });
+    await waitForLoaded();
+
+    expect(screen.getByText('Lesson 11')).toBeInTheDocument();
+    expect(screen.queryByText(/Lesson 11 of/)).not.toBeInTheDocument();
+  });
+
   it('hides the Payment cell entirely when paymentStatus is "unknown"', async () => {
     studentGetByIdMock.mockResolvedValueOnce({
       data: {

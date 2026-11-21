@@ -294,17 +294,24 @@ export const LessonDetailsPanel: React.FC<LessonDetailsPanelProps> = ({
               "Lesson N of M" (N = this lesson's own position) only when
               lesson.lessonNumber is actually set - it's a plain, optional
               field on the lesson row (not auto-numbered), so it's often
-              null. Otherwise falls back to "N of M completed," which is
-              always correct regardless of where THIS lesson falls in the
-              sequence (the earlier "Lesson 0 of 3" wording incorrectly
-              implied this lesson was #0 for any upcoming/cancelled lesson,
-              when 0 was really just the completed-count so far). */}
+              null - AND only when N <= M; a reschedule or a student needing
+              extra lessons can legitimately push lessonNumber past
+              lessonsRequired, and "Lesson 4 of 3" reads as nonsensical, so
+              that case drops the "of M" half entirely ("Lesson 4"). Falls
+              back to "N of M completed" when lessonNumber isn't set at all,
+              which is always correct regardless of where THIS lesson falls
+              in the sequence (the earlier "Lesson 0 of 3" wording
+              incorrectly implied this lesson was #0 for any upcoming/
+              cancelled lesson, when 0 was really just the completed-count
+              so far). */}
           {progress?.lessonsCompleted != null && progress?.lessonsRequired != null && (
             <div>
               <p className="text-xs font-medium text-tx-muted uppercase tracking-wide">Progress</p>
               <p className="text-tx-primary mt-0.5">
                 {lesson.lessonNumber != null
-                  ? `Lesson ${lesson.lessonNumber} of ${progress.lessonsRequired}`
+                  ? lesson.lessonNumber <= progress.lessonsRequired
+                    ? `Lesson ${lesson.lessonNumber} of ${progress.lessonsRequired}`
+                    : `Lesson ${lesson.lessonNumber}`
                   : `${progress.lessonsCompleted} of ${progress.lessonsRequired} completed`}
               </p>
             </div>

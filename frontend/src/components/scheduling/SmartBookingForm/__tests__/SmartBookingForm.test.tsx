@@ -520,6 +520,49 @@ describe('SmartBookingForm - existingLesson reschedule mode', () => {
     expect(screen.queryByText('Lesson Booked!')).not.toBeInTheDocument();
   });
 
+  // Regression: reschedule used to send lessonNumber as part of the SAME
+  // scheduleFields object create uses, computed from
+  // completedOrScheduled.length + 1 - but that count includes the lesson
+  // being rescheduled itself (it's still status: 'scheduled' at that
+  // point), so the suggested number is always one higher than it should
+  // be. Sending it overwrote the lesson's already-correct stored number
+  // with that inflated value - the exact cause of "Lesson #4 of 3"
+  // (EXISTING_LESSON here has lessonNumber: 3; a bare re-suggestion from
+  // one "scheduled" lesson in studentLessons would wrongly compute 2, or
+  // worse once other lessons are counted too). Reschedule must omit
+  // lessonNumber from the payload entirely, leaving the stored value
+  // untouched server-side.
+  it('never sends lessonNumber on reschedule, leaving the stored value untouched', async () => {
+    const user = userEvent.setup();
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+    updateLesson.mockResolvedValue({ data: { id: EXISTING_LESSON.id } });
+
+    renderForm({
+      preselectedStudent: STUDENT,
+      prefilledInstructorId: EXISTING_LESSON.instructorId,
+      prefilledDuration: Number(EXISTING_LESSON.duration),
+      prefilledLessonType: EXISTING_LESSON.lessonType,
+      prefilledPickupAddress: EXISTING_LESSON.pickupAddress ?? undefined,
+      existingLesson: EXISTING_LESSON,
+    });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    const confirmButton = await screen.findByRole('button', { name: /confirm booking/i });
+    await user.click(confirmButton);
+
+    await waitFor(() => expect(updateLesson).toHaveBeenCalledTimes(1));
+    const [, payload] = updateLesson.mock.calls[0];
+    expect(payload).not.toHaveProperty('lessonNumber');
+  });
+
   // Regression: the search call used to omit excludeLessonId entirely,
   // despite a code comment claiming it was "threaded into the
   // confirm-time validation." Without it, the real backend search treats

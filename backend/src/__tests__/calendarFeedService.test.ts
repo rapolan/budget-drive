@@ -102,6 +102,46 @@ describe('generateICSFeed - tenant-timezone-aware, no hardcoded Pacific', () => 
   });
 });
 
+// Regression: estimatedTotal (Math.max(3, Math.ceil(hoursRequired / 2)))
+// is a rough estimate, not a hard cap - a reschedule or a student needing
+// extra lessons can legitimately push lesson_number past it. Printing
+// "Lesson #N of M" when N > M reads as a nonsensical "Lesson #4 of 3" in
+// the calendar event description.
+describe('generateICSFeed - "Lesson #N of M" description only when N <= M', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('prints "Lesson #N of M" when the lesson number is within the estimate', async () => {
+    const { generateICSFeed } = await import('../services/calendarFeedService');
+
+    // hours_required '6' / 2hr lessons -> estimatedTotal = 3; lesson_number 3 <= 3.
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ full_name: 'Priya Patel' }]))
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/New_York' }]))
+      .mockResolvedValueOnce(queryResult([lessonRow({ lesson_number: 3, hours_required: '6' })]));
+
+    const ics = await generateICSFeed(INSTRUCTOR_ID, TENANT_ID);
+
+    expect(ics).toMatch(/Lesson #3 of 3/);
+  });
+
+  it('prints just "Lesson #N" (no "of M") when the lesson number exceeds the estimate', async () => {
+    const { generateICSFeed } = await import('../services/calendarFeedService');
+
+    // hours_required '6' / 2hr lessons -> estimatedTotal = 3; lesson_number 4 > 3.
+    mockQuery
+      .mockResolvedValueOnce(queryResult([{ full_name: 'Priya Patel' }]))
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/New_York' }]))
+      .mockResolvedValueOnce(queryResult([lessonRow({ lesson_number: 4, hours_required: '6' })]));
+
+    const ics = await generateICSFeed(INSTRUCTOR_ID, TENANT_ID);
+
+    expect(ics).toMatch(/Lesson #4(?! of)/);
+    expect(ics).not.toMatch(/Lesson #4 of/);
+  });
+});
+
 function lessonRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'lesson-1',
