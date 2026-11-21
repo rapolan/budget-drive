@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Edit, X, CheckCircle, Calendar, RefreshCw, CalendarDays, MapPin, CalendarRange, Clock, TrendingUp, AlertCircle, Keyboard, LayoutGrid, LayoutList } from 'lucide-react';
+import { Plus, Search, Edit, X, CheckCircle, Calendar, RefreshCw, CalendarDays, MapPin, CalendarRange, Clock, TrendingUp, AlertCircle, Keyboard, LayoutGrid, LayoutList, Eye } from 'lucide-react';
 import { lessonsApi, studentsApi, instructorsApi, schedulingApi } from '@/api';
 import type { Lesson, Instructor } from '@/types';
 import { LessonDetailsPanel, LessonsCalendarView, TodaysScheduleWidget, StatusMenu } from '@/components/lessons';
@@ -760,6 +760,25 @@ export const LessonsPage: React.FC = () => {
                     <RefreshCw className="h-4 w-4" />
                   </button>
                 )}
+                {/* Completed/no_show rows had NO visible action at all before
+                    this - the row/card's own onClick={handleEdit} already
+                    opens LessonDetailsPanel for any status, so this is a
+                    discoverability fix, not a new code path. LessonDetailsPanel
+                    itself renders these statuses read-only except Notes. */}
+                {(lesson.status === 'completed' || lesson.status === 'no_show') && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(lesson);
+                    }}
+                    aria-label="View lesson"
+                    title="View lesson"
+                    className="p-1.5 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-all hover:scale-110"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
             {upcoming && (
@@ -1351,8 +1370,24 @@ export const LessonsPage: React.FC = () => {
                           Book Again
                         </button>
                       )}
-                      {lesson.status !== 'scheduled' && lesson.status !== 'cancelled' && (
-                        <span className="text-tx-muted text-sm italic w-full text-center">No actions available</span>
+                      {/* Completed/no_show cards had NO visible action at
+                          all before this - the card's own onClick=
+                          {handleEdit} already opens LessonDetailsPanel for
+                          any status, so this is a discoverability fix, not
+                          a new code path. LessonDetailsPanel itself renders
+                          these statuses read-only except Notes. */}
+                      {(lesson.status === 'completed' || lesson.status === 'no_show') && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(lesson);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-tx-secondary hover:text-primary hover:bg-status-info-bg text-sm font-medium rounded-lg transition-colors"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1558,10 +1593,11 @@ export const LessonsPage: React.FC = () => {
         </div>
       )}
 
-      {/* LessonDetailsPanel - edit a lesson's non-schedule fields (notes,
-          cost, pickup, vehicle) and status; Reschedule hands off to
-          SmartBookingForm's existingLesson mode for anything schedule-
-          related instead of being editable here. */}
+      {/* LessonDetailsPanel - a quick-reference summary first (who, where,
+          which car, last lesson's notes) and an edit form second (notes,
+          then pickup/vehicle, then a collapsed admin section). Reschedule
+          and Book Again hand off to SmartBookingForm instead of being
+          editable here. */}
       {isModalOpen && selectedLesson && (
         <LessonDetailsPanel
           lesson={selectedLesson}
@@ -1578,6 +1614,11 @@ export const LessonsPage: React.FC = () => {
           onComplete={(id) => handleComplete(id)}
           onNoShow={(id) => handleNoShow(id)}
           onCancel={(id) => handleCancel(id)}
+          onBookAgain={(lesson) => {
+            setIsModalOpen(false);
+            setSelectedLesson(null);
+            handleBookAgainFromCancelled(lesson);
+          }}
         />
       )}
 

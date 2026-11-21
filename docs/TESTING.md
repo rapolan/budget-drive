@@ -709,6 +709,57 @@ Requires both dev servers already running (backend on `:4000`, frontend on `:517
 
 **Pass looks like:** both light and dark runs pass. The script asserts no `<select name="studentId">` exists anywhere in the panel (a structural guard that this is genuinely the new details panel, not the old flat `LessonModal` form) and saves `e2e-screenshots/__screenshots__/lesson-details-panel-{light,dark}.png`. Open the screenshots and confirm the student/instructor names resolve correctly (not blank or "Loading..."), the read-only schedule summary and status badge render, and the editable fields are limited to lesson type, vehicle, cost, pickup address, and notes — no date/time/student/instructor inputs.
 
+### 2.58 Lesson details panel v2: summary-first redesign, all three lesson states (screenshot script, manual, on-demand)
+
+Not part of the automated suite or CI — a Playwright screenshot of the redesigned `LessonDetailsPanel` (`docs/ARCHITECTURE.md` §36), covering a scheduled, a completed, and a cancelled lesson, each in light and dark (6 screenshots). Supersedes §2.57's spec, which only ever covered the scheduled/edit case.
+
+**Do:** seed (or confirm) three specific lessons for this tenant — one `scheduled` with a genuinely future date/time (so `canReschedule` is true), one `completed` with notes AND a second, earlier completed lesson for the same student (to exercise the "Last lesson" note), and one `cancelled`. The spec file's own header comment names the exact students used in the original run; update it if your seed data differs. Then:
+```bash
+cd frontend
+npx playwright test lesson-details-panel-v2.spec.ts --config=playwright.config.ts
+```
+Requires both dev servers already running (backend on `:4000`, frontend on `:5173` — see §1).
+
+**Pass looks like:** all 6 runs pass and save `e2e-screenshots/__screenshots__/lesson-details-panel-v2-{scheduled,completed,cancelled}-{light,dark}.png`. Open the screenshots and confirm: the header shows the student's name and a display-only status badge (no dropdown affordance) with date/time/duration as the subtitle (whole hours/minutes, e.g. "2 hours" or "90 min" — never a raw decimal like "120.00 min", per §37); the summary grid shows phone/instructor/pickup/vehicle and, where the lesson's own enrollment has the data, Progress ("Lesson N of M" only when the lesson's own `lessonNumber` is set, otherwise "N of M completed") and, labeled "Enrollment balance" (not "Payment"), the running paid/owed totals — omitted entirely when `paymentStatus` is "unknown"; the completed lesson's screenshot shows the "Last lesson" note block with the earlier lesson's date and notes; the scheduled lesson's screenshot shows the full action row (Reschedule left, Complete/No-show/Cancel right) and the editable Notes/Pickup/Vehicle fields with Admin details collapsed; the completed and cancelled screenshots show no action row and no editable fields other than Notes, with the cancelled one showing "Book Again" instead.
+
+### 2.59 Lessons list: View button on completed/no_show rows (regression test, automated)
+
+Part of the automated suite (`frontend/src/pages/Lessons.test.tsx`, new) — covers the discoverability fix in `docs/ARCHITECTURE.md` §36 (a completed/no_show row previously rendered no visible action at all, even though clicking the row itself already opened `LessonDetailsPanel`).
+
+**Do:**
+```bash
+cd frontend
+npx vitest run src/pages/Lessons.test.tsx
+```
+
+**Pass looks like:** a completed lesson and a no_show lesson each render a "View lesson" button that opens `LessonDetailsPanel` on click, "No actions available" never renders for any status, and a cancelled lesson still shows "Book Again" rather than "View."
+
+### 2.60 "Last lesson" note ordering (real-Postgres integration test, automated)
+
+Part of the automated suite, gated behind `TEST_DATABASE_URL` (`backend/src/__tests__/lessonServiceLastCompletedNoteRealDb.integration.test.ts`) — covers `docs/ARCHITECTURE.md` §37's fix: the note must come from a completed lesson strictly *before* the one being viewed, never a later one.
+
+**Do:**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/lessonServiceLastCompletedNoteRealDb.integration.test.ts
+```
+Without `TEST_DATABASE_URL` set, every case in the file is an explicit no-op (not a silent gap) — same convention as the other `*RealDb.integration.test.ts` files.
+
+**Pass looks like:** all 4 cases pass — an older completed lesson's note never shows a later lesson's note even when one exists; a same-day tie resolves to the earlier `start_time`; a lesson with nothing completed before it shows nothing (even with a later completed lesson present); a non-`completed` (e.g. cancelled) lesson that happened earlier is ignored.
+
+### 2.61 `excludeLessonId` query param validation (automated)
+
+Part of the automated suite (`backend/src/__tests__/validateUUIDQuery.test.ts`) — covers `docs/ARCHITECTURE.md` §37: a malformed `excludeLessonId` on `GET /lessons/student/:studentId/last-completed-note` must 400 at the route layer, not reach the service as a raw string.
+
+**Do:**
+```bash
+cd backend
+npx vitest run src/__tests__/validateUUIDQuery.test.ts
+```
+
+**Pass looks like:** a well-formed UUID passes through; a malformed string, a missing value, a SQL-injection-shaped string, and an array value (Express's shape for a repeated query key) all throw a 400 `AppError` without calling `next()`.
+
 ---
 
 ## 3. Known issues to route around

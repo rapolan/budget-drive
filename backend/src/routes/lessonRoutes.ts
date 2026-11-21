@@ -7,7 +7,7 @@ import { Router } from 'express';
 import * as lessonController from '../controllers/lessonController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
-import { validateUUID, validateRequired, validateRequiredOneOf } from '../middleware/validate';
+import { validateUUID, validateUUIDQuery, validateRequired, validateRequiredOneOf } from '../middleware/validate';
 
 const router = Router();
 
@@ -33,6 +33,16 @@ router.get(
   '/lessons/student/:studentId/most-recent',
   validateUUID('studentId'),
   lessonController.getMostRecentLessonByStudent
+);
+
+// The student's most recent COMPLETED lesson's date/notes, excluding a
+// given lesson - powers LessonDetailsPanel's "Last lesson" note (must be
+// before the more general /lessons/student/:studentId below)
+router.get(
+  '/lessons/student/:studentId/last-completed-note',
+  validateUUID('studentId'),
+  validateUUIDQuery('excludeLessonId'),
+  lessonController.getLastCompletedLessonNoteByStudent
 );
 
 // Get lessons by student (must be before /:id)

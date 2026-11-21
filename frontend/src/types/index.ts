@@ -523,6 +523,7 @@ export interface Lesson {
   id: string;
   tenantId: string;
   studentId: string;
+  enrollmentId: string; // The student's driver_training enrollment this lesson belongs to
   instructorId: string;
   vehicleId: string | null;
   date: Date;

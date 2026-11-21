@@ -29,6 +29,26 @@ export const validateUUID = (paramName: string = 'id') => {
   };
 };
 
+// Same check as validateUUID, but for a query string parameter (e.g.
+// ?excludeLessonId=<id>) rather than a route param - req.params and
+// req.query are separate Express objects, so validateUUID itself can't
+// reach a query param no matter the name passed to it.
+export const validateUUIDQuery = (paramName: string) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const uuid = req.query[paramName];
+
+    if (!uuid || typeof uuid !== 'string') {
+      throw new AppError(`Missing query parameter: ${paramName}`, 400);
+    }
+
+    if (!isValidUUID(uuid)) {
+      throw new AppError(`Invalid UUID format for ${paramName}`, 400);
+    }
+
+    next();
+  };
+};
+
 // Validate required fields in body
 export const validateRequired = (fields: string[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {

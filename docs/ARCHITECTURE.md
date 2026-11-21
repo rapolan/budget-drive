@@ -846,4 +846,75 @@ Per edit-panel open: **1 student-by-id + 1 instructor-by-id + 1 vehicles-list re
 
 ---
 
+## 36. `LessonDetailsPanel` v2: Summary-First Redesign
+
+Full redesign of §35's `LessonDetailsPanel`, not an incremental change - "a quick-reference summary first and an edit form second. The owner opens a lesson to answer 'who, where, which car, what happened last time,' not to edit fields." The old field-first layout (status badge as a hidden `StatusMenu` dropdown trigger, edit fields immediately below a thin schedule summary) is replaced top-to-bottom.
+
+### New layout
+
+1. **Header** - student's full name + status badge (now display-only, not a `StatusMenu` trigger), subtitle = date, time range, and duration. Close (X) at the right.
+2. **Read-only summary grid** (2 columns) - Phone (`tel:` link), Instructor, Pickup (with a Google Maps search link), Vehicle, Progress, Payment.
+3. **"Last lesson" note** - the student's most recent previous *completed* lesson's notes and date, hidden entirely when there is none.
+4. **Action row** (scheduled lessons only) - Reschedule on the left (`canReschedule`), Complete/No-show/Cancel on the right as plain visible buttons - not a hidden dropdown.
+5. **Editable section** - Notes first, then Pickup Address and Vehicle side by side.
+6. **Collapsed-by-default "Admin details"** - Lesson Type, Lesson Number, Cost (with the `deDiscountApplied` line and a note that editing cost does not update treasury/payments).
+7. **Footer** - Close and Save changes.
+8. **Terminal lessons** (completed, cancelled, no_show) - no action row; everything read-only except Notes. Cancelled shows "Book Again" (never un-cancels in place, same reasoning as §33/§34).
+9. Student name renders from a `Skeleton` placeholder while loading, not a "Loading..." text flicker.
+
+### Progress and Payment were NOT skipped
+
+The spec that commissioned this redesign anticipated these might need to be omitted "if not cheaply available." Investigation found both ARE cheaply available with zero new network requests: `enrollmentService.ts`'s `attachProgressAndPayments` (called from `getEnrollmentsForStudent`) already attaches a `progress` (`StudentProgress`) and `paymentSummary` (`EnrollmentPaymentSummary`) object onto **every entry** in the `enrollments` array that `studentsApi.getById` returns - the same call this panel already made in §35 for the student's name. The one correctness pitfall: `Student.progress` (top-level) is derived by `studentService.ts`'s `getStudentById` from the student's "display" `driver_training` enrollment (active, else most-recently-completed, else most-recently-updated) - **not necessarily the specific enrollment a given lesson belongs to**. Using it directly would show the wrong enrollment's progress for a lesson tied to an old or different enrollment. The panel instead resolves `lesson.enrollmentId` against `student.enrollments` and reads that one entry's own `.progress`/`.paymentSummary` - correctly scoped to the lesson being viewed, regardless of which enrollment the student happens to be actively displaying elsewhere. This required adding `enrollmentId` to the frontend `Lesson` type (`frontend/src/types/index.ts`) - already present on the backend type and already selected via `l.*` in every lesson query, just missing from the frontend's mirror of the shape.
+
+Both fields are omitted from the grid individually (not the whole panel) when the lesson's own enrollment has no `progress`/`paymentSummary` data - e.g. a non-`driver_training` program type, or an enrollment predating payment tracking.
+
+### "Last lesson" note: a new, deliberately narrow backend lookup
+
+`lessonService.getLastCompletedLessonNoteForStudent(tenantId, studentId, excludeLessonId)` (new) - a single-purpose query (`status = 'completed' AND id != excludeLessonId`, `ORDER BY date DESC, start_time DESC LIMIT 1`, selecting only `date`/`notes`) backing a new route, `GET /lessons/student/:studentId/last-completed-note?excludeLessonId=<id>` (placed before the general `/lessons/student/:studentId` route, same ordering requirement as the existing `most-recent` route), and a new frontend client method, `lessonsApi.getLastCompletedNoteByStudent`.
+
+Deliberately **not** a reuse of the existing `getMostRecentLessonForStudent`/`lessonsApi.getMostRecentByStudent` (which powers "Book again" prefill): that lookup has no status filter and no exclusion, so reusing it here would have surfaced the lesson currently being viewed, or a future scheduled one, instead of a genuinely past completed lesson's notes. Live-verified against the real dev database (temporarily inserting, then removing, a second completed lesson for an existing student) before writing any frontend code: confirmed the endpoint returns `{ date, notes }` for the student's prior completed lesson, returns `null` when excluding the only completed lesson a student has, and returns `null` for a student with no lessons at all.
+
+### Per-open query count
+
+Still **4 requests per panel open**, same request shapes as §35 plus the one new "last lesson" lookup: `studentsApi.getById` (also supplies `enrollments[].progress`/`.paymentSummary` for free), `instructorsApi.getById`, `vehiclesApi.getAll()`, `lessonsApi.getLastCompletedNoteByStudent`. Still zero tenant-wide lists. `LessonDetailsPanel.test.tsx`'s request-scope test asserts exactly these 4 calls and nothing else.
+
+### Status actions are no longer a hidden `StatusMenu` dropdown
+
+§35's status badge wrapped `StatusMenu` as a click-to-open dropdown trigger. The v2 action row renders Complete/No-show/Cancel as plain, always-visible buttons (scheduled lessons only), reusing the same `onComplete`/`onNoShow`/`onCancel` handler props `Lessons.tsx` already passes down (each handler already owns its own `window.confirm` dialog and `invalidateAllLessonQueries` call, unchanged) - `StatusMenu.tsx` itself is no longer used by this panel, though it remains in place for its other existing callers.
+
+### Discoverability fix: completed/no_show lessons had no visible row action at all
+
+Found while live-testing this redesign, not part of the original spec: `Lessons.tsx`'s row/card action rendering only ever showed an Edit button for `status === 'scheduled'`, and "Book Again" for `status === 'cancelled'` - a `completed` or `no_show` row's hover actions rendered nothing, and the card view's action row literally printed "No actions available." The row/card's own `onClick={() => handleEdit(lesson)}` already opened `LessonDetailsPanel` regardless of status (confirmed by reading both render paths directly), so this was a pure discoverability gap, not a missing code path - a completed lesson was already one click away on the row itself, just with no visible affordance saying so. Fixed by adding a small "View" button (eye icon) alongside the row/card's existing actions for `completed`/`no_show`, opening the same panel the row click already did. `cancelled` keeps "Book Again" only; `scheduled` is unchanged.
+
+### Tests and live verification
+
+`LessonDetailsPanel.test.tsx` rewritten for the new layout: summary-grid content (phone `tel:` link, instructor, pickup maps link, vehicle, Progress/Payment from the lesson's own enrollment), the "Last lesson" note's presence/absence, Admin details collapsed by default, the action row rendering only for scheduled lessons (Reschedule gated by `canReschedule` independently of Complete/No-show/Cancel), terminal lessons read-only except Notes (asserted for both `completed` and `no_show`, and that the submit payload for a terminal lesson is `{ notes }` only), Book Again on cancelled lessons, and the per-open request-scope count above. A new `Lessons.test.tsx` covers the discoverability fix: a completed/no_show row renders a "View lesson" button that opens the panel, "No actions available" no longer renders anywhere, and a cancelled row still shows "Book Again" rather than "View." Live-verified against the real running app and real dev database in both themes for a scheduled (future, reschedule-eligible), a completed (with a prior completed lesson for the same student, to exercise the "Last lesson" note), and a cancelled lesson - `frontend/e2e-screenshots/lesson-details-panel-v2.spec.ts` (replaces §35's single-state screenshot spec, which only ever covered the scheduled/edit case).
+
+---
+
+## 37. `LessonDetailsPanel` Follow-Ups: "Last Lesson" Ordering, Validation, Polish
+
+Two rounds of fixes on top of §36's redesign, before it reached `main`.
+
+### "Last lesson" could show a note from the FUTURE relative to the lesson being viewed
+
+§36's `getLastCompletedLessonNoteForStudent` excluded only the viewed lesson's own id - it had no constraint that the result be chronologically *before* the lesson being viewed, so opening an older completed lesson could show a later completed lesson's note, which reads as "what happened last time" but is actually describing something that hadn't happened yet relative to the lesson on screen. Fixed by looking up the viewed lesson's own `date`/`start_time` server-side first (by `excludeLessonId`, tenant-scoped - never trusted from the caller), then requiring the candidate row to satisfy `(l.date, l.start_time) < ($viewedDate, $viewedStartTime)` - a row-value comparison that correctly breaks same-day ties on `start_time` too. Proven via a new real-Postgres integration test (`lessonServiceLastCompletedNoteRealDb.integration.test.ts`): opening an older completed lesson never surfaces a later one's note (even when a later one exists), a same-day tie resolves to the earlier `start_time`, and a lesson with nothing before it shows nothing. Reverting the fix and re-running confirmed 3 of 4 cases fail with exactly the expected symptom first.
+
+### `excludeLessonId` was never shape-checked
+
+The existing `validateUUID` middleware only ever reads `req.params` - it has no way to validate `excludeLessonId`, which arrives as a query string value (`?excludeLessonId=<id>`), so a malformed value previously reached `lessonService` as a raw string and would have surfaced as an unhandled 500 from Postgres rejecting the parameter, not a clean 400. Added `validateUUIDQuery` (same `isValidUUID` check, reading `req.query` instead) and wired it onto the route alongside the existing `validateUUID('studentId')`.
+
+### Polish pass (post-screenshot-review)
+
+Four small fixes found by reviewing the §36 screenshots themselves:
+
+1. **Duration formatting** - the subtitle showed the raw Postgres numeric string unconverted (`"120.00 min"`). A new `formatDuration` helper coerces to a number and renders whole-hour durations as `"2 hours"`/`"1 hour"`, anything else as whole minutes (`"90 min"`) - never a decimal.
+2. **Progress wording was actively misleading** - `progress.lessonsCompleted` was being labeled `"Lesson N of M"`, which reads as "this lesson is #N in the sequence." It isn't - `lessonsCompleted` is just the completed-count-so-far, so an upcoming or cancelled lesson always showed `"Lesson 0 of 3"` regardless of where it actually falls. Fixed to use the lesson's own `lessonNumber` field (already on the lesson row, zero new requests) for the `"Lesson N of M"` phrasing ONLY when it's actually set - `lessonNumber` is a plain optional field, not auto-assigned at booking time, so it's frequently null. Otherwise falls back to the honest `"N of M completed"` wording, which is correct regardless of this lesson's position.
+3. **Payment relabeled "Enrollment balance"** - the cell showed the enrollment's running totals (`totalPaid`/`outstandingBalance`), not anything about this specific lesson's own cost, and "Payment" invited reading it as the latter.
+4. **Payment cell hidden entirely when `paymentStatus === 'unknown'`** - previously rendered a bare "Unknown" label with no other information, which is not useful enough to take up grid space for.
+
+All four verified via the re-captured `lesson-details-panel-v2-*` screenshots (scheduled shows "2 hours" and "Lesson 1 of 3" - this fixture has a real `lessonNumber`; completed shows "1 hour" and "2 of 2 completed" - no `lessonNumber` on that fixture; cancelled shows "0 of 3 completed" and no Payment/Enrollment-balance cell at all, since that fixture's `paymentStatus` is `unknown`).
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

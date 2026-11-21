@@ -234,6 +234,29 @@ export const getMostRecentLessonByStudent = asyncHandler(async (req: Request, re
 });
 
 /**
+ * @route   GET /api/v1/lessons/student/:studentId/last-completed-note?excludeLessonId=<id>
+ * @desc    The student's most recent COMPLETED lesson's date/notes, excluding
+ *          a given lesson - powers LessonDetailsPanel's "Last lesson" note.
+ *          A deliberately separate, narrower lookup from the most-recent
+ *          endpoint above (no status filter there, and no exclusion).
+ * @access  Private
+ */
+export const getLastCompletedLessonNoteByStudent = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { studentId } = req.params;
+  // Presence and UUID shape are already enforced by validateUUIDQuery at
+  // the route layer - a malformed or missing value never reaches here.
+  const excludeLessonId = req.query.excludeLessonId as string;
+
+  const note = await lessonService.getLastCompletedLessonNoteForStudent(tenantId, studentId, excludeLessonId);
+
+  res.json({
+    success: true,
+    data: note,
+  });
+});
+
+/**
  * @route   GET /api/v1/lessons/instructor/:instructorId
  * @desc    Get lessons by instructor
  * @access  Private
