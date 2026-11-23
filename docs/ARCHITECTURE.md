@@ -1032,6 +1032,22 @@ All four are `GET`, role-gated to owner/admin/staff (`requireRole('owner', 'admi
 - Per-student "Paid, not yet scheduled" (`creditBalance`) is shown in both the student table and card views only when positive.
 - CSV export is a plain `Blob` + `URL.createObjectURL` + anchor-click download, matching `StudentModal.tsx`'s existing transcript-download precedent - no new dependency.
 
+### Review fixes: Outstanding figure disagreement, CSV formula injection, thousands separators, default period
+
+Four fixes found on a fresh-clone review, after the build above was functionally complete.
+
+**Why the two "Outstanding" cards disagreed.** The page had always summed `student.paymentSummary.outstandingBalance` across `getAllStudents`' own result (`studentService.ts`), which excludes archived students (`archived_at IS NULL`). The new period panel's `getPaymentPeriodSummary` (`paymentReportingService.ts`) instead summed `GREATEST(0, total_cost - total_paid)` directly across every `enrollments` row tenant-wide, with no join to `students` at all - archived or not. A seeded archived student (Jack Sullivan) with a $150 unpaid enrollment was counted by the new panel ($2,490.00) but not by the page's own total ($2,340.00), confirmed against the real dev database as the exact source of the $150 gap. Fixed by joining `students` and filtering `archived_at IS NULL` in both `getPaymentPeriodSummary`'s balances CTE and `getWhoOwesYou` (which had the identical gap - an archived student's enrollment could otherwise appear in a live "who owes you" worklist). One scope, one number, going forward.
+
+Given the two cards could now never disagree, the older "Total Outstanding" card was removed rather than kept as a second computation of the same figure - a future change to either computation would otherwise risk re-introducing silent drift. "Collected This Month" was kept (it is genuinely different information - always this fixed calendar month, with its own month-over-month trend the period panel doesn't have, independent of whatever period chip is currently selected) and relabeled "Collected This Calendar Month (fixed, not the period chip above)" to make that independence explicit rather than implicit.
+
+Deliberately NOT changed: `getPaymentsForExport` (CSV) and `getPaymentReceiptData` (a single receipt) stayed unfiltered by archived status - a CSV export of historical payments and a lookup of one specific payment are both legitimately about records that already happened, regardless of whether the student is archived today.
+
+**CSV formula injection.** A student name or reference number is free text a user controls; a value starting with `=`, `+`, `-`, `@`, a tab, or a carriage return executes as a formula when the exported CSV is opened in Excel/Sheets/LibreOffice. Fixed by a new pure helper, `backend/src/utils/csvFormatting.ts` (`neutralizeFormulaInjection`/`csvCell`), prefixing a single quote whenever the first character is dangerous, applied before the existing RFC 4180 comma/quote/newline escaping (the two must compose, not substitute for each other). Extracted out of `paymentController.ts`'s previously-inline `csvEscape` into its own file specifically so it is directly unit-testable without standing up the full route/DB-mock path.
+
+**Thousands separators.** A new shared `frontend/src/utils/moneyFormat.ts` (`formatMoney`, via `Intl.NumberFormat`) replaced every hand-rolled `` `$${n.toFixed(2)}` `` across the Payments page and its payment-related components (`Payments.tsx`, `PaymentModal.tsx`, `PaymentHistoryModal.tsx`, `PaymentPeriodSummaryPanel.tsx`, `WhoOwesYouList.tsx`, `PaymentReceiptDocument.tsx`). The CSV export's own numeric cells are deliberately NOT run through this formatter - they stay plain decimal numbers, since a spreadsheet import needs `2490.00`, not a display string containing a comma.
+
+**Default period.** `periodRange` now promotes itself from the initial `'all'` preset to `'this_month'` (tenant-resolved month boundaries) the moment `tenantNow` loads - a one-time default (tracked by a `defaultPeriodApplied` flag) rather than a value that keeps reasserting itself once the user picks a different chip. "All Time" remains a selectable preset, unchanged.
+
 ---
 
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

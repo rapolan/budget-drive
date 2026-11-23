@@ -7,6 +7,16 @@ import { test, type Page } from '@playwright/test';
  * list, and the per-student "Paid, not yet scheduled" column/badge - both
  * light and dark theme.
  *
+ * Re-captured after the fix pass that (1) removed the old duplicate
+ * "Total Outstanding" card (it could disagree with this panel's own
+ * "Outstanding" card - see docs/ARCHITECTURE.md's payments-phase1 fix
+ * notes), (2) relabeled "Collected This Month" to "Collected This
+ * Calendar Month" to disambiguate it from the period chip above, (3)
+ * switched all money on this page to thousands-separated formatting, and
+ * (4) defaulted the period chip to "This Month" instead of "All Time" -
+ * the summary screenshot should now show "This Month" selected by
+ * default, not "All Time".
+ *
  * Not a general E2E suite: no visual-regression assertions, just a visible
  * sanity check per screenshot. Requires both dev servers already running
  * (backend :4000, frontend :5173 - see docs/TESTING.md §1) and this

@@ -188,7 +188,7 @@ describe('Payments page - sorting (item 3)', () => {
 });
 
 describe('Payments page - summary cards (item 4)', () => {
-  it('shows Total Outstanding, Collected This Month, and Students with a Balance, combining BTW+DE balances', async () => {
+  it('shows Collected This Calendar Month and Students with a Balance, combining BTW+DE balances - no duplicate Total Outstanding card', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
         // paymentSummary already combines BTW+DE (studentService's
@@ -213,14 +213,47 @@ describe('Payments page - summary cards (item 4)', () => {
     renderPage();
     await screen.findByText('Student One');
 
-    const outstandingCard = screen.getByText('Total Outstanding').closest('div')!.parentElement as HTMLElement;
-    expect(within(outstandingCard).getByText('$200.00')).toBeInTheDocument(); // 50 + 150 + 0
+    // "Total Outstanding" was removed - it duplicated the period panel's
+    // own "Outstanding" card and the two could disagree (see
+    // paymentReportingService.ts's archived-student scope fix). Only one
+    // "Outstanding" figure exists on the page now, from the period panel.
+    expect(screen.queryByText('Total Outstanding')).not.toBeInTheDocument();
 
-    const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+    const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
     expect(within(collectedCard).getByText('$300.00')).toBeInTheDocument(); // 100 + 200, not 999s
 
     const balanceCountCard = screen.getByText('Students with a Balance').closest('div')!.parentElement as HTMLElement;
     expect(within(balanceCountCard).getByText('2')).toBeInTheDocument(); // s1 and s2, not s3
+  });
+});
+
+describe('Payments page - Outstanding figure agreement (fix verification)', () => {
+  it('the period panel\'s Outstanding card is the only "Outstanding" figure on the page, and money is formatted with thousands separators', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getPeriodSummary as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        start: '2026-08-01',
+        end: '2026-08-31',
+        collected: { amount: 0, count: 0 },
+        refunded: { amount: 0, count: 0 },
+        net: 0,
+        outstanding: 2490.5,
+        paidNotYetScheduled: 0,
+        collectedByMethod: [],
+      },
+    });
+
+    renderPage();
+
+    // Only one element says "Outstanding" anywhere on the page - the
+    // period panel's card. A second "Total Outstanding" card computed
+    // from a different, independently-summed figure is exactly the bug
+    // this fix removes.
+    await waitFor(() => {
+      expect(screen.getAllByText(/Outstanding/)).toHaveLength(1);
+      expect(screen.getByText('$2,490.50')).toBeInTheDocument();
+    });
   });
 });
 
@@ -306,7 +339,7 @@ describe('Payments page - month-over-month trend on Collected This Month', () =>
     renderPage();
     await screen.findByText('Test Student');
 
-    const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+    const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
     expect(within(collectedCard).getByText('$300.00')).toBeInTheDocument();
     expect(within(collectedCard).getByText(/\+\$200\.00 vs last month \(\$100\.00\)/)).toBeInTheDocument();
   });
@@ -325,7 +358,7 @@ describe('Payments page - month-over-month trend on Collected This Month', () =>
     renderPage();
     await screen.findByText('Test Student');
 
-    const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+    const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
     expect(within(collectedCard).getByText(/-\$350\.00 vs last month \(\$400\.00\)/)).toBeInTheDocument();
   });
 
@@ -350,7 +383,7 @@ describe('Payments page - month-over-month trend on Collected This Month', () =>
       renderPage();
       await screen.findByText('Test Student');
 
-      const collectedCard = screen.getByText('Collected This Month').closest('div')!.parentElement as HTMLElement;
+      const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
       // 2026-08-01 is in tenant "this month" ($75), 2026-07-31 is "last
       // month" ($40) - correct regardless of the hostile browser TZ.
       expect(within(collectedCard).getByText('$75.00')).toBeInTheDocument();
@@ -430,6 +463,37 @@ describe('Payments page - payments-phase1: period summary panel', () => {
     } finally {
       process.env.TZ = originalTZ;
     }
+  });
+
+  it('"This Month" is the selected chip by default, not "All Time"', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    await waitFor(() => {
+      const thisMonthButton = screen.getByRole('button', { name: /^this month$/i });
+      expect(thisMonthButton.className).toContain('bg-primary');
+    });
+    const allTimeButton = screen.getByRole('button', { name: /^all time$/i });
+    expect(allTimeButton.className).not.toContain('bg-primary');
+  });
+
+  it('"All Time" remains available and, once explicitly chosen, is not overridden back to "This Month"', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+
+    renderPage();
+    await screen.findByText('Test Student');
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^this month$/i }).className).toContain('bg-primary');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^all time$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^all time$/i }).className).toContain('bg-primary');
+    });
+    expect(screen.getByRole('button', { name: /^this month$/i }).className).not.toContain('bg-primary');
   });
 
   it('clicking "Today" re-queries the period summary with the tenant\'s own today (hostile-clock)', async () => {

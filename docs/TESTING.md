@@ -825,6 +825,51 @@ npx playwright test e2e-screenshots/payment-receipt.spec.ts
 
 **Known gaps, by design (not bugs):** per-lesson payment allocation ("Covers") is deliberately not attempted — the payment history and receipt show the enrollment and its running totals only, never a guess at which lesson(s) a payment paid for. `payments.related_lesson_ids` and `payments.invoice_id` already exist as columns but are read/written nowhere in the app, before or after this phase — see §39 for the phase-2 design question this raises.
 
+### 2.64 Payments phase 1 review fixes: Outstanding figure agreement, CSV formula injection, thousands separators, default period
+
+Four fixes found on a fresh-clone review of §2.63, covered here rather than folded silently into it so the before/after is traceable.
+
+**1. The "Outstanding" figure now agrees everywhere.** The period panel's "Outstanding" card and the page's old "Total Outstanding" card could show two different numbers for the same tenant — the panel's SQL (`paymentReportingService.ts`'s `getPaymentPeriodSummary`) summed every enrollment tenant-wide with no join to `students`, while the page's own total (derived from `getAllStudents`) excludes archived students. An archived student with an unpaid enrollment balance inflated the panel's figure but not the page's. Fixed by joining `students` and filtering `archived_at IS NULL` in both `getPaymentPeriodSummary`'s balances query and `getWhoOwesYou` (same gap, same fix), matching `getAllStudents`' own scope exactly. The now-redundant "Total Outstanding" card was removed outright rather than kept as a second source of truth; "Collected This Month" was kept (it is period-chip-independent, always this calendar month, with its own month-over-month trend the panel doesn't have) and relabeled "Collected This Calendar Month (fixed, not the period chip above)" to disambiguate it from the panel's own period-scoped "Collected" card.
+
+```bash
+cd backend
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+cd ../frontend
+npx vitest run src/pages/Payments.test.tsx
+```
+
+**Pass looks like:** backend — `getPaymentPeriodSummary`'s and `getWhoOwesYou`'s SQL excludes archived students (verified against the real dev DB during this fix: a seeded archived student with a $150 unpaid enrollment, previously counted, is now correctly excluded). Frontend — `Payments.test.tsx`'s "Outstanding figure agreement" test asserts exactly one element on the page says "Outstanding" (the panel's card; no second "Total Outstanding" card exists to disagree with it).
+
+**2. CSV export neutralizes spreadsheet formula injection.** A student name or reference number starting with `=`, `+`, `-`, `@`, a tab, or a carriage return would execute as a formula when the exported CSV is opened in Excel/Sheets/LibreOffice (e.g. a student named `=cmd|'/c calc'!A1`). Fixed by a new pure helper, `backend/src/utils/csvFormatting.ts` (`neutralizeFormulaInjection`/`csvCell`), prefixing a single quote whenever the first character is dangerous — applied before, not instead of, the existing RFC 4180 comma/quote/newline escaping.
+
+```bash
+cd backend
+npx vitest run src/__tests__/csvFormatting.test.ts
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+```
+
+**Pass looks like:** `csvFormatting.test.ts` (17 tests) — every dangerous leading character is neutralized; a dangerous character appearing later in the string (not first) is left alone; ordinary names/reference numbers are untouched; formula-injection neutralization and RFC 4180 quoting compose correctly when a value needs both. `paymentReportingRoutes.test.ts`'s "formula injection guard" block exercises the full `GET /payments/export` route end-to-end with a dangerous student name and dangerous reference numbers, asserting the raw CSV response body contains the neutralized form and never the raw dangerous one.
+
+**3. Money on the Payments page is thousands-separated.** `$2,490.00`, not `$2490.00`. A new shared helper, `frontend/src/utils/moneyFormat.ts` (`formatMoney`, via `Intl.NumberFormat`), replaced every hand-rolled `` `$${n.toFixed(2)}` `` across `Payments.tsx`, `PaymentModal.tsx`, `PaymentHistoryModal.tsx`, `PaymentPeriodSummaryPanel.tsx`, `WhoOwesYouList.tsx`, and `PaymentReceiptDocument.tsx`. The CSV export's own numeric cells are intentionally NOT run through this formatter — a spreadsheet import needs a plain decimal number, not a display-formatted string with thousands commas.
+
+```bash
+cd frontend
+npx vitest run src/utils/moneyFormat.test.ts
+```
+
+**Pass looks like:** `moneyFormat.test.ts` (4 tests) — thousands separators appear above 999; always exactly two decimal places; zero and negative amounts format correctly; large amounts get multiple separators (`$1,234,567.89`).
+
+**4. The period defaults to "This Month", not "All Time".** `Payments.tsx` now promotes `periodRange` from the initial `'all'` preset to `'this_month'` (with the tenant-resolved month's own start/end dates) the moment `tenantNow` becomes available — a one-time default via a `defaultPeriodApplied` flag, not a value that keeps re-asserting itself if the user picks a different chip afterward. "All Time" is unchanged as a selectable chip.
+
+```bash
+cd frontend
+npx vitest run src/pages/Payments.test.tsx
+```
+
+**Pass looks like:** the two new tests in the "payments-phase1: period summary panel" block — "This Month" is the selected chip (not "All Time") on initial render; after explicitly clicking "All Time", it stays selected and is not silently reverted back to "This Month". The existing hostile-clock "defaults to this month" query test (§2.63) still passes unchanged — the query itself always resolved to the tenant's month boundaries; what changed is that the chip now visibly reflects that as its own selected preset, not just the underlying query.
+
+**Playwright screenshots were re-captured** after these fixes (`payments-phase1.spec.ts`, `payment-receipt.spec.ts`) — the summary screenshot now shows "This Month" selected, a single "$2,340.00" Outstanding figure (not two disagreeing numbers), and thousands-separated formatting throughout.
+
 ---
 
 ## 3. Known issues to route around

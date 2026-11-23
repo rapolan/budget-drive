@@ -289,3 +289,108 @@ describe('GET /payments/:id/receipt - not found and tenant scoping', () => {
     expect(res.body.data).not.toHaveProperty('coveredLessonIds');
   });
 });
+
+describe('GET /payments/export - formula injection guard', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('neutralizes a student name that reads as a spreadsheet formula', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', 'admin');
+    asAdmin();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440001',
+          date: '2026-01-10',
+          amount: '75.00',
+          payment_method: 'cash',
+          status: 'confirmed',
+          reference_number: null,
+          student_name: "=cmd|'/c calc'!A1",
+        },
+      ])
+    );
+
+    const res = await request(app)
+      .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    // No comma/quote/newline in this value, so RFC 4180 quoting correctly
+    // does not wrap it - only the formula-injection single-quote prefix
+    // is expected here.
+    expect(res.text).toContain("'=cmd|'/c calc'!A1");
+    // Never present un-neutralized - the dangerous leading character must
+    // not reach the CSV body on its own.
+    const lines = res.text.split('\r\n');
+    const dataLine = lines.find((line: string) => line.includes('cmd|'));
+    expect(dataLine?.startsWith('2026-01-10,=cmd')).toBe(false);
+  });
+
+  it('neutralizes a reference number starting with +, -, or @', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', 'admin');
+    asAdmin();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440002',
+          date: '2026-01-11',
+          amount: '50.00',
+          payment_method: 'check',
+          status: 'confirmed',
+          reference_number: '+1+1',
+          student_name: 'Jane Doe',
+        },
+        {
+          id: '550e8400-e29b-41d4-a716-446655440003',
+          date: '2026-01-12',
+          amount: '50.00',
+          payment_method: 'check',
+          status: 'confirmed',
+          reference_number: '@SUM(A1:A2)',
+          student_name: 'John Smith',
+        },
+      ])
+    );
+
+    const res = await request(app)
+      .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("'+1+1");
+    expect(res.text).toContain("'@SUM(A1:A2)");
+  });
+
+  it('leaves an ordinary student name and reference number unmodified', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', 'admin');
+    asAdmin();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440004',
+          date: '2026-01-13',
+          amount: '60.00',
+          payment_method: 'cash',
+          status: 'confirmed',
+          reference_number: 'SQ-1029384',
+          student_name: 'Jane Doe',
+        },
+      ])
+    );
+
+    const res = await request(app)
+      .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Jane Doe');
+    expect(res.text).toContain('SQ-1029384');
+    expect(res.text).not.toContain("'Jane Doe");
+    expect(res.text).not.toContain("'SQ-1029384");
+  });
+});

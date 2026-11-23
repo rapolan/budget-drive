@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X, DollarSign, Calendar, CreditCard, FileText, Receipt } from 'lucide-react';
 import { paymentsApi } from '@/api';
 import type { Student } from '@/types';
+import { formatMoney } from '@/utils/moneyFormat';
 
 interface PaymentHistoryModalProps {
   isOpen: boolean;
@@ -122,13 +123,13 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                 <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Total Paid</p>
                   <p className="mt-1 text-2xl font-bold text-status-success-text">
-                    ${(student.paymentSummary?.totalPaid ?? 0).toFixed(2)}
+                    {formatMoney(student.paymentSummary?.totalPaid ?? 0)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
                   <p className="mt-1 text-2xl font-bold text-status-danger-text">
-                    ${(student.paymentSummary?.outstandingBalance ?? 0).toFixed(2)}
+                    {formatMoney(student.paymentSummary?.outstandingBalance ?? 0)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-status-info-bg p-4">
@@ -227,7 +228,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                               </td>
                               <td className="whitespace-nowrap px-4 py-3 text-right">
                                 <div className="text-sm font-semibold text-status-success-text">
-                                  ${Number(payment.amount).toFixed(2)}
+                                  {formatMoney(Number(payment.amount))}
                                 </div>
                               </td>
                               <td className="whitespace-nowrap px-4 py-3 text-center">

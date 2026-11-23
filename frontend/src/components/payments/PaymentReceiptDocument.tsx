@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PaymentReceiptData } from '@/types';
+import { formatMoney } from '@/utils/moneyFormat';
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -48,7 +49,7 @@ export const PaymentReceiptDocument: React.FC<PaymentReceiptDocumentProps> = ({ 
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-tx-muted mb-1">Amount</p>
-          <p className="text-sm text-tx-primary font-semibold">${receipt.amount.toFixed(2)}</p>
+          <p className="text-sm text-tx-primary font-semibold">{formatMoney(receipt.amount)}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-tx-muted mb-1">Method</p>
@@ -69,20 +70,20 @@ export const PaymentReceiptDocument: React.FC<PaymentReceiptDocumentProps> = ({ 
       <div className="border-t border-edge pt-4 space-y-1">
         <div className="flex items-center justify-between text-sm">
           <span className="text-tx-secondary">Total paid on this enrollment</span>
-          <span className="text-tx-primary font-medium">${receipt.enrollmentTotalPaid.toFixed(2)}</span>
+          <span className="text-tx-primary font-medium">{formatMoney(receipt.enrollmentTotalPaid)}</span>
         </div>
         {receipt.enrollmentOutstandingBalance !== null && receipt.enrollmentOutstandingBalance > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-tx-secondary">Remaining balance owed</span>
             <span className="text-status-danger-text font-medium">
-              ${receipt.enrollmentOutstandingBalance.toFixed(2)}
+              {formatMoney(receipt.enrollmentOutstandingBalance)}
             </span>
           </div>
         )}
         {receipt.enrollmentCreditBalance !== null && receipt.enrollmentCreditBalance > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-tx-secondary">Remaining credit</span>
-            <span className="text-primary font-medium">${receipt.enrollmentCreditBalance.toFixed(2)}</span>
+            <span className="text-primary font-medium">{formatMoney(receipt.enrollmentCreditBalance)}</span>
           </div>
         )}
       </div>

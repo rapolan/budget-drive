@@ -88,6 +88,16 @@ export async function getPaymentPeriodSummary(
   // application code (this tenant-wide total doesn't need the per-
   // enrollment progress/classroom-attendance work attachProgressAndPayments
   // also does, so it isn't reused here).
+  //
+  // Joined to students and filtered to archived_at IS NULL to match
+  // getAllStudents' own scope exactly (studentService.ts) - without this,
+  // an archived student's still-outstanding enrollment balance would be
+  // summed in here but never appear in the Payments page's own
+  // student-list-derived "Total Outstanding" total, producing two
+  // different numbers for what is supposed to be the same figure. This
+  // was found and fixed as a real discrepancy, not a hypothetical: a
+  // seeded archived student with a $150 unpaid enrollment caused exactly
+  // that drift.
   const balancesResult = await query(
     `WITH lesson_totals AS (
        SELECT enrollment_id, SUM(cost) AS lesson_cost_sum
@@ -107,9 +117,10 @@ export async function getPaymentPeriodSummary(
          COALESCE(e.total_cost, lt.lesson_cost_sum) AS total_cost,
          COALESCE(pt.total_paid, 0) AS total_paid
        FROM enrollments e
+       JOIN students s ON s.id = e.student_id
        LEFT JOIN lesson_totals lt ON lt.enrollment_id = e.id
        LEFT JOIN payment_totals pt ON pt.enrollment_id = e.id
-       WHERE e.tenant_id = $1
+       WHERE e.tenant_id = $1 AND s.archived_at IS NULL
      )
      SELECT
        COALESCE(SUM(GREATEST(0, total_cost - total_paid)) FILTER (WHERE total_cost IS NOT NULL), 0) AS outstanding,
@@ -168,6 +179,11 @@ export interface WhoOwesYouRow {
  * the student's last payment, so an installment payer (regularly paying
  * something, just not enough yet to clear a large package) doesn't read
  * as identical to someone who has paid nothing in months.
+ *
+ * Excludes archived students (s.archived_at IS NULL), matching
+ * getAllStudents' own scope (studentService.ts) - an archived student
+ * should not show up in a live "who owes you" worklist even if their
+ * enrollment technically still has a balance.
  */
 export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> {
   const result = await query(
@@ -211,6 +227,7 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
      LEFT JOIN oldest_unpaid_completed ouc ON ouc.enrollment_id = e.id
      LEFT JOIN last_payment lp ON lp.enrollment_id = e.id
      WHERE e.tenant_id = $1
+       AND s.archived_at IS NULL
        AND COALESCE(e.total_cost, lt.lesson_cost_sum) IS NOT NULL
        AND COALESCE(e.total_cost, lt.lesson_cost_sum) - COALESCE(pt.total_paid, 0) > 0
        AND ouc.oldest_date IS NOT NULL`,

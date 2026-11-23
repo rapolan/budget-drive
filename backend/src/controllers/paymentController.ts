@@ -8,6 +8,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as paymentService from '../services/paymentService';
 import * as paymentReportingService from '../services/paymentReportingService';
 import { getTenantId } from '../middleware/tenantContext';
+import { csvCell } from '../utils/csvFormatting';
 
 /**
  * @route   GET /api/v1/payments
@@ -303,30 +304,17 @@ export const exportPaymentsCsv = asyncHandler(async (req: Request, res: Response
 
   const rows = await paymentReportingService.getPaymentsForExport(tenantId, start, end);
 
-  const csvEscape = (value: string | number | null): string => {
-    const str = value === null ? '' : String(value);
-    // Quote whenever the field contains a comma, a double quote, or a
-    // newline - doubling any embedded double quote, the standard CSV
-    // escaping rule (RFC 4180). A student's full name is free text and
-    // could legitimately contain a comma (e.g. "Smith, Jr."), so this is
-    // not a hypothetical case to skip.
-    if (/[",\n\r]/.test(str)) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-
   const header = ['Date', 'Student', 'Amount', 'Method', 'Status', 'Reference', 'Receipt Number'];
   const lines = [
     header.join(','),
     ...rows.map((row) =>
       [
         row.date,
-        csvEscape(row.studentName),
+        csvCell(row.studentName),
         row.amount.toFixed(2),
         row.paymentMethod,
         row.status,
-        csvEscape(row.referenceNumber),
+        csvCell(row.referenceNumber),
         row.receiptNumber,
       ].join(',')
     ),

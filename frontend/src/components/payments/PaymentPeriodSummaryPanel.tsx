@@ -5,6 +5,7 @@ import { paymentsApi } from '@/api';
 import { DateRangeFilter } from '@/components/common';
 import type { DateRangeValue } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
+import { formatMoney } from '@/utils/moneyFormat';
 
 interface PaymentPeriodSummaryPanelProps {
   range: DateRangeValue;
@@ -77,7 +78,7 @@ export const PaymentPeriodSummaryPanel: React.FC<PaymentPeriodSummaryPanelProps>
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-status-success-text">
-              {isLoading ? '—' : `$${(summary?.collected.amount ?? 0).toFixed(2)}`}
+              {isLoading ? '—' : formatMoney(summary?.collected.amount ?? 0)}
             </p>
             <p className="text-sm text-tx-muted">
               Collected {summary && `(${summary.collected.count})`}
@@ -91,7 +92,7 @@ export const PaymentPeriodSummaryPanel: React.FC<PaymentPeriodSummaryPanelProps>
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-status-warning-text">
-              {isLoading ? '—' : `$${(summary?.refunded.amount ?? 0).toFixed(2)}`}
+              {isLoading ? '—' : formatMoney(summary?.refunded.amount ?? 0)}
             </p>
             <p className="text-sm text-tx-muted">
               Refunded {summary && `(${summary.refunded.count})`}
@@ -105,7 +106,7 @@ export const PaymentPeriodSummaryPanel: React.FC<PaymentPeriodSummaryPanelProps>
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-tx-primary">
-              {isLoading ? '—' : `$${(summary?.net ?? 0).toFixed(2)}`}
+              {isLoading ? '—' : formatMoney(summary?.net ?? 0)}
             </p>
             <p className="text-sm text-tx-muted">Net</p>
           </div>
@@ -117,7 +118,7 @@ export const PaymentPeriodSummaryPanel: React.FC<PaymentPeriodSummaryPanelProps>
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-status-danger-text">
-              {isLoading ? '—' : `$${(summary?.outstanding ?? 0).toFixed(2)}`}
+              {isLoading ? '—' : formatMoney(summary?.outstanding ?? 0)}
             </p>
             <p className="text-sm text-tx-muted">Outstanding</p>
           </div>
@@ -129,7 +130,7 @@ export const PaymentPeriodSummaryPanel: React.FC<PaymentPeriodSummaryPanelProps>
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-tx-primary">
-              {isLoading ? '—' : `$${(summary?.paidNotYetScheduled ?? 0).toFixed(2)}`}
+              {isLoading ? '—' : formatMoney(summary?.paidNotYetScheduled ?? 0)}
             </p>
             <p className="text-sm text-tx-muted">Paid, Not Yet Scheduled</p>
           </div>
@@ -156,7 +157,7 @@ export const PaymentPeriodSummaryPanel: React.FC<PaymentPeriodSummaryPanelProps>
                     />
                   </div>
                   <span className="w-28 flex-shrink-0 text-right font-medium text-tx-primary">
-                    ${row.amount.toFixed(2)} ({row.count})
+                    {formatMoney(row.amount)} ({row.count})
                   </span>
                 </div>
               );

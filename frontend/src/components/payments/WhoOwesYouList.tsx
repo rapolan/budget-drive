@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { paymentsApi } from '@/api';
 import type { WhoOwesYouRow } from '@/types';
+import { formatMoney } from '@/utils/moneyFormat';
 
 interface WhoOwesYouListProps {
   // Opens that student's existing PaymentHistoryModal (Payments.tsx
@@ -79,7 +80,7 @@ export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent 
               <p className="text-sm font-medium text-tx-primary truncate">{row.studentName}</p>
               <p className="text-xs text-tx-muted mt-0.5">
                 {row.lastPaymentDate
-                  ? `Last paid $${row.lastPaymentAmount?.toFixed(2)} on ${row.lastPaymentDate}`
+                  ? `Last paid ${formatMoney(row.lastPaymentAmount ?? 0)} on ${row.lastPaymentDate}`
                   : 'No payments on file'}
               </p>
             </div>
@@ -90,7 +91,7 @@ export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent 
                 {AGE_BUCKET_LABELS[row.ageBucket]}
               </span>
               <span className="text-sm font-semibold text-status-danger-text">
-                ${row.amountOwed.toFixed(2)}
+                {formatMoney(row.amountOwed)}
               </span>
             </div>
           </button>

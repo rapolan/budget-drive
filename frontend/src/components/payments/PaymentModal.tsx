@@ -5,6 +5,7 @@ import { paymentsApi, studentsApi } from '@/api';
 import type { CreatePaymentInput, PaymentMethod, Student } from '@/types';
 import { ModalShell, Button } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
+import { formatMoney } from '@/utils/moneyFormat';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -371,7 +372,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="text-sm text-tx-secondary">New balance after this payment</span>
               <span className={`text-sm font-semibold ${newBalance < 0 ? 'text-status-success-text' : newBalance > 0 ? 'text-status-danger-text' : 'text-tx-primary'}`}>
-                {newBalance < 0 ? `$${Math.abs(newBalance).toFixed(2)} credit` : `$${newBalance.toFixed(2)}`}
+                {newBalance < 0 ? `${formatMoney(Math.abs(newBalance))} credit` : formatMoney(newBalance)}
               </span>
             </div>
           </div>
