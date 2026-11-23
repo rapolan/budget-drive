@@ -8,7 +8,7 @@ import * as paymentController from '../controllers/paymentController';
 import { authenticate } from '../middleware/auth';
 import { requireTenantContext } from '../middleware/tenantContext';
 import { requireRole } from '../middleware/requireRole';
-import { validateUUID, validateRequired } from '../middleware/validate';
+import { validateUUID, validateRequired, validateDateRangeQuery } from '../middleware/validate';
 
 const router = Router();
 
@@ -25,6 +25,30 @@ router.use(requireTenantContext);
 // Financial data is admin/staff territory - instructors never see
 // payments/balances (that stays admin-only per the instructor-view design).
 const paymentsOnly = requireRole('owner', 'admin', 'staff');
+
+// Period summary (collected/refunded/net/outstanding/paid-not-yet-
+// scheduled, collected-by-method) - payments-phase1 (must be before /:id)
+router.get(
+  '/payments/period-summary',
+  validateDateRangeQuery('start', 'end'),
+  paymentsOnly,
+  paymentController.getPeriodSummary
+);
+
+// "Who owes you" - payments-phase1 (must be before /:id)
+router.get(
+  '/payments/who-owes-you',
+  paymentsOnly,
+  paymentController.getWhoOwesYou
+);
+
+// CSV export for a date range - payments-phase1 (must be before /:id)
+router.get(
+  '/payments/export',
+  validateDateRangeQuery('start', 'end'),
+  paymentsOnly,
+  paymentController.exportPaymentsCsv
+);
 
 // Get payments by status (must be before /:id)
 router.get(
@@ -85,6 +109,14 @@ router.post(
   validateUUID('id'),
   paymentsOnly,
   paymentController.refundPayment
+);
+
+// Printable receipt data - payments-phase1
+router.get(
+  '/payments/:id/receipt',
+  validateUUID('id'),
+  paymentsOnly,
+  paymentController.getPaymentReceipt
 );
 
 // Get payment by ID

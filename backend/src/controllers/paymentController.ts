@@ -4,8 +4,9 @@
  */
 
 import { Request, Response } from 'express';
-import { asyncHandler } from '../middleware/errorHandler';
+import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as paymentService from '../services/paymentService';
+import * as paymentReportingService from '../services/paymentReportingService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -225,4 +226,113 @@ export const refundPayment = asyncHandler(async (req: Request, res: Response) =>
     data: payment,
     message: 'Payment refunded successfully',
   });
+});
+
+/**
+ * @route   GET /api/v1/payments/period-summary?start=&end=
+ * @desc    Collected/Refunded/Net/Outstanding/Paid-not-yet-scheduled for a
+ *          date range, plus a collected-by-method breakdown. Validated by
+ *          validateDateRangeQuery at the route layer.
+ * @access  Private (owner/admin/staff)
+ */
+export const getPeriodSummary = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const start = req.query.start as string;
+  const end = req.query.end as string;
+
+  const summary = await paymentReportingService.getPaymentPeriodSummary(tenantId, start, end);
+
+  res.json({
+    success: true,
+    data: summary,
+  });
+});
+
+/**
+ * @route   GET /api/v1/payments/who-owes-you
+ * @desc    Enrollments with a positive outstanding balance, aged by the
+ *          oldest completed (already-happened) lesson, each with its last
+ *          payment date/amount.
+ * @access  Private (owner/admin/staff)
+ */
+export const getWhoOwesYou = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const rows = await paymentReportingService.getWhoOwesYou(tenantId);
+
+  res.json({
+    success: true,
+    data: rows,
+  });
+});
+
+/**
+ * @route   GET /api/v1/payments/:id/receipt
+ * @desc    Everything a printable receipt needs for one payment (receipt
+ *          number, student, amount, method, what it applied to, and the
+ *          enrollment's current running totals).
+ * @access  Private (owner/admin/staff)
+ */
+export const getPaymentReceipt = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  const receipt = await paymentReportingService.getPaymentReceiptData(tenantId, id);
+
+  if (!receipt) {
+    throw new AppError('Payment not found', 404);
+  }
+
+  res.json({
+    success: true,
+    data: receipt,
+  });
+});
+
+/**
+ * @route   GET /api/v1/payments/export?start=&end=
+ * @desc    CSV export of payments within a date range (date, student,
+ *          amount, method, status, reference, receipt number). Validated
+ *          by validateDateRangeQuery at the route layer.
+ * @access  Private (owner/admin/staff)
+ */
+export const exportPaymentsCsv = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const start = req.query.start as string;
+  const end = req.query.end as string;
+
+  const rows = await paymentReportingService.getPaymentsForExport(tenantId, start, end);
+
+  const csvEscape = (value: string | number | null): string => {
+    const str = value === null ? '' : String(value);
+    // Quote whenever the field contains a comma, a double quote, or a
+    // newline - doubling any embedded double quote, the standard CSV
+    // escaping rule (RFC 4180). A student's full name is free text and
+    // could legitimately contain a comma (e.g. "Smith, Jr."), so this is
+    // not a hypothetical case to skip.
+    if (/[",\n\r]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const header = ['Date', 'Student', 'Amount', 'Method', 'Status', 'Reference', 'Receipt Number'];
+  const lines = [
+    header.join(','),
+    ...rows.map((row) =>
+      [
+        row.date,
+        csvEscape(row.studentName),
+        row.amount.toFixed(2),
+        row.paymentMethod,
+        row.status,
+        csvEscape(row.referenceNumber),
+        row.receiptNumber,
+      ].join(',')
+    ),
+  ];
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="payments-${start}-to-${end}.csv"`);
+  res.send(lines.join('\r\n'));
 });

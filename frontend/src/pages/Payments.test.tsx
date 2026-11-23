@@ -11,7 +11,26 @@ vi.mock('@/api', async () => {
   return {
     ...actual,
     studentsApi: { ...actual.studentsApi, getAll: vi.fn() },
-    paymentsApi: { ...actual.paymentsApi, getAll: vi.fn(), create: vi.fn(), getByStudent: vi.fn() },
+    paymentsApi: {
+      ...actual.paymentsApi,
+      getAll: vi.fn(),
+      create: vi.fn(),
+      getByStudent: vi.fn(),
+      getPeriodSummary: vi.fn().mockResolvedValue({
+        data: {
+          start: '2026-08-01',
+          end: '2026-08-31',
+          collected: { amount: 0, count: 0 },
+          refunded: { amount: 0, count: 0 },
+          net: 0,
+          outstanding: 0,
+          paidNotYetScheduled: 0,
+          collectedByMethod: [],
+        },
+      }),
+      getWhoOwesYou: vi.fn().mockResolvedValue({ data: [] }),
+      exportCsv: vi.fn().mockResolvedValue('Date,Student,Amount,Method,Status,Reference,Receipt Number'),
+    },
   };
 });
 
@@ -89,7 +108,7 @@ afterEach(cleanup);
 describe('Payments page - row click opens the existing history detail (item 1)', () => {
   it('clicking a table row opens PaymentHistoryModal, without a second detail surface', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [student({ paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial' } })],
+      data: [student({ paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial', creditBalance: 0 } })],
     });
 
     renderPage();
@@ -101,7 +120,7 @@ describe('Payments page - row click opens the existing history detail (item 1)',
 
   it('clicking an action button inside the row does not also trigger the row click', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [student({ paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial' } })],
+      data: [student({ paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial', creditBalance: 0 } })],
     });
 
     renderPage();
@@ -118,7 +137,7 @@ describe('Payments page - row click opens the existing history detail (item 1)',
 describe('Payments page - hover-reveal row actions (item 2)', () => {
   it('renders Add Payment and View History as icon buttons under the student name, not separate always-visible text links', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [student({ paymentSummary: { totalPaid: 0, outstandingBalance: 100, paymentStatus: 'unpaid' } })],
+      data: [student({ paymentSummary: { totalPaid: 0, outstandingBalance: 100, paymentStatus: 'unpaid', creditBalance: 0 } })],
     });
 
     renderPage();
@@ -136,8 +155,8 @@ describe('Payments page - sorting (item 3)', () => {
   it('defaults to name sort and offers a "Highest Balance First" option', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        student({ id: 's1', fullName: 'Zara Low', paymentSummary: { totalPaid: 90, outstandingBalance: 10, paymentStatus: 'partial' } }),
-        student({ id: 's2', fullName: 'Amir High', paymentSummary: { totalPaid: 10, outstandingBalance: 200, paymentStatus: 'partial' } }),
+        student({ id: 's1', fullName: 'Zara Low', paymentSummary: { totalPaid: 90, outstandingBalance: 10, paymentStatus: 'partial', creditBalance: 0 } }),
+        student({ id: 's2', fullName: 'Amir High', paymentSummary: { totalPaid: 10, outstandingBalance: 200, paymentStatus: 'partial', creditBalance: 0 } }),
       ],
     });
 
@@ -152,8 +171,8 @@ describe('Payments page - sorting (item 3)', () => {
   it('sorting by balance shows the highest-outstanding-balance student first', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        student({ id: 's1', fullName: 'Zara Low', paymentSummary: { totalPaid: 90, outstandingBalance: 10, paymentStatus: 'partial' } }),
-        student({ id: 's2', fullName: 'Amir High', paymentSummary: { totalPaid: 10, outstandingBalance: 200, paymentStatus: 'partial' } }),
+        student({ id: 's1', fullName: 'Zara Low', paymentSummary: { totalPaid: 90, outstandingBalance: 10, paymentStatus: 'partial', creditBalance: 0 } }),
+        student({ id: 's2', fullName: 'Amir High', paymentSummary: { totalPaid: 10, outstandingBalance: 200, paymentStatus: 'partial', creditBalance: 0 } }),
       ],
     });
 
@@ -175,9 +194,9 @@ describe('Payments page - summary cards (item 4)', () => {
         // paymentSummary already combines BTW+DE (studentService's
         // combinePaymentSummaries) - this page just sums it, never
         // re-derives per-program.
-        student({ id: 's1', fullName: 'Student One', paymentSummary: { totalPaid: 100, outstandingBalance: 50, paymentStatus: 'partial' } }),
-        student({ id: 's2', fullName: 'Student Two', paymentSummary: { totalPaid: 0, outstandingBalance: 150, paymentStatus: 'unpaid' } }),
-        student({ id: 's3', fullName: 'Student Three', paymentSummary: { totalPaid: 200, outstandingBalance: 0, paymentStatus: 'paid' } }),
+        student({ id: 's1', fullName: 'Student One', paymentSummary: { totalPaid: 100, outstandingBalance: 50, paymentStatus: 'partial', creditBalance: 0 } }),
+        student({ id: 's2', fullName: 'Student Two', paymentSummary: { totalPaid: 0, outstandingBalance: 150, paymentStatus: 'unpaid', creditBalance: 0 } }),
+        student({ id: 's3', fullName: 'Student Three', paymentSummary: { totalPaid: 200, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 0 } }),
       ],
     });
     (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -227,8 +246,8 @@ describe('Payments page - sort by payment date', () => {
   it('offers Payment Date Newest/Oldest options, sorting students by their most recent payment', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        student({ id: 's1', fullName: 'Early Payer', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid' } }),
-        student({ id: 's2', fullName: 'Recent Payer', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid' } }),
+        student({ id: 's1', fullName: 'Early Payer', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 0 } }),
+        student({ id: 's2', fullName: 'Recent Payer', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 0 } }),
       ],
     });
     (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -253,8 +272,8 @@ describe('Payments page - sort by payment date', () => {
   it('sorts a student with no payments to the end regardless of direction', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        student({ id: 's1', fullName: 'No Payments', paymentSummary: { totalPaid: 0, outstandingBalance: 0, paymentStatus: 'unpaid' } }),
-        student({ id: 's2', fullName: 'Has Payment', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid' } }),
+        student({ id: 's1', fullName: 'No Payments', paymentSummary: { totalPaid: 0, outstandingBalance: 0, paymentStatus: 'unpaid', creditBalance: 0 } }),
+        student({ id: 's2', fullName: 'Has Payment', paymentSummary: { totalPaid: 50, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 0 } }),
       ],
     });
     (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -346,8 +365,8 @@ describe('Payments page - status filter reflects the combined balance (item 6)',
   it('filtering by "unpaid" includes a DE-only student whose combined paymentSummary says unpaid', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
-        student({ id: 's1', fullName: 'DE Only Student', paymentSummary: { totalPaid: 0, outstandingBalance: 150, paymentStatus: 'unpaid' } }),
-        student({ id: 's2', fullName: 'Paid Up Student', paymentSummary: { totalPaid: 100, outstandingBalance: 0, paymentStatus: 'paid' } }),
+        student({ id: 's1', fullName: 'DE Only Student', paymentSummary: { totalPaid: 0, outstandingBalance: 150, paymentStatus: 'unpaid', creditBalance: 0 } }),
+        student({ id: 's2', fullName: 'Paid Up Student', paymentSummary: { totalPaid: 100, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 0 } }),
       ],
     });
 
@@ -358,5 +377,195 @@ describe('Payments page - status filter reflects the combined balance (item 6)',
 
     expect(screen.getByText('DE Only Student')).toBeInTheDocument();
     expect(screen.queryByText('Paid Up Student')).not.toBeInTheDocument();
+  });
+});
+
+describe('Payments page - payments-phase1: period summary panel', () => {
+  it('renders period chips and the Collected/Refunded/Net/Outstanding/Paid-not-yet-scheduled cards', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+    (paymentsApi.getPeriodSummary as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        start: '2026-08-01',
+        end: '2026-08-31',
+        collected: { amount: 500, count: 3 },
+        refunded: { amount: 50, count: 1 },
+        net: 450,
+        outstanding: 200,
+        paidNotYetScheduled: 75,
+        collectedByMethod: [{ paymentMethod: 'cash', amount: 500, count: 3 }],
+      },
+    });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    // Period chips (DateRangeFilter reused as-is).
+    expect(screen.getByRole('button', { name: /today/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /this week/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /this month/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /custom/i })).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText('$500.00')).toBeInTheDocument());
+    expect(screen.getByText('$50.00')).toBeInTheDocument();
+    expect(screen.getByText('$450.00')).toBeInTheDocument();
+    expect(screen.getByText('$75.00')).toBeInTheDocument();
+    expect(screen.getByText('Collected by Method')).toBeInTheDocument();
+  });
+
+  it('defaults to "this month" when no explicit range is selected, resolved from tenant time (hostile-clock)', async () => {
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'Pacific/Kiritimati'; // UTC+14 - far ahead of the tenant's America/Los_Angeles
+    try {
+      (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+
+      renderPage();
+      await screen.findByText('Test Student');
+
+      await waitFor(() =>
+        expect(paymentsApi.getPeriodSummary).toHaveBeenCalledWith(
+          MOCK_TENANT_NOW.monthBoundaries.start,
+          MOCK_TENANT_NOW.monthBoundaries.end
+        )
+      );
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+
+  it('clicking "Today" re-queries the period summary with the tenant\'s own today (hostile-clock)', async () => {
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'Pacific/Kiritimati';
+    try {
+      (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+
+      renderPage();
+      await screen.findByText('Test Student');
+
+      fireEvent.click(screen.getByRole('button', { name: /^today$/i }));
+
+      await waitFor(() =>
+        expect(paymentsApi.getPeriodSummary).toHaveBeenCalledWith(MOCK_TENANT_NOW.today, MOCK_TENANT_NOW.today)
+      );
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+});
+
+describe('Payments page - payments-phase1: who owes you', () => {
+  it('shows an empty state when nobody owes anything', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    expect(await screen.findByText('No outstanding balances right now.')).toBeInTheDocument();
+  });
+
+  it('lists rows with age bucket and last-payment info, and opens that student\'s history modal on click', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [student({ id: 'student-owing', fullName: 'Owing Student' })],
+    });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          studentId: 'student-owing',
+          studentName: 'Owing Student',
+          enrollmentId: 'enrollment-1',
+          amountOwed: 250,
+          oldestUnpaidLessonDate: '2026-06-01',
+          ageBucket: '61+',
+          lastPaymentDate: '2026-07-01',
+          lastPaymentAmount: 50,
+        },
+      ],
+    });
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderPage();
+    const row = await screen.findByRole('button', { name: /owing student/i });
+    expect(within(row).getByText('61+ days')).toBeInTheDocument();
+    expect(within(row).getByText('$250.00')).toBeInTheDocument();
+    expect(within(row).getByText(/Last paid \$50\.00 on 2026-07-01/)).toBeInTheDocument();
+
+    fireEvent.click(row);
+    expect(await screen.findByText('Payment History')).toBeInTheDocument();
+  });
+});
+
+describe('Payments page - payments-phase1: "Paid, not yet scheduled" per student', () => {
+  it('shows the credit amount in the table when positive, and "—" when zero', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        student({
+          id: 's1',
+          fullName: 'Has Credit',
+          paymentSummary: { totalPaid: 150, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 75 },
+        }),
+        student({
+          id: 's2',
+          fullName: 'No Credit',
+          paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial', creditBalance: 0 },
+        }),
+      ],
+    });
+
+    renderPage();
+    await screen.findByText('Has Credit');
+
+    const creditRow = screen.getByText('Has Credit').closest('tr')!;
+    expect(within(creditRow).getByText('$75.00')).toBeInTheDocument();
+
+    const noCreditRow = screen.getByText('No Credit').closest('tr')!;
+    expect(within(noCreditRow).getByText('—')).toBeInTheDocument();
+  });
+
+  it('shows the credit amount in the card view when positive', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        student({
+          id: 's1',
+          fullName: 'Has Credit',
+          paymentSummary: { totalPaid: 150, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 75 },
+        }),
+      ],
+    });
+
+    renderPage();
+    await screen.findByText('Has Credit');
+    fireEvent.click(screen.getByTitle('Card view'));
+
+    await waitFor(() => expect(screen.getByText('Paid, not yet scheduled')).toBeInTheDocument());
+    const creditLabel = screen.getByText('Paid, not yet scheduled');
+    expect(within(creditLabel.closest('div')!).getByText('$75.00')).toBeInTheDocument();
+  });
+});
+
+describe('Payments page - payments-phase1: CSV export', () => {
+  it('clicking Export CSV calls paymentsApi.exportCsv with the resolved period range', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+
+    // jsdom has no real download mechanism - stub the anchor-click plumbing
+    // so the handler runs to completion without erroring.
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const createObjectURLSpy = vi.fn().mockReturnValue('blob:mock');
+    const revokeObjectURLSpy = vi.fn();
+    (global as any).URL.createObjectURL = createObjectURLSpy;
+    (global as any).URL.revokeObjectURL = revokeObjectURLSpy;
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }));
+
+    await waitFor(() =>
+      expect(paymentsApi.exportCsv).toHaveBeenCalledWith(
+        MOCK_TENANT_NOW.monthBoundaries.start,
+        MOCK_TENANT_NOW.monthBoundaries.end
+      )
+    );
+
+    clickSpy.mockRestore();
   });
 });

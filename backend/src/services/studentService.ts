@@ -86,7 +86,7 @@ function combinePaymentSummaries(
   const deBalance = de?.outstandingBalance;
 
   if (btwBalance == null && deBalance == null) {
-    return { totalPaid, outstandingBalance: null, paymentStatus: 'unknown' };
+    return { totalPaid, outstandingBalance: null, paymentStatus: 'unknown', creditBalance: null };
   }
 
   const outstandingBalance = round2((btwBalance ?? 0) + (deBalance ?? 0));
@@ -97,7 +97,16 @@ function combinePaymentSummaries(
     paymentStatus = 'partial';
   }
 
-  return { totalPaid, outstandingBalance, paymentStatus };
+  // Same null-means-"not computable" convention as outstandingBalance
+  // above - summed across both programs' already-computed credit figures,
+  // never recomputed from scratch here.
+  const btwCredit = btw?.creditBalance;
+  const deCredit = de?.creditBalance;
+  const creditBalance = btwCredit == null && deCredit == null
+    ? null
+    : round2((btwCredit ?? 0) + (deCredit ?? 0));
+
+  return { totalPaid, outstandingBalance, paymentStatus, creditBalance };
 }
 
 async function attachProgress(students: Student[], tenantId: string): Promise<Student[]> {

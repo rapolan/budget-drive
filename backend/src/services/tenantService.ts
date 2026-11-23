@@ -11,8 +11,7 @@ import {
   tenantToday,
   tenantTomorrow,
   formatInTenantZone,
-  tenantDayOfWeek,
-  addTenantDays,
+  tenantWeekBoundaries,
   tenantMonthBoundaries,
 } from '../utils/tenantTime';
 
@@ -113,19 +112,14 @@ export interface TenantNow {
  * date boundary from the browser's own clock (see docs/ARCHITECTURE.md §7).
  */
 export const getTenantNow = (timezone: string, reference: Date = new Date()): TenantNow => {
-  const today = tenantToday(timezone, reference);
-  // Sunday-start is a convention, not a law - this may need to become a
-  // tenant setting later (mirroring cancellation_fee_window_hours etc.).
-  // Keeping it isolated to this one line is what makes that a one-function
-  // edit rather than an archaeology project across two codebases.
-  const weekStart = addTenantDays(today, -tenantDayOfWeek(today, timezone), timezone);
+  const week = tenantWeekBoundaries(timezone, reference);
   return {
     timezone,
-    today,
+    today: tenantToday(timezone, reference),
     tomorrow: tenantTomorrow(timezone, reference),
     currentTime: formatInTenantZone(reference, timezone, 'HH:mm'),
-    weekStart,
-    weekEnd: addTenantDays(weekStart, 6, timezone),
+    weekStart: week.start,
+    weekEnd: week.end,
     monthBoundaries: tenantMonthBoundaries(timezone, reference),
   };
 };

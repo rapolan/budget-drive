@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, DollarSign, Calendar, CreditCard, FileText } from 'lucide-react';
+import { X, DollarSign, Calendar, CreditCard, FileText, Receipt } from 'lucide-react';
 import { paymentsApi } from '@/api';
 import type { Student } from '@/types';
 
@@ -10,6 +10,16 @@ interface PaymentHistoryModalProps {
   student: Student | null;
 }
 
+// "Applied To" (payments-phase1, item 7) shows the enrollment's PROGRAM
+// only (driver_training/driver_education), via payment.programType - a
+// plain additive JOIN column on the existing payments/enrollments query,
+// cheap to derive. It deliberately never names a specific lesson: no
+// reliable, cheap link from a payment to the lesson(s) it covered exists
+// today (payments.related_lesson_ids/invoice_id are real columns but are
+// never read or written anywhere in this codebase - see
+// docs/ARCHITECTURE.md's payments-phase1 section). Guessing one via a
+// heuristic (amount/date matching, FIFO against unpaid lessons) would read
+// as fact on a record headed for the ledger - not done here.
 export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
   isOpen,
   onClose,
@@ -167,6 +177,12 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Method
                             </th>
+                            {/* Program-level only, never a specific lesson
+                                - see this payment's own doc comment above
+                                the component. */}
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                              Applied To
+                            </th>
                             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Amount
                             </th>
@@ -178,6 +194,9 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Notes
+                            </th>
+                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
+                              Receipt
                             </th>
                           </tr>
                         </thead>
@@ -199,6 +218,11 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                 <div className="flex items-center gap-2 text-sm text-tx-primary">
                                   <CreditCard className="h-4 w-4 text-tx-muted" />
                                   {getPaymentMethodLabel(payment.paymentMethod)}
+                                </div>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3">
+                                <div className="text-sm text-tx-muted capitalize">
+                                  {payment.programType ? payment.programType.replace(/_/g, ' ') : '-'}
                                 </div>
                               </td>
                               <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -224,6 +248,17 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                 <div className="max-w-xs truncate text-sm text-tx-muted">
                                   {payment.notes || '-'}
                                 </div>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(`/payments/${payment.id}/receipt`, '_blank', 'noopener')}
+                                  className="p-1.5 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-colors"
+                                  aria-label="Print receipt"
+                                  title="Print receipt"
+                                >
+                                  <Receipt className="h-4 w-4" />
+                                </button>
                               </td>
                             </tr>
                           ))}

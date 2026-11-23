@@ -147,6 +147,26 @@ export function tenantNextMonthBoundaries(
 }
 
 /**
+ * Start/end of the reference week (default: tenant "now") as YYYY-MM-DD
+ * strings, in the tenant's timezone. Sunday-start is a convention, not a
+ * law - this may need to become a tenant setting later (mirroring
+ * cancellation_fee_window_hours etc.); keeping it isolated to this one
+ * function is what makes that a one-function edit rather than an
+ * archaeology project across two codebases. Previously inlined once,
+ * identically, inside tenantService.getTenantNow - extracted here so a
+ * second caller (payment period summaries) doesn't have to re-derive the
+ * same two lines a second time.
+ */
+export function tenantWeekBoundaries(
+  timezone: string,
+  reference: Date = new Date()
+): { start: string; end: string } {
+  const today = tenantToday(timezone, reference);
+  const start = addTenantDays(today, -tenantDayOfWeek(today, timezone), timezone);
+  return { start, end: addTenantDays(start, 6, timezone) };
+}
+
+/**
  * Day of week (0 = Sunday, 6 = Saturday) for a YYYY-MM-DD date string,
  * interpreted in the tenant's timezone. Replaces reading .getDay() off a
  * Date constructed in the process's own local time.

@@ -90,6 +90,7 @@ describe('GET /api/v1/students - combined BTW + DE paymentSummary', () => {
       totalPaid: 0,
       outstandingBalance: 150,
       paymentStatus: 'unpaid',
+      creditBalance: 0,
     });
   });
 
@@ -121,6 +122,43 @@ describe('GET /api/v1/students - combined BTW + DE paymentSummary', () => {
       totalPaid: 150,
       outstandingBalance: 0,
       paymentStatus: 'paid',
+      creditBalance: 0,
+    });
+  });
+
+  // Regression (payments-phase1): an overpayment used to be entirely
+  // invisible - outstandingBalance clamped to 0 with no sign the student
+  // had paid AHEAD of their cost. A family paying for two lessons before
+  // either is booked is exactly this case.
+  it('a DE-only student who paid $200 against a $150 DE cost shows outstandingBalance: 0 AND creditBalance: 50', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('staff-1');
+
+    mockListSequence({
+      btwEnrollment: null,
+      deEnrollment: {
+        id: DE_ENROLLMENT_ID,
+        student_id: STUDENT_ID,
+        status: 'active',
+        completed: false,
+        completed_at: null,
+        de_delivery_mode: 'online',
+        manual_completed_hours: null,
+        total_cost: '150.00',
+        cohort_name: null,
+        certificate_id: null,
+      },
+      payments: [{ enrollment_id: DE_ENROLLMENT_ID, total_paid: '200.00' }],
+    });
+
+    const res = await request(app).get('/api/v1/students').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].paymentSummary).toEqual({
+      totalPaid: 200,
+      outstandingBalance: 0,
+      paymentStatus: 'paid',
+      creditBalance: 50,
     });
   });
 
@@ -165,6 +203,7 @@ describe('GET /api/v1/students - combined BTW + DE paymentSummary', () => {
       totalPaid: 150,
       outstandingBalance: 300,
       paymentStatus: 'partial',
+      creditBalance: 0,
     });
   });
 

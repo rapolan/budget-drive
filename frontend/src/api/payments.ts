@@ -4,6 +4,9 @@ import type {
   CreatePaymentInput,
   ApiResponse,
   PaginatedResponse,
+  PaymentPeriodSummary,
+  WhoOwesYouRow,
+  PaymentReceiptData,
 } from '@/types';
 
 export const paymentsApi = {
@@ -59,6 +62,37 @@ export const paymentsApi = {
 
   refund: async (id: string) => {
     const response = await apiClient.post<ApiResponse<Payment>>(`/payments/${id}/refund`);
+    return response.data;
+  },
+
+  // Payments phase 1 - additive reporting endpoints, read-only.
+  getPeriodSummary: async (start: string, end: string) => {
+    const response = await apiClient.get<ApiResponse<PaymentPeriodSummary>>(
+      '/payments/period-summary',
+      { params: { start, end } }
+    );
+    return response.data;
+  },
+
+  getWhoOwesYou: async () => {
+    const response = await apiClient.get<ApiResponse<WhoOwesYouRow[]>>('/payments/who-owes-you');
+    return response.data;
+  },
+
+  getReceipt: async (id: string) => {
+    const response = await apiClient.get<ApiResponse<PaymentReceiptData>>(`/payments/${id}/receipt`);
+    return response.data;
+  },
+
+  // Returns the raw CSV text (Content-Type: text/csv) - the caller builds
+  // a downloadable blob from it. Never routed through the normal JSON
+  // envelope ({ success, data, message }) - a CSV export is a file, not an
+  // API resource.
+  exportCsv: async (start: string, end: string) => {
+    const response = await apiClient.get<string>('/payments/export', {
+      params: { start, end },
+      responseType: 'text',
+    });
     return response.data;
   },
 };

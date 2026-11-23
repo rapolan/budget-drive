@@ -778,6 +778,53 @@ npx vitest run src/__tests__/lessonInviteService.test.ts
 
 **Known limitation, by design:** this fix only prevents new inflation and nonsensical display going forward — it does not rewrite any `lessonNumber` already inflated by the bug before this fix. Correct an already-wrong stored number by hand via `LessonDetailsPanel`'s Admin details section.
 
+### 2.63 Payments phase 1: credit balance, period summary, who-owes-you, receipts, CSV export
+
+Covers `docs/ARCHITECTURE.md` §39. Additive-only — no migration, no change to `createPayment`/`updatePayment`/`refundPayment`/`deletePayment`.
+
+**Unit/route tests (no real DB needed):**
+```bash
+cd backend
+npx vitest run src/__tests__/computePaymentSummaryCredit.test.ts
+npx vitest run src/__tests__/receiptService.test.ts
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+npx vitest run src/__tests__/studentCombinedPaymentSummary.test.ts
+npx vitest run src/__tests__/tenantTime.test.ts
+```
+
+**Pass looks like:** `computePaymentSummaryCredit.test.ts` — `creditBalance` is `0` (not null, not negative) whenever `totalPaid <= totalCost`, rises/falls correctly as lessons are booked against a lesson-sum (no-override) enrollment, stays `0` under a fixed `totalCost` override even after full payment, is unaffected by a reschedule (same lesson list in, same list out), and is `null` only when `totalCost` itself is `null`. `receiptService.test.ts` — the same `(tenantId, paymentId)` pair always returns the same receipt number; two different payment ids (or the same payment id under two different tenant ids) return different numbers; format is always `BDP-` + 10 uppercase hex characters. `paymentReportingRoutes.test.ts` — every one of the 4 new routes 403s for an `instructor` role and 200s for `admin`; every query includes the caller's own `tenantId` and never another tenant's; `period-summary`/`export` 400 when `start`/`end` is missing, malformed, or `end < start`; `who-owes-you` rows are sorted by amount owed descending, carry a correct age bucket, and never omit the last-payment date/amount; the receipt endpoint 404s for an unknown payment id and never includes a lesson-level field. `studentCombinedPaymentSummary.test.ts`'s new 4th case — a DE-only student who paid $200 against a $150 cost shows `outstandingBalance: 0` AND `creditBalance: 50` (the overpayment-is-no-longer-hidden regression case). `tenantTime.test.ts`'s `tenantWeekBoundaries` cases match `tenantService.getTenantNow`'s own `weekStart`/`weekEnd` for the same inputs, including a case where the UTC day and the tenant's local day disagree.
+
+**Real-database integration test (the 4 scenarios named in the task):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/paymentReportingRealDb.integration.test.ts
+```
+Without `TEST_DATABASE_URL` set, every case is an explicit no-op — same convention as the other `*RealDb.integration.test.ts` files. Each case creates its own fresh student/enrollment (not shared across the file), to avoid the cross-test contamination pattern found and fixed in `lessonServiceLastCompletedNoteRealDb.integration.test.ts` (§2.60).
+
+**Pass looks like:** (a) a family who pays for two lessons and books exactly two shows `outstandingBalance: 0` and `creditBalance: 0` — no leftover credit, no false balance. (b) a family who pays their full package cost up front, then books lessons over time against the lesson-sum (no-override) path, shows `creditBalance` falling as each lesson is booked — asserted at three stages (before any lesson, after lesson 1, after lesson 2). (c) rescheduling a lesson (same cost, different date/time) leaves both `outstandingBalance` and `creditBalance` unchanged. (d) cancelling a lesson and then rebooking a replacement applies the existing payment to the new lesson with no double charge — the balance after rebooking matches the balance before cancellation, not a doubled amount.
+
+**Frontend:**
+```bash
+cd frontend
+npx vitest run src/pages/Payments.test.tsx
+npx vitest run src/components/payments/PaymentHistoryModal.test.tsx
+npx vitest run src/pages/PaymentReceiptPrint.test.tsx
+```
+
+**Pass looks like:** `Payments.test.tsx` — the period summary panel renders its chips and 5 cards; a hostile-clock case (browser `TZ` set far from the tenant's own zone, e.g. `Pacific/Kiritimati`) still defaults to the tenant's own "this month" and resolves the "Today" chip to the tenant's today, never the browser's; the who-owes-you list shows its empty state with no outstanding balances, and clicking a row opens that student's existing payment history modal (there is no student-detail route in this app to navigate to); the "Paid, not yet scheduled" figure appears in both the table and card views only when positive; clicking "Export CSV" triggers a download (stubbing `HTMLAnchorElement.prototype.click` and `URL.createObjectURL`/`revokeObjectURL`). `PaymentHistoryModal.test.tsx` — "Applied to" shows the enrollment's program type only, never a specific lesson, and is absent when the payment has no resolvable program type; exactly one receipt button renders per row, and clicking it opens `/payments/:id/receipt` in a new tab. `PaymentReceiptPrint.test.tsx` — the page renders school name, receipt number, student, date, amount, method, "Applied to", and whichever of remaining balance/remaining credit is actually nonzero (never both, never a lesson-level claim).
+
+**Playwright screenshots (light + dark, seeded data, requires both dev servers running):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payments-phase1.spec.ts
+npx playwright test e2e-screenshots/payment-receipt.spec.ts
+```
+
+**Pass looks like:** `payments-phase1.spec.ts` (4 tests) — the period summary + who-owes-you view and the student table's "Paid, Not Yet Scheduled" column each capture cleanly in both themes. `payment-receipt.spec.ts` (2 tests) — the printable receipt renders cleanly in both themes; the spec looks up a real payment id live via the Payments page's own History modal (searching for a student already known to have a confirmed payment) rather than hardcoding one, so it keeps working if seed data changes — don't "fix" a failure here by assuming the first alphabetical student has a payment; several don't.
+
+**Known gaps, by design (not bugs):** per-lesson payment allocation ("Covers") is deliberately not attempted — the payment history and receipt show the enrollment and its running totals only, never a guess at which lesson(s) a payment paid for. `payments.related_lesson_ids` and `payments.invoice_id` already exist as columns but are read/written nowhere in the app, before or after this phase — see §39 for the phase-2 design question this raises.
+
 ---
 
 ## 3. Known issues to route around

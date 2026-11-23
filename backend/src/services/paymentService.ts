@@ -86,9 +86,12 @@ export const getPaymentsByStudent = async (
   logger.debug('Fetching payments for student', { tenantId, studentId });
 
   // A person's payment history spans every enrollment they've ever had,
-  // not just their current active one.
+  // not just their current active one. program_type is included
+  // (payments-phase1) so the history modal can show "Applied to:
+  // <program>" per payment at zero extra cost - a plain additive column
+  // on an already-joined table, not a new query or a new link.
   const result = await query(
-    `SELECT p.*, e.student_id AS student_id
+    `SELECT p.*, e.student_id AS student_id, e.program_type AS program_type
      FROM payments p
      JOIN enrollments e ON e.id = p.enrollment_id
      WHERE p.tenant_id = $1 AND e.student_id = $2
