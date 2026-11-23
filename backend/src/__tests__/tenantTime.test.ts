@@ -8,6 +8,7 @@ import {
   formatInTenantZone,
   zonedWallClockToUtc,
   tenantMonthBoundaries,
+  tenantWeekBoundaries,
   tenantDayOfWeek,
   parseTenantDateOnly,
 } from '../utils/tenantTime';
@@ -167,6 +168,40 @@ describe('tenantMonthBoundaries', () => {
       start: '2026-02-01',
       end: '2026-02-28',
     });
+  });
+});
+
+// Regression: this exact Sunday-start calc used to be inlined once inside
+// tenantService.getTenantNow (addTenantDays(today, -tenantDayOfWeek(...), ...)
+// then + 6) - extracted here as its own export (payments-phase1) so a
+// second caller (period-summary boundaries) doesn't have to re-derive it.
+describe('tenantWeekBoundaries', () => {
+  it('returns a Sunday-start week (start/end) in the tenant timezone', () => {
+    // 2026-02-15 is a Sunday.
+    const midWeek = new Date('2026-02-18T12:00:00Z'); // Wednesday
+    expect(tenantWeekBoundaries('America/New_York', midWeek)).toEqual({
+      start: '2026-02-15',
+      end: '2026-02-21',
+    });
+  });
+
+  it('resolves the correct week even when UTC and tenant date fall on different calendar days', () => {
+    // 9:30pm Saturday Feb 14 Eastern is already Sunday Feb 15 in UTC - the
+    // tenant's own calendar day (Saturday, still last week) must win.
+    const lateNightEastern = new Date('2026-02-15T02:30:00Z');
+    expect(tenantWeekBoundaries('America/New_York', lateNightEastern)).toEqual({
+      start: '2026-02-08',
+      end: '2026-02-14',
+    });
+  });
+
+  it('matches tenantService.getTenantNow\'s weekStart/weekEnd exactly (same underlying calc)', async () => {
+    const { getTenantNow } = await import('../services/tenantService');
+    const reference = new Date('2026-02-18T12:00:00Z');
+    const now = getTenantNow('America/New_York', reference);
+    const week = tenantWeekBoundaries('America/New_York', reference);
+    expect(now.weekStart).toBe(week.start);
+    expect(now.weekEnd).toBe(week.end);
   });
 });
 

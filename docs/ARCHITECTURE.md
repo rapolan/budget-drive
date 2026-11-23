@@ -949,4 +949,105 @@ This fix only prevents the number from being inflated or displayed nonsensically
 
 ---
 
+## 39. Payments Phase 1: Period Reporting, Credit Balances, Receipts, CSV Export
+
+Additive-only reporting layer on top of the existing payments system. No migration, no change to how payments are created, refunded, or deleted. All new read logic lives in a new file, `backend/src/services/paymentReportingService.ts`, which imports no write function from `paymentService.ts` - nothing in this phase can accidentally touch a write path.
+
+### Overpayment was silently hidden - `creditBalance` added alongside, not instead of, `outstandingBalance`
+
+`computePaymentSummary` (`enrollmentService.ts`) already clamped `outstandingBalance` at `Math.max(0, totalCost - totalPaid)`, which is correct for the "do they owe money" question but silently discarded the overpayment case entirely - a family that pays for two lessons and books exactly two looked identical to a family that simply owes nothing. Added a second field, `creditBalance = Math.max(0, totalPaid - totalCost)`, computed in the same place from the same `totalCost`/`totalPaid` values, `null` under the exact same "cost not computable" condition `outstandingBalance` already uses. **`outstandingBalance`'s and `paymentStatus`'s existing values and conditions are completely unchanged** - this is a pure addition. `combinePaymentSummaries` (`studentService.ts`), which sums a student's BTW+DE enrollment summaries, sums `creditBalance` the same null-propagates-only-when-neither-computable way it already summed `outstandingBalance`.
+
+`totalCost` itself is still derived exactly as before: `enrollment.totalCost` override if set, else the sum of non-cancelled lesson costs, else `null` (zero lessons). An override always wins over the lesson sum - this means a family on a fixed package price will show `creditBalance: 0` immediately on full payment even before any lesson exists, while a family with no override sees credit fall lesson-by-lesson as they get booked. Both are correct for their respective billing model; which one a given enrollment uses is simply whether `total_cost` is set.
+
+### `backend/src/services/paymentReportingService.ts` - period summary, who-owes-you, receipt data, CSV rows
+
+Four read-only functions, each tenant-scoped by a required `tenantId` parameter passed straight into every query's `WHERE tenant_id = $1`:
+
+- **`getPaymentPeriodSummary(tenantId, start, end)`** - `collected`/`refunded` (sum + count of `confirmed`/`refunded` payments by `date` in range), `collectedByMethod` (same range, grouped by `payment_method`), and `outstanding`/`credit` computed **tenant-wide, not period-scoped** (a balance is a point-in-time fact, not something that resets at a period boundary) via a CTE joining per-enrollment lesson-cost sums and payment sums, applying the identical `GREATEST(0, total_cost - total_paid)` / `GREATEST(0, total_paid - total_cost)` logic as `computePaymentSummary`, aggregated directly in SQL across every enrollment in one query rather than looping `computePaymentSummary` per enrollment in application code.
+- **`getWhoOwesYou(tenantId)`** - enrollments with positive outstanding AND at least one `completed` lesson, joined with the oldest unpaid completed lesson's date and the most recent confirmed payment (`DISTINCT ON (enrollment_id)` ordered by date descending). See "age bucket derivation" below.
+- **`getPaymentReceiptData(tenantId, paymentId)`** - everything the receipt page and history-modal receipt icon need, computed fresh at read time (not frozen at payment-creation time): payment fields, receipt number, enrollment program type, and the enrollment's current running totals. Returns `null` on no match (controller maps to 404) - never throws for a merely-missing id.
+- **`getPaymentsForExport(tenantId, start, end)`** - every payment (all statuses, not just confirmed) in range, for the CSV endpoint.
+
+All money fields are rounded via a local `round2` matching the existing convention; all numeric Postgres columns are coerced with `Number()` before arithmetic, per the project-wide numeric-string rule.
+
+### "Who owes you" age-bucket derivation
+
+Age is measured from the **oldest unpaid completed lesson's date** to today (tenant-resolved `tenantToday`, never server/browser local time), bucketed `0-30` / `31-60` / `61+` days. Rationale: a family paying in installments across many future lessons is not "aging" just because they have a balance - what matters is how long a lesson that has already happened has gone unpaid. An enrollment with zero completed lessons never appears in this list at all, regardless of outstanding balance, since there is nothing yet to call overdue. Each row also carries the date and amount of the family's last confirmed payment, so an installment payer who is current on their plan doesn't read as delinquent next to someone who has truly stopped paying.
+
+### Receipt numbers: UUID-derived, not sequential (interim format)
+
+`backend/src/services/receiptService.ts`:
+
+```ts
+computeReceiptNumber(tenantId, paymentId) =
+  "BDP-" + sha256(`${tenantId}:${paymentId}`).slice(0, 10).toUpperCase()
+```
+
+Deliberately **not** a per-school sequential counter derived from row order or count, because hard delete still exists on payments - sequential numbering from existing rows could shift or reuse a number after a delete. This derivation is pure (same payment id + tenant id always yields the same number), requires no new column and no migration, and is always looked up by `(tenantId, paymentId)` together - never by the short number alone across tenants, since the hash is not guaranteed collision-free across different tenants in isolation. Tested for stability (same input twice) and distinctness (different payment ids, and the same payment id under different tenant ids, both yield different numbers).
+
+**This is explicitly an interim format.** Phase 2 may add a true per-school sequential receipt number as a stored column via a migration; any such change must keep every UUID-derived legacy number permanently valid (receipts already handed to customers cannot be renumbered), not replace this scheme outright.
+
+### "Applied to": enrollment only, never a specific-lesson guess
+
+The payment history modal and the printable receipt show `Applied to: <program type>` plus the enrollment's running totals (total paid, and whichever of outstanding/credit is currently nonzero) - never a claim about which specific lesson(s) a payment covered. Building a FIFO or date-proximity heuristic to guess lesson-level allocation was deliberately rejected: a guess would render as fact on a receipt and in the permanent payment history, and these records are headed toward the ledger, where "which lesson this paid for" would need to be either true or absent, not inferred.
+
+**Finding, recorded here per instruction:** `payments.related_lesson_ids` (uuid[]) and `payments.invoice_id` (uuid) already exist as columns but are read and written nowhere in the application - confirmed by a full-codebase grep before this phase began. Neither is touched in this phase. **Phase 2 design question:** record real payment-to-lesson links at the moment a payment is entered (not inferred after the fact), to be designed together with the append-only/BSV ledger work rather than bolted onto the existing mutable columns.
+
+### BSV-readiness note
+
+Per `docs/BLOCKCHAIN.md`'s established groundwork-only pattern (a deterministic hash of lifecycle facts computed now, paired with a permanently-`NULL` txid column, no wallet/network call), the fixed, documented field list a future payment-record hash would cover is:
+
+- `amount`
+- `date`
+- `payment_method`
+- `enrollment_id`
+- receipt number (the `computeReceiptNumber` output, since it is itself already a deterministic function of `tenant_id` + `payment_id`)
+
+**Explicitly excluded, permanently:** student/guardian names, free-text notes, or any other personal data - matching `docs/BLOCKCHAIN.md`'s existing `completion_hash` convention of hashing only internal ids, lifecycle enums, numbers, and dates.
+
+Nothing in this phase's receipt or CSV design assumes a payment can be edited after creation - the receipt and export both read the payment's current row state at request time and contain no cached/frozen snapshot that a later edit would desynchronize from. `LedgerService`/`BSV_ENABLED` are untouched; this phase added no new ledger action and does not call `walletService`/`treasuryService`.
+
+The BSV agent docs at `docs.bsvblockchain.org` (the "Set up your AI" section asked for by the task) were checked and found to contain no AI-agent-specific setup content at the time of this review - only generic SPV and data-model reference pages. No action item resulted from that site; `docs/BLOCKCHAIN.md`'s own existing groundwork pattern remains the only applicable guidance, and this phase follows it as described above.
+
+### `tenantWeekBoundaries` extraction
+
+`tenantService.getTenantNow`'s week-start/week-end calculation was inlined directly in that function. Extracted to `backend/src/utils/tenantTime.ts` as `tenantWeekBoundaries(timezone, reference)` so the new period-summary "This week" chip (via the existing `DateRangeFilter` component, reused as-is) and `getTenantNow` share one implementation instead of two. Behavior unchanged - verified via a cross-check test asserting `tenantWeekBoundaries`'s output matches `getTenantNow`'s own `weekStart`/`weekEnd` for the same inputs.
+
+### Endpoints
+
+All four are `GET`, role-gated to owner/admin/staff (`requireRole('owner', 'admin', 'staff')`, applied per-route like the rest of `paymentRoutes.ts`), tenant-scoped via `getTenantId(req)`:
+
+- `GET /payments/period-summary?start=YYYY-MM-DD&end=YYYY-MM-DD`
+- `GET /payments/who-owes-you`
+- `GET /payments/:id/receipt`
+- `GET /payments/export?start=YYYY-MM-DD&end=YYYY-MM-DD` - returns `text/csv` with `Content-Disposition: attachment`, columns: date, student, amount, method, status, reference, receipt number. Not wrapped in the `{success, data, message}` envelope, since the response body is the file itself.
+
+`start`/`end` are validated by a new `validateDateRangeQuery` middleware (`backend/src/middleware/validate.ts`) - unlike the existing `validateDateRangePair`, both parameters are **required** here (there is no "all time" mode for these endpoints at the route layer; the frontend substitutes a tenant-resolved "this month" range when the user's own filter preset is unset).
+
+### Frontend
+
+- `PaymentPeriodSummaryPanel` reuses the existing `DateRangeFilter` component directly (already tenant-timezone-aware with Today/This Week/This Month/Custom/All Time presets) rather than building new chips.
+- `WhoOwesYouList` takes an `onSelectStudent` callback rather than navigating to a student-detail route, because no such route exists in this app (`/students` is list-only) - the callback opens the existing `PaymentHistoryModal` instead.
+- The printable receipt page (`PaymentReceiptPrintPage` / `PaymentReceiptDocument`) follows the existing `CertificatePrintPage` / `CertificateDocument` pattern exactly: a bare page outside `AppLayout`, auto-fires `window.print()` once data loads, opened via `window.open(url, '_blank', 'noopener')` from a receipt icon button in `PaymentHistoryModal`.
+- Per-student "Paid, not yet scheduled" (`creditBalance`) is shown in both the student table and card views only when positive.
+- CSV export is a plain `Blob` + `URL.createObjectURL` + anchor-click download, matching `StudentModal.tsx`'s existing transcript-download precedent - no new dependency.
+
+### Review fixes: Outstanding figure disagreement, CSV formula injection, thousands separators, default period
+
+Four fixes found on a fresh-clone review, after the build above was functionally complete.
+
+**Why the two "Outstanding" cards disagreed.** The page had always summed `student.paymentSummary.outstandingBalance` across `getAllStudents`' own result (`studentService.ts`), which excludes archived students (`archived_at IS NULL`). The new period panel's `getPaymentPeriodSummary` (`paymentReportingService.ts`) instead summed `GREATEST(0, total_cost - total_paid)` directly across every `enrollments` row tenant-wide, with no join to `students` at all - archived or not. A seeded archived student (Jack Sullivan) with a $150 unpaid enrollment was counted by the new panel ($2,490.00) but not by the page's own total ($2,340.00), confirmed against the real dev database as the exact source of the $150 gap. Fixed by joining `students` and filtering `archived_at IS NULL` in both `getPaymentPeriodSummary`'s balances CTE and `getWhoOwesYou` (which had the identical gap - an archived student's enrollment could otherwise appear in a live "who owes you" worklist). One scope, one number, going forward.
+
+Given the two cards could now never disagree, the older "Total Outstanding" card was removed rather than kept as a second computation of the same figure - a future change to either computation would otherwise risk re-introducing silent drift. "Collected This Month" was kept (it is genuinely different information - always this fixed calendar month, with its own month-over-month trend the period panel doesn't have, independent of whatever period chip is currently selected) and relabeled "Collected This Calendar Month (fixed, not the period chip above)" to make that independence explicit rather than implicit.
+
+Deliberately NOT changed: `getPaymentsForExport` (CSV) and `getPaymentReceiptData` (a single receipt) stayed unfiltered by archived status - a CSV export of historical payments and a lookup of one specific payment are both legitimately about records that already happened, regardless of whether the student is archived today.
+
+**CSV formula injection.** A student name or reference number is free text a user controls; a value starting with `=`, `+`, `-`, `@`, a tab, or a carriage return executes as a formula when the exported CSV is opened in Excel/Sheets/LibreOffice. Fixed by a new pure helper, `backend/src/utils/csvFormatting.ts` (`neutralizeFormulaInjection`/`csvCell`), prefixing a single quote whenever the first character is dangerous, applied before the existing RFC 4180 comma/quote/newline escaping (the two must compose, not substitute for each other). Extracted out of `paymentController.ts`'s previously-inline `csvEscape` into its own file specifically so it is directly unit-testable without standing up the full route/DB-mock path.
+
+**Thousands separators.** A new shared `frontend/src/utils/moneyFormat.ts` (`formatMoney`, via `Intl.NumberFormat`) replaced every hand-rolled `` `$${n.toFixed(2)}` `` across the Payments page and its payment-related components (`Payments.tsx`, `PaymentModal.tsx`, `PaymentHistoryModal.tsx`, `PaymentPeriodSummaryPanel.tsx`, `WhoOwesYouList.tsx`, `PaymentReceiptDocument.tsx`). The CSV export's own numeric cells are deliberately NOT run through this formatter - they stay plain decimal numbers, since a spreadsheet import needs `2490.00`, not a display string containing a comma.
+
+**Default period.** `periodRange` now promotes itself from the initial `'all'` preset to `'this_month'` (tenant-resolved month boundaries) the moment `tenantNow` loads - a one-time default (tracked by a `defaultPeriodApplied` flag) rather than a value that keeps reasserting itself once the user picks a different chip. "All Time" remains a selectable preset, unchanged.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

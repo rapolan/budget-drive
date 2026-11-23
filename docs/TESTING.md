@@ -778,6 +778,98 @@ npx vitest run src/__tests__/lessonInviteService.test.ts
 
 **Known limitation, by design:** this fix only prevents new inflation and nonsensical display going forward — it does not rewrite any `lessonNumber` already inflated by the bug before this fix. Correct an already-wrong stored number by hand via `LessonDetailsPanel`'s Admin details section.
 
+### 2.63 Payments phase 1: credit balance, period summary, who-owes-you, receipts, CSV export
+
+Covers `docs/ARCHITECTURE.md` §39. Additive-only — no migration, no change to `createPayment`/`updatePayment`/`refundPayment`/`deletePayment`.
+
+**Unit/route tests (no real DB needed):**
+```bash
+cd backend
+npx vitest run src/__tests__/computePaymentSummaryCredit.test.ts
+npx vitest run src/__tests__/receiptService.test.ts
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+npx vitest run src/__tests__/studentCombinedPaymentSummary.test.ts
+npx vitest run src/__tests__/tenantTime.test.ts
+```
+
+**Pass looks like:** `computePaymentSummaryCredit.test.ts` — `creditBalance` is `0` (not null, not negative) whenever `totalPaid <= totalCost`, rises/falls correctly as lessons are booked against a lesson-sum (no-override) enrollment, stays `0` under a fixed `totalCost` override even after full payment, is unaffected by a reschedule (same lesson list in, same list out), and is `null` only when `totalCost` itself is `null`. `receiptService.test.ts` — the same `(tenantId, paymentId)` pair always returns the same receipt number; two different payment ids (or the same payment id under two different tenant ids) return different numbers; format is always `BDP-` + 10 uppercase hex characters. `paymentReportingRoutes.test.ts` — every one of the 4 new routes 403s for an `instructor` role and 200s for `admin`; every query includes the caller's own `tenantId` and never another tenant's; `period-summary`/`export` 400 when `start`/`end` is missing, malformed, or `end < start`; `who-owes-you` rows are sorted by amount owed descending, carry a correct age bucket, and never omit the last-payment date/amount; the receipt endpoint 404s for an unknown payment id and never includes a lesson-level field. `studentCombinedPaymentSummary.test.ts`'s new 4th case — a DE-only student who paid $200 against a $150 cost shows `outstandingBalance: 0` AND `creditBalance: 50` (the overpayment-is-no-longer-hidden regression case). `tenantTime.test.ts`'s `tenantWeekBoundaries` cases match `tenantService.getTenantNow`'s own `weekStart`/`weekEnd` for the same inputs, including a case where the UTC day and the tenant's local day disagree.
+
+**Real-database integration test (the 4 scenarios named in the task):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/paymentReportingRealDb.integration.test.ts
+```
+Without `TEST_DATABASE_URL` set, every case is an explicit no-op — same convention as the other `*RealDb.integration.test.ts` files. Each case creates its own fresh student/enrollment (not shared across the file), to avoid the cross-test contamination pattern found and fixed in `lessonServiceLastCompletedNoteRealDb.integration.test.ts` (§2.60).
+
+**Pass looks like:** (a) a family who pays for two lessons and books exactly two shows `outstandingBalance: 0` and `creditBalance: 0` — no leftover credit, no false balance. (b) a family who pays their full package cost up front, then books lessons over time against the lesson-sum (no-override) path, shows `creditBalance` falling as each lesson is booked — asserted at three stages (before any lesson, after lesson 1, after lesson 2). (c) rescheduling a lesson (same cost, different date/time) leaves both `outstandingBalance` and `creditBalance` unchanged. (d) cancelling a lesson and then rebooking a replacement applies the existing payment to the new lesson with no double charge — the balance after rebooking matches the balance before cancellation, not a doubled amount.
+
+**Frontend:**
+```bash
+cd frontend
+npx vitest run src/pages/Payments.test.tsx
+npx vitest run src/components/payments/PaymentHistoryModal.test.tsx
+npx vitest run src/pages/PaymentReceiptPrint.test.tsx
+```
+
+**Pass looks like:** `Payments.test.tsx` — the period summary panel renders its chips and 5 cards; a hostile-clock case (browser `TZ` set far from the tenant's own zone, e.g. `Pacific/Kiritimati`) still defaults to the tenant's own "this month" and resolves the "Today" chip to the tenant's today, never the browser's; the who-owes-you list shows its empty state with no outstanding balances, and clicking a row opens that student's existing payment history modal (there is no student-detail route in this app to navigate to); the "Paid, not yet scheduled" figure appears in both the table and card views only when positive; clicking "Export CSV" triggers a download (stubbing `HTMLAnchorElement.prototype.click` and `URL.createObjectURL`/`revokeObjectURL`). `PaymentHistoryModal.test.tsx` — "Applied to" shows the enrollment's program type only, never a specific lesson, and is absent when the payment has no resolvable program type; exactly one receipt button renders per row, and clicking it opens `/payments/:id/receipt` in a new tab. `PaymentReceiptPrint.test.tsx` — the page renders school name, receipt number, student, date, amount, method, "Applied to", and whichever of remaining balance/remaining credit is actually nonzero (never both, never a lesson-level claim).
+
+**Playwright screenshots (light + dark, seeded data, requires both dev servers running):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payments-phase1.spec.ts
+npx playwright test e2e-screenshots/payment-receipt.spec.ts
+```
+
+**Pass looks like:** `payments-phase1.spec.ts` (4 tests) — the period summary + who-owes-you view and the student table's "Paid, Not Yet Scheduled" column each capture cleanly in both themes. `payment-receipt.spec.ts` (2 tests) — the printable receipt renders cleanly in both themes; the spec looks up a real payment id live via the Payments page's own History modal (searching for a student already known to have a confirmed payment) rather than hardcoding one, so it keeps working if seed data changes — don't "fix" a failure here by assuming the first alphabetical student has a payment; several don't.
+
+**Known gaps, by design (not bugs):** per-lesson payment allocation ("Covers") is deliberately not attempted — the payment history and receipt show the enrollment and its running totals only, never a guess at which lesson(s) a payment paid for. `payments.related_lesson_ids` and `payments.invoice_id` already exist as columns but are read/written nowhere in the app, before or after this phase — see §39 for the phase-2 design question this raises.
+
+### 2.64 Payments phase 1 review fixes: Outstanding figure agreement, CSV formula injection, thousands separators, default period
+
+Four fixes found on a fresh-clone review of §2.63, covered here rather than folded silently into it so the before/after is traceable.
+
+**1. The "Outstanding" figure now agrees everywhere.** The period panel's "Outstanding" card and the page's old "Total Outstanding" card could show two different numbers for the same tenant — the panel's SQL (`paymentReportingService.ts`'s `getPaymentPeriodSummary`) summed every enrollment tenant-wide with no join to `students`, while the page's own total (derived from `getAllStudents`) excludes archived students. An archived student with an unpaid enrollment balance inflated the panel's figure but not the page's. Fixed by joining `students` and filtering `archived_at IS NULL` in both `getPaymentPeriodSummary`'s balances query and `getWhoOwesYou` (same gap, same fix), matching `getAllStudents`' own scope exactly. The now-redundant "Total Outstanding" card was removed outright rather than kept as a second source of truth; "Collected This Month" was kept (it is period-chip-independent, always this calendar month, with its own month-over-month trend the panel doesn't have) and relabeled "Collected This Calendar Month (fixed, not the period chip above)" to disambiguate it from the panel's own period-scoped "Collected" card.
+
+```bash
+cd backend
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+cd ../frontend
+npx vitest run src/pages/Payments.test.tsx
+```
+
+**Pass looks like:** backend — `getPaymentPeriodSummary`'s and `getWhoOwesYou`'s SQL excludes archived students (verified against the real dev DB during this fix: a seeded archived student with a $150 unpaid enrollment, previously counted, is now correctly excluded). Frontend — `Payments.test.tsx`'s "Outstanding figure agreement" test asserts exactly one element on the page says "Outstanding" (the panel's card; no second "Total Outstanding" card exists to disagree with it).
+
+**2. CSV export neutralizes spreadsheet formula injection.** A student name or reference number starting with `=`, `+`, `-`, `@`, a tab, or a carriage return would execute as a formula when the exported CSV is opened in Excel/Sheets/LibreOffice (e.g. a student named `=cmd|'/c calc'!A1`). Fixed by a new pure helper, `backend/src/utils/csvFormatting.ts` (`neutralizeFormulaInjection`/`csvCell`), prefixing a single quote whenever the first character is dangerous — applied before, not instead of, the existing RFC 4180 comma/quote/newline escaping.
+
+```bash
+cd backend
+npx vitest run src/__tests__/csvFormatting.test.ts
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+```
+
+**Pass looks like:** `csvFormatting.test.ts` (17 tests) — every dangerous leading character is neutralized; a dangerous character appearing later in the string (not first) is left alone; ordinary names/reference numbers are untouched; formula-injection neutralization and RFC 4180 quoting compose correctly when a value needs both. `paymentReportingRoutes.test.ts`'s "formula injection guard" block exercises the full `GET /payments/export` route end-to-end with a dangerous student name and dangerous reference numbers, asserting the raw CSV response body contains the neutralized form and never the raw dangerous one.
+
+**3. Money on the Payments page is thousands-separated.** `$2,490.00`, not `$2490.00`. A new shared helper, `frontend/src/utils/moneyFormat.ts` (`formatMoney`, via `Intl.NumberFormat`), replaced every hand-rolled `` `$${n.toFixed(2)}` `` across `Payments.tsx`, `PaymentModal.tsx`, `PaymentHistoryModal.tsx`, `PaymentPeriodSummaryPanel.tsx`, `WhoOwesYouList.tsx`, and `PaymentReceiptDocument.tsx`. The CSV export's own numeric cells are intentionally NOT run through this formatter — a spreadsheet import needs a plain decimal number, not a display-formatted string with thousands commas.
+
+```bash
+cd frontend
+npx vitest run src/utils/moneyFormat.test.ts
+```
+
+**Pass looks like:** `moneyFormat.test.ts` (4 tests) — thousands separators appear above 999; always exactly two decimal places; zero and negative amounts format correctly; large amounts get multiple separators (`$1,234,567.89`).
+
+**4. The period defaults to "This Month", not "All Time".** `Payments.tsx` now promotes `periodRange` from the initial `'all'` preset to `'this_month'` (with the tenant-resolved month's own start/end dates) the moment `tenantNow` becomes available — a one-time default via a `defaultPeriodApplied` flag, not a value that keeps re-asserting itself if the user picks a different chip afterward. "All Time" is unchanged as a selectable chip.
+
+```bash
+cd frontend
+npx vitest run src/pages/Payments.test.tsx
+```
+
+**Pass looks like:** the two new tests in the "payments-phase1: period summary panel" block — "This Month" is the selected chip (not "All Time") on initial render; after explicitly clicking "All Time", it stays selected and is not silently reverted back to "This Month". The existing hostile-clock "defaults to this month" query test (§2.63) still passes unchanged — the query itself always resolved to the tenant's month boundaries; what changed is that the chip now visibly reflects that as its own selected preset, not just the underlying query.
+
+**Playwright screenshots were re-captured** after these fixes (`payments-phase1.spec.ts`, `payment-receipt.spec.ts`) — the summary screenshot now shows "This Month" selected, a single "$2,340.00" Outstanding figure (not two disagreeing numbers), and thousands-separated formatting throughout.
+
 ---
 
 ## 3. Known issues to route around

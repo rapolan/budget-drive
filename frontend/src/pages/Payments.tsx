@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, CreditCard, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History, ArrowUpDown, Users, TrendingUp } from 'lucide-react';
+import { DollarSign, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History, ArrowUpDown, Users, TrendingUp, Download, Wallet } from 'lucide-react';
 import { studentsApi, paymentsApi } from '@/api';
-import { PaymentModal, PaymentHistoryModal } from '@/components/payments';
-import type { Student } from '@/types';
+import { PaymentModal, PaymentHistoryModal, PaymentPeriodSummaryPanel, WhoOwesYouList } from '@/components/payments';
+import type { Student, WhoOwesYouRow } from '@/types';
 import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
+import type { DateRangeValue } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
 import { getMonthBoundaries } from '@/utils/timeFormat';
+import { formatMoney } from '@/utils/moneyFormat';
 
 type ViewMode = 'table' | 'cards';
 const isViewMode = (v: string): v is ViewMode => v === 'table' || v === 'cards';
@@ -33,6 +35,16 @@ export const PaymentsPage: React.FC = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  // Period summary's own date range - defaults to "This Month", not "All
+  // Time". Starts at the 'all' preset because tenantNow (and therefore
+  // the tenant-resolved month boundaries) isn't available synchronously
+  // on first render - the effect below promotes it to 'this_month' the
+  // moment tenantNow loads, but only while the user hasn't touched the
+  // filter yet (tracked by defaultApplied, not by re-checking preset ===
+  // 'all', since 'all' is also the user's own valid choice via the "All
+  // Time" chip and must stay sticky once explicitly chosen).
+  const [periodRange, setPeriodRange] = useState<DateRangeValue>({ start: '', end: '', preset: 'all' });
+  const [defaultPeriodApplied, setDefaultPeriodApplied] = useState(false);
 
   // Fetch students
   const { data: studentsData, isLoading, error } = useQuery({
@@ -51,6 +63,21 @@ export const PaymentsPage: React.FC = () => {
 
   const students = studentsData?.data || [];
   const payments = paymentsData?.data || [];
+
+  // Promote the period filter from 'all' to 'this_month' the moment
+  // tenant-resolved month boundaries are available, but only once and
+  // only if the user hasn't already made their own choice (switching to
+  // "All Time", "Today", etc. before this fires must stick - this is a
+  // one-time default, not a value that keeps re-asserting itself).
+  useEffect(() => {
+    if (defaultPeriodApplied || !tenantNow) return;
+    setDefaultPeriodApplied(true);
+    setPeriodRange({
+      start: tenantNow.monthBoundaries.start,
+      end: tenantNow.monthBoundaries.end,
+      preset: 'this_month',
+    });
+  }, [tenantNow, defaultPeriodApplied]);
 
   // Loading state
   if (isLoading) {
@@ -130,6 +157,7 @@ export const PaymentsPage: React.FC = () => {
         totalDue: 0,
         paid: 0,
         balance: 0,
+        credit: 0,
         status: 'unpaid' as const,
       };
     }
@@ -142,6 +170,11 @@ export const PaymentsPage: React.FC = () => {
       totalDue,
       paid: totalPaid,
       balance: outstandingBalance,
+      // "Paid, not yet scheduled" per student (item 3) - the same
+      // creditBalance computePaymentSummary now computes, already combined
+      // across BTW+DE by studentService.combinePaymentSummaries exactly
+      // like outstandingBalance above. Shown only when positive.
+      credit: summary.creditBalance ?? 0,
       status: summary.paymentStatus === 'unknown' ? ('unpaid' as const) : summary.paymentStatus,
     };
   };
@@ -195,22 +228,25 @@ export const PaymentsPage: React.FC = () => {
       return a.fullName.localeCompare(b.fullName);
     });
 
-  // Calculate totals - outstandingBalance/totalPaid on Student.paymentSummary
-  // already combine BOTH BTW lesson-cost balances and DE course-fee
-  // balances (studentService.attachProgress's combinePaymentSummaries),
-  // so these totals are correct across both programs with no extra logic
-  // here.
+  // "Students with a Balance" is the only figure still computed from the
+  // page's own student list. The lifetime outstanding total that used to
+  // live here ("Total Outstanding") was removed - it duplicated the
+  // period panel's own "Outstanding" card, and the two could disagree:
+  // this card summed Student.paymentSummary.outstandingBalance, which
+  // getAllStudents already excludes archived students from, while
+  // paymentReportingService's SQL originally summed every enrollment
+  // tenant-wide with no such filter. Fixed by scoping that SQL to
+  // archived_at IS NULL to match this page's own scope exactly, so now
+  // there is one number instead of two that could silently drift apart
+  // again - see paymentReportingService.ts's getPaymentPeriodSummary.
   const totals = students.reduce(
     (acc, student) => {
       const payment = getPaymentInfo(student);
       return {
-        totalDue: acc.totalDue + payment.totalDue,
-        totalPaid: acc.totalPaid + payment.paid,
-        totalOutstanding: acc.totalOutstanding + payment.balance,
         studentsWithBalance: acc.studentsWithBalance + (payment.balance > 0 ? 1 : 0),
       };
     },
-    { totalDue: 0, totalPaid: 0, totalOutstanding: 0, studentsWithBalance: 0 }
+    { studentsWithBalance: 0 }
   );
 
   // Total collected THIS MONTH (tenant-timezone month boundaries, never
@@ -264,6 +300,39 @@ export const PaymentsPage: React.FC = () => {
     }
   };
 
+  // CSV export for the period panel's own date range, falling back to
+  // "this month" the same way PaymentPeriodSummaryPanel's own query does
+  // when no explicit range is selected yet - same blob/anchor-click
+  // pattern StudentModal.tsx's transcript download already uses.
+  const handleExportCsv = async () => {
+    const start = periodRange.start || tenantNow?.monthBoundaries.start;
+    const end = periodRange.end || tenantNow?.monthBoundaries.end;
+    if (!start || !end) return;
+
+    const csvText = await paymentsApi.exportCsv(start, end);
+    const blob = new Blob([csvText], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `payments-${start}-to-${end}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // "Who owes you" rows carry a studentId, but PaymentHistoryModal needs
+  // a full Student object - resolved from the students list already
+  // fetched for this page's own table, same pattern the table/card rows
+  // already use for their own history button.
+  const handleSelectOwingStudent = (row: WhoOwesYouRow) => {
+    const matched = students.find((s) => s.id === row.studentId);
+    if (matched) {
+      setSelectedStudent(matched);
+      setIsHistoryModalOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -297,6 +366,15 @@ export const PaymentsPage: React.FC = () => {
           </div>
           <button
             type="button"
+            onClick={handleExportCsv}
+            className="flex items-center justify-center rounded-lg border border-edge-strong bg-surface px-4 py-2 text-tx-secondary hover:bg-surface2 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all"
+            title="Export payments for the selected period as CSV"
+          >
+            <Download className="mr-2 h-5 w-5 flex-shrink-0" />
+            Export CSV
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setSelectedStudent(null);
               setIsPaymentModalOpen(true);
@@ -309,26 +387,32 @@ export const PaymentsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Period summary - chips (Today/This Week/This Month/Custom) plus
+          Collected/Refunded/Net/Outstanding/Paid-not-yet-scheduled cards
+          and a collected-by-method breakdown, all scoped to the selected
+          period. "Outstanding" here and "Collected This Calendar Month"
+          below are deliberately different figures now (one point-in-time
+          tenant-wide balance, one fixed-to-this-month collected amount) -
+          see the removed "Total Outstanding" card's comment below for the
+          duplicate-figure bug this replaced. */}
+      <PaymentPeriodSummaryPanel range={periodRange} onRangeChange={setPeriodRange} />
+
+      {/* "Who owes you" - counts only lessons that have already happened,
+          aged from the oldest unpaid completed lesson. */}
+      <WhoOwesYouList onSelectStudent={handleSelectOwingStudent} />
+
       {/* Summary Stats - matches Students.tsx's stat-card treatment
           (tokens, rounded-xl/border-edge/shadow-sm, icon chip + value
           block), not the previous hand-rolled rounded-lg/shadow cards.
-          totalOutstanding/totalPaid already combine BTW lesson-cost
-          balances and DE course-fee balances (Student.paymentSummary,
-          see combinePaymentSummaries in studentService.ts) - correct
-          across both programs with no extra logic on this page. */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-surface rounded-xl shadow-sm border border-edge p-4">
-          <div className="flex items-center justify-between">
-            <div className="p-2 bg-status-danger-bg rounded-lg">
-              <CreditCard className="h-5 w-5 text-status-danger-text" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-status-danger-text">${totals.totalOutstanding.toFixed(2)}</p>
-            <p className="text-sm text-tx-muted">Total Outstanding</p>
-          </div>
-        </div>
-
+          The "Total Outstanding" card that used to sit here was removed -
+          it duplicated the period panel's own "Outstanding" card above
+          (see the `totals` comment for why they could disagree before the
+          SQL fix). "Collected This Month" is kept and relabeled, since it
+          is genuinely different information: it is always THIS calendar
+          month with a month-over-month trend, regardless of whatever
+          period chip is selected above, whereas the panel's "Collected"
+          card tracks whichever period is currently selected. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-surface rounded-xl shadow-sm border border-edge p-4">
           <div className="flex items-center justify-between">
             <div className="p-2 bg-status-success-bg rounded-lg">
@@ -336,8 +420,8 @@ export const PaymentsPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-status-success-text">${totalCollectedThisMonth.toFixed(2)}</p>
-            <p className="text-sm text-tx-muted">Collected This Month</p>
+            <p className="text-2xl font-bold text-status-success-text">{formatMoney(totalCollectedThisMonth)}</p>
+            <p className="text-sm text-tx-muted">Collected This Calendar Month (fixed, not the period chip above)</p>
             {/* Month-over-month trend - same icon/styling treatment as
                 Students.tsx's "New This Month" comparison (TrendingUp,
                 rotated 180deg when negative, success/danger token pair). */}
@@ -345,7 +429,7 @@ export const PaymentsPage: React.FC = () => {
               collectedDiffVsLastMonth >= 0 ? 'text-status-success-text' : 'text-status-danger-text'
             }`}>
               <TrendingUp className={`h-3 w-3 mr-1 ${collectedDiffVsLastMonth < 0 ? 'rotate-180' : ''}`} />
-              {collectedDiffVsLastMonth >= 0 ? '+' : '-'}${Math.abs(collectedDiffVsLastMonth).toFixed(2)} vs last month (${totalCollectedLastMonth.toFixed(2)})
+              {collectedDiffVsLastMonth >= 0 ? '+' : '-'}{formatMoney(Math.abs(collectedDiffVsLastMonth))} vs last month ({formatMoney(totalCollectedLastMonth)})
             </p>
           </div>
         </div>
@@ -485,19 +569,32 @@ export const PaymentsPage: React.FC = () => {
                   <div className="grid grid-cols-3 gap-2 mb-4 text-center">
                     <div className="bg-surface2 rounded-lg p-2">
                       <div className="text-xs text-tx-muted">Total Due</div>
-                      <div className="text-sm font-semibold text-tx-primary">${payment.totalDue.toFixed(2)}</div>
+                      <div className="text-sm font-semibold text-tx-primary">{formatMoney(payment.totalDue)}</div>
                     </div>
                     <div className="bg-status-success-bg rounded-lg p-2">
                       <div className="text-xs text-tx-muted">Paid</div>
-                      <div className="text-sm font-semibold text-status-success-text">${payment.paid.toFixed(2)}</div>
+                      <div className="text-sm font-semibold text-status-success-text">{formatMoney(payment.paid)}</div>
                     </div>
                     <div className={`rounded-lg p-2 ${payment.balance > 0 ? 'bg-status-danger-bg' : 'bg-status-success-bg'}`}>
                       <div className="text-xs text-tx-muted">Balance</div>
                       <div className={`text-sm font-semibold ${payment.balance > 0 ? 'text-status-danger-text' : 'text-status-success-text'}`}>
-                        ${payment.balance.toFixed(2)}
+                        {formatMoney(payment.balance)}
                       </div>
                     </div>
                   </div>
+
+                  {/* "Paid, not yet scheduled" (item 3) - shown only when
+                      positive, same creditBalance the period panel sums
+                      tenant-wide. */}
+                  {payment.credit > 0 && (
+                    <div className="mb-4 rounded-lg bg-status-info-bg p-2 flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1.5 text-tx-secondary">
+                        <Wallet className="h-3.5 w-3.5" />
+                        Paid, not yet scheduled
+                      </span>
+                      <span className="font-semibold text-primary">{formatMoney(payment.credit)}</span>
+                    </div>
+                  )}
 
                   {/* Contact Info */}
                   <div className="space-y-1 mb-4 text-sm">
@@ -569,6 +666,9 @@ export const PaymentsPage: React.FC = () => {
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Balance
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
+                  Paid, Not Yet Scheduled
+                </th>
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
                   Status
                 </th>
@@ -577,7 +677,7 @@ export const PaymentsPage: React.FC = () => {
             <tbody className="divide-y divide-edge bg-surface">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-2">
+                  <td colSpan={7} className="py-2">
                     <EmptyState
                       icon={<DollarSign className="h-12 w-12" />}
                       title="No payment records found"
@@ -648,12 +748,12 @@ export const PaymentsPage: React.FC = () => {
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm font-medium text-tx-primary">
-                          ${payment.totalDue.toFixed(2)}
+                          {formatMoney(payment.totalDue)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
                         <div className="text-sm font-medium text-status-success-text">
-                          ${payment.paid.toFixed(2)}
+                          {formatMoney(payment.paid)}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right">
@@ -662,8 +762,15 @@ export const PaymentsPage: React.FC = () => {
                             payment.balance > 0 ? 'text-status-danger-text' : 'text-status-success-text'
                           }`}
                         >
-                          ${payment.balance.toFixed(2)}
+                          {formatMoney(payment.balance)}
                         </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-right">
+                        {payment.credit > 0 ? (
+                          <div className="text-sm font-medium text-primary">{formatMoney(payment.credit)}</div>
+                        ) : (
+                          <div className="text-sm text-tx-muted">—</div>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-center">
                         <span

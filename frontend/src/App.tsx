@@ -23,6 +23,7 @@ import TreasuryPage from '@/pages/Treasury';
 import { InstructorEarningsPage } from '@/pages/InstructorEarnings';
 import { NotificationSettingsPage } from '@/pages/NotificationSettings';
 import { PaymentsPage } from '@/pages/Payments';
+import { PaymentReceiptPrintPage } from '@/pages/PaymentReceiptPrint';
 import NotificationHistory from '@/pages/NotificationHistory';
 import { SettingsPage } from '@/pages/Settings';
 import { InstructorMyTodayPage } from '@/pages/instructor/MyToday';
@@ -329,6 +330,18 @@ function AppRoutes() {
           <ProtectedRoute>
             <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
               <CertificatePrintPage />
+            </RequireRole>
+          </ProtectedRoute>
+        }
+      />
+      {/* Same bare-page pattern as the certificate print route above -
+          payments-phase1's printable receipt. */}
+      <Route
+        path="/payments/:id/receipt"
+        element={
+          <ProtectedRoute>
+            <RequireRole allow={[...ADMIN_STAFF_ROLES]}>
+              <PaymentReceiptPrintPage />
             </RequireRole>
           </ProtectedRoute>
         }

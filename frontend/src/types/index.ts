@@ -305,6 +305,10 @@ export interface EnrollmentPaymentSummary {
   totalPaid: number;
   outstandingBalance: number | null; // null when totalCost is not computable (no override, no lessons yet)
   paymentStatus: 'paid' | 'partial' | 'unpaid' | 'overdue' | 'unknown';
+  // Overpayment, surfaced instead of hidden (payments-phase1) - same null
+  // convention as outstandingBalance. At most one of
+  // outstandingBalance/creditBalance is ever positive at once.
+  creditBalance: number | null;
 }
 
 // Small, explicit lifecycle view attached to Student.activeEnrollment - just
@@ -566,9 +570,14 @@ export interface Payment {
   id: string;
   tenantId: string;
   studentId: string;
+  enrollmentId: string; // The enrollment this payment was recorded against
   amount: number;
   paymentMethod: PaymentMethod;
-  paymentType: 'lesson_payment' | 'package' | 'registration_fee' | 'late_fee' | 'refund';
+  // Backend's payment_type column is a plain varchar, not a CHECK-
+  // constrained enum - this union is a label-map convenience
+  // (PaymentHistoryModal's getPaymentTypeLabel), not an exhaustive or
+  // enforced list. A value outside it still round-trips fine as a string.
+  paymentType: string;
   date: Date;
   status: 'pending' | 'confirmed' | 'failed' | 'refunded';
   confirmationDate?: Date;
@@ -579,8 +588,60 @@ export interface Payment {
   // Free-text reference for a manually-recorded payment - e.g. a Square
   // receipt number, a check number, the last 4 digits of a card.
   referenceNumber?: string | null;
+  // Attached only by getByStudent (a plain additive JOIN column, payments-
+  // phase1) - "what this payment applied to," at the program level only.
+  // Never a specific lesson - see docs/ARCHITECTURE.md's payments-phase1
+  // section for why a cheap, reliable per-lesson link doesn't exist today.
+  programType?: ProgramType;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// =====================================================
+// PAYMENTS PHASE 1 - REPORTING TYPES (additive, read-only)
+// =====================================================
+
+export interface CollectedByMethod {
+  paymentMethod: string;
+  amount: number;
+  count: number;
+}
+
+export interface PaymentPeriodSummary {
+  start: string;
+  end: string;
+  collected: { amount: number; count: number };
+  refunded: { amount: number; count: number };
+  net: number;
+  outstanding: number; // point-in-time, not period-scoped
+  paidNotYetScheduled: number; // point-in-time, not period-scoped
+  collectedByMethod: CollectedByMethod[];
+}
+
+export interface WhoOwesYouRow {
+  studentId: string;
+  studentName: string;
+  enrollmentId: string;
+  amountOwed: number;
+  oldestUnpaidLessonDate: string;
+  ageBucket: '0-30' | '31-60' | '61+';
+  lastPaymentDate: string | null;
+  lastPaymentAmount: number | null;
+}
+
+export interface PaymentReceiptData {
+  paymentId: string;
+  receiptNumber: string;
+  date: string;
+  studentId: string;
+  studentName: string;
+  amount: number;
+  paymentMethod: string;
+  referenceNumber: string | null;
+  appliedToProgramType: string;
+  enrollmentTotalPaid: number;
+  enrollmentOutstandingBalance: number | null;
+  enrollmentCreditBalance: number | null;
 }
 
 export interface BlockchainTransaction {

@@ -143,10 +143,16 @@ export function computePaymentSummary(
   }
 
   if (totalCost === null) {
-    return { totalPaid: round2(totalPaid), outstandingBalance: null, paymentStatus: 'unknown' };
+    return { totalPaid: round2(totalPaid), outstandingBalance: null, paymentStatus: 'unknown', creditBalance: null };
   }
 
   const outstandingBalance = round2(Math.max(0, totalCost - totalPaid));
+  // Overpayment, surfaced instead of hidden (payments-phase1) - the
+  // existing outstandingBalance clamp already hid this entirely (a family
+  // that pays for 2 lessons' worth before booking either one used to show
+  // $0 outstanding with no sign anything was paid ahead). Same totalCost,
+  // opposite clamp direction - never both nonzero at once.
+  const creditBalance = round2(Math.max(0, totalPaid - totalCost));
   let paymentStatus: EnrollmentPaymentSummary['paymentStatus'] = 'unpaid';
   if (outstandingBalance === 0 && totalPaid > 0) {
     paymentStatus = 'paid';
@@ -154,7 +160,7 @@ export function computePaymentSummary(
     paymentStatus = 'partial';
   }
 
-  return { totalPaid: round2(totalPaid), outstandingBalance, paymentStatus };
+  return { totalPaid: round2(totalPaid), outstandingBalance, paymentStatus, creditBalance };
 }
 
 function round2(n: number): number {

@@ -128,6 +128,31 @@ export const validateDateRangePair = (startField: string, endField: string) => {
   };
 };
 
+// Same shape as validateDateRangePair, but for a query-string range
+// (?start=&end=) rather than a request body pair - GET endpoints (period
+// summaries, CSV export) can't use the body-based validator above. Unlike
+// validateDateRangePair, both params are REQUIRED here (no "both omitted
+// is fine" case) - every caller of this validator has no sensible default
+// range to fall back to silently.
+export const validateDateRangeQuery = (startField: string, endField: string) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const start = req.query[startField];
+    const end = req.query[endField];
+
+    if (typeof start !== 'string' || !DATE_ONLY_PATTERN.test(start)) {
+      throw new AppError(`${startField} query parameter must be a YYYY-MM-DD date string`, 400);
+    }
+    if (typeof end !== 'string' || !DATE_ONLY_PATTERN.test(end)) {
+      throw new AppError(`${endField} query parameter must be a YYYY-MM-DD date string`, 400);
+    }
+    if (end < start) {
+      throw new AppError(`${endField} must not be before ${startField}`, 400);
+    }
+
+    next();
+  };
+};
+
 // Coerce and validate numeric fields in the body. Postgres numeric/decimal
 // columns come back through pg as JS strings ("60.00", not 60) - a value
 // read from one query and passed straight into another request (e.g. a

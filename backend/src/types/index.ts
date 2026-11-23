@@ -470,6 +470,16 @@ export interface EnrollmentPaymentSummary {
   totalPaid: number;
   outstandingBalance: number | null; // null when totalCost is not computable (no override, no lessons yet)
   paymentStatus: 'paid' | 'partial' | 'unpaid' | 'overdue' | 'unknown';
+  // Overpayment, surfaced instead of hidden (payments-phase1) - previously
+  // an overpayment just clamped outstandingBalance to 0 with no visibility
+  // into the extra amount. Same totalCost derivation as outstandingBalance
+  // (enrollment.totalCost override, else sum of non-cancelled lesson
+  // costs, else not computable) - null for exactly the same reason
+  // outstandingBalance is null (nothing to compare totalPaid against yet).
+  // At most one of outstandingBalance/creditBalance is ever positive at
+  // once (both derive from the same totalCost - totalPaid difference,
+  // clamped from opposite sides) - never both nonzero simultaneously.
+  creditBalance: number | null;
 }
 
 // Small, explicit lifecycle view attached to Student.activeEnrollment - just
