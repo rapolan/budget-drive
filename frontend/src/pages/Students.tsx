@@ -152,6 +152,20 @@ export const StudentsPage: React.FC = () => {
     }
   }, [location.state]);
 
+  // "Link to the student's record" deep-link (payments-actions, item 4) -
+  // opens this specific student's StudentModal directly, reusing
+  // handleSelectSearchedStudent's own "fetch by id if not already loaded"
+  // fallback below rather than inventing a second one. Same
+  // location.state mechanism as the filter deep-link above, just a
+  // different key, so this page doesn't need two different navigation
+  // conventions for "arrived here from elsewhere with context."
+  useEffect(() => {
+    if (location.state?.openStudentId) {
+      handleSelectSearchedStudent(location.state.openStudentId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
   const { data, isLoading } = useQuery({
     queryKey: ['students', currentPage],
     queryFn: () => studentsApi.getAll(currentPage, 50),

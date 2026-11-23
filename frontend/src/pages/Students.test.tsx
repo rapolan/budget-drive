@@ -78,13 +78,16 @@ function emptyGuardian(overrides: Partial<Guardian>): Guardian {
   } as Guardian;
 }
 
-function renderStudentsPage() {
+function renderStudentsPage(locationState?: Record<string, unknown>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const initialEntries = locationState
+    ? [{ pathname: '/students', state: locationState }]
+    : ['/students'];
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <StudentsPage />
       </MemoryRouter>
     </QueryClientProvider>
@@ -1297,5 +1300,57 @@ describe('Students list - program tabs', () => {
 
     await user.click(screen.getByRole('button', { name: /^Awaiting Cert/ }));
     await waitFor(() => expect(screen.getByText('Awaiting Cert Student')).toBeInTheDocument());
+  });
+});
+
+// "Link to the student's record" deep-link (payments-actions, item 4) -
+// Payments.tsx navigates here with location.state.openStudentId when a
+// payment-history row's "View student record" link is clicked. Reuses
+// handleSelectSearchedStudent's own cached-vs-fetch-by-id fallback, so
+// this covers both paths rather than assuming the student is always
+// already loaded.
+describe('Students list - "openStudentId" deep-link opens that student\'s record', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('opens StudentModal for the deep-linked student (resolved via handleSelectSearchedStudent\'s own cached-or-fetch logic)', async () => {
+    // The deep-link effect fires on mount, before the students list query
+    // can possibly have resolved yet - handleSelectSearchedStudent's
+    // getById fallback is what actually resolves it in this timing, same
+    // as it would for a student genuinely not on the currently-loaded
+    // page. This is the correct, pre-existing behavior of that shared
+    // helper (reused here, not reimplemented) - this test proves the
+    // deep-link ends up correct, not that it skips the fetch.
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'deep-link-cached', fullName: 'Cached Student' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+    (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: emptyStudent({ id: 'deep-link-cached', fullName: 'Cached Student' }),
+    });
+
+    renderStudentsPage({ openStudentId: 'deep-link-cached' });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Cached Student' })).toBeInTheDocument();
+    });
+  });
+
+  it('fetches the student by id when not in the loaded list, then opens StudentModal', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [emptyStudent({ id: 'other-student', fullName: 'Other Student' })],
+      pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
+    });
+    (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: emptyStudent({ id: 'deep-link-uncached', fullName: 'Uncached Student' }),
+    });
+
+    renderStudentsPage({ openStudentId: 'deep-link-uncached' });
+
+    await waitFor(() => expect(studentsApi.getById).toHaveBeenCalledWith('deep-link-uncached'));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Uncached Student' })).toBeInTheDocument();
+    });
   });
 });

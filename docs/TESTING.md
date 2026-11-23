@@ -870,6 +870,45 @@ npx vitest run src/pages/Payments.test.tsx
 
 **Playwright screenshots were re-captured** after these fixes (`payments-phase1.spec.ts`, `payment-receipt.spec.ts`) — the summary screenshot now shows "This Month" selected, a single "$2,340.00" Outstanding figure (not two disagreeing numbers), and thousands-separated formatting throughout.
 
+### 2.65 Payments actions: record payment from history, row-level actions, contact/record links, who-owes-you fetch-by-id fix
+
+Covers `docs/ARCHITECTURE.md` §40. No changes to how `PaymentModal` creates, validates, or submits a payment — only new ways to reach it, plus a backend gap fix underneath.
+
+**Backend (real-DB, proves the `getStudentById` paymentSummary fix):**
+```bash
+cd backend
+npx vitest run src/__tests__/studentByIdPaymentSummary.test.ts
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/studentByIdPaymentSummaryRealDb.integration.test.ts
+```
+
+**Pass looks like:** `studentByIdPaymentSummary.test.ts` (3 mocked-query tests) — a single-student fetch (`GET /students/:id`) attaches a combined (BTW + DE) `paymentSummary` computed from the enrollment(s) already fetched, matching `computePaymentSummary`'s own math exactly (a $300 BTW cost with $100 paid shows `outstandingBalance: 200`); combining two programs sums correctly (BTW partially paid + DE paid in full combine to the right total); a student with zero enrollments returns `paymentSummary: undefined`, matching `combinePaymentSummaries(null, null)`'s own existing behavior — not a fabricated `'unknown'`-status object. The real-DB file (3 tests) proves the same three cases against actual Postgres rows, including a real overpayment (`creditBalance: 50`) via `paymentService.createPayment`. Without `TEST_DATABASE_URL`, every case in that file is an explicit no-op, same convention as every other `*RealDb.integration.test.ts` file.
+
+**Frontend:**
+```bash
+cd frontend
+npx vitest run src/pages/Payments.test.tsx
+npx vitest run src/components/payments/PaymentHistoryModal.test.tsx
+npx vitest run src/components/payments/WhoOwesYouList.test.tsx
+npx vitest run src/pages/Students.test.tsx
+```
+
+**Pass looks like:**
+- `PaymentHistoryModal.test.tsx` — a "Record payment" button appears in the header only when `onRecordPayment` is provided, and calls it on click; the summary strip shows Total Due/Total Paid/Outstanding from the same `paymentSummary` the rest of the page reads, and "Paid, Not Yet Scheduled" only when `creditBalance > 0`; `mailto:`/`tel:` links render for email/phone (and "No contact on file" when both are absent); "View student record" calls `onViewStudentRecord` with the student's id, and is absent when that prop is omitted.
+- `WhoOwesYouList.test.tsx` — every row renders its own visible "Record payment" button; clicking it calls `onRecordPayment` with that row and does NOT also call `onSelectStudent` (stopPropagation proven, not just asserted); clicking elsewhere in the row still calls `onSelectStudent`; the row remains keyboard-accessible (Enter triggers the same selection).
+- `Payments.test.tsx` — "Record payment" in the history modal closes it and opens `PaymentModal` for the same student (scoped queries avoid colliding with the page's own always-visible "Record Payment" toolbar button and `PaymentModal`'s own button/heading, which share that exact text); "View student record" calls `navigate('/students', { state: { openStudentId } })` (mocked via the same `useNavigate` override pattern `Signup.test.tsx` already uses); a "who owes you" row whose student is NOT in the loaded list is resolved via `studentsApi.getById`, and a failed fetch shows the "Could not load this student" error toast with no modal opening as a result.
+- `Students.test.tsx` — a new `location.state.openStudentId` deep-link opens `StudentModal` for that student (exercised via both the cached-in-list and fetch-by-id paths of the pre-existing `handleSelectSearchedStudent`, which this deep-link reuses rather than reimplementing).
+
+**Playwright screenshots (light + dark, seeded data — Benjamin Hayes, a real seeded student with a $290 outstanding balance and no payments on file, used throughout rather than a new fixture):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payments-actions.spec.ts
+```
+
+**Pass looks like:** 3 scenarios × 2 themes = 6 screenshots. The history modal shows the "Record payment" header button, the summary strip (Total Due/Total Paid/Outstanding), and the email/phone/"View student record" links. The "Who Owes You" panel shows each row's own "Record payment" button alongside the age bucket and amount owed. Clicking a row's "Record payment" button opens `PaymentModal` pre-filled with that exact student's name, email, and outstanding balance as the amount — **verify this screenshot visually**, not just via the route reaching 200: an early draft of this spec used an unscoped `getByRole('button', { name: /record payment/i }).first()`, which matched the page's own always-visible toolbar button first (same DOM-order pitfall the task's own text ambiguity warns about) rather than the row's button, and would have silently screenshotted an empty, unfilled payment form while still "passing." Scope this kind of query to the specific panel/row under test, not the whole page.
+
+**Known gaps, by design (not bugs):** no refund or void action exists anywhere in this change — `PaymentHistoryModal`'s payment table has one reserved, empty column for this (phase 2), and nothing else was built toward it. No delete action was added either.
+
 ---
 
 ## 3. Known issues to route around

@@ -1050,4 +1050,30 @@ Deliberately NOT changed: `getPaymentsForExport` (CSV) and `getPaymentReceiptDat
 
 ---
 
+## 40. Payments Actions: Record Payment From History, Summary Strip, Row-Level Actions, "Who Owes You" Fetch-by-id Fix
+
+Before this task, clicking a "Who owes you" row or a student's history icon opened `PaymentHistoryModal` - read-only, with only a Close button. The owner could see a balance but not act on it. This task adds the missing actions, without touching `PaymentModal`'s own create-payment logic at all (every pre-fill/validation/submit behavior there is reused exactly as it already existed).
+
+### `PaymentHistoryModal`: "Record payment" button, summary strip, contact links, student record link
+
+- **Header "Record payment" button** (`onRecordPayment?: () => void`, optional - omitted entirely in a context with no payment-recording ability, rather than every caller passing a no-op). `Payments.tsx`'s own `handleRecordPaymentFromHistory` closes the history modal and opens the existing `PaymentModal` for the *same* `selectedStudent` - `PaymentModal`'s own pre-existing pre-fill effect (amount defaults to `outstandingBalance`, editable) needed no changes at all, since it already keys off whatever `student` prop it's given.
+- **Summary strip** (Total Due, Total Paid, Outstanding, and "Paid, Not Yet Scheduled" when `creditBalance > 0`) reads directly from `student.paymentSummary` - the exact same combined (BTW + DE) figure the rest of the Payments page already sums (`studentService.combinePaymentSummaries`). No second calculation was written for this modal.
+- **Contact info**: `student.email`/`student.phone` rendered as `mailto:`/`tel:` links - the same direct-field approach `Payments.tsx`'s own table/card views already use (not `Students.tsx`'s `getStudentContactDisplay` guardian-fallback helper, to stay consistent with how this specific page already shows contact info everywhere else on it).
+- **"View student record"** calls `onViewStudentRecord(studentId)`, wired in `Payments.tsx` to `navigate('/students', { state: { openStudentId: studentId } })`. `Students.tsx` has no route of its own per-student to link to (its "record" is `StudentModal`, opened via local component state) - this mirrors the existing Dashboard-to-Students `location.state.filter` deep-link convention exactly, just a different state key, rather than inventing a second cross-page navigation mechanism. `Students.tsx` gained one new effect reading `location.state.openStudentId` and calling its own pre-existing `handleSelectSearchedStudent(id)` - the same cached-list-or-fetch-by-id helper the unified search box already used, reused rather than reimplemented.
+- **Reserved layout slot for phase 2 refund/void actions**: an empty table column header + cell per payment row, explicitly commented as reserved and not built. No refund or void action, and no delete action, exist anywhere in this change.
+
+### `WhoOwesYouList`: row-level "Record payment" button
+
+Each row changed from a single `<button>` to a `<div role="button" tabIndex={0} aria-label="View payment history for <name>">` (a real `<button>` cannot contain a nested interactive `<button>` - invalid HTML) with its own keyboard handling (Enter/Space) preserved. The nested "Record payment" `<button>` calls `e.stopPropagation()` before firing `onRecordPayment(row)`, so clicking it never also triggers the row's own `onSelectStudent`. The explicit `aria-label` on the row (rather than relying on computed text-content accessible name) also resolves what would otherwise be an accessible-name collision between the row and its own nested button - both would otherwise match a text/name query containing "Record payment".
+
+### `handleSelectOwingStudent` silently failing - found and fixed
+
+Previously: `students.find((s) => s.id === row.studentId)` with no fallback - if the "who owes you" row's student wasn't in the already-loaded student list (a real possibility: the two come from independent queries, `getWhoOwesYou` and `getAllStudents`, with no guaranteed overlap), the click did nothing at all, with no error shown.
+
+Fixed via a new `resolveOwingStudent(row)` helper, used by both `handleSelectOwingStudent` (open history) and the new `handleRecordPaymentForOwingStudent` (open payment modal directly): checks the loaded list first (no request), falls back to `studentsApi.getById(row.studentId)` when not cached - the identical "cached-or-fetch" pattern `Students.tsx`'s own `handleSelectSearchedStudent` already used for its unified search box, reused rather than reinvented. On fetch failure, an error toast surfaces the problem (`useToast`/`ToastContainer`, newly wired into `Payments.tsx` - `Lessons.tsx`'s own existing usage was the precedent followed) instead of failing silently a second time.
+
+**Backend gap found and fixed alongside this**: `studentService.getStudentById` never attached a top-level `paymentSummary` at all - only the batched list endpoint (`getAllStudents` -> `attachProgress`) computed one, via `combinePaymentSummaries`. A single-student fetch (exactly what `resolveOwingStudent`'s fallback path calls) came back with `paymentSummary: undefined`, which would have silently broken `PaymentModal`'s amount pre-fill and `PaymentHistoryModal`'s summary strip for any student resolved this way. Fixed by computing the same combined (BTW + DE) `paymentSummary` `getStudentById` already has the ingredients for in memory - from the `enrollments` array it already fetches (each enrollment already carries its own `paymentSummary`, attached by `getEnrollmentsForStudent` -> `attachProgressAndPayments`) - no new query. DE enrollment resolution mirrors `activeDriverTraining`'s own preference order (active, then most-recently-completed, then most-recently-updated) for consistency.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).
