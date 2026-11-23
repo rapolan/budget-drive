@@ -6,11 +6,20 @@ import { PaymentsPage } from './Payments';
 import { studentsApi, paymentsApi } from '@/api';
 import type { Student, Payment } from '@/types';
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
   return {
     ...actual,
-    studentsApi: { ...actual.studentsApi, getAll: vi.fn() },
+    studentsApi: { ...actual.studentsApi, getAll: vi.fn(), getById: vi.fn() },
     paymentsApi: {
       ...actual.paymentsApi,
       getAll: vi.fn(),
@@ -556,6 +565,118 @@ describe('Payments page - payments-phase1: who owes you', () => {
     fireEvent.click(row);
     expect(await screen.findByText('Payment History')).toBeInTheDocument();
   });
+
+  it('a row\'s "Record payment" button opens PaymentModal directly, pre-filled, without opening the history modal first (item 3)', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [student({ id: 'student-owing', fullName: 'Owing Student', paymentSummary: { totalPaid: 0, outstandingBalance: 250, paymentStatus: 'unpaid', creditBalance: 0 } })],
+    });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          studentId: 'student-owing',
+          studentName: 'Owing Student',
+          enrollmentId: 'enrollment-1',
+          amountOwed: 250,
+          oldestUnpaidLessonDate: '2026-06-01',
+          ageBucket: '61+',
+          lastPaymentDate: null,
+          lastPaymentAmount: null,
+        },
+      ],
+    });
+
+    renderPage();
+    const row = await screen.findByRole('button', { name: /owing student/i });
+    const recordPaymentButton = within(row).getByRole('button', { name: /record payment/i });
+    fireEvent.click(recordPaymentButton);
+
+    expect(await screen.findByRole('heading', { name: 'Record Payment' })).toBeInTheDocument();
+    // The history modal must NOT have opened as an intermediate step.
+    expect(screen.queryByText('Payment History')).not.toBeInTheDocument();
+  });
+
+  it('clicking a row\'s "Record payment" button does not also trigger the row click (stopPropagation)', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [student({ id: 'student-owing', fullName: 'Owing Student' })],
+    });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          studentId: 'student-owing',
+          studentName: 'Owing Student',
+          enrollmentId: 'enrollment-1',
+          amountOwed: 250,
+          oldestUnpaidLessonDate: '2026-06-01',
+          ageBucket: '61+',
+          lastPaymentDate: null,
+          lastPaymentAmount: null,
+        },
+      ],
+    });
+
+    renderPage();
+    const row = await screen.findByRole('button', { name: /owing student/i });
+    const recordPaymentButton = within(row).getByRole('button', { name: /record payment/i });
+    fireEvent.click(recordPaymentButton);
+
+    await screen.findByRole('heading', { name: 'Record Payment' });
+    // Only the payment modal opened - not also the history modal.
+    expect(screen.queryByText('Payment History')).not.toBeInTheDocument();
+  });
+
+  it('resolves a "who owes you" row by fetching the student by id when not already in the loaded list, and shows an error toast if that fetch fails (item 5)', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] }); // loaded list is empty
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          studentId: 'student-not-loaded',
+          studentName: 'Not Loaded Student',
+          enrollmentId: 'enrollment-1',
+          amountOwed: 150,
+          oldestUnpaidLessonDate: '2026-06-01',
+          ageBucket: '31-60',
+          lastPaymentDate: null,
+          lastPaymentAmount: null,
+        },
+      ],
+    });
+    (studentsApi.getById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: student({ id: 'student-not-loaded', fullName: 'Not Loaded Student' }),
+    });
+
+    renderPage();
+    const row = await screen.findByRole('button', { name: /not loaded student/i });
+    fireEvent.click(row);
+
+    await waitFor(() => expect(studentsApi.getById).toHaveBeenCalledWith('student-not-loaded'));
+    expect(await screen.findByText('Payment History')).toBeInTheDocument();
+  });
+
+  it('shows an error toast when the not-in-list student fetch fails, and does not open any modal', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        {
+          studentId: 'student-gone',
+          studentName: 'Gone Student',
+          enrollmentId: 'enrollment-1',
+          amountOwed: 150,
+          oldestUnpaidLessonDate: '2026-06-01',
+          ageBucket: '31-60',
+          lastPaymentDate: null,
+          lastPaymentAmount: null,
+        },
+      ],
+    });
+    (studentsApi.getById as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network error'));
+
+    renderPage();
+    const row = await screen.findByRole('button', { name: /gone student/i });
+    fireEvent.click(row);
+
+    expect(await screen.findByText('Could not load this student')).toBeInTheDocument();
+    expect(screen.queryByText('Payment History')).not.toBeInTheDocument();
+  });
 });
 
 describe('Payments page - payments-phase1: "Paid, not yet scheduled" per student', () => {
@@ -631,5 +752,41 @@ describe('Payments page - payments-phase1: CSV export', () => {
     );
 
     clickSpy.mockRestore();
+  });
+});
+
+describe('Payments page - payments-actions: record payment from history, and view student record', () => {
+  it('"Record payment" in the history modal closes the history and opens PaymentModal for the same student', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [student({ paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial', creditBalance: 0 } })],
+    });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderPage();
+    const row = (await screen.findByText('Test Student')).closest('tr')!;
+    fireEvent.click(row);
+    const historyHeading = await screen.findByText('Payment History');
+    const historyModal = historyHeading.closest('.relative')!;
+
+    fireEvent.click(within(historyModal as HTMLElement).getByRole('button', { name: /record payment/i }));
+
+    expect(await screen.findByRole('heading', { name: 'Record Payment' })).toBeInTheDocument();
+    expect(screen.queryByText('Payment History')).not.toBeInTheDocument();
+  });
+
+  it('"View student record" navigates to /students with the student id as deep-link state', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [student({ id: 'student-xyz', paymentSummary: { totalPaid: 50, outstandingBalance: 50, paymentStatus: 'partial', creditBalance: 0 } })],
+    });
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    renderPage();
+    const row = (await screen.findByText('Test Student')).closest('tr')!;
+    fireEvent.click(row);
+    await screen.findByText('Payment History');
+
+    fireEvent.click(screen.getByRole('button', { name: /view student record/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/students', { state: { openStudentId: 'student-xyz' } });
   });
 });

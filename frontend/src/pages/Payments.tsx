@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { DollarSign, Search, Plus, Check, X, LayoutGrid, LayoutList, Mail, Phone, History, ArrowUpDown, Users, TrendingUp, Download, Wallet } from 'lucide-react';
 import { studentsApi, paymentsApi } from '@/api';
 import { PaymentModal, PaymentHistoryModal, PaymentPeriodSummaryPanel, WhoOwesYouList } from '@/components/payments';
 import type { Student, WhoOwesYouRow } from '@/types';
-import { EmptyState, LoadingSpinner, BackButton } from '@/components/common';
+import { EmptyState, LoadingSpinner, BackButton, ToastContainer } from '@/components/common';
 import type { DateRangeValue } from '@/components/common';
 import { useSwipeNavigation } from '@/hooks/useSwipeNavigation';
 import { useSessionState } from '@/hooks/useSessionState';
 import { useTenant } from '@/contexts/TenantContext';
+import { useToast } from '@/hooks/useToast';
 import { getMonthBoundaries } from '@/utils/timeFormat';
 import { formatMoney } from '@/utils/moneyFormat';
 
@@ -27,7 +29,9 @@ type SortOption = 'name' | 'balance' | 'date_newest' | 'date_oldest';
 export const PaymentsPage: React.FC = () => {
   // Enable swipe-to-go-back on mobile
   useSwipeNavigation();
+  const navigate = useNavigate();
   const { tenantNow } = useTenant();
+  const { toasts, error: toastError, removeToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('name');
@@ -321,16 +325,62 @@ export const PaymentsPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // "Who owes you" rows carry a studentId, but PaymentHistoryModal needs
-  // a full Student object - resolved from the students list already
-  // fetched for this page's own table, same pattern the table/card rows
-  // already use for their own history button.
-  const handleSelectOwingStudent = (row: WhoOwesYouRow) => {
-    const matched = students.find((s) => s.id === row.studentId);
-    if (matched) {
-      setSelectedStudent(matched);
+  // "Who owes you" rows carry a studentId, but PaymentHistoryModal/
+  // PaymentModal need a full Student object. Resolved from the students
+  // list already fetched for this page's own table first (cheap, no
+  // request); falls back to a direct by-id fetch when the student isn't
+  // in that loaded list (payments-actions, item 5 fix - this previously
+  // silently did nothing, same "fetch by id if not cached" pattern
+  // Students.tsx's own handleSelectSearchedStudent already uses). An
+  // error toast surfaces the rare case where even that fetch fails
+  // (network error, or the student was deleted between the who-owes-you
+  // query and the click), rather than failing silently a second time.
+  const resolveOwingStudent = async (row: WhoOwesYouRow): Promise<Student | null> => {
+    const cached = students.find((s) => s.id === row.studentId);
+    if (cached) return cached;
+    try {
+      const response = await studentsApi.getById(row.studentId);
+      return response.data ?? null;
+    } catch (err) {
+      console.error('Failed to fetch student for "who owes you" row:', err);
+      toastError('Could not load this student', 'Please try again, or search for them directly below.');
+      return null;
+    }
+  };
+
+  const handleSelectOwingStudent = async (row: WhoOwesYouRow) => {
+    const resolved = await resolveOwingStudent(row);
+    if (resolved) {
+      setSelectedStudent(resolved);
       setIsHistoryModalOpen(true);
     }
+  };
+
+  const handleRecordPaymentForOwingStudent = async (row: WhoOwesYouRow) => {
+    const resolved = await resolveOwingStudent(row);
+    if (resolved) {
+      setSelectedStudent(resolved);
+      setIsPaymentModalOpen(true);
+    }
+  };
+
+  // "Record payment" from inside the history modal (item 1) - closes the
+  // history view and opens the existing PaymentModal for the same
+  // student, pre-filled from their current outstandingBalance exactly as
+  // PaymentModal already does for every other caller (no new pre-fill
+  // logic needed here).
+  const handleRecordPaymentFromHistory = () => {
+    setIsHistoryModalOpen(false);
+    setIsPaymentModalOpen(true);
+  };
+
+  // "Link to the student's record" (item 4) - Students.tsx has its own
+  // StudentModal and no route of its own to deep-link into, so this
+  // mirrors the existing Dashboard.tsx -> Students.tsx `location.state`
+  // filter deep-link convention (see Students.tsx's own effect) rather
+  // than inventing a new navigation mechanism.
+  const handleViewStudentRecord = (studentId: string) => {
+    navigate('/students', { state: { openStudentId: studentId } });
   };
 
   return (
@@ -399,7 +449,10 @@ export const PaymentsPage: React.FC = () => {
 
       {/* "Who owes you" - counts only lessons that have already happened,
           aged from the oldest unpaid completed lesson. */}
-      <WhoOwesYouList onSelectStudent={handleSelectOwingStudent} />
+      <WhoOwesYouList
+        onSelectStudent={handleSelectOwingStudent}
+        onRecordPayment={handleRecordPaymentForOwingStudent}
+      />
 
       {/* Summary Stats - matches Students.tsx's stat-card treatment
           (tokens, rounded-xl/border-edge/shadow-sm, icon chip + value
@@ -829,7 +882,11 @@ export const PaymentsPage: React.FC = () => {
           setSelectedStudent(null);
         }}
         student={selectedStudent}
+        onRecordPayment={handleRecordPaymentFromHistory}
+        onViewStudentRecord={handleViewStudentRecord}
       />
+
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 };

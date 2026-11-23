@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, DollarSign, Calendar, CreditCard, FileText, Receipt } from 'lucide-react';
+import { X, DollarSign, Calendar, CreditCard, FileText, Receipt, Mail, Phone, UserCircle, Wallet } from 'lucide-react';
 import { paymentsApi } from '@/api';
 import type { Student } from '@/types';
 import { formatMoney } from '@/utils/moneyFormat';
@@ -9,6 +9,18 @@ interface PaymentHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   student: Student | null;
+  // Opens the existing PaymentModal for this same student, pre-filled
+  // from their current outstandingBalance (payments-actions, item 1) -
+  // PaymentModal itself is unchanged, this just gives this read-only
+  // modal a way to hand off to it. Omitted entirely in a context that has
+  // no payment-recording ability of its own, rather than every caller
+  // needing to pass a no-op.
+  onRecordPayment?: () => void;
+  // "A link to the student's record" (item 4) - Students.tsx owns the
+  // actual record view (StudentModal); this modal only knows the
+  // student's id, so the caller decides how "viewing the record" is
+  // reached (Payments.tsx navigates to /students with a deep-link state).
+  onViewStudentRecord?: (studentId: string) => void;
 }
 
 // "Applied To" (payments-phase1, item 7) shows the enrollment's PROGRAM
@@ -25,6 +37,8 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
   isOpen,
   onClose,
   student,
+  onRecordPayment,
+  onViewStudentRecord,
 }) => {
   // Fetch payment history for this student
   const { data: paymentsData, isLoading, error } = useQuery({
@@ -36,6 +50,16 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
   const payments = paymentsData?.data || [];
 
   if (!isOpen) return null;
+
+  // Same paymentSummary the rest of the Payments page already reads -
+  // one calculation (student.paymentSummary, combined BTW+DE server-side
+  // by studentService's combinePaymentSummaries), not a second one
+  // invented for this modal (payments-actions, item 2).
+  const summary = student?.paymentSummary;
+  const totalPaid = summary?.totalPaid ?? 0;
+  const outstandingBalance = summary?.outstandingBalance ?? 0;
+  const creditBalance = summary?.creditBalance ?? 0;
+  const totalDue = totalPaid + outstandingBalance;
 
   // Matches the real payment_method CHECK constraint
   // (backend/database/migrations/001_baseline.sql, widened additively by
@@ -102,41 +126,110 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                 <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
               </div>
               {student && (
-                <p className="mt-1 text-sm text-tx-secondary">
-                  {student.fullName} ({student.email || student.phone || 'no contact on file'})
-                </p>
+                <p className="mt-1 text-sm text-tx-secondary">{student.fullName}</p>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {student && onRecordPayment && (
+                <button
+                  type="button"
+                  onClick={onRecordPayment}
+                  className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:brightness-90 transition-all"
+                >
+                  <DollarSign className="h-4 w-4" />
+                  Record payment
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* Content */}
           <div className="px-6 py-4">
-            {/* Summary */}
+            {/* Contact + record link (item 4) - same direct student.email/
+                student.phone fields the rest of this page already renders
+                (Payments.tsx's own table/card contact column), not the
+                guardian-fallback helper Students.tsx uses elsewhere, to
+                stay consistent with how this page already shows contact
+                info everywhere else on it. */}
             {student && (
-              <div className="mb-6 grid gap-4 md:grid-cols-3">
+              <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                {student.email && (
+                  <a href={`mailto:${student.email}`} className="flex items-center gap-1.5 text-tx-secondary hover:text-primary">
+                    <Mail className="h-4 w-4 flex-shrink-0" />
+                    {student.email}
+                  </a>
+                )}
+                {student.phone && (
+                  <a href={`tel:${student.phone}`} className="flex items-center gap-1.5 text-tx-secondary hover:text-primary">
+                    <Phone className="h-4 w-4 flex-shrink-0" />
+                    {student.phone}
+                  </a>
+                )}
+                {!student.email && !student.phone && (
+                  <span className="text-tx-muted">No contact on file</span>
+                )}
+                {onViewStudentRecord && (
+                  <button
+                    type="button"
+                    onClick={() => onViewStudentRecord(student.id)}
+                    className="flex items-center gap-1.5 text-tx-secondary hover:text-primary"
+                  >
+                    <UserCircle className="h-4 w-4 flex-shrink-0" />
+                    View student record
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Summary strip (item 2) - total due, total paid, outstanding
+                balance, and "paid, not yet scheduled" (only when above
+                zero, matching the per-student table/card treatment on the
+                page itself) - all from student.paymentSummary, the one
+                calculation the whole Payments page already shares. */}
+            {student && (
+              <div className={`mb-6 grid gap-4 ${creditBalance > 0 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                <div className="rounded-lg bg-status-info-bg p-4">
+                  <p className="text-sm font-medium text-tx-secondary">Total Due</p>
+                  <p className="mt-1 text-2xl font-bold text-tx-primary">
+                    {formatMoney(totalDue)}
+                  </p>
+                </div>
                 <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Total Paid</p>
                   <p className="mt-1 text-2xl font-bold text-status-success-text">
-                    {formatMoney(student.paymentSummary?.totalPaid ?? 0)}
+                    {formatMoney(totalPaid)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-status-info-bg p-4">
                   <p className="text-sm font-medium text-tx-secondary">Outstanding</p>
                   <p className="mt-1 text-2xl font-bold text-status-danger-text">
-                    {formatMoney(student.paymentSummary?.outstandingBalance ?? 0)}
+                    {formatMoney(outstandingBalance)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-status-info-bg p-4">
-                  <p className="text-sm font-medium text-tx-secondary">Total Payments</p>
-                  <p className="mt-1 text-2xl font-bold text-tx-primary">{payments.length}</p>
-                </div>
+                {creditBalance > 0 && (
+                  <div className="rounded-lg bg-status-info-bg p-4">
+                    <p className="text-sm font-medium text-tx-secondary flex items-center gap-1">
+                      <Wallet className="h-3.5 w-3.5" />
+                      Paid, Not Yet Scheduled
+                    </p>
+                    <p className="mt-1 text-2xl font-bold text-primary">
+                      {formatMoney(creditBalance)}
+                    </p>
+                  </div>
+                )}
               </div>
+            )}
+
+            {student && (
+              <p className="mb-6 text-sm text-tx-secondary">
+                {payments.length} {payments.length === 1 ? 'payment' : 'payments'} on file
+              </p>
             )}
 
             {/* Loading State */}
@@ -199,6 +292,12 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                             <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
                               Receipt
                             </th>
+                            {/* Reserved for phase 2 refund/void actions
+                                (payments-actions, item 6) - deliberately
+                                not built here, just a layout slot per row
+                                so adding them later doesn't require
+                                re-flowing this table. */}
+                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-edge bg-surface">
@@ -261,6 +360,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                   <Receipt className="h-4 w-4" />
                                 </button>
                               </td>
+                              <td className="whitespace-nowrap px-4 py-3" />
                             </tr>
                           ))}
                         </tbody>

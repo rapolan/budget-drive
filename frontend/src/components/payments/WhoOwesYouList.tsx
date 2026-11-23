@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, DollarSign } from 'lucide-react';
 import { paymentsApi } from '@/api';
 import type { WhoOwesYouRow } from '@/types';
 import { formatMoney } from '@/utils/moneyFormat';
@@ -12,6 +12,11 @@ interface WhoOwesYouListProps {
   // each row to that student's payment history" means opening the
   // existing modal, not a page navigation.
   onSelectStudent: (row: WhoOwesYouRow) => void;
+  // Opens PaymentModal pre-filled for this row's student, without going
+  // through the history modal first (payments-actions, item 3) - a
+  // visible, row-level action for the exact list whose entire purpose is
+  // "here's who to collect from."
+  onRecordPayment: (row: WhoOwesYouRow) => void;
 }
 
 const AGE_BUCKET_LABELS: Record<string, string> = {
@@ -37,7 +42,7 @@ const AGE_BUCKET_STYLES: Record<string, string> = {
  * in months - both can show the same amount owed, but one has a recent
  * last-payment date and the other doesn't.
  */
-export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent }) => {
+export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent, onRecordPayment }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['payments', 'who-owes-you'],
     queryFn: () => paymentsApi.getWhoOwesYou(),
@@ -70,11 +75,19 @@ export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent 
       </h3>
       <div className="space-y-2">
         {rows.map((row) => (
-          <button
+          <div
             key={row.enrollmentId}
-            type="button"
+            role="button"
+            tabIndex={0}
+            aria-label={`View payment history for ${row.studentName}`}
             onClick={() => onSelectStudent(row)}
-            className="w-full flex items-center justify-between gap-3 rounded-lg border border-edge p-3 text-left hover:bg-surface2 transition-colors"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectStudent(row);
+              }
+            }}
+            className="w-full flex items-center justify-between gap-3 rounded-lg border border-edge p-3 text-left hover:bg-surface2 transition-colors cursor-pointer"
           >
             <div className="min-w-0">
               <p className="text-sm font-medium text-tx-primary truncate">{row.studentName}</p>
@@ -93,8 +106,23 @@ export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent 
               <span className="text-sm font-semibold text-status-danger-text">
                 {formatMoney(row.amountOwed)}
               </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRecordPayment(row);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-medium text-white hover:brightness-90 transition-all"
+                title={`Record a payment from ${row.studentName}`}
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                Record payment
+              </button>
+              {/* Reserved for phase 2 refund/void actions (payments-actions,
+                  item 6) - deliberately not built here, just a layout slot
+                  so adding them later doesn't require re-flowing this row. */}
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </div>

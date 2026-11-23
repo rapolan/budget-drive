@@ -419,11 +419,39 @@ export const getStudentById = async (
     e => e.programType === 'driver_education' && e.completed
   );
 
+  // Combined paymentSummary (BTW + DE), matching attachProgress's own
+  // combinePaymentSummaries exactly - a single-student read previously
+  // returned no top-level paymentSummary at all, which silently broke any
+  // caller that fetches a student individually (e.g. Payments.tsx
+  // resolving a "who owes you" row for a student not already in its own
+  // loaded list) and then expects the same paymentSummary shape the list
+  // endpoint already provides. Reuses the SAME per-enrollment
+  // paymentSummary objects enrollments already carries (attached by
+  // getEnrollmentsForStudent -> attachProgressAndPayments) - no new
+  // query, no second balance calculation. DE enrollment resolution
+  // mirrors activeDriverTraining's own preference order (active, then
+  // most-recently-completed, then most-recently-updated) for consistency,
+  // applied in-memory to the same enrollments list.
+  const deEnrollments = enrollments.filter(e => e.programType === 'driver_education');
+  const displayDe =
+    deEnrollments.find(e => e.status === 'active') ??
+    deEnrollments
+      .filter(e => e.completedAt !== null)
+      .sort((a, b) => new Date(b.completedAt as Date).getTime() - new Date(a.completedAt as Date).getTime())[0] ??
+    deEnrollments
+      .slice()
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+  const paymentSummary = combinePaymentSummaries(
+    activeDriverTraining?.paymentSummary ?? null,
+    displayDe?.paymentSummary ?? null
+  );
+
   return {
     ...student,
     progress: activeDriverTraining?.progress,
     needsGuardian,
     enrollments,
+    paymentSummary,
     activeEnrollment: activeDriverTraining
       ? {
           id: activeDriverTraining.id,
