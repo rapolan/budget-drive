@@ -166,12 +166,10 @@ describe('paymentService - keysToCamel applied at every return site', () => {
     expectCamelCasePayment(payment);
   });
 
-  it('refundPayment returns a camelCase Payment object', async () => {
-    const { refundPayment } = await import('../services/paymentService');
-
-    mockQuery.mockResolvedValueOnce(queryResult([{ ...rawPaymentRow, status: 'refunded' }]));
-
-    const payment = await refundPayment(PAYMENT_ID, TENANT_ID);
-    expectCamelCasePayment(payment);
-  });
+  // refundPayment (flipped payments.status to 'refunded' in place) was
+  // removed in payments-adjustments - replaced entirely by
+  // adjustmentService.createAdjustment, which inserts an append-only
+  // payment_adjustments row via its own getClient()-based transaction
+  // instead of the plain query() mock this file uses. Its own
+  // keysToCamel coverage lives in adjustmentService.test.ts instead.
 });

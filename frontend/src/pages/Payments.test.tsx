@@ -25,6 +25,7 @@ vi.mock('@/api', async () => {
       getAll: vi.fn(),
       create: vi.fn(),
       getByStudent: vi.fn(),
+      createAdjustment: vi.fn(),
       getPeriodSummary: vi.fn().mockResolvedValue({
         data: {
           start: '2026-08-01',
@@ -58,6 +59,13 @@ vi.mock('@/contexts/TenantContext', () => ({
     tenantNow: MOCK_TENANT_NOW,
     settings: { enableBlockchainPayments: false },
   }),
+}));
+
+// PaymentHistoryModal reads the current role (payments-adjustments) only
+// to decide whether to show Refund/Void at all - admin here so existing
+// tests that don't care about role gating keep working unchanged.
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { role: 'admin' } }),
 }));
 
 function student(overrides: Partial<Student> = {}): Student {

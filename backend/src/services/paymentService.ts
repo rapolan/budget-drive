@@ -236,17 +236,32 @@ export const createPayment = async (
       // recent one - a student with an old, already-paid-off DE
       // enrollment and a newer one still owing should attach to the one
       // that's actually unpaid.
+      // total_paid here is NET paid (payments-adjustments) - a DE
+      // enrollment whose only payment was fully refunded/voided must be
+      // re-selected as "genuinely outstanding" again, the same as if it
+      // had never been paid, so a new payment doesn't silently attach to
+      // a DIFFERENT, already-settled DE enrollment instead.
       const deEnrollmentResult = await dbQuery(
         `SELECT e.id,
                 e.total_cost,
                 COALESCE((
-                  SELECT SUM(p.amount) FROM payments p
+                  SELECT SUM(GREATEST(0, p.amount - COALESCE(adj.total_adjusted, 0)))
+                  FROM payments p
+                  LEFT JOIN (
+                    SELECT payment_id, SUM(amount) AS total_adjusted
+                    FROM payment_adjustments GROUP BY payment_id
+                  ) adj ON adj.payment_id = p.id
                   WHERE p.enrollment_id = e.id AND p.tenant_id = e.tenant_id AND p.status = 'confirmed'
                 ), 0) AS total_paid
          FROM enrollments e
          WHERE e.student_id = $1 AND e.tenant_id = $2 AND e.program_type = 'driver_education'
          ORDER BY (e.total_cost IS NOT NULL AND e.total_cost > COALESCE((
-                    SELECT SUM(p2.amount) FROM payments p2
+                    SELECT SUM(GREATEST(0, p2.amount - COALESCE(adj2.total_adjusted, 0)))
+                    FROM payments p2
+                    LEFT JOIN (
+                      SELECT payment_id, SUM(amount) AS total_adjusted
+                      FROM payment_adjustments GROUP BY payment_id
+                    ) adj2 ON adj2.payment_id = p2.id
                     WHERE p2.enrollment_id = e.id AND p2.tenant_id = e.tenant_id AND p2.status = 'confirmed'
                   ), 0)) DESC,
                   e.created_at DESC
@@ -469,44 +484,29 @@ export const markPaymentAsReceived = async (
   return keysToCamel(result.rows[0]) as Payment;
 };
 
-export const refundPayment = async (
-  id: string,
-  tenantId: string
-): Promise<Payment> => {
-  logger.info('Refunding payment', { tenantId, paymentId: id });
+// refundPayment (flipped payments.status to 'refunded' in place) was
+// removed - payments-adjustments replaces it entirely with
+// adjustmentService.createAdjustment, which inserts an append-only
+// payment_adjustments row rather than mutating the original payment.
+// POST /payments/:id/refund now requires a body (amount, reasonCode,
+// note) and calls that function directly from the controller - there is
+// no longer a paymentService-level refund function to call with just an
+// id, since a refund is no longer representable as a single id-only
+// operation.
 
-  const result = await query(
-    `UPDATE payments SET status = 'refunded'
-     WHERE id = $1 AND tenant_id = $2
-     RETURNING *, (SELECT e.student_id FROM enrollments e WHERE e.id = payments.enrollment_id) AS student_id`,
-    [id, tenantId]
-  );
-
-  if (result.rows.length === 0) {
-    logger.warn('Payment not found for refund', { tenantId, paymentId: id });
-    throw new AppError('Payment not found', 404);
-  }
-
-  logger.info('Payment refunded successfully', { tenantId, paymentId: id });
-
-  return keysToCamel(result.rows[0]) as Payment;
-};
-
+/**
+ * Hard delete on a payment is permanently removed - an append-only
+ * correction model (payment_adjustments) is incompatible with a payment
+ * row ever disappearing outright. Always 409s, pointing the caller at
+ * Void (which still leaves a full, permanent record of both the original
+ * payment and the correction) as the real way to "undo" a payment now.
+ */
 export const deletePayment = async (
-  id: string,
-  tenantId: string
-): Promise<void> => {
-  logger.info('Deleting payment', { tenantId, paymentId: id });
-
-  const result = await query(
-    'DELETE FROM payments WHERE id = $1 AND tenant_id = $2 RETURNING id',
-    [id, tenantId]
+  _id: string,
+  _tenantId: string
+): Promise<never> => {
+  throw new AppError(
+    'Payments can no longer be deleted. Use Void instead - it keeps a permanent record of the correction.',
+    409
   );
-
-  if (result.rows.length === 0) {
-    logger.warn('Payment not found for deletion', { tenantId, paymentId: id });
-    throw new AppError('Payment not found', 404);
-  }
-
-  logger.info('Payment deleted successfully', { tenantId, paymentId: id });
 };

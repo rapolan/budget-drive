@@ -50,6 +50,8 @@ describe('PaymentReceiptPrintPage', () => {
         enrollmentTotalPaid: 150,
         enrollmentOutstandingBalance: 25,
         enrollmentCreditBalance: null,
+        adjustments: [],
+        netPaid: 75,
       },
     });
 
@@ -83,6 +85,8 @@ describe('PaymentReceiptPrintPage', () => {
         enrollmentTotalPaid: 300,
         enrollmentOutstandingBalance: 0,
         enrollmentCreditBalance: 75,
+        adjustments: [],
+        netPaid: 300,
       },
     });
 
@@ -108,11 +112,78 @@ describe('PaymentReceiptPrintPage', () => {
         enrollmentTotalPaid: 50,
         enrollmentOutstandingBalance: null,
         enrollmentCreditBalance: null,
+        adjustments: [],
+        netPaid: 50,
       },
     });
 
     renderPrintPage('payment-xyz');
 
     await waitFor(() => expect(paymentsApi.getReceipt).toHaveBeenCalledWith('payment-xyz'));
+  });
+
+  it('shows a refund line in red with reason and a "Net paid" line on an adjusted payment (payments-adjustments)', async () => {
+    (paymentsApi.getReceipt as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        paymentId: 'payment-1',
+        receiptNumber: 'BDP-ABC1234567',
+        date: '2026-08-10',
+        studentId: 'student-1',
+        studentName: 'Jane Doe',
+        amount: 100,
+        paymentMethod: 'cash',
+        referenceNumber: null,
+        appliedToProgramType: 'driver_training',
+        enrollmentTotalPaid: 220,
+        enrollmentOutstandingBalance: 0,
+        enrollmentCreditBalance: null,
+        adjustments: [
+          {
+            adjustmentType: 'refund',
+            amount: 40,
+            reasonCode: 'overpaid',
+            createdAt: '2026-08-15T00:00:00.000Z',
+            createdByName: 'Admin User',
+          },
+        ],
+        netPaid: 60,
+      },
+    });
+
+    renderPrintPage();
+
+    expect(await screen.findByText(/Refunded - Overpaid/)).toBeInTheDocument();
+    expect(screen.getByText('-$40.00')).toBeInTheDocument();
+    expect(screen.getByText('Net paid')).toBeInTheDocument();
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
+    expect(screen.getByText('$220.00')).toBeInTheDocument();
+  });
+
+  it('does not show any adjustment section or "Net paid" line on an unadjusted payment', async () => {
+    (paymentsApi.getReceipt as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        paymentId: 'payment-1',
+        receiptNumber: 'BDP-ABC1234567',
+        date: '2026-08-10',
+        studentId: 'student-1',
+        studentName: 'Jane Doe',
+        amount: 75,
+        paymentMethod: 'cash',
+        referenceNumber: null,
+        appliedToProgramType: 'driver_training',
+        enrollmentTotalPaid: 75,
+        enrollmentOutstandingBalance: 0,
+        enrollmentCreditBalance: null,
+        adjustments: [],
+        netPaid: 75,
+      },
+    });
+
+    renderPrintPage();
+
+    await screen.findByText('Jane Doe');
+    expect(screen.queryByText('Net paid')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Refunded -/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Voided -/)).not.toBeInTheDocument();
   });
 });

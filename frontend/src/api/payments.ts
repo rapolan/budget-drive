@@ -7,7 +7,18 @@ import type {
   PaymentPeriodSummary,
   WhoOwesYouRow,
   PaymentReceiptData,
+  PaymentAdjustment,
+  AdjustmentReasonCode,
 } from '@/types';
+
+export interface CreateAdjustmentInput {
+  adjustmentType: 'refund' | 'void';
+  // Required for 'refund'; ignored for 'void' (the server always uses the
+  // full remaining amount for a void, regardless of what's sent here).
+  amount?: number;
+  reasonCode: AdjustmentReasonCode;
+  note?: string;
+}
 
 export const paymentsApi = {
   getAll: async (page = 1, limit = 50) => {
@@ -32,10 +43,10 @@ export const paymentsApi = {
     return response.data;
   },
 
-  delete: async (id: string) => {
-    const response = await apiClient.delete<ApiResponse<void>>(`/payments/${id}`);
-    return response.data;
-  },
+  // Deleting a payment is permanently removed (payments-adjustments) -
+  // the backend always 409s, pointing at Void. No delete method is
+  // exposed here at all; createAdjustment with adjustmentType: 'void' is
+  // the real "undo" now, and it keeps a full permanent record.
 
   getByStudent: async (studentId: string) => {
     const response = await apiClient.get<ApiResponse<Payment[]>>(`/payments/student/${studentId}`);
@@ -60,8 +71,14 @@ export const paymentsApi = {
     return response.data;
   },
 
-  refund: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Payment>>(`/payments/${id}/refund`);
+  // Creates a refund or void adjustment (payments-adjustments) - replaces
+  // the old in-place refund flip entirely. owner/admin only, enforced
+  // server-side.
+  createAdjustment: async (id: string, data: CreateAdjustmentInput) => {
+    const response = await apiClient.post<ApiResponse<PaymentAdjustment>>(
+      `/payments/${id}/adjustments`,
+      data
+    );
     return response.data;
   },
 

@@ -148,11 +148,27 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
   // must be included for paidByEnrollment to be complete.
   const deEnrollmentIds = Array.from(deEnrollments.values()).map(e => e.id);
   const allPaymentEnrollmentIds = [...enrollmentIds, ...deEnrollmentIds];
+  // NET paid (payments-adjustments) - same per-payment
+  // GREATEST(0, amount - adjustments) floor as
+  // enrollmentService.attachProgressAndPayments's identical query, kept
+  // in sync with it rather than factored into a shared helper (this
+  // repo's own established convention for a well-documented SQL shape
+  // repeated at a few call sites - see paymentReportingService.ts's own
+  // lesson_totals/payment_totals CTEs for the precedent).
   const paymentsResult = allPaymentEnrollmentIds.length > 0
     ? await query(
-        `SELECT enrollment_id, COALESCE(SUM(amount), 0) AS total_paid
-         FROM payments
-         WHERE tenant_id = $1 AND enrollment_id = ANY($2::uuid[]) AND status = 'confirmed'
+        `SELECT enrollment_id, COALESCE(SUM(net_paid), 0) AS total_paid
+         FROM (
+           SELECT p.enrollment_id,
+                  GREATEST(0, p.amount - COALESCE(adj.total_adjusted, 0)) AS net_paid
+           FROM payments p
+           LEFT JOIN (
+             SELECT payment_id, SUM(amount) AS total_adjusted
+             FROM payment_adjustments
+             GROUP BY payment_id
+           ) adj ON adj.payment_id = p.id
+           WHERE p.tenant_id = $1 AND p.enrollment_id = ANY($2::uuid[]) AND p.status = 'confirmed'
+         ) net_payments
          GROUP BY enrollment_id`,
         [tenantId, allPaymentEnrollmentIds]
       )
@@ -174,6 +190,25 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
   // Only minors need a guardian-contact fallback rendered - adults never
   // pay for this query, same reasoning as guardianCounts above.
   const primaryGuardiansByStudent = await getGuardiansForStudentsBatch(minorIds, tenantId);
+
+  // Payments-adjustments: resolves "who set it" for the arrangement
+  // dialog's own "Last set <date> by <name>" display - batched (one
+  // query for every enrollment with a marker set in this set), not N+1.
+  // Matches getWhoOwesYou's identical resolve-the-setter's-name join,
+  // just batched across a student LIST here instead of per-enrollment-row.
+  const arrangementSetterIds = Array.from(activeEnrollments.values())
+    .map(e => e.paymentArrangementSetBy)
+    .filter((id): id is string => id !== null && id !== undefined);
+  const arrangementSetterNamesById = new Map<string, string>();
+  if (arrangementSetterIds.length > 0) {
+    const settersResult = await query(
+      `SELECT id, full_name FROM users WHERE id = ANY($1::uuid[])`,
+      [arrangementSetterIds]
+    );
+    for (const row of settersResult.rows) {
+      arrangementSetterNamesById.set(row.id, row.full_name);
+    }
+  }
 
   return students.map(student => {
     const age = calculateAge(student.dateOfBirth, timezone);
@@ -206,6 +241,17 @@ async function attachProgress(students: Student[], tenantId: string): Promise<St
           completed: enrollment.completed,
           completionReason: enrollment.completionReason,
           withdrawnReason: enrollment.withdrawnReason,
+          // Payments-adjustments: the "On a payment arrangement" header
+          // badge in PaymentHistoryModal reads this off the student's
+          // active enrollment - already selected via this batch's own
+          // SELECT * (getDisplayDriverTrainingEnrollmentsBatch), just not
+          // previously projected into this narrower returned shape.
+          paymentArrangementSetAt: enrollment.paymentArrangementSetAt,
+          paymentArrangementSetBy: enrollment.paymentArrangementSetBy,
+          paymentArrangementSetByName: enrollment.paymentArrangementSetBy
+            ? arrangementSetterNamesById.get(enrollment.paymentArrangementSetBy) ?? null
+            : null,
+          paymentArrangementNote: enrollment.paymentArrangementNote,
         }
       : null;
 
@@ -446,6 +492,19 @@ export const getStudentById = async (
     displayDe?.paymentSummary ?? null
   );
 
+  // Payments-adjustments: resolves "who set it" for the arrangement
+  // dialog's own "Last set <date> by <name>" display - a single lookup
+  // here (not a batch), since a single-student read has at most one
+  // setter id to resolve.
+  let arrangementSetterName: string | null = null;
+  if (activeDriverTraining?.paymentArrangementSetBy) {
+    const setterResult = await query(
+      `SELECT full_name FROM users WHERE id = $1`,
+      [activeDriverTraining.paymentArrangementSetBy]
+    );
+    arrangementSetterName = setterResult.rows[0]?.full_name ?? null;
+  }
+
   return {
     ...student,
     progress: activeDriverTraining?.progress,
@@ -461,6 +520,10 @@ export const getStudentById = async (
           completed: activeDriverTraining.completed,
           completionReason: activeDriverTraining.completionReason,
           withdrawnReason: activeDriverTraining.withdrawnReason,
+          paymentArrangementSetAt: activeDriverTraining.paymentArrangementSetAt,
+          paymentArrangementSetBy: activeDriverTraining.paymentArrangementSetBy,
+          paymentArrangementSetByName: arrangementSetterName,
+          paymentArrangementNote: activeDriverTraining.paymentArrangementNote,
         }
       : null,
     hasCompletedInternalDe,

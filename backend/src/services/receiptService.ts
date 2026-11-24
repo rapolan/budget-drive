@@ -34,3 +34,35 @@ export function computeReceiptNumber(tenantId: string, paymentId: string): strin
     .digest('hex');
   return `BDP-${hash.slice(0, 10).toUpperCase()}`;
 }
+
+/**
+ * Groundwork-only BSV hash for a payment adjustment (refund/void) -
+ * payments-adjustments phase. Matches the existing
+ * enrollments.completion_hash / certificates.completion_hash pattern
+ * exactly (see docs/BLOCKCHAIN.md): computed by ordinary application code
+ * via Node's built-in crypto module, no @bsv/sdk, no wallet, no network
+ * call. Stored in payment_adjustments.ledger_hash; the paired
+ * ledger_txid column stays permanently NULL until a future session
+ * actually anchors it on-chain.
+ *
+ * The hashed payload is deliberately narrow - the adjustment id, the
+ * payment's own receipt number (itself already a deterministic,
+ * non-PII-derived value - see computeReceiptNumber above), the
+ * adjustment type, amount, reason code, and created_at. It explicitly
+ * NEVER includes the free-text note or any name - the same "internal IDs
+ * and non-PII scalars only" rule every other hash in this codebase
+ * follows.
+ */
+export function computeAdjustmentLedgerHash(payload: {
+  adjustmentId: string;
+  receiptNumber: string;
+  adjustmentType: 'refund' | 'void';
+  amount: number;
+  reasonCode: string;
+  createdAt: string;
+}): string {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(payload))
+    .digest('hex');
+}

@@ -72,4 +72,21 @@ router.get(
   enrollmentController.getWithdrawalTranscript
 );
 
+// Payment arrangement marker (payments-adjustments) - owner/admin only,
+// same guarded-write shape as reopen/withdraw above. Informational only;
+// no booking-rule behavior is wired to it in this change.
+router.post(
+  '/enrollments/:id/payment-arrangement',
+  validateUUID('id'),
+  requireRole('owner', 'admin'),
+  enrollmentController.setPaymentArrangement
+);
+
+router.delete(
+  '/enrollments/:id/payment-arrangement',
+  validateUUID('id'),
+  requireRole('owner', 'admin'),
+  enrollmentController.clearPaymentArrangement
+);
+
 export default router;

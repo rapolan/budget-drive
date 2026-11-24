@@ -59,16 +59,36 @@ export async function getPaymentPeriodSummary(
   start: string,
   end: string
 ): Promise<PaymentPeriodSummary> {
+  // "Collected" stays the gross amount of confirmed payments DATED in the
+  // period - what actually came in that day, unaffected by a later
+  // refund/void (which is its own dated event, accounted for separately
+  // below). A payment refunded/voided after the period it was collected
+  // in still correctly shows as collected in that earlier period.
   const collectedResult = await query(
     `SELECT COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
      FROM payments
      WHERE tenant_id = $1 AND status = 'confirmed' AND date >= $2 AND date <= $3`,
     [tenantId, start, end]
   );
+  // "Refunded" (payments-adjustments) now counts by the ADJUSTMENT's own
+  // created_at date, not the original payment's date - a refund issued
+  // today against a payment collected last month is a THIS period event
+  // for reporting purposes, per the task's explicit instruction. Covers
+  // both adjustment_type values (refund AND void - both return/cancel
+  // money the same way for this figure) PLUS any legacy payment row the
+  // old flip-status-in-place flow already marked status = 'refunded'
+  // before this migration - counted by that payment's own `date` column,
+  // since no adjustment row exists for it to carry a separate date
+  // (migration 007's own comment: legacy rows are never backfilled with
+  // a matching adjustment).
   const refundedResult = await query(
-    `SELECT COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
-     FROM payments
-     WHERE tenant_id = $1 AND status = 'refunded' AND date >= $2 AND date <= $3`,
+    `SELECT COALESCE(SUM(amount), 0) AS amount, COALESCE(COUNT(*), 0) AS count FROM (
+       SELECT amount FROM payment_adjustments
+       WHERE tenant_id = $1 AND created_at::date >= $2 AND created_at::date <= $3
+       UNION ALL
+       SELECT amount FROM payments
+       WHERE tenant_id = $1 AND status = 'refunded' AND date >= $2 AND date <= $3
+     ) refunded_events`,
     [tenantId, start, end]
   );
   const byMethodResult = await query(
@@ -98,6 +118,10 @@ export async function getPaymentPeriodSummary(
   // was found and fixed as a real discrepancy, not a hypothetical: a
   // seeded archived student with a $150 unpaid enrollment caused exactly
   // that drift.
+  //
+  // payment_totals now sums NET paid (payments-adjustments) - same
+  // per-payment GREATEST(0, amount - adjustments) floor as
+  // enrollmentService.attachProgressAndPayments's identical query.
   const balancesResult = await query(
     `WITH lesson_totals AS (
        SELECT enrollment_id, SUM(cost) AS lesson_cost_sum
@@ -106,9 +130,18 @@ export async function getPaymentPeriodSummary(
        GROUP BY enrollment_id
      ),
      payment_totals AS (
-       SELECT enrollment_id, SUM(amount) AS total_paid
-       FROM payments
-       WHERE tenant_id = $1 AND status = 'confirmed'
+       SELECT enrollment_id, SUM(net_paid) AS total_paid
+       FROM (
+         SELECT p.enrollment_id,
+                GREATEST(0, p.amount - COALESCE(adj.total_adjusted, 0)) AS net_paid
+         FROM payments p
+         LEFT JOIN (
+           SELECT payment_id, SUM(amount) AS total_adjusted
+           FROM payment_adjustments
+           GROUP BY payment_id
+         ) adj ON adj.payment_id = p.id
+         WHERE p.tenant_id = $1 AND p.status = 'confirmed'
+       ) net_payments
        GROUP BY enrollment_id
      ),
      enrollment_costs AS (
@@ -169,6 +202,9 @@ export interface WhoOwesYouRow {
   ageBucket: '0-30' | '31-60' | '61+';
   lastPaymentDate: string | null;
   lastPaymentAmount: number | null;
+  // Payments-adjustments: when set, the frontend shows an amber "Payment
+  // arrangement" badge instead of the red age-bucket badge for this row.
+  paymentArrangement: { setAt: string; setByName: string | null; note: string | null } | null;
 }
 
 /**
@@ -194,9 +230,18 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
        GROUP BY enrollment_id
      ),
      payment_totals AS (
-       SELECT enrollment_id, SUM(amount) AS total_paid
-       FROM payments
-       WHERE tenant_id = $1 AND status = 'confirmed'
+       SELECT enrollment_id, SUM(net_paid) AS total_paid
+       FROM (
+         SELECT p.enrollment_id,
+                GREATEST(0, p.amount - COALESCE(adj.total_adjusted, 0)) AS net_paid
+         FROM payments p
+         LEFT JOIN (
+           SELECT payment_id, SUM(amount) AS total_adjusted
+           FROM payment_adjustments
+           GROUP BY payment_id
+         ) adj ON adj.payment_id = p.id
+         WHERE p.tenant_id = $1 AND p.status = 'confirmed'
+       ) net_payments
        GROUP BY enrollment_id
      ),
      oldest_unpaid_completed AS (
@@ -219,13 +264,17 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
        COALESCE(pt.total_paid, 0) AS total_paid,
        ouc.oldest_date,
        lp.date AS last_payment_date,
-       lp.amount AS last_payment_amount
+       lp.amount AS last_payment_amount,
+       e.payment_arrangement_set_at,
+       e.payment_arrangement_note,
+       arr_user.full_name AS payment_arrangement_set_by_name
      FROM enrollments e
      JOIN students s ON s.id = e.student_id
      LEFT JOIN lesson_totals lt ON lt.enrollment_id = e.id
      LEFT JOIN payment_totals pt ON pt.enrollment_id = e.id
      LEFT JOIN oldest_unpaid_completed ouc ON ouc.enrollment_id = e.id
      LEFT JOIN last_payment lp ON lp.enrollment_id = e.id
+     LEFT JOIN users arr_user ON arr_user.id = e.payment_arrangement_set_by
      WHERE e.tenant_id = $1
        AND s.archived_at IS NULL
        AND COALESCE(e.total_cost, lt.lesson_cost_sum) IS NOT NULL
@@ -257,9 +306,29 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
           ? new Date(row.last_payment_date).toISOString().slice(0, 10)
           : null,
         lastPaymentAmount: row.last_payment_amount !== null ? round2(parseFloat(row.last_payment_amount)) : null,
+        // Payments-adjustments: a row on an agreed arrangement shows an
+        // amber "Payment arrangement" badge instead of the red age-bucket
+        // badge (ageBucket is still computed/returned above regardless -
+        // the frontend decides which badge to render based on this flag,
+        // so the underlying age data is never lost even when hidden).
+        paymentArrangement: row.payment_arrangement_set_at
+          ? {
+              setAt: new Date(row.payment_arrangement_set_at).toISOString(),
+              setByName: row.payment_arrangement_set_by_name,
+              note: row.payment_arrangement_note,
+            }
+          : null,
       };
     })
     .sort((a, b) => b.amountOwed - a.amountOwed);
+}
+
+export interface ReceiptAdjustmentLine {
+  adjustmentType: 'refund' | 'void';
+  amount: number;
+  reasonCode: string;
+  createdAt: string;
+  createdByName: string | null;
 }
 
 export interface PaymentReceiptData {
@@ -278,10 +347,19 @@ export interface PaymentReceiptData {
   // this codebase). Never guess at specific lessons here.
   appliedToProgramType: string;
   // The enrollment's running totals AT READ TIME (not frozen at the
-  // moment this payment was made) - "remaining credit" per the task.
+  // moment this payment was made) - "remaining credit" per the task. Both
+  // now reflect NET paid (payments-adjustments) across the enrollment.
   enrollmentTotalPaid: number;
   enrollmentOutstandingBalance: number | null;
   enrollmentCreditBalance: number | null;
+  // Payments-adjustments: this payment's own refund/void lines (empty for
+  // an unadjusted payment, which renders exactly as it did before this
+  // phase) and its own net paid after them. The receipt number is never
+  // recomputed or changed by an adjustment - it is derived from the
+  // payment's own immutable id, unaffected by anything that happens to it
+  // later.
+  adjustments: ReceiptAdjustmentLine[];
+  netPaid: number;
 }
 
 /**
@@ -310,6 +388,7 @@ export async function getPaymentReceiptData(
   }
 
   const row = paymentResult.rows[0];
+  const paymentAmount = round2(parseFloat(row.amount));
 
   const lessonTotalsResult = await query(
     `SELECT COALESCE(SUM(cost), 0) AS lesson_cost_sum
@@ -317,11 +396,33 @@ export async function getPaymentReceiptData(
      WHERE tenant_id = $1 AND enrollment_id = $2 AND status != 'cancelled'`,
     [tenantId, row.enrollment_id]
   );
+  // NET paid across the whole enrollment (payments-adjustments) - same
+  // per-payment GREATEST(0, amount - adjustments) floor as every other
+  // balance computation in this codebase.
   const paidTotalResult = await query(
-    `SELECT COALESCE(SUM(amount), 0) AS total_paid
-     FROM payments
-     WHERE tenant_id = $1 AND enrollment_id = $2 AND status = 'confirmed'`,
+    `SELECT COALESCE(SUM(net_paid), 0) AS total_paid
+     FROM (
+       SELECT GREATEST(0, p.amount - COALESCE(adj.total_adjusted, 0)) AS net_paid
+       FROM payments p
+       LEFT JOIN (
+         SELECT payment_id, SUM(amount) AS total_adjusted
+         FROM payment_adjustments
+         GROUP BY payment_id
+       ) adj ON adj.payment_id = p.id
+       WHERE p.tenant_id = $1 AND p.enrollment_id = $2 AND p.status = 'confirmed'
+     ) net_payments`,
     [tenantId, row.enrollment_id]
+  );
+  // This payment's OWN adjustment lines - shown on the receipt in order,
+  // with who made each one (for the owner's own records; never shown as
+  // a claim about what the student was told).
+  const adjustmentsResult = await query(
+    `SELECT pa.adjustment_type, pa.amount, pa.reason_code, pa.created_at, u.full_name AS created_by_name
+     FROM payment_adjustments pa
+     LEFT JOIN users u ON u.id = pa.created_by
+     WHERE pa.tenant_id = $1 AND pa.payment_id = $2
+     ORDER BY pa.created_at ASC`,
+    [tenantId, paymentId]
   );
 
   const totalCost = row.total_cost !== null
@@ -333,28 +434,47 @@ export async function getPaymentReceiptData(
   const outstandingBalance = totalCost !== null ? round2(Math.max(0, totalCost - totalPaid)) : null;
   const creditBalance = totalCost !== null ? round2(Math.max(0, totalPaid - totalCost)) : null;
 
+  const adjustments: ReceiptAdjustmentLine[] = adjustmentsResult.rows.map((a) => ({
+    adjustmentType: a.adjustment_type,
+    amount: round2(parseFloat(a.amount)),
+    reasonCode: a.reason_code,
+    createdAt: new Date(a.created_at).toISOString(),
+    createdByName: a.created_by_name,
+  }));
+  const totalAdjustedForThisPayment = round2(adjustments.reduce((sum, a) => sum + a.amount, 0));
+  const netPaidForThisPayment = round2(Math.max(0, paymentAmount - totalAdjustedForThisPayment));
+
   return {
     paymentId: row.id,
     receiptNumber: computeReceiptNumber(tenantId, row.id),
     date: new Date(row.date).toISOString().slice(0, 10),
     studentId: row.student_id,
     studentName: row.student_name,
-    amount: round2(parseFloat(row.amount)),
+    amount: paymentAmount,
     paymentMethod: row.payment_method,
     referenceNumber: row.reference_number,
     appliedToProgramType: row.program_type,
     enrollmentTotalPaid: totalPaid,
     enrollmentOutstandingBalance: outstandingBalance,
     enrollmentCreditBalance: creditBalance,
+    adjustments,
+    netPaid: netPaidForThisPayment,
   };
 }
 
 export interface PaymentExportRow {
+  // 'payment' for an original payment row, 'adjustment' for a refund/void
+  // line (payments-adjustments) - included in the same export per the
+  // task's own instruction, each on its own line, never merged into the
+  // payment's row (an adjustment has its own date, reason, and amount
+  // that don't fit the payment-row shape without losing information).
+  rowType: 'payment' | 'adjustment';
   date: string;
   studentName: string;
   amount: number;
-  paymentMethod: string;
+  paymentMethod: string | null;
   status: string;
+  reasonCode: string | null;
   referenceNumber: string | null;
   receiptNumber: string;
 }
@@ -363,6 +483,13 @@ export interface PaymentExportRow {
  * Payments within [start, end] (inclusive), for CSV export. Every status
  * is included (not just confirmed) - an export for reconciliation needs
  * to show refunded/pending/failed rows too, not silently drop them.
+ *
+ * Adjustment (refund/void) lines dated within the SAME range (by the
+ * adjustment's own created_at, matching getPaymentPeriodSummary's own
+ * "refunded counted by the adjustment's date" rule) are included as
+ * their own rows, carrying the ORIGINAL payment's receipt number (an
+ * adjustment has no receipt number of its own - it corrects a specific
+ * payment, identified by that payment's number) and student name.
  */
 export async function getPaymentsForExport(
   tenantId: string,
@@ -380,13 +507,40 @@ export async function getPaymentsForExport(
     [tenantId, start, end]
   );
 
-  return result.rows.map((row) => ({
+  const paymentRows: PaymentExportRow[] = result.rows.map((row) => ({
+    rowType: 'payment',
     date: new Date(row.date).toISOString().slice(0, 10),
     studentName: row.student_name,
     amount: round2(parseFloat(row.amount)),
     paymentMethod: row.payment_method,
     status: row.status,
+    reasonCode: null,
     referenceNumber: row.reference_number,
     receiptNumber: computeReceiptNumber(tenantId, row.id),
   }));
+
+  const adjustmentsResult = await query(
+    `SELECT pa.id, pa.payment_id, pa.adjustment_type, pa.amount, pa.reason_code, pa.created_at,
+            p.id AS original_payment_id, s.full_name AS student_name
+     FROM payment_adjustments pa
+     JOIN payments p ON p.id = pa.payment_id
+     JOIN enrollments e ON e.id = p.enrollment_id
+     JOIN students s ON s.id = e.student_id
+     WHERE pa.tenant_id = $1 AND pa.created_at::date >= $2 AND pa.created_at::date <= $3
+     ORDER BY pa.created_at ASC`,
+    [tenantId, start, end]
+  );
+  const adjustmentRows: PaymentExportRow[] = adjustmentsResult.rows.map((row) => ({
+    rowType: 'adjustment',
+    date: new Date(row.created_at).toISOString().slice(0, 10),
+    studentName: row.student_name,
+    amount: round2(parseFloat(row.amount)),
+    paymentMethod: null,
+    status: row.adjustment_type,
+    reasonCode: row.reason_code,
+    referenceNumber: null,
+    receiptNumber: computeReceiptNumber(tenantId, row.original_payment_id),
+  }));
+
+  return [...paymentRows, ...adjustmentRows].sort((a, b) => a.date.localeCompare(b.date));
 }

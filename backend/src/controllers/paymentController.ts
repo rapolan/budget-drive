@@ -7,6 +7,7 @@ import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as paymentService from '../services/paymentService';
 import * as paymentReportingService from '../services/paymentReportingService';
+import * as adjustmentService from '../services/adjustmentService';
 import { getTenantId } from '../middleware/tenantContext';
 import { csvCell } from '../utils/csvFormatting';
 
@@ -124,10 +125,28 @@ export const getPaymentsByStudent = asyncHandler(async (req: Request, res: Respo
 
   const payments = await paymentService.getPaymentsByStudent(tenantId, studentId);
 
+  // Payments-adjustments: attach each payment's own adjustments (empty
+  // array for an unadjusted payment - renders exactly as it did before
+  // this phase) plus the derived display status and net paid, so the
+  // history modal never needs a second round trip per payment.
+  const adjustmentsByPayment = await adjustmentService.getAdjustmentsForPayments(
+    payments.map((p) => p.id),
+    tenantId
+  );
+  const paymentsWithAdjustments = payments.map((payment) => {
+    const adjustments = adjustmentsByPayment.get(payment.id) ?? [];
+    return {
+      ...payment,
+      adjustments,
+      netPaid: adjustmentService.computeNetPaid(Number(payment.amount), adjustments, payment.status),
+      displayStatus: adjustmentService.derivePaymentAdjustmentStatus(Number(payment.amount), adjustments, payment.status),
+    };
+  });
+
   res.json({
     success: true,
-    data: payments,
-    count: payments.length,
+    data: paymentsWithAdjustments,
+    count: paymentsWithAdjustments.length,
   });
 });
 
@@ -212,20 +231,66 @@ export const markPaymentAsReceived = asyncHandler(async (req: Request, res: Resp
 });
 
 /**
+ * @route   POST /api/v1/payments/:id/adjustments
+ * @desc    Create a refund or void adjustment against a payment
+ *          (payments-adjustments - replaces the old in-place refund flip
+ *          and the hard delete). owner/admin only - enforced by
+ *          requireRole at the route layer, same as every other
+ *          payments-adjustments write endpoint.
+ * @access  Private (owner/admin)
+ */
+export const createPaymentAdjustment = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const userId = req.user!.userId;
+  const { adjustmentType, amount, reasonCode, note } = req.body;
+
+  if (adjustmentType !== 'refund' && adjustmentType !== 'void') {
+    throw new AppError('adjustmentType must be "refund" or "void"', 400);
+  }
+
+  const adjustment = await adjustmentService.createAdjustment(tenantId, id, userId, {
+    adjustmentType,
+    amount,
+    reasonCode,
+    note,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: adjustment,
+    message: adjustmentType === 'void' ? 'Payment voided successfully' : 'Refund recorded successfully',
+  });
+});
+
+/**
  * @route   POST /api/v1/payments/:id/refund
- * @desc    Refund payment
- * @access  Private
+ * @desc    Legacy refund route - kept for backward compatibility, but now
+ *          creates an append-only adjustment (via the same
+ *          adjustmentService.createAdjustment as the real endpoint above)
+ *          instead of flipping payments.status in place. Requires the
+ *          same body shape (amount, reasonCode, note) - there is no
+ *          longer an id-only refund, since an amount and a reason are
+ *          both required by the new model.
+ * @access  Private (owner/admin)
  */
 export const refundPayment = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { id } = req.params;
+  const userId = req.user!.userId;
+  const { amount, reasonCode, note } = req.body;
 
-  const payment = await paymentService.refundPayment(id, tenantId);
+  const adjustment = await adjustmentService.createAdjustment(tenantId, id, userId, {
+    adjustmentType: 'refund',
+    amount,
+    reasonCode,
+    note,
+  });
 
   res.json({
     success: true,
-    data: payment,
-    message: 'Payment refunded successfully',
+    data: adjustment,
+    message: 'Refund recorded successfully',
   });
 });
 
@@ -304,16 +369,18 @@ export const exportPaymentsCsv = asyncHandler(async (req: Request, res: Response
 
   const rows = await paymentReportingService.getPaymentsForExport(tenantId, start, end);
 
-  const header = ['Date', 'Student', 'Amount', 'Method', 'Status', 'Reference', 'Receipt Number'];
+  const header = ['Row Type', 'Date', 'Student', 'Amount', 'Method', 'Status', 'Reason', 'Reference', 'Receipt Number'];
   const lines = [
     header.join(','),
     ...rows.map((row) =>
       [
+        row.rowType,
         row.date,
         csvCell(row.studentName),
         row.amount.toFixed(2),
-        row.paymentMethod,
+        row.paymentMethod ?? '',
         row.status,
+        row.reasonCode ?? '',
         csvCell(row.referenceNumber),
         row.receiptNumber,
       ].join(',')
