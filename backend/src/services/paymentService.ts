@@ -359,6 +359,26 @@ export const createPayment = async (
   }
 };
 
+// Fields that touch what actually happened and how much - immutable once
+// a payment is confirmed (payments-adjustments). Before this, PUT
+// /payments/:id let owner/admin/staff flip any of these in place, which
+// bypassed both the append-only adjustment model (e.g. setting status to
+// 'refunded' directly) and the owner/admin-only gate on refund/void (a
+// staff member could lower an amount with no adjustment trail at all).
+// pending/failed payments are explicitly exempted - nothing in this
+// codebase has ever relied on PUT /payments/:id to transition them
+// (markPaymentAsReceived is the dedicated pending-to-confirmed route),
+// but the lock only needs to cover the state that actually has money or a
+// customer-facing record attached to it, so pending/failed keep the prior
+// free-edit behavior unchanged.
+const IMMUTABLE_ONCE_CONFIRMED_FIELDS: (keyof Payment)[] = [
+  'amount',
+  'date',
+  'paymentMethod',
+  'status',
+  'bsvTransactionId',
+];
+
 export const updatePayment = async (
   id: string,
   tenantId: string,
@@ -372,6 +392,36 @@ export const updatePayment = async (
   });
 
   try {
+    const lockedFieldRequested = IMMUTABLE_ONCE_CONFIRMED_FIELDS.some(
+      (field) => data[field] !== undefined
+    );
+
+    if (lockedFieldRequested) {
+      const existingResult = await query(
+        'SELECT status FROM payments WHERE id = $1 AND tenant_id = $2',
+        [id, tenantId]
+      );
+
+      if (existingResult.rows.length === 0) {
+        logger.warn('Payment not found for update', { tenantId, paymentId: id });
+        throw new AppError('Payment not found', 404);
+      }
+
+      if (existingResult.rows[0].status === 'confirmed') {
+        logger.warn('Rejected attempt to edit a locked field on a confirmed payment', {
+          tenantId,
+          paymentId: id,
+          requestedFields: Object.keys(data),
+        });
+        throw new AppError(
+          data.amount !== undefined
+            ? "A confirmed payment's amount cannot be changed. Record a new payment for the correct amount, and use Void or Refund to correct this one."
+            : "A confirmed payment's date, method, status, and transaction ID cannot be changed once confirmed. Use Void or Refund to correct it.",
+          409
+        );
+      }
+    }
+
     const fields: string[] = [];
     const values: any[] = [];
     let paramCount = 1;

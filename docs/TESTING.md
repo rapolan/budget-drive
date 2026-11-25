@@ -1005,6 +1005,38 @@ curl -X POST http://localhost:4000/api/enrollments/381a06bf-fcb6-4740-9398-8ab0e
 
 ---
 
+### 2.67 Payments adjustments review fix: `PUT /payments/:id` can no longer bypass the append-only model
+
+Covers the `PUT /payments/:id` fix in `docs/ARCHITECTURE.md` §41's own "Gap found and fixed after initial review" subsection. A fresh-clone review of §2.66's branch found that `PUT /payments/:id` still let owner/admin/staff flip `amount`, `date`, `paymentMethod`, `status`, or `bsvTransactionId` directly on a confirmed payment — including setting `status` straight to `'refunded'` with no adjustment row. Fixed by locking those 5 fields once a payment is `confirmed`; `notes`/`referenceNumber` stay editable regardless of status, and `pending`/`failed` payments keep their prior free-edit behavior (nothing in this codebase has ever relied on this route to transition them — `markPaymentAsReceived` is the dedicated pending-to-confirmed route).
+
+**Backend (mocked-query, route-level):**
+```bash
+cd backend
+npx vitest run src/__tests__/paymentUpdateImmutability.test.ts
+npx vitest run src/__tests__/paymentServiceCaseConversion.test.ts src/__tests__/tenantIsolation.test.ts src/__tests__/paymentCreateAuditColumns.test.ts
+```
+
+**Pass looks like:** `paymentUpdateImmutability.test.ts` (10 tests) — staff and admin both get 409 (identically — this is not a role gap) trying to change `amount`, `date`, `paymentMethod`, `status`, or `bsvTransactionId` on a confirmed payment, with the error message naming Void/Refund (or, specifically for `amount`, pointing at recording a new payment instead); a nonexistent payment 404s rather than 409ing even with a locked field in the request body; `notes` and `referenceNumber` still update with a 200 on a confirmed payment; a `pending` payment's `amount` and a `failed` payment's `status` can still be corrected, proving the pre-existing transition behavior for those two statuses is unchanged. The three pre-existing test files updated alongside this fix (`paymentServiceCaseConversion.test.ts`, `tenantIsolation.test.ts`, `paymentCreateAuditColumns.test.ts`) each had one `updatePayment(..., { amount: N })` call switched to `{ notes: '...' }` — those tests were asserting camelCase conversion, tenant filtering, and the `updated_by` column respectively, none of which are about the immutability rule, so decoupling them from a field that now 409s on a confirmed payment keeps each test asserting only what it says it does.
+
+**Backend (real-DB):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/paymentUpdateImmutabilityRealDb.integration.test.ts
+```
+
+**Pass looks like** (7 tests, explicit no-op without `TEST_DATABASE_URL`): an amount change on a confirmed payment is rejected with `statusCode: 409` and the payment's amount is unchanged afterward (not partially applied); a status change to `'refunded'` is rejected the same way, proving the old refund-by-flip path is genuinely gone, not just fronted by a new error message; date, paymentMethod, and bsvTransactionId are each independently rejected; notes and referenceNumber both update successfully on a confirmed payment, with amount/status unchanged; a pending payment's amount and a failed payment's status can still be corrected; a payment id belonging to a different tenant 404s rather than 409ing (the pre-check's own tenant filter, not just the eventual UPDATE's). Numeric fields from Postgres come back as strings (`'100.00'`) — this file's own assertions coerce with `Number(...)` before comparing, per CLAUDE.md's numeric-coercion rule; this was caught on first run (`expected '100.00' to be 100`) and fixed before counting the file as passing.
+
+**Frontend:** no new test file — `paymentsApi.update` was deleted from `frontend/src/api/payments.ts` entirely (confirmed via a repo-wide search that no component ever called it; the UI has never had an edit-in-place form for a payment). `npx tsc --noEmit` in `frontend/` is the only check this specific removal needs, and it's included in the full verification pass below.
+
+**Playwright screenshots — force-added, now tracked:** the 14 screenshots from §2.66's spec (`history-refund`, `history-void`, `refund-dialog`, `void-dialog`, `arrangement-dialog`, `who-owes-you-arrangement`, `receipt-refund` × light/dark) were generated under `frontend/e2e-screenshots/__screenshots__/`, which `.gitignore` excludes by design (it's point-in-time visual output, not source) — so they were never actually in the `payments-adjustments` branch despite being referenced in §2.66 and the PR description. Fixed with `git add -f frontend/e2e-screenshots/__screenshots__/payments-adjustments-*.png`, the same force-add already used for every prior branch's own screenshots (`payments-actions-*`, `payments-phase1-*`, etc. — confirmed already tracked in `main` via `git log --diff-filter=A`). Verify any screenshot-producing branch actually committed its captures with:
+```bash
+git ls-tree HEAD -- frontend/e2e-screenshots/__screenshots__/ | grep <branch-prefix>
+```
+A route reaching 200 in CI proves nothing about whether its screenshot made it into the diff - only `git ls-tree` (or `git show --stat`) against the actual commit does.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.

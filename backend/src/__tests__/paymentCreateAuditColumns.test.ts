@@ -103,11 +103,15 @@ describe('paymentService.updatePayment - updated_by and reference_number', () =>
   it('includes updated_by when a userId is provided', async () => {
     const { updatePayment } = await import('../services/paymentService');
 
+    // notes - not amount - so this stays a single-query mock sequence and
+    // this test's own updated_by/column-list assertion stays decoupled
+    // from the confirmed-payment immutability pre-check (covered
+    // separately in paymentUpdateImmutability.test.ts).
     mockQuery.mockResolvedValueOnce(
       queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, enrollment_id: ENROLLMENT_ID, updated_by: USER_ID }])
     );
 
-    await updatePayment('payment-1', TENANT_ID, { amount: 75 }, USER_ID);
+    await updatePayment('payment-1', TENANT_ID, { notes: 'Called to confirm' }, USER_ID);
 
     const [sql, params] = mockQuery.mock.calls[0];
     expect(sql).toMatch(/updated_by\s*=\s*\$\d+/);

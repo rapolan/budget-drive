@@ -38,10 +38,15 @@ export const paymentsApi = {
     return response.data;
   },
 
-  update: async (id: string, data: Partial<CreatePaymentInput>) => {
-    const response = await apiClient.put<ApiResponse<Payment>>(`/payments/${id}`, data);
-    return response.data;
-  },
+  // A confirmed payment's amount, date, paymentMethod, status, and
+  // bsvTransactionId are immutable server-side (payments-adjustments) -
+  // PUT /payments/:id now 409s on any of those once confirmed, pointing
+  // callers at Void/Refund (or "record a new payment" for a wrong
+  // amount). No component ever called this method, so it's removed
+  // entirely rather than left as a trap for a future caller to hit that
+  // 409. notes/referenceNumber edits on a confirmed payment, and any edit
+  // to a pending/failed payment, still work server-side - there's just no
+  // UI surface for them yet.
 
   // Deleting a payment is permanently removed (payments-adjustments) -
   // the backend always 409s, pointing at Void. No delete method is

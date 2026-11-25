@@ -156,9 +156,13 @@ describe('tenant isolation', () => {
 
     it('updatePayment filters by tenant_id', async () => {
       const paymentService = await import('../services/paymentService');
-      mockQuery.mockResolvedValueOnce(queryResult([{ id: OTHER_ID, amount: 50 }]));
+      // notes stays editable regardless of a payment's status
+      // (payments-adjustments) - unlike amount, it never triggers the
+      // confirmed-payment pre-check SELECT, so this stays a single-query
+      // mock sequence for the tenant-filter assertion below.
+      mockQuery.mockResolvedValueOnce(queryResult([{ id: OTHER_ID, notes: 'updated' }]));
 
-      await paymentService.updatePayment(OTHER_ID, TENANT_ID, { amount: 50 });
+      await paymentService.updatePayment(OTHER_ID, TENANT_ID, { notes: 'updated' });
       expectSomeCallFiltersByTenant(TENANT_ID);
     });
 

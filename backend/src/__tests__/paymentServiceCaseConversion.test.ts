@@ -151,9 +151,12 @@ describe('paymentService - keysToCamel applied at every return site', () => {
   it('updatePayment returns a camelCase Payment object', async () => {
     const { updatePayment } = await import('../services/paymentService');
 
+    // notes stays editable on a confirmed payment (payments-adjustments) -
+    // amount/date/paymentMethod/status/bsvTransactionId do not, and are
+    // covered separately in paymentUpdateImmutability.test.ts.
     mockQuery.mockResolvedValueOnce(queryResult([rawPaymentRow]));
 
-    const payment = await updatePayment(PAYMENT_ID, TENANT_ID, { amount: 50 }, 'user-1');
+    const payment = await updatePayment(PAYMENT_ID, TENANT_ID, { notes: 'Paid in person' }, 'user-1');
     expectCamelCasePayment(payment);
   });
 
