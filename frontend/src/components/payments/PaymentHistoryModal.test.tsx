@@ -124,10 +124,16 @@ describe('PaymentHistoryModal - "Applied To" merged into Type (payments-phase1 i
 // payment-history-layout renders two parallel markups for every payment -
 // a >=sm table and a <sm stacked-card list, toggled with CSS (hidden/
 // sm:hidden), not conditional rendering, so jsdom (which doesn't compute
-// CSS media queries) mounts BOTH at once. Every row-menu/action query in
+// CSS media queries) mounts BOTH at once. Every row-menu TRIGGER query in
 // this file is therefore scoped to the table via `within(table)` - the
 // stacked-card list's own PaymentRowMenu/actions-present coverage lives in
 // its own describe block below instead of being duplicated here.
+//
+// Once a menu is OPEN, its items (Print receipt/Refund/Void) are portaled
+// straight to document.body (payment-history-layout review fix - see
+// PaymentRowMenu.tsx), so they're no longer a DOM descendant of the table
+// at all. Those queries use plain `screen`, not `within(table)` -
+// scoping them to the table would never find them, portal or not.
 describe('PaymentHistoryModal - receipt via row menu (payments-adjustments)', () => {
   it('opens the print route in a new tab via the row menu\'s "Print receipt" item', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -140,7 +146,7 @@ describe('PaymentHistoryModal - receipt via row menu (payments-adjustments)', ()
     const table = await screen.findByRole('table');
     const menuTrigger = within(table).getByRole('button', { name: /payment actions/i });
     fireEvent.click(menuTrigger);
-    const receiptButton = await within(table).findByRole('button', { name: /print receipt/i });
+    const receiptButton = await screen.findByRole('button', { name: /print receipt/i });
     fireEvent.click(receiptButton);
 
     expect(windowOpenSpy).toHaveBeenCalledWith('/payments/payment-abc/receipt', '_blank', 'noopener');
@@ -173,8 +179,8 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     const table = await screen.findByRole('table');
     fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
 
-    expect(await within(table).findByRole('button', { name: /^refund$/i })).toBeInTheDocument();
-    expect(within(table).getByRole('button', { name: /^void$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^refund$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^void$/i })).toBeInTheDocument();
   });
 
   it('hides Refund and Void from a staff user', async () => {
@@ -187,9 +193,9 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     const table = await screen.findByRole('table');
     fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
 
-    await within(table).findByRole('button', { name: /print receipt/i });
-    expect(within(table).queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
-    expect(within(table).queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
+    await screen.findByRole('button', { name: /print receipt/i });
+    expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
   });
 
   it('hides Refund and Void for a fully-adjusted payment (nothing left to adjust)', async () => {
@@ -202,9 +208,9 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     const table = await screen.findByRole('table');
     fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
 
-    await within(table).findByRole('button', { name: /print receipt/i });
-    expect(within(table).queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
-    expect(within(table).queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
+    await screen.findByRole('button', { name: /print receipt/i });
+    expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
   });
 
   it('clicking Refund in the row menu opens the refund dialog', async () => {
@@ -216,7 +222,7 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     renderModal();
     const table = await screen.findByRole('table');
     fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
-    fireEvent.click(await within(table).findByRole('button', { name: /^refund$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^refund$/i }));
 
     expect(await screen.findByRole('heading', { name: 'Refund' })).toBeInTheDocument();
   });
@@ -230,7 +236,7 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     renderModal();
     const table = await screen.findByRole('table');
     fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
-    fireEvent.click(await within(table).findByRole('button', { name: /^void$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^void$/i }));
 
     expect(await screen.findByRole('heading', { name: 'Void' })).toBeInTheDocument();
   });
