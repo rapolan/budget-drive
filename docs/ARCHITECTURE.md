@@ -1164,4 +1164,44 @@ The BSV AI toolkit README (`github.com/bsv-blockchain/bsv-ai-toolkit`, the task'
 
 ---
 
+## 42. Payment History modal layout: sticky Actions column, merged columns, phone-width cards
+
+Layout-only fix (no behavior or data change) to `PaymentHistoryModal.tsx`. Its table had grown to 9 columns (Date/Type/Method/Applied To/Amount/Status/Reference #/Notes/Actions) across the three payments-phase1/payments-actions/payments-adjustments phases above, each adding one column independently without re-examining the total - by this point the Actions column (the row menu: Print receipt, Refund, Void) was pushed off the right edge of the modal, requiring horizontal scroll to reach it.
+
+### Column merges
+
+- **Type + Applied To → one "Type" column.** The payment-type label ("Lesson Payment") as the main line, with the enrollment's program type ("Driver Training") as a smaller line underneath when `payment.programType` is present - nothing rendered when it's absent, rather than the old column's own `-` placeholder (the column no longer exists standalone, so there's nothing to placeholder). Still program-level only, never a specific lesson - unchanged from §41's "Applied To" design rationale (no reliable cheap link from a payment to the lesson(s) it covers exists).
+- **Reference # + Notes → one "Details" column.** `[referenceNumber, notes].filter(Boolean).join(' - ')`, truncated to a single line via `truncate` + a fixed `max-w-[12rem]`. The full, untruncated text is exposed two ways on the same element: the native `title` attribute (mouse hover) AND `tabIndex={0}` (keyboard focus) - a `title` alone is unreachable without a mouse, which the task's own requirement ("full text on hover/title and keyboard focus") called out explicitly. Shows `-` when both fields are empty, matching the old columns' own per-field `-` fallback.
+
+### Sticky Actions column
+
+`sticky right-0` on the header `<th>` and on every body `<td>` - including the adjustment sub-rows' own placeholder cell, so the column's background stays visually continuous down the whole table rather than showing a gap under indented refund/void lines. Needs an opaque background on every sticky cell, not just `sticky` alone, or scrolled table content shows through underneath it: the header carries `bg-surface2` (matching `thead`'s own background), payment-row cells carry `bg-surface` with `group-hover:bg-surface2` (matching the row's own hover tint, via a `group` class added to the `<tr>`), and adjustment sub-row cells carry `bg-surface2/50` (matching that row's own tint). Verified under genuine horizontal scroll, not just "it happens to fit" - a disposable Playwright check at a deliberately narrow 700px viewport confirmed the column stays pinned and opaque in both row types after scrolling the table fully right.
+
+### Modal width
+
+`max-w-4xl` → `max-w-4xl lg:max-w-6xl`. At `lg` and up this gives enough room for the now-7-column table to fit without horizontal scrolling at both 1280px and 1440px (the two widths the task named) - confirmed live via Playwright screenshots at both sizes, not just by reasoning about the Tailwind scale.
+
+### Phone-width stacked cards
+
+Below `sm`, the table (`hidden sm:block`) is replaced by a parallel stacked-card list (`sm:hidden`) - both render unconditionally and the breakpoint classes alone decide which is visible, rather than a JS viewport check deciding which one to mount. Each card shows the date, type+program, method, amount, status chip, and the row menu together (the row menu is always visible, not hidden behind a tap-to-reveal gesture, since the task required the actions control to always be reachable), with the merged Details line and any adjustment lines indented underneath - the same information the table row shows, not a reduced mobile subset.
+
+Because both renderings exist in the DOM simultaneously (CSS visibility, not conditional rendering), every test and screenshot script touching this component needs to disambiguate which copy it means: tests scope row-menu/dialog interactions to `within(screen.getByRole('table'))` (jsdom doesn't evaluate media-query classes, so both copies are literally present at once regardless of viewport), and the Playwright screenshot spec learned the same lesson with an extra wrinkle - `.first()` alone isn't enough to pick the visible copy, since DOM order (table markup precedes the card list) decides `.first()`'s result independent of which one CSS is actually showing; `.locator('visible=true').first()` is what actually filters to the rendered copy.
+
+### Frontend
+
+- `PaymentHistoryModal.tsx` - see above; `PaymentHistoryModal.test.tsx` gained a dedicated describe block for the sticky column and merged Details column, and every pre-existing assertion that used to target one unambiguous element was re-scoped for the dual-rendering reason explained above.
+- `Payments.test.tsx`'s reference-number-visible-in-history test now asserts the reference number appears in the merged Details column rather than a now-removed dedicated "Reference #" header.
+- No backend change, no new migration, no API change - this phase touches rendering only.
+
+### Gaps found and fixed after initial review: header overflow at phone width, sticky-cell seam on adjustment rows
+
+A review of this phase's first pass found two cosmetic regressions, both checked at the exact widths the review named (360px, 390px for the header; both themes for the sticky cell):
+
+- **Header overflow at phone width.** The header was one `flex items-center justify-between` row - the title block on the left, "Set arrangement"/"Record payment"/close on the right, with no wrap. At 360-390px the two action buttons together are wider than the remaining space next to the title, so they overflowed past the modal's right edge and got clipped instead of wrapping. Fixed by splitting the header into two flex children that stack (`flex-col`) below `sm` and go side-by-side (`sm:flex-row sm:justify-between`) at `sm` and up: the title block (with its own close button, `sm:hidden`) stays on its own row at every width, and the actions block (`flex-col` below `sm`, `sm:flex-row` at `sm`+) gets its own row below the title at narrow widths. "Set arrangement" and "Record payment" switch from `justify-start` (their original fixed-width look) to `justify-center` below `sm` so they read as proper full-width stacked buttons rather than left-aligned labels stranded in a full-width row, flipping back to `justify-start` at `sm`. The close button is intentionally duplicated (one copy `sm:hidden` in the title row, one copy `hidden sm:block` in the actions row) rather than reused across both layouts - keeping two simple, independently-positioned copies avoids a shared-element layout trick that would need its own position logic, and a user never sees both at once since exactly one is ever visible at a given width.
+- **Sticky-cell seam on adjustment sub-rows.** The sticky Actions `<td>` on an adjustment (refund/void) sub-row carried its own `bg-surface2/50`, same as the parent `<tr>`'s own `bg-surface2/50` - but `position: sticky` needs its own opaque-enough backdrop to stay legible over scrolled content, so that cell was painting a SECOND copy of the same translucent tint directly on top of the row's first copy. Two stacked 50%-opacity layers composite to something visibly darker than one layer alone, which is exactly the patch the review caught under the Actions column. Fixed by moving the tint off the `<tr>` entirely and onto every `<td>` in that row individually (including the sticky one) - every cell, sticky or not, now paints exactly the same single `bg-surface2/50` layer, so there's nothing left to visibly differ. Confirmed by screenshotting the adjustment row directly (not just reasoning about the class list) in both light and dark before counting this fixed.
+
+Both fixes are covered by new tests: `PaymentHistoryModal.test.tsx` asserts the adjustment row's `<tr>` no longer carries the tint directly and that every one of its `<td>`s (sticky included) carries the identical `bg-surface2/50` class, and separately asserts the header action buttons carry the `justify-center`/`sm:justify-start` and `flex-col`/`sm:flex-row` classes that make the wrap-on-narrow-viewports behavior possible. Both were additionally verified live via Playwright screenshots at 360px/390px (header) and in both themes (sticky cell) before being counted as fixed, not just via the class-list assertions above.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

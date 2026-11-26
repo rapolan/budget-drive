@@ -1037,6 +1037,61 @@ A route reaching 200 in CI proves nothing about whether its screenshot made it i
 
 ---
 
+### 2.68 Payment History modal layout: sticky Actions column, merged Type/Applied To and Reference #/Details columns, wider desktop modal, stacked cards on phone
+
+Layout-only fix (no behavior or data change) in `PaymentHistoryModal.tsx` for a 9-column table (Date/Type/Method/Applied To/Amount/Status/Reference #/Notes/Actions) that pushed the Actions column's row menu (Print receipt/Refund/Void) off the right edge of the modal, forcing horizontal scroll to reach it.
+
+- **Sticky Actions column**: `sticky right-0` on the header and every body cell (including each adjustment sub-row's own cell, so the column's background stays continuous down the table instead of showing a gap), with `bg-surface2` on the header (matching `thead`'s own background) and `bg-surface`/`group-hover:bg-surface2` on body cells (matching the row's own hover background) so scrolled content never shows through underneath it. Verified under actual horizontal scroll (not just "it fits at normal widths") by forcing a narrow 700px viewport, scrolling the table fully right, and screenshotting — the Actions column stayed pinned and opaque in both the payment row and the adjustment sub-row beneath it.
+- **Reference # + Notes merged into one "Details" column**: `[referenceNumber, notes].filter(Boolean).join(' - ')`, single truncated line (`truncate` + a fixed `max-w-[12rem]`), full text available via the native `title` attribute on hover AND via keyboard focus (`tabIndex={0}` on the same element — a `title` alone is mouse-hover-only). Shows `-` when both are empty.
+- **Type + Applied To merged into one "Type" column**: the existing payment-type label ("Lesson Payment") as the main line, with the enrollment's program type ("Driver Training") as a smaller second line underneath when present — nothing rendered for the second line when `programType` is absent (no more `-` placeholder, since the column no longer exists on its own).
+- **Modal width**: `max-w-4xl` → `max-w-4xl lg:max-w-6xl`, so the now-7-column table fits without horizontal scrolling at 1280px and 1440px — verified live via Playwright screenshots at both widths (see below), not just by reading the Tailwind classes.
+- **Phone-width stacked cards**: the table (`hidden sm:block`) and a parallel stacked-card list (`sm:hidden`) both render for every payment — a CSS-only toggle, not conditional rendering, so both markups exist in the DOM simultaneously and tests/screenshots must disambiguate by visibility or by scoping to whichever container the viewport actually shows (see below). Each card shows the date, type+program, method, amount, status chip, and row menu (always visible, not hidden behind a reveal gesture), with the merged Details line and any adjustment lines indented underneath — the same information the table row shows, not a reduced subset.
+
+**Frontend (mocked, jsdom):**
+```bash
+cd frontend
+npx vitest run src/components/payments/PaymentHistoryModal.test.tsx src/pages/Payments.test.tsx
+```
+
+**Pass looks like:** `PaymentHistoryModal.test.tsx` (29 tests) — the merged Type column shows the program type as a second line, never as its own "Applied To" column; every row's actions control (row menu) is present, counted separately for the table (one per row) and for the full page (table + card list combined, double the table's count — proving the card list independently renders its own actions control per row rather than just existing); the sticky Actions header/cells carry `sticky`/`right-0`/`bg-surface2`; a long note truncates in the Details cell but is fully readable via `title`, is reachable via keyboard focus (`tabIndex={0}`), and is prefixed with the reference number; an empty Details cell shows `-`. Every pre-existing assertion that used to target a single unambiguous element (row-menu triggers, status chip text, adjustment-line text, struck-through amounts) was re-scoped — either to `within(screen.getByRole('table'))` for row-menu/dialog interactions, or to `findAllByText`/`getAllByText` with a "length > 0" check for text that now legitimately renders twice — because jsdom doesn't evaluate the `hidden`/`sm:hidden` media-query classes that keep only one of the two parallel renderings visible in a real browser, so both copies are present in jsdom's DOM at once. `Payments.test.tsx`'s one touched test (reference-number-visible-in-history) now asserts the reference number appears in the merged Details column instead of a now-nonexistent dedicated "Reference #" header.
+
+**Playwright screenshots (light + dark; 1280px + 1440px desktop table, plus one phone-width card layout = 6 screenshots, 7 tests total including auth setup):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-history-layout.spec.ts
+```
+Creates its own self-contained fixture in `beforeAll` (a fresh student via direct API calls — `studentService.createStudent`'s default auto-enrolls a `driver_training` enrollment — then one confirmed `$150` cash payment with both a reference number and a long note, then a `$30` partial refund against it) rather than depending on another spec's hand-seeded data, so it can be re-run cold with no setup steps. Leaves the fixture student/payment/adjustment behind in the dev DB by design, matching this repo's other one-shot fixture-creating specs (e.g. `widget-day-closing-actions.spec.ts`).
+
+**Pass looks like:** at both 1280px and 1440px, the Payment History modal shows all 7 columns with no horizontal scrollbar on the table, the long note visibly truncates with an ellipsis in the Details column, and the Actions column's row menu sits flush against the modal's own right edge; at the phone viewport (390×844), the table is absent and a stacked card renders instead, showing the status chip, amount, and row menu together with the indented refund sub-row beneath. **Verify by looking at the actual screenshots**, not just a green exit code — this spec hit the same class of issue §2.66/§2.67 already documented: `getByText(/Refunded -/)` matched twice (the table's hidden copy and the card list's visible one) and `.first()` alone wasn't enough to disambiguate since DOM order (table markup comes first), not visibility, decides which match `.first()` returns regardless of viewport width — fixed with `.locator('visible=true').first()` to filter down to whichever copy the current viewport actually renders.
+
+---
+
+### 2.69 Payment History modal layout review fix: header overflow at phone width, sticky-cell seam on adjustment rows
+
+A review of §2.68's branch on a fresh clone found tsc/884 tests/build green and the desktop layout working, but flagged two cosmetic regressions, both checked at the exact widths/themes the review named:
+
+1. **Header overflow at 360-390px.** "Set arrangement" and "Record payment" overflowed past the modal's right edge and got clipped instead of wrapping, because the header was one non-wrapping `flex items-center justify-between` row. Fixed by letting the header's two halves (title+close, actions) stack below `sm` and go side-by-side at `sm`+, with the two action buttons switching to `justify-center` (full-width-looking, stacked) below `sm` and back to `justify-start` at `sm`+. The close button is intentionally duplicated - one copy in the title row (`sm:hidden`), one in the actions row (`hidden sm:block`) - so it's always reachable without introducing shared-element positioning logic; exactly one copy is ever visible at a given width.
+2. **Sticky-cell seam on adjustment sub-rows.** The sticky Actions cell on a refund/void sub-row carried the same `bg-surface2/50` tint as its `<tr>`, stacking two translucent layers into a visibly darker patch than the rest of the row (a `position: sticky` element needs its own backdrop, so it couldn't just omit the background and inherit the row's). Fixed by moving the tint off the `<tr>` and onto every `<td>` in that row individually, including the sticky one - every cell now paints the exact same single layer, so nothing differs.
+
+**Frontend (mocked, jsdom):**
+```bash
+cd frontend
+npx vitest run src/components/payments/PaymentHistoryModal.test.tsx
+```
+
+**Pass looks like:** `PaymentHistoryModal.test.tsx` (28 tests total, +2 new since §2.68) — the adjustment sub-row's `<tr>` no longer carries `bg-surface2` directly, and every one of its `<td>`s (the sticky one included) carries the identical `bg-surface2/50` class; the header's "Set arrangement"/"Record payment" buttons carry `justify-center`/`sm:justify-start`, and their shared wrapper carries `flex-col`/`sm:flex-row`; both close buttons exist in the DOM (one `sm:hidden`, one `hidden sm:block`) and either one calls the same `onClose`.
+
+**Playwright screenshots (light + dark; desktop 1280px + phone 390px — same spec as §2.68, screenshots regenerated and re-tracked):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-history-layout.spec.ts
+```
+Re-running the same `payment-history-layout.spec.ts` from §2.68 regenerates all 6 tracked screenshots (`git add -f` again afterward, since each run overwrites files already tracked from the previous commit — no new force-add is needed for files already in the tree, but worth confirming via `git status` that the regenerated bytes are actually staged before committing).
+
+**Pass looks like:** at 360px and 390px, "Set arrangement" and "Record payment" render as full-width stacked buttons below the title with nothing clipped past the modal's edge; at 1280px/1440px in both themes, the adjustment sub-row's background is visually uniform all the way across, including under the Actions column — **verify by looking at the regenerated screenshots directly**, the same lesson §2.66-§2.68 already learned about this component: a class-list assertion proves the fix's mechanism but not that it's actually invisible to the eye in both themes.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.

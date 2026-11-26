@@ -158,46 +158,66 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
           onClick={onClose}
         />
 
-        {/* Modal */}
-        <div className="relative w-full max-w-4xl rounded-lg bg-surface shadow-xl">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-edge px-6 py-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileText className="h-6 w-6 text-primary" />
-                <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
-                {/* "On a payment arrangement" badge (payments-adjustments) -
-                    informational only, no booking-rule behavior reads this.
-                    Clickable (owner/admin only) to open the arrangement
-                    dialog and edit/clear it. */}
-                {student?.activeEnrollment?.paymentArrangementSetAt && (
-                  canAdjust ? (
-                    <button
-                      type="button"
-                      onClick={() => setArrangementOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text hover:brightness-95 transition-all"
-                    >
-                      <Handshake className="h-3 w-3" />
-                      Payment arrangement
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text">
-                      <Handshake className="h-3 w-3" />
-                      Payment arrangement
-                    </span>
-                  )
+        {/* Modal - widened from max-w-4xl (payment-history-layout) so the
+            merged 7-column table (Date/Type+Applied To/Method/Amount/
+            Status/Details/Actions) fits without horizontal scrolling at
+            typical desktop widths; max-w-6xl is comfortably under 1280px's
+            viewport once the p-4 page padding and the modal's own px-6 are
+            subtracted, and leaves headroom at 1440px too. */}
+        <div className="relative w-full max-w-4xl lg:max-w-6xl rounded-lg bg-surface shadow-xl">
+          {/* Header - below sm, the Set arrangement/Record payment actions
+              wrap onto their own row instead of sharing one line with the
+              title and getting clipped past the right edge
+              (payment-history-layout review fix, checked at 360-390px).
+              Close (X) always stays in the title row, at every width - it's
+              the one piece of chrome a user always needs reachable without
+              hunting through whichever action buttons happen to be
+              present. */}
+          <div className="flex flex-col gap-3 border-b border-edge px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <FileText className="h-6 w-6 flex-shrink-0 text-primary" />
+                  <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
+                  {/* "On a payment arrangement" badge (payments-adjustments) -
+                      informational only, no booking-rule behavior reads this.
+                      Clickable (owner/admin only) to open the arrangement
+                      dialog and edit/clear it. */}
+                  {student?.activeEnrollment?.paymentArrangementSetAt && (
+                    canAdjust ? (
+                      <button
+                        type="button"
+                        onClick={() => setArrangementOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text hover:brightness-95 transition-all"
+                      >
+                        <Handshake className="h-3 w-3" />
+                        Payment arrangement
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text">
+                        <Handshake className="h-3 w-3" />
+                        Payment arrangement
+                      </span>
+                    )
+                  )}
+                </div>
+                {student && (
+                  <p className="mt-1 text-sm text-tx-secondary">{student.fullName}</p>
                 )}
               </div>
-              {student && (
-                <p className="mt-1 text-sm text-tx-secondary">{student.fullName}</p>
-              )}
+              <button
+                onClick={onClose}
+                className="flex-shrink-0 rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted sm:hidden"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {student?.activeEnrollment && canAdjust && !student.activeEnrollment.paymentArrangementSetAt && (
                 <button
                   type="button"
                   onClick={() => setArrangementOpen(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-all"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-all sm:justify-start"
                 >
                   <Handshake className="h-4 w-4" />
                   Set arrangement
@@ -207,7 +227,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                 <button
                   type="button"
                   onClick={onRecordPayment}
-                  className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:brightness-90 transition-all"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:brightness-90 transition-all sm:justify-start"
                 >
                   <DollarSign className="h-4 w-4" />
                   Record payment
@@ -215,7 +235,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
               )}
               <button
                 onClick={onClose}
-                className="rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted"
+                className="hidden flex-shrink-0 rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted sm:block"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -330,151 +350,292 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                     <p className="mt-2 text-sm text-tx-secondary">No payments recorded yet</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-lg border border-edge">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-edge">
-                        <thead className="bg-surface2">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Date
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Type
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Method
-                            </th>
-                            {/* Program-level only, never a specific lesson
-                                - see this payment's own doc comment above
-                                the component. */}
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Applied To
-                            </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Amount
-                            </th>
-                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Status
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Reference #
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Notes
-                            </th>
-                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-edge bg-surface">
-                          {payments.map((payment) => {
-                            // Refund/void are only ever offered for a
-                            // confirmed payment with something left to
-                            // adjust (payments-adjustments: "only confirmed
-                            // payments can be adjusted", enforced again
-                            // server-side regardless of what's shown here).
-                            const remaining = payment.netPaid ?? Number(payment.amount);
-                            const canOfferAdjustment = canAdjust && payment.status === 'confirmed' && remaining > 0;
-                            const isVoided = payment.displayStatus === 'voided';
+                  <>
+                    {/* Table - sm and up (payment-history-layout). Below
+                        sm, PaymentRowMenu's absolute dropdown and 7 tight
+                        columns don't fit any reasonable phone viewport, so
+                        a stacked card list renders instead (below). */}
+                    <div className="hidden sm:block overflow-hidden rounded-lg border border-edge">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-edge">
+                          <thead className="bg-surface2">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Date
+                              </th>
+                              {/* Type + Applied To merged (payment-history-layout)
+                                  - "Lesson Payment" with the program as a
+                                  smaller second line, instead of two
+                                  separate columns. Applied To stays
+                                  program-level only, never a specific
+                                  lesson - see this component's own doc
+                                  comment above for why. */}
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Type
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Method
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Amount
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Status
+                              </th>
+                              {/* Reference # + Notes merged into one
+                                  "Details" column (payment-history-layout) -
+                                  single truncated line, full text on
+                                  hover/keyboard focus via title. */}
+                              <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Details
+                              </th>
+                              {/* Sticky right (payment-history-layout) - the
+                                  row menu (Print receipt/Refund/Void) used
+                                  to scroll off the right edge of the modal
+                                  with the rest of the table; pinning this
+                                  column keeps it reachable without
+                                  horizontal scrolling. bg-surface2 (matching
+                                  thead's own background) keeps scrolled
+                                  header content from showing through
+                                  underneath it; the body cells below repeat
+                                  that background against bg-surface/the
+                                  hover and adjustment-row tints so the same
+                                  thing holds for data rows. */}
+                              <th className="sticky right-0 bg-surface2 px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-edge bg-surface">
+                            {payments.map((payment) => {
+                              // Refund/void are only ever offered for a
+                              // confirmed payment with something left to
+                              // adjust (payments-adjustments: "only confirmed
+                              // payments can be adjusted", enforced again
+                              // server-side regardless of what's shown here).
+                              const remaining = payment.netPaid ?? Number(payment.amount);
+                              const canOfferAdjustment = canAdjust && payment.status === 'confirmed' && remaining > 0;
+                              const isVoided = payment.displayStatus === 'voided';
+                              const details = [payment.referenceNumber, payment.notes].filter(Boolean).join(' - ');
 
-                            return (
-                              <React.Fragment key={payment.id}>
-                                <tr className="hover:bg-surface2">
-                                  <td className="whitespace-nowrap px-4 py-3">
-                                    <div className="flex items-center gap-2 text-sm text-tx-primary">
-                                      <Calendar className="h-4 w-4 text-tx-muted" />
-                                      {new Date(payment.date).toLocaleDateString()}
-                                    </div>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3">
-                                    <div className="text-sm text-tx-primary">
-                                      {getPaymentTypeLabel(payment.paymentType)}
-                                    </div>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3">
-                                    <div className="flex items-center gap-2 text-sm text-tx-primary">
-                                      <CreditCard className="h-4 w-4 text-tx-muted" />
-                                      {getPaymentMethodLabel(payment.paymentMethod)}
-                                    </div>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3">
-                                    <div className="text-sm text-tx-muted capitalize">
-                                      {payment.programType ? payment.programType.replace(/_/g, ' ') : '-'}
-                                    </div>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-right">
-                                    <div
-                                      className={`text-sm font-semibold ${
-                                        isVoided ? 'text-tx-muted line-through' : 'text-status-success-text'
-                                      }`}
-                                    >
-                                      {formatMoney(Number(payment.amount))}
-                                    </div>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-center">
-                                    <span
-                                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(payment)}`}
-                                    >
-                                      {getDisplayLabel(payment)}
-                                    </span>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3">
-                                    <div className="text-sm text-tx-muted">
-                                      {payment.referenceNumber || '-'}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="max-w-xs truncate text-sm text-tx-muted">
-                                      {payment.notes || '-'}
-                                    </div>
-                                  </td>
-                                  <td className="whitespace-nowrap px-4 py-3 text-center">
-                                    <PaymentRowMenu
-                                      onPrintReceipt={() =>
-                                        window.open(`/payments/${payment.id}/receipt`, '_blank', 'noopener')
-                                      }
-                                      onRefund={canOfferAdjustment ? () => setRefundingPayment(payment) : undefined}
-                                      onVoid={canOfferAdjustment ? () => setVoidingPayment(payment) : undefined}
-                                    />
-                                  </td>
-                                </tr>
-                                {/* Adjustment lines (payments-adjustments) -
-                                    indented under their payment, refunds in
-                                    red with reason and who, voided amounts
-                                    struck through. */}
-                                {(payment.adjustments ?? []).map((adjustment) => (
-                                  <tr key={adjustment.id} className="bg-surface2/50">
-                                    <td colSpan={4} className="px-4 py-2 pl-10">
-                                      <div className="flex items-center gap-2 text-xs text-tx-muted">
-                                        {adjustment.adjustmentType === 'void' ? (
-                                          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
-                                        ) : (
-                                          <Undo2 className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
-                                        )}
-                                        <span>
-                                          {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
-                                          {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode]}
-                                          {adjustment.createdByName ? ` by ${adjustment.createdByName}` : ''} on{' '}
-                                          {new Date(adjustment.createdAt).toLocaleDateString()}
-                                        </span>
+                              return (
+                                <React.Fragment key={payment.id}>
+                                  <tr className="group hover:bg-surface2">
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                      <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                        <Calendar className="h-4 w-4 text-tx-muted" />
+                                        {new Date(payment.date).toLocaleDateString()}
                                       </div>
                                     </td>
-                                    <td className="whitespace-nowrap px-4 py-2 text-right">
-                                      <span className="text-xs font-semibold text-status-danger-text">
-                                        -{formatMoney(adjustment.amount)}
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                      <div className="text-sm text-tx-primary">
+                                        {getPaymentTypeLabel(payment.paymentType)}
+                                      </div>
+                                      {payment.programType && (
+                                        <div className="text-xs text-tx-muted capitalize">
+                                          {payment.programType.replace(/_/g, ' ')}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3">
+                                      <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                        <CreditCard className="h-4 w-4 text-tx-muted" />
+                                        {getPaymentMethodLabel(payment.paymentMethod)}
+                                      </div>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                                      <div
+                                        className={`text-sm font-semibold ${
+                                          isVoided ? 'text-tx-muted line-through' : 'text-status-success-text'
+                                        }`}
+                                      >
+                                        {formatMoney(Number(payment.amount))}
+                                      </div>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                                      <span
+                                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(payment)}`}
+                                      >
+                                        {getDisplayLabel(payment)}
                                       </span>
                                     </td>
-                                    <td colSpan={4} />
+                                    <td className="px-4 py-3 max-w-[12rem]">
+                                      {details ? (
+                                        <div
+                                          className="truncate text-sm text-tx-muted"
+                                          title={details}
+                                          tabIndex={0}
+                                        >
+                                          {details}
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm text-tx-muted">-</div>
+                                      )}
+                                    </td>
+                                    <td className="sticky right-0 whitespace-nowrap bg-surface px-4 py-3 text-center group-hover:bg-surface2">
+                                      <PaymentRowMenu
+                                        onPrintReceipt={() =>
+                                          window.open(`/payments/${payment.id}/receipt`, '_blank', 'noopener')
+                                        }
+                                        onRefund={canOfferAdjustment ? () => setRefundingPayment(payment) : undefined}
+                                        onVoid={canOfferAdjustment ? () => setVoidingPayment(payment) : undefined}
+                                      />
+                                    </td>
                                   </tr>
-                                ))}
-                              </React.Fragment>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                  {/* Adjustment lines (payments-adjustments) -
+                                      indented under their payment, refunds in
+                                      red with reason and who, voided amounts
+                                      struck through. The sticky Actions column
+                                      has no action here, but still needs its
+                                      own sticky+bg cell so the column's
+                                      background stays continuous down the
+                                      table instead of showing a gap. */}
+                                  {(payment.adjustments ?? []).map((adjustment) => (
+                                    // The tint used to live on the <tr> itself
+                                    // (bg-surface2/50) with the sticky cell
+                                    // repeating the same translucent class on
+                                    // top of it (payment-history-layout review
+                                    // fix) - position: sticky needs its own
+                                    // opaque-enough backdrop to stay readable
+                                    // over scrolled content, so that cell was
+                                    // PAINTING ITS OWN COPY of the tint
+                                    // on top of the row's copy, stacking two
+                                    // semi-transparent layers into a visibly
+                                    // darker patch than the rest of the row's
+                                    // single layer. Moving bg-surface2/50 onto
+                                    // every <td> individually (sticky or not)
+                                    // means each cell paints the exact same
+                                    // one layer, so the sticky cell can no
+                                    // longer visibly differ from its row.
+                                    <tr key={adjustment.id}>
+                                      <td colSpan={3} className="bg-surface2/50 px-4 py-2 pl-10">
+                                        <div className="flex items-center gap-2 text-xs text-tx-muted">
+                                          {adjustment.adjustmentType === 'void' ? (
+                                            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
+                                          ) : (
+                                            <Undo2 className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
+                                          )}
+                                          <span>
+                                            {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
+                                            {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode]}
+                                            {adjustment.createdByName ? ` by ${adjustment.createdByName}` : ''} on{' '}
+                                            {new Date(adjustment.createdAt).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="whitespace-nowrap bg-surface2/50 px-4 py-2 text-right">
+                                        <span className="text-xs font-semibold text-status-danger-text">
+                                          -{formatMoney(adjustment.amount)}
+                                        </span>
+                                      </td>
+                                      <td colSpan={2} className="bg-surface2/50" />
+                                      <td className="sticky right-0 bg-surface2/50" />
+                                    </tr>
+                                  ))}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
+
+                    {/* Stacked cards - below sm (payment-history-layout).
+                        Status chip, amount, and the row menu are always
+                        visible (no sticky-column mechanics needed at this
+                        width since there's no horizontal scroll at all).
+                        Adjustment lines stay indented under their card,
+                        matching the table's own treatment. */}
+                    <div className="sm:hidden space-y-3">
+                      {payments.map((payment) => {
+                        const remaining = payment.netPaid ?? Number(payment.amount);
+                        const canOfferAdjustment = canAdjust && payment.status === 'confirmed' && remaining > 0;
+                        const isVoided = payment.displayStatus === 'voided';
+                        const details = [payment.referenceNumber, payment.notes].filter(Boolean).join(' - ');
+
+                        return (
+                          <div key={payment.id} className="rounded-lg border border-edge bg-surface p-4">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                <Calendar className="h-4 w-4 flex-shrink-0 text-tx-muted" />
+                                {new Date(payment.date).toLocaleDateString()}
+                              </div>
+                              <PaymentRowMenu
+                                onPrintReceipt={() =>
+                                  window.open(`/payments/${payment.id}/receipt`, '_blank', 'noopener')
+                                }
+                                onRefund={canOfferAdjustment ? () => setRefundingPayment(payment) : undefined}
+                                onVoid={canOfferAdjustment ? () => setVoidingPayment(payment) : undefined}
+                              />
+                            </div>
+
+                            <div className="mt-2 flex items-start justify-between gap-2">
+                              <div>
+                                <div className="text-sm text-tx-primary">
+                                  {getPaymentTypeLabel(payment.paymentType)}
+                                </div>
+                                {payment.programType && (
+                                  <div className="text-xs text-tx-muted capitalize">
+                                    {payment.programType.replace(/_/g, ' ')}
+                                  </div>
+                                )}
+                              </div>
+                              <div
+                                className={`text-sm font-semibold ${
+                                  isVoided ? 'text-tx-muted line-through' : 'text-status-success-text'
+                                }`}
+                              >
+                                {formatMoney(Number(payment.amount))}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                <CreditCard className="h-4 w-4 flex-shrink-0 text-tx-muted" />
+                                {getPaymentMethodLabel(payment.paymentMethod)}
+                              </div>
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(payment)}`}
+                              >
+                                {getDisplayLabel(payment)}
+                              </span>
+                            </div>
+
+                            {details && (
+                              <div className="mt-2 truncate text-sm text-tx-muted" title={details} tabIndex={0}>
+                                {details}
+                              </div>
+                            )}
+
+                            {(payment.adjustments ?? []).length > 0 && (
+                              <div className="mt-3 space-y-2 border-t border-edge pt-2 pl-4">
+                                {(payment.adjustments ?? []).map((adjustment) => (
+                                  <div key={adjustment.id} className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 text-xs text-tx-muted">
+                                      {adjustment.adjustmentType === 'void' ? (
+                                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
+                                      ) : (
+                                        <Undo2 className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
+                                      )}
+                                      <span>
+                                        {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
+                                        {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode]}
+                                        {adjustment.createdByName ? ` by ${adjustment.createdByName}` : ''} on{' '}
+                                        {new Date(adjustment.createdAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <span className="whitespace-nowrap text-xs font-semibold text-status-danger-text">
+                                      -{formatMoney(adjustment.amount)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </>
             )}
