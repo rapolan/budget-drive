@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaymentHistoryModal } from './PaymentHistoryModal';
 import { paymentsApi } from '@/api';
@@ -93,33 +93,41 @@ function renderModal(options: {
   return { onClose };
 }
 
-describe('PaymentHistoryModal - "Applied To" column (payments-phase1, item 7)', () => {
-  it('shows the enrollment\'s program type, never a specific lesson', async () => {
+describe('PaymentHistoryModal - "Applied To" merged into Type (payments-phase1 item 7, payment-history-layout)', () => {
+  it('shows the enrollment\'s program type as a second line under the payment type, never a specific lesson', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [payment({ programType: 'driver_training' })],
     });
 
     renderModal();
 
-    expect(await screen.findByText('Applied To')).toBeInTheDocument();
-    expect(await screen.findByText('driver training')).toBeInTheDocument();
+    expect((await screen.findAllByText('Lesson Payment')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('driver training')).length).toBeGreaterThan(0);
     // Never a lesson-specific claim anywhere in the modal.
     expect(screen.queryByText(/lesson #/i)).not.toBeInTheDocument();
+    // Applied To is no longer its own column (payment-history-layout).
+    expect(screen.queryByText('Applied To')).not.toBeInTheDocument();
   });
 
-  it('shows "-" when programType is absent', async () => {
+  it('shows no second line when programType is absent', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [payment({ programType: undefined })],
     });
 
     renderModal();
 
-    const rows = await screen.findAllByRole('row');
-    const dataRow = rows[rows.length - 1];
-    expect(dataRow.textContent).toContain('-');
+    expect((await screen.findAllByText('Lesson Payment')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('driver training')).not.toBeInTheDocument();
   });
 });
 
+// payment-history-layout renders two parallel markups for every payment -
+// a >=sm table and a <sm stacked-card list, toggled with CSS (hidden/
+// sm:hidden), not conditional rendering, so jsdom (which doesn't compute
+// CSS media queries) mounts BOTH at once. Every row-menu/action query in
+// this file is therefore scoped to the table via `within(table)` - the
+// stacked-card list's own PaymentRowMenu/actions-present coverage lives in
+// its own describe block below instead of being duplicated here.
 describe('PaymentHistoryModal - receipt via row menu (payments-adjustments)', () => {
   it('opens the print route in a new tab via the row menu\'s "Print receipt" item', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -129,22 +137,28 @@ describe('PaymentHistoryModal - receipt via row menu (payments-adjustments)', ()
     const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     renderModal();
-    const menuTrigger = await screen.findByRole('button', { name: /payment actions/i });
+    const table = await screen.findByRole('table');
+    const menuTrigger = within(table).getByRole('button', { name: /payment actions/i });
     fireEvent.click(menuTrigger);
-    const receiptButton = await screen.findByRole('button', { name: /print receipt/i });
+    const receiptButton = await within(table).findByRole('button', { name: /print receipt/i });
     fireEvent.click(receiptButton);
 
     expect(windowOpenSpy).toHaveBeenCalledWith('/payments/payment-abc/receipt', '_blank', 'noopener');
     windowOpenSpy.mockRestore();
   });
 
-  it('renders one row menu per payment row', async () => {
+  it('renders one row menu per payment row (desktop table) and one per card (mobile)', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [payment({ id: 'p1' }), payment({ id: 'p2' })],
     });
 
     renderModal();
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /payment actions/i })).toHaveLength(2));
+    const table = await screen.findByRole('table');
+    await waitFor(() => expect(within(table).getAllByRole('button', { name: /payment actions/i })).toHaveLength(2));
+    // Total across both the table and the stacked-card list is 4 (2
+    // payments x 2 parallel renderings) - proves the mobile card list
+    // also renders its own actions control per row, not just the table.
+    expect(screen.getAllByRole('button', { name: /payment actions/i })).toHaveLength(4);
   });
 });
 
@@ -156,10 +170,11 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     });
 
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+    const table = await screen.findByRole('table');
+    fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
 
-    expect(await screen.findByRole('button', { name: /^refund$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^void$/i })).toBeInTheDocument();
+    expect(await within(table).findByRole('button', { name: /^refund$/i })).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: /^void$/i })).toBeInTheDocument();
   });
 
   it('hides Refund and Void from a staff user', async () => {
@@ -169,11 +184,12 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     });
 
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+    const table = await screen.findByRole('table');
+    fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
 
-    await screen.findByRole('button', { name: /print receipt/i });
-    expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
+    await within(table).findByRole('button', { name: /print receipt/i });
+    expect(within(table).queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
   });
 
   it('hides Refund and Void for a fully-adjusted payment (nothing left to adjust)', async () => {
@@ -183,11 +199,12 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     });
 
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+    const table = await screen.findByRole('table');
+    fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
 
-    await screen.findByRole('button', { name: /print receipt/i });
-    expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
+    await within(table).findByRole('button', { name: /print receipt/i });
+    expect(within(table).queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(within(table).queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
   });
 
   it('clicking Refund in the row menu opens the refund dialog', async () => {
@@ -197,8 +214,9 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     });
 
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
-    fireEvent.click(await screen.findByRole('button', { name: /^refund$/i }));
+    const table = await screen.findByRole('table');
+    fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
+    fireEvent.click(await within(table).findByRole('button', { name: /^refund$/i }));
 
     expect(await screen.findByRole('heading', { name: 'Refund' })).toBeInTheDocument();
   });
@@ -210,8 +228,9 @@ describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjus
     });
 
     renderModal();
-    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
-    fireEvent.click(await screen.findByRole('button', { name: /^void$/i }));
+    const table = await screen.findByRole('table');
+    fireEvent.click(within(table).getByRole('button', { name: /payment actions/i }));
+    fireEvent.click(await within(table).findByRole('button', { name: /^void$/i }));
 
     expect(await screen.findByRole('heading', { name: 'Void' })).toBeInTheDocument();
   });
@@ -224,7 +243,7 @@ describe('PaymentHistoryModal - status chips and adjustment lines (payments-adju
     });
 
     renderModal();
-    expect(await screen.findByText('Paid')).toBeInTheDocument();
+    expect((await screen.findAllByText('Paid')).length).toBeGreaterThan(0);
   });
 
   it('shows "Partly refunded" and an indented red refund line with reason and who', async () => {
@@ -256,10 +275,10 @@ describe('PaymentHistoryModal - status chips and adjustment lines (payments-adju
 
     renderModal();
 
-    expect(await screen.findByText('Partly refunded')).toBeInTheDocument();
-    expect(screen.getByText(/Refunded - Overpaid/)).toBeInTheDocument();
-    expect(screen.getByText(/Jane Admin/)).toBeInTheDocument();
-    expect(screen.getByText('-$40.00')).toBeInTheDocument();
+    expect((await screen.findAllByText('Partly refunded')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Refunded - Overpaid/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Jane Admin/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('-$40.00').length).toBeGreaterThan(0);
   });
 
   it('shows "Voided" with the amount struck through', async () => {
@@ -291,8 +310,8 @@ describe('PaymentHistoryModal - status chips and adjustment lines (payments-adju
 
     renderModal();
 
-    expect(await screen.findByText('Voided')).toBeInTheDocument();
-    expect(screen.getByText(/Voided - Entered by mistake/)).toBeInTheDocument();
+    expect((await screen.findAllByText('Voided')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Voided - Entered by mistake/).length).toBeGreaterThan(0);
     const amountEls = screen.getAllByText('$100.00');
     const struckThrough = amountEls.find((el) => el.className.includes('line-through'));
     expect(struckThrough).toBeDefined();
@@ -396,5 +415,69 @@ describe('PaymentHistoryModal - contact info and student record link (payments-a
 
     await screen.findByText('Total Due');
     expect(screen.queryByRole('button', { name: /view student record/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('PaymentHistoryModal - sticky Actions column and merged Details column (payment-history-layout)', () => {
+  it('renders the actions control (row menu) for every payment row, in both the table and the stacked-card list', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1' }), payment({ id: 'p2' }), payment({ id: 'p3' })],
+    });
+
+    renderModal();
+
+    const table = await screen.findByRole('table');
+    // Desktop table: one trigger per row.
+    expect(within(table).getAllByRole('button', { name: /payment actions/i })).toHaveLength(3);
+    // Total (table + mobile cards, both always mounted - CSS, not
+    // conditional rendering, decides which is visible) is 6.
+    expect(screen.getAllByRole('button', { name: /payment actions/i })).toHaveLength(6);
+  });
+
+  it('marks the sticky Actions header and cells so they pin to the right edge with an opaque background', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1' })],
+    });
+
+    renderModal();
+
+    const table = await screen.findByRole('table');
+    const actionsHeader = within(table).getByText('Actions');
+    expect(actionsHeader.className).toContain('sticky');
+    expect(actionsHeader.className).toContain('right-0');
+    expect(actionsHeader.className).toContain('bg-surface2');
+  });
+
+  it('truncates a long note in the merged Details column but exposes the full text via title, and merges in the reference number', async () => {
+    const longNote =
+      'Customer called to say they will be a few minutes late to drop off cash for the remaining balance on their package, please leave a note for the front desk';
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', referenceNumber: 'REF-1001', notes: longNote })],
+    });
+
+    renderModal();
+
+    const table = await screen.findByRole('table');
+    const detailsCell = within(table).getByTitle(`REF-1001 - ${longNote}`);
+    expect(detailsCell.className).toContain('truncate');
+    expect(detailsCell.textContent).toBe(`REF-1001 - ${longNote}`);
+    // Reachable via keyboard focus, not just mouse hover.
+    expect(detailsCell).toHaveAttribute('tabIndex', '0');
+    // Reference # and Notes are no longer separate columns.
+    expect(screen.queryByText('Reference #')).not.toBeInTheDocument();
+    expect(screen.queryByText('Notes')).not.toBeInTheDocument();
+  });
+
+  it('shows a dash in Details when both reference number and notes are empty', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', referenceNumber: undefined, notes: undefined })],
+    });
+
+    renderModal();
+
+    const table = await screen.findByRole('table');
+    const rows = within(table).getAllByRole('row');
+    const dataRow = rows[rows.length - 1];
+    expect(dataRow.textContent).toContain('-');
   });
 });

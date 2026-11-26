@@ -1164,4 +1164,35 @@ The BSV AI toolkit README (`github.com/bsv-blockchain/bsv-ai-toolkit`, the task'
 
 ---
 
+## 42. Payment History modal layout: sticky Actions column, merged columns, phone-width cards
+
+Layout-only fix (no behavior or data change) to `PaymentHistoryModal.tsx`. Its table had grown to 9 columns (Date/Type/Method/Applied To/Amount/Status/Reference #/Notes/Actions) across the three payments-phase1/payments-actions/payments-adjustments phases above, each adding one column independently without re-examining the total - by this point the Actions column (the row menu: Print receipt, Refund, Void) was pushed off the right edge of the modal, requiring horizontal scroll to reach it.
+
+### Column merges
+
+- **Type + Applied To → one "Type" column.** The payment-type label ("Lesson Payment") as the main line, with the enrollment's program type ("Driver Training") as a smaller line underneath when `payment.programType` is present - nothing rendered when it's absent, rather than the old column's own `-` placeholder (the column no longer exists standalone, so there's nothing to placeholder). Still program-level only, never a specific lesson - unchanged from §41's "Applied To" design rationale (no reliable cheap link from a payment to the lesson(s) it covers exists).
+- **Reference # + Notes → one "Details" column.** `[referenceNumber, notes].filter(Boolean).join(' - ')`, truncated to a single line via `truncate` + a fixed `max-w-[12rem]`. The full, untruncated text is exposed two ways on the same element: the native `title` attribute (mouse hover) AND `tabIndex={0}` (keyboard focus) - a `title` alone is unreachable without a mouse, which the task's own requirement ("full text on hover/title and keyboard focus") called out explicitly. Shows `-` when both fields are empty, matching the old columns' own per-field `-` fallback.
+
+### Sticky Actions column
+
+`sticky right-0` on the header `<th>` and on every body `<td>` - including the adjustment sub-rows' own placeholder cell, so the column's background stays visually continuous down the whole table rather than showing a gap under indented refund/void lines. Needs an opaque background on every sticky cell, not just `sticky` alone, or scrolled table content shows through underneath it: the header carries `bg-surface2` (matching `thead`'s own background), payment-row cells carry `bg-surface` with `group-hover:bg-surface2` (matching the row's own hover tint, via a `group` class added to the `<tr>`), and adjustment sub-row cells carry `bg-surface2/50` (matching that row's own tint). Verified under genuine horizontal scroll, not just "it happens to fit" - a disposable Playwright check at a deliberately narrow 700px viewport confirmed the column stays pinned and opaque in both row types after scrolling the table fully right.
+
+### Modal width
+
+`max-w-4xl` → `max-w-4xl lg:max-w-6xl`. At `lg` and up this gives enough room for the now-7-column table to fit without horizontal scrolling at both 1280px and 1440px (the two widths the task named) - confirmed live via Playwright screenshots at both sizes, not just by reasoning about the Tailwind scale.
+
+### Phone-width stacked cards
+
+Below `sm`, the table (`hidden sm:block`) is replaced by a parallel stacked-card list (`sm:hidden`) - both render unconditionally and the breakpoint classes alone decide which is visible, rather than a JS viewport check deciding which one to mount. Each card shows the date, type+program, method, amount, status chip, and the row menu together (the row menu is always visible, not hidden behind a tap-to-reveal gesture, since the task required the actions control to always be reachable), with the merged Details line and any adjustment lines indented underneath - the same information the table row shows, not a reduced mobile subset.
+
+Because both renderings exist in the DOM simultaneously (CSS visibility, not conditional rendering), every test and screenshot script touching this component needs to disambiguate which copy it means: tests scope row-menu/dialog interactions to `within(screen.getByRole('table'))` (jsdom doesn't evaluate media-query classes, so both copies are literally present at once regardless of viewport), and the Playwright screenshot spec learned the same lesson with an extra wrinkle - `.first()` alone isn't enough to pick the visible copy, since DOM order (table markup precedes the card list) decides `.first()`'s result independent of which one CSS is actually showing; `.locator('visible=true').first()` is what actually filters to the rendered copy.
+
+### Frontend
+
+- `PaymentHistoryModal.tsx` - see above; `PaymentHistoryModal.test.tsx` gained a dedicated describe block for the sticky column and merged Details column, and every pre-existing assertion that used to target one unambiguous element was re-scoped for the dual-rendering reason explained above.
+- `Payments.test.tsx`'s reference-number-visible-in-history test now asserts the reference number appears in the merged Details column rather than a now-removed dedicated "Reference #" header.
+- No backend change, no new migration, no API change - this phase touches rendering only.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).

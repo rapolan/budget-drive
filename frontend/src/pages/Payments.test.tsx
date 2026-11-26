@@ -275,7 +275,7 @@ describe('Payments page - Outstanding figure agreement (fix verification)', () =
 });
 
 describe('Payments page - reference number visible in history (item 5)', () => {
-  it('View History shows the Reference # column, with the reference number recorded on the Add Payment modal', async () => {
+  it('View History shows the reference number, in the merged Details column (payment-history-layout merged Reference # into Details)', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [student()],
     });
@@ -287,8 +287,7 @@ describe('Payments page - reference number visible in history (item 5)', () => {
     fireEvent.click(await screen.findByRole('button', { name: /view payment history/i }));
 
     expect(await screen.findByText('Payment History')).toBeInTheDocument();
-    expect(await screen.findByText('Reference #')).toBeInTheDocument();
-    expect(screen.getByText('SQ-4521')).toBeInTheDocument();
+    expect((await screen.findAllByText('SQ-4521')).length).toBeGreaterThan(0);
   });
 });
 
