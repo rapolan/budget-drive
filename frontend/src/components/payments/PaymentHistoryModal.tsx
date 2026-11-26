@@ -165,44 +165,59 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
             viewport once the p-4 page padding and the modal's own px-6 are
             subtracted, and leaves headroom at 1440px too. */}
         <div className="relative w-full max-w-4xl lg:max-w-6xl rounded-lg bg-surface shadow-xl">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-edge px-6 py-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileText className="h-6 w-6 text-primary" />
-                <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
-                {/* "On a payment arrangement" badge (payments-adjustments) -
-                    informational only, no booking-rule behavior reads this.
-                    Clickable (owner/admin only) to open the arrangement
-                    dialog and edit/clear it. */}
-                {student?.activeEnrollment?.paymentArrangementSetAt && (
-                  canAdjust ? (
-                    <button
-                      type="button"
-                      onClick={() => setArrangementOpen(true)}
-                      className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text hover:brightness-95 transition-all"
-                    >
-                      <Handshake className="h-3 w-3" />
-                      Payment arrangement
-                    </button>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text">
-                      <Handshake className="h-3 w-3" />
-                      Payment arrangement
-                    </span>
-                  )
+          {/* Header - below sm, the Set arrangement/Record payment actions
+              wrap onto their own row instead of sharing one line with the
+              title and getting clipped past the right edge
+              (payment-history-layout review fix, checked at 360-390px).
+              Close (X) always stays in the title row, at every width - it's
+              the one piece of chrome a user always needs reachable without
+              hunting through whichever action buttons happen to be
+              present. */}
+          <div className="flex flex-col gap-3 border-b border-edge px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <FileText className="h-6 w-6 flex-shrink-0 text-primary" />
+                  <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
+                  {/* "On a payment arrangement" badge (payments-adjustments) -
+                      informational only, no booking-rule behavior reads this.
+                      Clickable (owner/admin only) to open the arrangement
+                      dialog and edit/clear it. */}
+                  {student?.activeEnrollment?.paymentArrangementSetAt && (
+                    canAdjust ? (
+                      <button
+                        type="button"
+                        onClick={() => setArrangementOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text hover:brightness-95 transition-all"
+                      >
+                        <Handshake className="h-3 w-3" />
+                        Payment arrangement
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text">
+                        <Handshake className="h-3 w-3" />
+                        Payment arrangement
+                      </span>
+                    )
+                  )}
+                </div>
+                {student && (
+                  <p className="mt-1 text-sm text-tx-secondary">{student.fullName}</p>
                 )}
               </div>
-              {student && (
-                <p className="mt-1 text-sm text-tx-secondary">{student.fullName}</p>
-              )}
+              <button
+                onClick={onClose}
+                className="flex-shrink-0 rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted sm:hidden"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {student?.activeEnrollment && canAdjust && !student.activeEnrollment.paymentArrangementSetAt && (
                 <button
                   type="button"
                   onClick={() => setArrangementOpen(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-all"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-all sm:justify-start"
                 >
                   <Handshake className="h-4 w-4" />
                   Set arrangement
@@ -212,7 +227,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                 <button
                   type="button"
                   onClick={onRecordPayment}
-                  className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:brightness-90 transition-all"
+                  className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:brightness-90 transition-all sm:justify-start"
                 >
                   <DollarSign className="h-4 w-4" />
                   Record payment
@@ -220,7 +235,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
               )}
               <button
                 onClick={onClose}
-                className="rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted"
+                className="hidden flex-shrink-0 rounded-lg p-1 text-tx-muted hover:bg-surface2 hover:text-tx-muted sm:block"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -476,8 +491,24 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                       background stays continuous down the
                                       table instead of showing a gap. */}
                                   {(payment.adjustments ?? []).map((adjustment) => (
-                                    <tr key={adjustment.id} className="bg-surface2/50">
-                                      <td colSpan={3} className="px-4 py-2 pl-10">
+                                    // The tint used to live on the <tr> itself
+                                    // (bg-surface2/50) with the sticky cell
+                                    // repeating the same translucent class on
+                                    // top of it (payment-history-layout review
+                                    // fix) - position: sticky needs its own
+                                    // opaque-enough backdrop to stay readable
+                                    // over scrolled content, so that cell was
+                                    // PAINTING ITS OWN COPY of the tint
+                                    // on top of the row's copy, stacking two
+                                    // semi-transparent layers into a visibly
+                                    // darker patch than the rest of the row's
+                                    // single layer. Moving bg-surface2/50 onto
+                                    // every <td> individually (sticky or not)
+                                    // means each cell paints the exact same
+                                    // one layer, so the sticky cell can no
+                                    // longer visibly differ from its row.
+                                    <tr key={adjustment.id}>
+                                      <td colSpan={3} className="bg-surface2/50 px-4 py-2 pl-10">
                                         <div className="flex items-center gap-2 text-xs text-tx-muted">
                                           {adjustment.adjustmentType === 'void' ? (
                                             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
@@ -492,12 +523,12 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                           </span>
                                         </div>
                                       </td>
-                                      <td className="whitespace-nowrap px-4 py-2 text-right">
+                                      <td className="whitespace-nowrap bg-surface2/50 px-4 py-2 text-right">
                                         <span className="text-xs font-semibold text-status-danger-text">
                                           -{formatMoney(adjustment.amount)}
                                         </span>
                                       </td>
-                                      <td colSpan={2} />
+                                      <td colSpan={2} className="bg-surface2/50" />
                                       <td className="sticky right-0 bg-surface2/50" />
                                     </tr>
                                   ))}

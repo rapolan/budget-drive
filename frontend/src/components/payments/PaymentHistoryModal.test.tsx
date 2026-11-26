@@ -480,4 +480,102 @@ describe('PaymentHistoryModal - sticky Actions column and merged Details column 
     const dataRow = rows[rows.length - 1];
     expect(dataRow.textContent).toContain('-');
   });
+
+  it("gives an adjustment sub-row's sticky Actions cell the SAME background class as the rest of its row, not a second translucent layer on top (review fix)", async () => {
+    // Regression test for a visible seam: the sticky cell used to carry
+    // bg-surface2/50 on top of the <tr>'s OWN bg-surface2/50, stacking two
+    // semi-transparent layers into a visibly darker patch than the rest of
+    // the row's single layer. Fixed by moving the tint onto every <td>
+    // individually (including the sticky one) and off the <tr> - so every
+    // cell in the row now paints the exact same one layer.
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        payment({
+          id: 'p1',
+          amount: 100,
+          status: 'confirmed',
+          displayStatus: 'partly_refunded',
+          netPaid: 60,
+          adjustments: [
+            {
+              id: 'adj-1',
+              tenantId: 'tenant-1',
+              paymentId: 'p1',
+              adjustmentType: 'refund',
+              amount: 40,
+              reasonCode: 'overpaid',
+              note: null,
+              createdBy: 'user-1',
+              createdByName: 'Jane Admin',
+              createdAt: new Date('2026-08-12'),
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderModal();
+
+    const table = await screen.findByRole('table');
+    const adjustmentText = within(table).getByText(/Refunded - Overpaid/);
+    const adjustmentRow = adjustmentText.closest('tr');
+    expect(adjustmentRow).not.toBeNull();
+    // The <tr> itself no longer carries the tint directly.
+    expect(adjustmentRow!.className).not.toContain('bg-surface2');
+    const cells = adjustmentRow!.querySelectorAll('td');
+    // Every cell in the row (including the sticky one, last) paints the
+    // exact same single background class - no cell doubles up on it.
+    cells.forEach((cell) => {
+      expect(cell.className).toContain('bg-surface2/50');
+    });
+    const stickyCell = cells[cells.length - 1];
+    expect(stickyCell.className).toContain('sticky');
+    expect(stickyCell.className).toContain('right-0');
+  });
+});
+
+describe('PaymentHistoryModal - header actions wrap below sm instead of clipping (payment-history-layout review fix)', () => {
+  it('gives Set arrangement and Record payment full-width/stacking classes for narrow viewports', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    const onRecordPayment = vi.fn();
+    const studentWithEnrollment: Student = {
+      ...STUDENT,
+      activeEnrollment: { id: 'enr-1', paymentArrangementSetAt: null } as Student['activeEnrollment'],
+    };
+
+    renderModal({ student: studentWithEnrollment, onRecordPayment });
+
+    const setArrangementButton = await screen.findByRole('button', { name: /set arrangement/i });
+    const recordPaymentButton = await screen.findByRole('button', { name: /record payment/i });
+    // flex (not inline-flex) + justify-center, switching to justify-start
+    // at sm, is what lets these buttons stretch full-width and stack on a
+    // narrow viewport instead of staying pinned to a fixed-width row that
+    // clips past the right edge.
+    expect(setArrangementButton.className).toContain('justify-center');
+    expect(setArrangementButton.className).toContain('sm:justify-start');
+    expect(recordPaymentButton.className).toContain('justify-center');
+    expect(recordPaymentButton.className).toContain('sm:justify-start');
+    // The actions' own wrapper stacks (flex-col) below sm and goes
+    // horizontal (sm:flex-row) at sm and up.
+    const actionsWrapper = setArrangementButton.parentElement;
+    expect(actionsWrapper!.className).toContain('flex-col');
+    expect(actionsWrapper!.className).toContain('sm:flex-row');
+  });
+
+  it('renders exactly one close button visible per breakpoint (one sm:hidden, one hidden sm:block), both wired to onClose', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+
+    const { onClose } = renderModal();
+
+    // Both close buttons exist in the DOM at once (CSS, not conditional
+    // rendering, decides which one is visible at a given width - same
+    // pattern already used for the table/card dual rendering above), so
+    // there are 2 in jsdom; clicking either calls the same onClose.
+    const closeButtons = screen.getAllByRole('button', { name: '' }).filter((btn) =>
+      btn.querySelector('svg.lucide-x')
+    );
+    expect(closeButtons.length).toBe(2);
+    fireEvent.click(closeButtons[0]);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
