@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaymentHistoryModal } from './PaymentHistoryModal';
@@ -9,8 +9,25 @@ vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
   return {
     ...actual,
-    paymentsApi: { ...actual.paymentsApi, getByStudent: vi.fn() },
+    paymentsApi: {
+      ...actual.paymentsApi,
+      getByStudent: vi.fn(),
+      createAdjustment: vi.fn(),
+    },
   };
+});
+
+// Mutable per-test role - PaymentHistoryModal only ever reads this to
+// decide whether to SHOW the Refund/Void menu options at all (the real
+// security boundary is the backend's own requireRole check, re-verified
+// independently of this mock).
+let mockRole = 'admin';
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { role: mockRole } }),
+}));
+
+beforeEach(() => {
+  mockRole = 'admin';
 });
 
 afterEach(cleanup);
@@ -44,6 +61,9 @@ function payment(overrides: Partial<Payment> = {}): Payment {
     status: 'confirmed',
     createdAt: new Date('2026-08-10'),
     updatedAt: new Date('2026-08-10'),
+    adjustments: [],
+    netPaid: 100,
+    displayStatus: 'paid',
     ...overrides,
   } as Payment;
 }
@@ -100,8 +120,8 @@ describe('PaymentHistoryModal - "Applied To" column (payments-phase1, item 7)', 
   });
 });
 
-describe('PaymentHistoryModal - receipt icon (payments-phase1, item 5)', () => {
-  it('renders a receipt button per payment that opens the print route in a new tab', async () => {
+describe('PaymentHistoryModal - receipt via row menu (payments-adjustments)', () => {
+  it('opens the print route in a new tab via the row menu\'s "Print receipt" item', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [payment({ id: 'payment-abc' })],
     });
@@ -109,6 +129,8 @@ describe('PaymentHistoryModal - receipt icon (payments-phase1, item 5)', () => {
     const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     renderModal();
+    const menuTrigger = await screen.findByRole('button', { name: /payment actions/i });
+    fireEvent.click(menuTrigger);
     const receiptButton = await screen.findByRole('button', { name: /print receipt/i });
     fireEvent.click(receiptButton);
 
@@ -116,13 +138,164 @@ describe('PaymentHistoryModal - receipt icon (payments-phase1, item 5)', () => {
     windowOpenSpy.mockRestore();
   });
 
-  it('renders one receipt button per payment row', async () => {
+  it('renders one row menu per payment row', async () => {
     (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [payment({ id: 'p1' }), payment({ id: 'p2' })],
     });
 
     renderModal();
-    await waitFor(() => expect(screen.getAllByRole('button', { name: /print receipt/i })).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /payment actions/i })).toHaveLength(2));
+  });
+});
+
+describe('PaymentHistoryModal - row menu Refund/Void role gating (payments-adjustments)', () => {
+  it('shows Refund and Void to an admin, for a confirmed payment with something left to adjust', async () => {
+    mockRole = 'admin';
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', status: 'confirmed', amount: 100, netPaid: 100, displayStatus: 'paid', adjustments: [] })],
+    });
+
+    renderModal();
+    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+
+    expect(await screen.findByRole('button', { name: /^refund$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^void$/i })).toBeInTheDocument();
+  });
+
+  it('hides Refund and Void from a staff user', async () => {
+    mockRole = 'staff';
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', status: 'confirmed', amount: 100, netPaid: 100, displayStatus: 'paid', adjustments: [] })],
+    });
+
+    renderModal();
+    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+
+    await screen.findByRole('button', { name: /print receipt/i });
+    expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
+  });
+
+  it('hides Refund and Void for a fully-adjusted payment (nothing left to adjust)', async () => {
+    mockRole = 'admin';
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', status: 'confirmed', amount: 100, netPaid: 0, displayStatus: 'refunded', adjustments: [] })],
+    });
+
+    renderModal();
+    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+
+    await screen.findByRole('button', { name: /print receipt/i });
+    expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^void$/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking Refund in the row menu opens the refund dialog', async () => {
+    mockRole = 'admin';
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', status: 'confirmed', amount: 100, netPaid: 100, displayStatus: 'paid', adjustments: [] })],
+    });
+
+    renderModal();
+    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^refund$/i }));
+
+    expect(await screen.findByRole('heading', { name: 'Refund' })).toBeInTheDocument();
+  });
+
+  it('clicking Void in the row menu opens the void dialog', async () => {
+    mockRole = 'admin';
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ id: 'p1', status: 'confirmed', amount: 100, netPaid: 100, displayStatus: 'paid', adjustments: [] })],
+    });
+
+    renderModal();
+    fireEvent.click(await screen.findByRole('button', { name: /payment actions/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^void$/i }));
+
+    expect(await screen.findByRole('heading', { name: 'Void' })).toBeInTheDocument();
+  });
+});
+
+describe('PaymentHistoryModal - status chips and adjustment lines (payments-adjustments)', () => {
+  it('shows "Paid" for an unadjusted confirmed payment', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [payment({ status: 'confirmed', displayStatus: 'paid', adjustments: [] })],
+    });
+
+    renderModal();
+    expect(await screen.findByText('Paid')).toBeInTheDocument();
+  });
+
+  it('shows "Partly refunded" and an indented red refund line with reason and who', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        payment({
+          id: 'p1',
+          amount: 100,
+          status: 'confirmed',
+          displayStatus: 'partly_refunded',
+          netPaid: 60,
+          adjustments: [
+            {
+              id: 'adj-1',
+              tenantId: 'tenant-1',
+              paymentId: 'p1',
+              adjustmentType: 'refund',
+              amount: 40,
+              reasonCode: 'overpaid',
+              note: null,
+              createdBy: 'user-1',
+              createdByName: 'Jane Admin',
+              createdAt: new Date('2026-08-12'),
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderModal();
+
+    expect(await screen.findByText('Partly refunded')).toBeInTheDocument();
+    expect(screen.getByText(/Refunded - Overpaid/)).toBeInTheDocument();
+    expect(screen.getByText(/Jane Admin/)).toBeInTheDocument();
+    expect(screen.getByText('-$40.00')).toBeInTheDocument();
+  });
+
+  it('shows "Voided" with the amount struck through', async () => {
+    (paymentsApi.getByStudent as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        payment({
+          id: 'p1',
+          amount: 100,
+          status: 'confirmed',
+          displayStatus: 'voided',
+          netPaid: 0,
+          adjustments: [
+            {
+              id: 'adj-2',
+              tenantId: 'tenant-1',
+              paymentId: 'p1',
+              adjustmentType: 'void',
+              amount: 100,
+              reasonCode: 'entered_in_error',
+              note: null,
+              createdBy: 'user-1',
+              createdByName: 'Jane Admin',
+              createdAt: new Date('2026-08-12'),
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderModal();
+
+    expect(await screen.findByText('Voided')).toBeInTheDocument();
+    expect(screen.getByText(/Voided - Entered by mistake/)).toBeInTheDocument();
+    const amountEls = screen.getAllByText('$100.00');
+    const struckThrough = amountEls.find((el) => el.className.includes('line-through'));
+    expect(struckThrough).toBeDefined();
   });
 });
 

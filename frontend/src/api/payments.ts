@@ -7,7 +7,18 @@ import type {
   PaymentPeriodSummary,
   WhoOwesYouRow,
   PaymentReceiptData,
+  PaymentAdjustment,
+  AdjustmentReasonCode,
 } from '@/types';
+
+export interface CreateAdjustmentInput {
+  adjustmentType: 'refund' | 'void';
+  // Required for 'refund'; ignored for 'void' (the server always uses the
+  // full remaining amount for a void, regardless of what's sent here).
+  amount?: number;
+  reasonCode: AdjustmentReasonCode;
+  note?: string;
+}
 
 export const paymentsApi = {
   getAll: async (page = 1, limit = 50) => {
@@ -27,15 +38,20 @@ export const paymentsApi = {
     return response.data;
   },
 
-  update: async (id: string, data: Partial<CreatePaymentInput>) => {
-    const response = await apiClient.put<ApiResponse<Payment>>(`/payments/${id}`, data);
-    return response.data;
-  },
+  // A confirmed payment's amount, date, paymentMethod, status, and
+  // bsvTransactionId are immutable server-side (payments-adjustments) -
+  // PUT /payments/:id now 409s on any of those once confirmed, pointing
+  // callers at Void/Refund (or "record a new payment" for a wrong
+  // amount). No component ever called this method, so it's removed
+  // entirely rather than left as a trap for a future caller to hit that
+  // 409. notes/referenceNumber edits on a confirmed payment, and any edit
+  // to a pending/failed payment, still work server-side - there's just no
+  // UI surface for them yet.
 
-  delete: async (id: string) => {
-    const response = await apiClient.delete<ApiResponse<void>>(`/payments/${id}`);
-    return response.data;
-  },
+  // Deleting a payment is permanently removed (payments-adjustments) -
+  // the backend always 409s, pointing at Void. No delete method is
+  // exposed here at all; createAdjustment with adjustmentType: 'void' is
+  // the real "undo" now, and it keeps a full permanent record.
 
   getByStudent: async (studentId: string) => {
     const response = await apiClient.get<ApiResponse<Payment[]>>(`/payments/student/${studentId}`);
@@ -60,8 +76,14 @@ export const paymentsApi = {
     return response.data;
   },
 
-  refund: async (id: string) => {
-    const response = await apiClient.post<ApiResponse<Payment>>(`/payments/${id}/refund`);
+  // Creates a refund or void adjustment (payments-adjustments) - replaces
+  // the old in-place refund flip entirely. owner/admin only, enforced
+  // server-side.
+  createAdjustment: async (id: string, data: CreateAdjustmentInput) => {
+    const response = await apiClient.post<ApiResponse<PaymentAdjustment>>(
+      `/payments/${id}/adjustments`,
+      data
+    );
     return response.data;
   },
 

@@ -25,6 +25,7 @@ function row(overrides: Partial<WhoOwesYouRow> = {}): WhoOwesYouRow {
     ageBucket: '61+',
     lastPaymentDate: null,
     lastPaymentAmount: null,
+    paymentArrangement: null,
     ...overrides,
   };
 }
@@ -113,5 +114,42 @@ describe('WhoOwesYouList - unchanged existing behavior', () => {
     const rowEl = await screen.findByRole('button', { name: /owing student/i });
     expect(within(rowEl).getByText('61+ days')).toBeInTheDocument();
     expect(within(rowEl).getByText('$250.00')).toBeInTheDocument();
+  });
+});
+
+describe('WhoOwesYouList - payment arrangement badge (payments-adjustments)', () => {
+  it('shows the amber "Payment arrangement" badge instead of the red age-bucket badge when set', async () => {
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [
+        row({
+          paymentArrangement: {
+            setAt: '2026-08-01T00:00:00.000Z',
+            setByName: 'Jane Admin',
+            note: 'Paying $50/month',
+          },
+        }),
+      ],
+    });
+
+    renderList();
+
+    const rowEl = await screen.findByRole('button', { name: /owing student/i });
+    expect(within(rowEl).getByText('Payment arrangement')).toBeInTheDocument();
+    expect(within(rowEl).queryByText('61+ days')).not.toBeInTheDocument();
+    // The amount owed still shows - an arrangement changes which badge
+    // renders, never whether the amount itself is shown.
+    expect(within(rowEl).getByText('$250.00')).toBeInTheDocument();
+  });
+
+  it('shows the normal red age-bucket badge when no arrangement is set', async () => {
+    (paymentsApi.getWhoOwesYou as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: [row({ paymentArrangement: null })],
+    });
+
+    renderList();
+
+    const rowEl = await screen.findByRole('button', { name: /owing student/i });
+    expect(within(rowEl).getByText('61+ days')).toBeInTheDocument();
+    expect(within(rowEl).queryByText('Payment arrangement')).not.toBeInTheDocument();
   });
 });

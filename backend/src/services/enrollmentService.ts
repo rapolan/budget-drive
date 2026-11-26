@@ -62,10 +62,29 @@ async function attachProgressAndPayments(
     lessonsByEnrollment.set(row.enrollment_id, list);
   }
 
+  // "Paid" here means NET paid - a confirmed payment's own amount minus
+  // the sum of its append-only adjustments (refund/void), floored at 0
+  // per payment (payments-adjustments; see adjustmentService.ts's own
+  // doc comment on why this floor is defensive, not expected to bind -
+  // a payment's adjustments can never exceed its amount, enforced at
+  // write time). GREATEST(0, ...) is applied per-payment, inside the
+  // subquery, before the outer SUM - never summed first and floored
+  // after, which would let one payment's negative-after-adjustment
+  // figure (impossible today, but not provably so in SQL alone) silently
+  // cancel out part of a different payment's balance.
   const paymentsResult = await query(
-    `SELECT enrollment_id, COALESCE(SUM(amount), 0) AS total_paid
-     FROM payments
-     WHERE tenant_id = $1 AND enrollment_id = ANY($2::uuid[]) AND status = 'confirmed'
+    `SELECT enrollment_id, COALESCE(SUM(net_paid), 0) AS total_paid
+     FROM (
+       SELECT p.enrollment_id,
+              GREATEST(0, p.amount - COALESCE(adj.total_adjusted, 0)) AS net_paid
+       FROM payments p
+       LEFT JOIN (
+         SELECT payment_id, SUM(amount) AS total_adjusted
+         FROM payment_adjustments
+         GROUP BY payment_id
+       ) adj ON adj.payment_id = p.id
+       WHERE p.tenant_id = $1 AND p.enrollment_id = ANY($2::uuid[]) AND p.status = 'confirmed'
+     ) net_payments
      GROUP BY enrollment_id`,
     [tenantId, enrollmentIds]
   );

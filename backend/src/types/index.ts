@@ -493,6 +493,12 @@ export interface ActiveEnrollmentSummary {
   completed: boolean;
   completionReason: string | null;
   withdrawnReason: string | null;
+  // Payments-adjustments: drives the "On a payment arrangement" badge in
+  // PaymentHistoryModal's header.
+  paymentArrangementSetAt: Date | null;
+  paymentArrangementSetBy: string | null;
+  paymentArrangementSetByName: string | null;
+  paymentArrangementNote: string | null;
 }
 
 // Attached to Student.deEnrollment (program-aware Students list) - a
@@ -563,6 +569,13 @@ export interface Enrollment {
   // BSV forward-compatibility - no anchoring code, ledgerTxid always null this session
   completionHash: string | null;
   ledgerTxid: string | null;
+
+  // Payment arrangement marker (payments-adjustments) - owner/admin-set,
+  // informational only (no booking-rule behavior reads this in this
+  // change). Null means unset, the overwhelmingly common case.
+  paymentArrangementSetAt: Date | null;
+  paymentArrangementSetBy: string | null;
+  paymentArrangementNote: string | null;
 
   progress?: StudentProgress; // Attached by enrollment read paths
   paymentSummary?: EnrollmentPaymentSummary; // Derived from payments, attached by enrollment read paths
@@ -964,6 +977,35 @@ export interface Payment {
   updatedBy: string | null; // User ID who last modified this record
   createdAt: Date;
   updatedAt: Date;
+
+  // Payments-adjustments: populated only by getPaymentsByStudent (the
+  // payment history endpoint) - optional because most Payment-returning
+  // endpoints (create/getById/getAll/etc.) have no need to attach this
+  // per-payment, and attaching it everywhere would mean an extra query on
+  // every payment read, not just the one view that actually displays it.
+  adjustments?: PaymentAdjustment[];
+  netPaid?: number;
+  displayStatus?: 'paid' | 'partly_refunded' | 'refunded' | 'voided';
+}
+
+export interface PaymentAdjustment {
+  id: string;
+  tenantId: string;
+  paymentId: string;
+  adjustmentType: 'refund' | 'void';
+  amount: number;
+  reasonCode:
+    | 'duplicate_payment'
+    | 'entered_in_error'
+    | 'wrong_student'
+    | 'lesson_cancelled'
+    | 'overpaid'
+    | 'student_withdrew'
+    | 'other';
+  note: string | null;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: Date;
 }
 
 export interface Invoice {

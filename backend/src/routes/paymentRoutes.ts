@@ -26,6 +26,13 @@ router.use(requireTenantContext);
 // payments/balances (that stays admin-only per the instructor-view design).
 const paymentsOnly = requireRole('owner', 'admin', 'staff');
 
+// Refund, void, and the arrangement marker are owner/admin ONLY (staff
+// gets 403) - a stricter gate than paymentsOnly above, per the task's own
+// explicit design decision. Checked server-side from the DB on every
+// request (requireRole's own membership lookup, not the JWT claim), same
+// as every other role check in this codebase.
+const adjustmentsOnly = requireRole('owner', 'admin');
+
 // Period summary (collected/refunded/net/outstanding/paid-not-yet-
 // scheduled, collected-by-method) - payments-phase1 (must be before /:id)
 router.get(
@@ -103,11 +110,24 @@ router.post(
   paymentController.markPaymentAsReceived
 );
 
-// Refund payment
+// Create a refund or void adjustment (payments-adjustments) - the real
+// endpoint the task names. owner/admin only.
+router.post(
+  '/payments/:id/adjustments',
+  validateUUID('id'),
+  validateRequired(['adjustmentType', 'reasonCode']),
+  adjustmentsOnly,
+  paymentController.createPaymentAdjustment
+);
+
+// Legacy refund route - now creates an adjustment instead of flipping
+// status (see paymentController.refundPayment's own doc comment).
+// owner/admin only, same as the real endpoint above.
 router.post(
   '/payments/:id/refund',
   validateUUID('id'),
-  paymentsOnly,
+  validateRequired(['reasonCode']),
+  adjustmentsOnly,
   paymentController.refundPayment
 );
 
@@ -135,7 +155,10 @@ router.put(
   paymentController.updatePayment
 );
 
-// Delete payment
+// Delete payment - permanently removed (payments-adjustments). Always
+// 409s pointing at Void; kept as a route (not removed outright) so an
+// existing client hitting this URL gets a clear, actionable error instead
+// of a generic 404.
 router.delete(
   '/payments/:id',
   validateUUID('id'),

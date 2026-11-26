@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Enrollment, ApiResponse, ProgramType, Student } from '@/types';
+import type { Enrollment, ApiResponse, ProgramType, Student, PaymentArrangement } from '@/types';
 
 export interface CreateEnrollmentInput {
   programType: ProgramType;
@@ -111,5 +111,21 @@ export const enrollmentsApi = {
     const filename = match?.[1] ?? 'transcript.txt';
     const content = await response.data.text();
     return { content, filename };
+  },
+
+  // Payment arrangement marker (payments-adjustments) - owner/admin only
+  // (enforced server-side), informational only. Overwrites any existing
+  // marker rather than keeping a history of prior settings.
+  setPaymentArrangement: async (id: string, note?: string | null) => {
+    const response = await apiClient.post<ApiResponse<PaymentArrangement>>(
+      `/enrollments/${id}/payment-arrangement`,
+      { note }
+    );
+    return response.data;
+  },
+
+  clearPaymentArrangement: async (id: string) => {
+    const response = await apiClient.delete<ApiResponse<null>>(`/enrollments/${id}/payment-arrangement`);
+    return response.data;
   },
 };

@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, DollarSign, Calendar, CreditCard, FileText, Receipt, Mail, Phone, UserCircle, Wallet } from 'lucide-react';
+import { X, DollarSign, Calendar, CreditCard, FileText, Mail, Phone, UserCircle, Wallet, AlertTriangle, Undo2, Handshake } from 'lucide-react';
 import { paymentsApi } from '@/api';
-import type { Student } from '@/types';
+import type { Student, Payment } from '@/types';
 import { formatMoney } from '@/utils/moneyFormat';
+import { useAuth } from '@/contexts/AuthContext';
+import { PaymentRowMenu } from './PaymentRowMenu';
+import { RefundDialog } from './RefundDialog';
+import { VoidDialog } from './VoidDialog';
+import { PaymentArrangementDialog } from './PaymentArrangementDialog';
+import { ADJUSTMENT_REASON_LABELS } from '@/utils/adjustmentReasons';
 
 interface PaymentHistoryModalProps {
   isOpen: boolean;
@@ -40,6 +46,18 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
   onRecordPayment,
   onViewStudentRecord,
 }) => {
+  const { user } = useAuth();
+  // Refund/void are owner/admin only (payments-adjustments, explicit
+  // design decision) - checked here only to decide whether to SHOW the
+  // menu options at all; the backend re-checks independently on every
+  // request (requireRole's own DB lookup), so this is a UX convenience,
+  // never the actual security boundary.
+  const canAdjust = user?.role === 'owner' || user?.role === 'admin';
+
+  const [refundingPayment, setRefundingPayment] = useState<Payment | null>(null);
+  const [voidingPayment, setVoidingPayment] = useState<Payment | null>(null);
+  const [arrangementOpen, setArrangementOpen] = useState(false);
+
   // Fetch payment history for this student
   const { data: paymentsData, isLoading, error } = useQuery({
     queryKey: ['payments', 'student', student?.id],
@@ -92,16 +110,40 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
     return labels[type] || type;
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'confirmed':
+  // Payments-adjustments: for a confirmed payment, the chip now shows the
+  // DERIVED status (Paid/Partly refunded/Refunded/Voided) from
+  // payment.displayStatus, not the raw payments.status column, which is
+  // never flipped by a refund/void anymore. pending/failed payments have
+  // no adjustments to derive from - they keep showing their own raw
+  // status exactly as before.
+  const getDisplayLabel = (payment: Payment): string => {
+    if (payment.status === 'confirmed' && payment.displayStatus) {
+      const labels: Record<string, string> = {
+        paid: 'Paid',
+        partly_refunded: 'Partly refunded',
+        refunded: 'Refunded',
+        voided: 'Voided',
+      };
+      return labels[payment.displayStatus] ?? payment.displayStatus;
+    }
+    return payment.status;
+  };
+
+  const getStatusBadge = (payment: Payment): string => {
+    const label = payment.status === 'confirmed' ? payment.displayStatus ?? 'paid' : payment.status;
+    switch (label) {
+      case 'paid':
         return 'bg-status-success-bg text-status-success-text';
       case 'pending':
         return 'bg-status-warning-bg text-status-warning-text';
       case 'failed':
         return 'bg-status-danger-bg text-status-danger-text';
+      case 'partly_refunded':
+        return 'bg-status-warning-bg text-status-warning-text';
       case 'refunded':
         return 'bg-surface2 text-tx-primary';
+      case 'voided':
+        return 'bg-surface2 text-tx-muted line-through decoration-2';
       default:
         return 'bg-surface2 text-tx-primary';
     }
@@ -124,12 +166,43 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
               <div className="flex items-center gap-2">
                 <FileText className="h-6 w-6 text-primary" />
                 <h2 className="text-xl font-semibold text-tx-primary">Payment History</h2>
+                {/* "On a payment arrangement" badge (payments-adjustments) -
+                    informational only, no booking-rule behavior reads this.
+                    Clickable (owner/admin only) to open the arrangement
+                    dialog and edit/clear it. */}
+                {student?.activeEnrollment?.paymentArrangementSetAt && (
+                  canAdjust ? (
+                    <button
+                      type="button"
+                      onClick={() => setArrangementOpen(true)}
+                      className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text hover:brightness-95 transition-all"
+                    >
+                      <Handshake className="h-3 w-3" />
+                      Payment arrangement
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-text">
+                      <Handshake className="h-3 w-3" />
+                      Payment arrangement
+                    </span>
+                  )
+                )}
               </div>
               {student && (
                 <p className="mt-1 text-sm text-tx-secondary">{student.fullName}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
+              {student?.activeEnrollment && canAdjust && !student.activeEnrollment.paymentArrangementSetAt && (
+                <button
+                  type="button"
+                  onClick={() => setArrangementOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-tx-secondary hover:bg-surface2 transition-all"
+                >
+                  <Handshake className="h-4 w-4" />
+                  Set arrangement
+                </button>
+              )}
               {student && onRecordPayment && (
                 <button
                   type="button"
@@ -290,79 +363,114 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                               Notes
                             </th>
                             <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted">
-                              Receipt
+                              Actions
                             </th>
-                            {/* Reserved for phase 2 refund/void actions
-                                (payments-actions, item 6) - deliberately
-                                not built here, just a layout slot per row
-                                so adding them later doesn't require
-                                re-flowing this table. */}
-                            <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-tx-muted" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-edge bg-surface">
-                          {payments.map((payment) => (
-                            <tr key={payment.id} className="hover:bg-surface2">
-                              <td className="whitespace-nowrap px-4 py-3">
-                                <div className="flex items-center gap-2 text-sm text-tx-primary">
-                                  <Calendar className="h-4 w-4 text-tx-muted" />
-                                  {new Date(payment.date).toLocaleDateString()}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3">
-                                <div className="text-sm text-tx-primary">
-                                  {getPaymentTypeLabel(payment.paymentType)}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3">
-                                <div className="flex items-center gap-2 text-sm text-tx-primary">
-                                  <CreditCard className="h-4 w-4 text-tx-muted" />
-                                  {getPaymentMethodLabel(payment.paymentMethod)}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3">
-                                <div className="text-sm text-tx-muted capitalize">
-                                  {payment.programType ? payment.programType.replace(/_/g, ' ') : '-'}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-right">
-                                <div className="text-sm font-semibold text-status-success-text">
-                                  {formatMoney(Number(payment.amount))}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-center">
-                                <span
-                                  className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getStatusBadge(
-                                    payment.status
-                                  )}`}
-                                >
-                                  {payment.status}
-                                </span>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3">
-                                <div className="text-sm text-tx-muted">
-                                  {payment.referenceNumber || '-'}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="max-w-xs truncate text-sm text-tx-muted">
-                                  {payment.notes || '-'}
-                                </div>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => window.open(`/payments/${payment.id}/receipt`, '_blank', 'noopener')}
-                                  className="p-1.5 text-tx-secondary hover:text-primary hover:bg-status-info-bg rounded-lg transition-colors"
-                                  aria-label="Print receipt"
-                                  title="Print receipt"
-                                >
-                                  <Receipt className="h-4 w-4" />
-                                </button>
-                              </td>
-                              <td className="whitespace-nowrap px-4 py-3" />
-                            </tr>
-                          ))}
+                          {payments.map((payment) => {
+                            // Refund/void are only ever offered for a
+                            // confirmed payment with something left to
+                            // adjust (payments-adjustments: "only confirmed
+                            // payments can be adjusted", enforced again
+                            // server-side regardless of what's shown here).
+                            const remaining = payment.netPaid ?? Number(payment.amount);
+                            const canOfferAdjustment = canAdjust && payment.status === 'confirmed' && remaining > 0;
+                            const isVoided = payment.displayStatus === 'voided';
+
+                            return (
+                              <React.Fragment key={payment.id}>
+                                <tr className="hover:bg-surface2">
+                                  <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                      <Calendar className="h-4 w-4 text-tx-muted" />
+                                      {new Date(payment.date).toLocaleDateString()}
+                                    </div>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="text-sm text-tx-primary">
+                                      {getPaymentTypeLabel(payment.paymentType)}
+                                    </div>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="flex items-center gap-2 text-sm text-tx-primary">
+                                      <CreditCard className="h-4 w-4 text-tx-muted" />
+                                      {getPaymentMethodLabel(payment.paymentMethod)}
+                                    </div>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="text-sm text-tx-muted capitalize">
+                                      {payment.programType ? payment.programType.replace(/_/g, ' ') : '-'}
+                                    </div>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                                    <div
+                                      className={`text-sm font-semibold ${
+                                        isVoided ? 'text-tx-muted line-through' : 'text-status-success-text'
+                                      }`}
+                                    >
+                                      {formatMoney(Number(payment.amount))}
+                                    </div>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                                    <span
+                                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(payment)}`}
+                                    >
+                                      {getDisplayLabel(payment)}
+                                    </span>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3">
+                                    <div className="text-sm text-tx-muted">
+                                      {payment.referenceNumber || '-'}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="max-w-xs truncate text-sm text-tx-muted">
+                                      {payment.notes || '-'}
+                                    </div>
+                                  </td>
+                                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                                    <PaymentRowMenu
+                                      onPrintReceipt={() =>
+                                        window.open(`/payments/${payment.id}/receipt`, '_blank', 'noopener')
+                                      }
+                                      onRefund={canOfferAdjustment ? () => setRefundingPayment(payment) : undefined}
+                                      onVoid={canOfferAdjustment ? () => setVoidingPayment(payment) : undefined}
+                                    />
+                                  </td>
+                                </tr>
+                                {/* Adjustment lines (payments-adjustments) -
+                                    indented under their payment, refunds in
+                                    red with reason and who, voided amounts
+                                    struck through. */}
+                                {(payment.adjustments ?? []).map((adjustment) => (
+                                  <tr key={adjustment.id} className="bg-surface2/50">
+                                    <td colSpan={4} className="px-4 py-2 pl-10">
+                                      <div className="flex items-center gap-2 text-xs text-tx-muted">
+                                        {adjustment.adjustmentType === 'void' ? (
+                                          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
+                                        ) : (
+                                          <Undo2 className="h-3.5 w-3.5 flex-shrink-0 text-status-danger-text" />
+                                        )}
+                                        <span>
+                                          {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
+                                          {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode]}
+                                          {adjustment.createdByName ? ` by ${adjustment.createdByName}` : ''} on{' '}
+                                          {new Date(adjustment.createdAt).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="whitespace-nowrap px-4 py-2 text-right">
+                                      <span className="text-xs font-semibold text-status-danger-text">
+                                        -{formatMoney(adjustment.amount)}
+                                      </span>
+                                    </td>
+                                    <td colSpan={4} />
+                                  </tr>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -383,6 +491,39 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
           </div>
         </div>
       </div>
+
+      <RefundDialog
+        isOpen={!!refundingPayment}
+        onClose={() => setRefundingPayment(null)}
+        payment={refundingPayment}
+        remainingAmount={refundingPayment ? refundingPayment.netPaid ?? Number(refundingPayment.amount) : 0}
+        studentName={student?.fullName ?? 'this student'}
+      />
+      <VoidDialog
+        isOpen={!!voidingPayment}
+        onClose={() => setVoidingPayment(null)}
+        payment={voidingPayment}
+        remainingAmount={voidingPayment ? voidingPayment.netPaid ?? Number(voidingPayment.amount) : 0}
+        onOpenRefund={() => {
+          if (voidingPayment) setRefundingPayment(voidingPayment);
+        }}
+      />
+      <PaymentArrangementDialog
+        isOpen={arrangementOpen}
+        onClose={() => setArrangementOpen(false)}
+        enrollmentId={student?.activeEnrollment?.id ?? null}
+        current={
+          student?.activeEnrollment?.paymentArrangementSetAt
+            ? {
+                enrollmentId: student.activeEnrollment.id,
+                setAt: student.activeEnrollment.paymentArrangementSetAt,
+                setBy: student.activeEnrollment.paymentArrangementSetBy ?? null,
+                setByName: student.activeEnrollment.paymentArrangementSetByName ?? null,
+                note: student.activeEnrollment.paymentArrangementNote ?? null,
+              }
+            : null
+        }
+      />
     </div>
   );
 };

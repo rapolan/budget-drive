@@ -11,6 +11,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import * as enrollmentService from '../services/enrollmentService';
 import * as studentService from '../services/studentService';
 import * as transcriptService from '../services/transcriptService';
+import * as adjustmentService from '../services/adjustmentService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -138,4 +139,44 @@ export const getWithdrawalTranscript = asyncHandler(async (req: Request, res: Re
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${transcript.filename}"`);
   res.send(transcript.content);
+});
+
+/**
+ * @route   POST /api/v1/enrollments/:id/payment-arrangement
+ * @desc    Set (or overwrite) the "payment arrangement" marker on an
+ *          enrollment - informational only, no booking-rule behavior is
+ *          wired to it (payments-adjustments, explicit scope limit).
+ * @access  Private (owner/admin)
+ */
+export const setPaymentArrangement = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const userId = req.user!.userId;
+  const { id } = req.params;
+  const { note } = req.body;
+
+  const arrangement = await adjustmentService.setPaymentArrangement(tenantId, id, userId, note ?? null);
+
+  res.json({
+    success: true,
+    data: arrangement,
+    message: 'Payment arrangement set',
+  });
+});
+
+/**
+ * @route   DELETE /api/v1/enrollments/:id/payment-arrangement
+ * @desc    Clears the "payment arrangement" marker on an enrollment.
+ * @access  Private (owner/admin)
+ */
+export const clearPaymentArrangement = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+
+  await adjustmentService.clearPaymentArrangement(tenantId, id);
+
+  res.json({
+    success: true,
+    data: null,
+    message: 'Payment arrangement cleared',
+  });
 });

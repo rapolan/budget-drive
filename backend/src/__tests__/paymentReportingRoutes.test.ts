@@ -274,7 +274,8 @@ describe('GET /payments/:id/receipt - not found and tenant scoping', () => {
       ])
     );
     mockQuery.mockResolvedValueOnce(queryResult([{ lesson_cost_sum: '0' }])); // lesson totals (unused - total_cost override present)
-    mockQuery.mockResolvedValueOnce(queryResult([{ total_paid: '75.00' }])); // paid total
+    mockQuery.mockResolvedValueOnce(queryResult([{ total_paid: '75.00' }])); // NET paid total (payments-adjustments)
+    mockQuery.mockResolvedValueOnce(queryResult([])); // this payment's own adjustment lines (none)
 
     const res = await request(app)
       .get(`/api/v1/payments/${PAYMENT_ID}/receipt`)
@@ -283,6 +284,10 @@ describe('GET /payments/:id/receipt - not found and tenant scoping', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.receiptNumber).toMatch(/^BDP-[0-9A-F]{10}$/);
     expect(res.body.data.appliedToProgramType).toBe('driver_training');
+    // Payments-adjustments: an unadjusted payment has an empty
+    // adjustments array and netPaid equal to its own amount.
+    expect(res.body.data.adjustments).toEqual([]);
+    expect(res.body.data.netPaid).toBe(75);
     // No per-lesson field anywhere in the payload - "applied to" is the
     // enrollment/program only, never a guessed lesson list.
     expect(res.body.data).not.toHaveProperty('appliedToLessons');
@@ -312,6 +317,7 @@ describe('GET /payments/export - formula injection guard', () => {
         },
       ])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // adjustment lines in range (none)
 
     const res = await request(app)
       .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
@@ -355,6 +361,7 @@ describe('GET /payments/export - formula injection guard', () => {
         },
       ])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // adjustment lines in range (none)
 
     const res = await request(app)
       .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
@@ -382,6 +389,7 @@ describe('GET /payments/export - formula injection guard', () => {
         },
       ])
     );
+    mockQuery.mockResolvedValueOnce(queryResult([])); // adjustment lines in range (none)
 
     const res = await request(app)
       .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
@@ -392,5 +400,65 @@ describe('GET /payments/export - formula injection guard', () => {
     expect(res.text).toContain('SQ-1029384');
     expect(res.text).not.toContain("'Jane Doe");
     expect(res.text).not.toContain("'SQ-1029384");
+  });
+});
+
+describe('GET /payments/export - includes adjustment (refund/void) lines (payments-adjustments)', () => {
+  beforeEach(() => {
+    resetMockQuery();
+  });
+
+  it('includes a refund as its own rowType=adjustment row, dated by the adjustment\'s own created_at', async () => {
+    const { default: app } = await import('../app');
+    const token = signToken('admin-1', 'admin');
+    asAdmin();
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440010',
+          date: '2026-01-05',
+          amount: '75.00',
+          payment_method: 'cash',
+          status: 'confirmed',
+          reference_number: null,
+          student_name: 'Jane Doe',
+        },
+      ])
+    ); // payment rows
+    mockQuery.mockResolvedValueOnce(
+      queryResult([
+        {
+          id: 'adj-1',
+          payment_id: '550e8400-e29b-41d4-a716-446655440010',
+          adjustment_type: 'refund',
+          amount: '20.00',
+          reason_code: 'overpaid',
+          created_at: '2026-01-15T00:00:00.000Z',
+          original_payment_id: '550e8400-e29b-41d4-a716-446655440010',
+          student_name: 'Jane Doe',
+        },
+      ])
+    ); // adjustment rows
+
+    const res = await request(app)
+      .get('/api/v1/payments/export?start=2026-01-01&end=2026-01-31')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    const lines = res.text.split('\r\n');
+    expect(lines[0]).toBe('Row Type,Date,Student,Amount,Method,Status,Reason,Reference,Receipt Number');
+    const paymentLine = lines.find((l) => l.startsWith('payment,'));
+    const adjustmentLine = lines.find((l) => l.startsWith('adjustment,'));
+    expect(paymentLine).toBeDefined();
+    expect(adjustmentLine).toBeDefined();
+    expect(adjustmentLine).toContain('2026-01-15');
+    expect(adjustmentLine).toContain('refund');
+    expect(adjustmentLine).toContain('overpaid');
+    expect(adjustmentLine).toContain('20.00');
+    // The adjustment row carries the ORIGINAL payment's receipt number,
+    // not one of its own - an adjustment has no receipt number of its own.
+    const paymentReceiptNumber = paymentLine!.split(',').pop();
+    const adjustmentReceiptNumber = adjustmentLine!.split(',').pop();
+    expect(adjustmentReceiptNumber).toBe(paymentReceiptNumber);
   });
 });

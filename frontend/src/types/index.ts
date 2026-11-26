@@ -322,6 +322,14 @@ export interface ActiveEnrollmentSummary {
   completed: boolean;
   completionReason: string | null;
   withdrawnReason: string | null;
+  // Payments-adjustments: drives the "On a payment arrangement" badge in
+  // PaymentHistoryModal's header. Optional (not every ActiveEnrollmentSummary
+  // fixture across this codebase needs to care about it) - treat a
+  // missing value the same as null (unset).
+  paymentArrangementSetAt?: string | null;
+  paymentArrangementSetBy?: string | null;
+  paymentArrangementSetByName?: string | null;
+  paymentArrangementNote?: string | null;
 }
 
 // Program-aware Students list: a student's driver_education enrollment
@@ -384,6 +392,12 @@ export interface Enrollment {
 
   completionHash: string | null;
   ledgerTxid: string | null;
+
+  // Payment arrangement marker (payments-adjustments) - owner/admin-set,
+  // informational only. Null means unset (the common case).
+  paymentArrangementSetAt: string | null;
+  paymentArrangementSetBy: string | null;
+  paymentArrangementNote: string | null;
 
   progress?: StudentProgress;
   paymentSummary?: EnrollmentPaymentSummary;
@@ -595,6 +609,44 @@ export interface Payment {
   programType?: ProgramType;
   createdAt: Date;
   updatedAt: Date;
+
+  // Payments-adjustments: attached only by getByStudent (the payment
+  // history endpoint) - empty array / full amount / 'paid' for a payment
+  // with no refund or void against it, which renders exactly as it did
+  // before this phase.
+  adjustments?: PaymentAdjustment[];
+  netPaid?: number;
+  displayStatus?: 'paid' | 'partly_refunded' | 'refunded' | 'voided';
+}
+
+export type AdjustmentReasonCode =
+  | 'duplicate_payment'
+  | 'entered_in_error'
+  | 'wrong_student'
+  | 'lesson_cancelled'
+  | 'overpaid'
+  | 'student_withdrew'
+  | 'other';
+
+export interface PaymentAdjustment {
+  id: string;
+  tenantId: string;
+  paymentId: string;
+  adjustmentType: 'refund' | 'void';
+  amount: number;
+  reasonCode: AdjustmentReasonCode;
+  note: string | null;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: Date;
+}
+
+export interface PaymentArrangement {
+  enrollmentId: string;
+  setAt: string;
+  setBy: string | null;
+  setByName: string | null;
+  note: string | null;
 }
 
 // =====================================================
@@ -627,6 +679,17 @@ export interface WhoOwesYouRow {
   ageBucket: '0-30' | '31-60' | '61+';
   lastPaymentDate: string | null;
   lastPaymentAmount: number | null;
+  // Payments-adjustments: when set, show an amber "Payment arrangement"
+  // badge instead of the red age-bucket badge for this row.
+  paymentArrangement: { setAt: string; setByName: string | null; note: string | null } | null;
+}
+
+export interface ReceiptAdjustmentLine {
+  adjustmentType: 'refund' | 'void';
+  amount: number;
+  reasonCode: string;
+  createdAt: string;
+  createdByName: string | null;
 }
 
 export interface PaymentReceiptData {
@@ -642,6 +705,10 @@ export interface PaymentReceiptData {
   enrollmentTotalPaid: number;
   enrollmentOutstandingBalance: number | null;
   enrollmentCreditBalance: number | null;
+  // Payments-adjustments: this payment's own refund/void lines (empty for
+  // an unadjusted payment) and its net paid after them.
+  adjustments: ReceiptAdjustmentLine[];
+  netPaid: number;
 }
 
 export interface BlockchainTransaction {

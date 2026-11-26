@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, DollarSign } from 'lucide-react';
+import { AlertTriangle, DollarSign, Handshake } from 'lucide-react';
 import { paymentsApi } from '@/api';
 import type { WhoOwesYouRow } from '@/types';
 import { formatMoney } from '@/utils/moneyFormat';
@@ -98,11 +98,26 @@ export const WhoOwesYouList: React.FC<WhoOwesYouListProps> = ({ onSelectStudent,
               </p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span
-                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${AGE_BUCKET_STYLES[row.ageBucket]}`}
-              >
-                {AGE_BUCKET_LABELS[row.ageBucket]}
-              </span>
+              {/* Payments-adjustments: a row on an agreed arrangement shows
+                  an amber "Payment arrangement" badge INSTEAD OF the red
+                  age-bucket badge - the whole point of the marker is to
+                  stop this family from reading as delinquent just because
+                  time has passed on an agreed plan. */}
+              {row.paymentArrangement ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border border-status-warning-border bg-status-warning-bg px-2 py-0.5 text-xs font-medium text-status-warning-text"
+                  title={row.paymentArrangement.note ?? undefined}
+                >
+                  <Handshake className="h-3 w-3" />
+                  Payment arrangement
+                </span>
+              ) : (
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${AGE_BUCKET_STYLES[row.ageBucket]}`}
+                >
+                  {AGE_BUCKET_LABELS[row.ageBucket]}
+                </span>
+              )}
               <span className="text-sm font-semibold text-status-danger-text">
                 {formatMoney(row.amountOwed)}
               </span>

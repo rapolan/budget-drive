@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PaymentReceiptData } from '@/types';
 import { formatMoney } from '@/utils/moneyFormat';
+import { ADJUSTMENT_REASON_LABELS } from '@/utils/adjustmentReasons';
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
@@ -48,7 +49,7 @@ export const PaymentReceiptDocument: React.FC<PaymentReceiptDocumentProps> = ({ 
           <p className="text-sm text-tx-primary">{receipt.date}</p>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-tx-muted mb-1">Amount</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-tx-muted mb-1">Amount Received</p>
           <p className="text-sm text-tx-primary font-semibold">{formatMoney(receipt.amount)}</p>
         </div>
         <div>
@@ -66,6 +67,31 @@ export const PaymentReceiptDocument: React.FC<PaymentReceiptDocumentProps> = ({ 
           <p className="text-sm text-tx-primary capitalize">{receipt.appliedToProgramType.replace(/_/g, ' ')}</p>
         </div>
       </div>
+
+      {/* Refund/void lines (payments-adjustments) - red, with reason and
+          a "Net paid" line, shown only on an adjusted payment. An
+          unadjusted payment (the common case) renders exactly as it did
+          before this phase - no empty section, no "Net paid" line equal
+          to the amount already shown above. The receipt number itself
+          never changes. */}
+      {receipt.adjustments.length > 0 && (
+        <div className="border-t border-edge pt-4 mb-4 space-y-1">
+          {receipt.adjustments.map((adjustment, i) => (
+            <div key={i} className="flex items-center justify-between text-sm">
+              <span className="text-status-danger-text">
+                {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
+                {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode as keyof typeof ADJUSTMENT_REASON_LABELS] ?? adjustment.reasonCode}
+                {' '}({adjustment.createdAt.slice(0, 10)})
+              </span>
+              <span className="text-status-danger-text font-medium">-{formatMoney(adjustment.amount)}</span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between text-sm pt-1 border-t border-edge mt-2">
+            <span className="text-tx-primary font-semibold">Net paid</span>
+            <span className="text-tx-primary font-semibold">{formatMoney(receipt.netPaid)}</span>
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-edge pt-4 space-y-1">
         <div className="flex items-center justify-between text-sm">

@@ -911,6 +911,132 @@ npx playwright test e2e-screenshots/payments-actions.spec.ts
 
 ---
 
+### 2.66 Payments adjustments: append-only refunds/voids, net paid everywhere, payment arrangement marker
+
+Covers `docs/ARCHITECTURE.md` §41. Fills the "phase 2" gap §2.65 flagged (refund/void): the old in-place refund flip and the hard payment delete are both gone, replaced by append-only `payment_adjustments` rows plus a non-append-only payment arrangement marker on `enrollments`.
+
+**Migration (run once, verified directly against Postgres before any application code was written against it):**
+```bash
+cd backend
+npm run migrate
+psql $DATABASE_URL -c "INSERT INTO payment_adjustments (tenant_id, payment_id, adjustment_type, amount, reason_code, created_by) VALUES ('<tenant>', '<payment>', 'refund', 10.00, 'other', '<user>');"  # should fail — note required for 'other'
+psql $DATABASE_URL -c "UPDATE payment_adjustments SET amount = 1 WHERE id = '<some-id>';"  # should fail — append-only trigger
+psql $DATABASE_URL -c "DELETE FROM payment_adjustments WHERE id = '<some-id>';"  # should fail — append-only trigger
+```
+
+**Pass looks like:** the INSERT with `reason_code = 'other'` and no `note` is rejected by the CHECK constraint; the UPDATE and DELETE are both rejected with `payment_adjustments is append-only: UPDATE/DELETE is not permitted` (the trigger, not just an app-layer check).
+
+**Backend (mocked-query):**
+```bash
+cd backend
+npx vitest run src/__tests__/adjustmentService.test.ts
+npx vitest run src/__tests__/paymentAdjustmentRoutes.test.ts
+npx vitest run src/__tests__/paymentReportingRoutes.test.ts
+npx vitest run src/__tests__/paymentServiceCaseConversion.test.ts
+```
+
+**Pass looks like:** `adjustmentService.test.ts` (18 tests) — `derivePaymentAdjustmentStatus`/`computeNetPaid` cover paid/partly-refunded/refunded/voided and the legacy-status shortcut; `createAdjustment`'s transaction flow rejects `other` with no note before ever opening a transaction, 404s an unknown payment, 400s a non-`confirmed` payment, 400s a refund exceeding the remainder (both on the first refund and on a second refund after a partial one), a void always covers the full remaining amount regardless of what `amount` the caller sent, and a successful refund commits with the exact requested amount. `paymentAdjustmentRoutes.test.ts` (12 tests) — staff gets 403 on `POST /payments/:id/adjustments`, admin/owner get 201 on the full locked-payment→adjustments→insert→commit path, 400 when `adjustmentType`/`reasonCode` are missing, `DELETE /payments/:id` always 409s, and the arrangement set/clear routes are gated the same way (staff 403, admin success, 404 for an unknown enrollment). `paymentReportingRoutes.test.ts` and `paymentServiceCaseConversion.test.ts` — pre-existing tests updated for the new adjustments queries each reporting function now issues; the old id-only `refundPayment` unit test was removed (the function no longer exists — see `adjustmentService.test.ts` for the equivalent coverage under the new model).
+
+**Backend (real-DB, the concurrency/trigger/legacy-data/date-boundary proof — these are the tests that actually matter for this phase):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/adjustmentServiceRealDb.integration.test.ts
+```
+
+**Pass looks like** (10 tests, explicit no-op without `TEST_DATABASE_URL`, same convention as every other `*RealDb.integration.test.ts` file):
+- A partial refund followed by a second refund requesting more than the remainder is rejected, and the rejected attempt leaves no partial row behind.
+- **Two concurrent refund requests against the same payment, together exceeding its remaining amount, cannot both succeed** — exactly one succeeds, the other is rejected, and the total adjusted never exceeds the payment amount. This is the one regression-proven by deliberately breaking the code first: temporarily removing the `SELECT ... FOR UPDATE` row lock and inserting an artificial delay between the balance check and the insert reproduced the real bug (both refunds succeeded, $140 adjusted off a $100 payment) before the lock was restored and reconfirmed to prevent it. If you want to see the failure yourself, comment out `FOR UPDATE` in `adjustmentService.createAdjustment`'s `SELECT` and re-run this one test — do not leave that change in place.
+- A void always adjusts the full remaining amount (ignoring whatever `amount` was passed), even after a prior partial refund.
+- Only a `confirmed` payment can be adjusted — a `pending` payment (inserted directly via SQL to manufacture the state) is rejected.
+- The append-only trigger blocks a direct `UPDATE`/`DELETE` against `payment_adjustments`, asserted via a direct `pool.query` call against the real table (not through the service layer).
+- Tenant isolation — a payment id belonging to a different tenant 404s.
+- Balances, credit, and the period summary all reflect net paid (payment amount minus its adjustments), not the gross payment amount, after a refund.
+- A legacy `status = 'refunded'` payment with zero adjustment rows is still treated as fully refunded (net paid 0) — proving the "never backfilled" legacy-data rule holds without any special-case SQL.
+- The period summary's "Refunded" figure is counted by the ADJUSTMENT's own date, not the original payment's date — proven under a hostile clock (`TZ=Pacific/Kiritimati`, UTC+14) to confirm the date boundary is Postgres-`::date`-based, never Node-process-local-time-based.
+- The CSV export includes both the payment row and its adjustment row, with the adjustment row carrying the ORIGINAL payment's receipt number (an adjustment has no receipt number of its own).
+
+Test cleanup for this one table has to work around the very trigger being tested: the file's own `deleteAdjustmentsForTenant` helper wraps its single teardown `DELETE` in `ALTER TABLE payment_adjustments DISABLE TRIGGER ALL` / `ENABLE TRIGGER ALL`. This is test-infrastructure-only — no application code does this anywhere, since the trigger's whole purpose is to block exactly this from everywhere else.
+
+**Frontend:**
+```bash
+cd frontend
+npx vitest run src/components/payments/RefundDialog.test.tsx
+npx vitest run src/components/payments/VoidDialog.test.tsx
+npx vitest run src/components/payments/PaymentArrangementDialog.test.tsx
+npx vitest run src/components/payments/PaymentRowMenu.test.tsx
+npx vitest run src/components/payments/PaymentHistoryModal.test.tsx
+npx vitest run src/components/payments/WhoOwesYouList.test.tsx
+npx vitest run src/pages/PaymentReceiptPrint.test.tsx
+npx vitest run src/components/students/StudentModal.test.tsx
+npx vitest run src/utils/apiErrorMessage.test.ts
+```
+
+**Pass looks like:**
+- `RefundDialog.test.tsx` (8 tests) — amount defaults to and is capped at the remaining amount, shows the already-refunded amount when nonzero, requires a note only for "Other", submits with the exact entered amount/reason/note.
+- `VoidDialog.test.tsx` (7 tests) — no amount field; the submit button always states the full remaining amount; "Use Refund instead" closes this dialog and opens `RefundDialog`; note required only for "Other"; the reason list is the smaller void-specific subset.
+- `PaymentArrangementDialog.test.tsx` (8 tests) — the toggle pre-fills from whether an arrangement is already set; the note field appears only when enabled; submitting calls set or clear depending on the toggle; "Last set" shows the date and, when available, who set it.
+- `PaymentRowMenu.test.tsx` (5 tests) — Print receipt always renders; Refund/Void render only when their corresponding callback prop is provided at all (not merely disabled when absent); outside-click closes the menu.
+- `PaymentHistoryModal.test.tsx` — role gating (admin sees Refund and Void in the row menu, staff sees neither, a fully-adjusted payment hides both regardless of role); status chips read the derived status (Paid/Partly refunded/Refunded/Voided), not the raw stored status; a partly-refunded payment shows a red indented sub-row with the reason, who, and amount; a voided payment's amount renders struck-through (disambiguated in the test from the summary strip's own unrelated `$100.00` via `.line-through` class matching, not just text content); the arrangement badge/"Set arrangement" button render correctly, including the "by {name}" setter name once resolved.
+- `WhoOwesYouList.test.tsx` — a row with an arrangement set shows the amber "Payment arrangement" badge and hides the red age-bucket badge; a row without one shows the reverse.
+- `PaymentReceiptPrint.test.tsx` — an adjusted payment shows its refund line in red with reason and a bold "Net paid" line; an unadjusted payment shows neither (renders exactly as before this phase).
+- `StudentModal.test.tsx` — unaffected by behavior, updated only because its `Enrollment` fixtures now need the three new nullable arrangement fields to satisfy the type.
+- `apiErrorMessage.test.ts` (4 tests) — the new shared error-message helper extracted during this phase to keep the lint warning budget from growing (four new dialogs' `onError` handlers all needed the same `err.response.data.error` extraction).
+
+**Playwright screenshots (light + dark, 6 scenarios = 12 scenario screenshots + 1 auth setup = 15 tests total). Depends on hand-seeded live data documented in the spec's own top comment — not Playwright-seeded, so re-running cold requires recreating it first:**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payments-adjustments.spec.ts
+```
+
+Before running, recreate the live data the spec depends on (adjust ids/token for your own dev database):
+```bash
+TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/login -H "Content-Type: application/json" -d '{"email":"<owner-email>","password":"<password>"}' | jq -r .data.token)
+curl -X POST http://localhost:4000/api/payments/<ava-mitchell-50-payment-id>/adjustments -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"adjustmentType":"refund","amount":20,"reasonCode":"other","note":"Screenshot fixture"}'
+curl -X POST http://localhost:4000/api/payments/<marcus-lee-100-payment-id>/adjustments -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"adjustmentType":"void","reasonCode":"entered_in_error"}'
+curl -X POST http://localhost:4000/api/enrollments/381a06bf-fcb6-4740-9398-8ab0e817dc7d/payment-arrangement -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"note":"Paying $50/month until balance clears"}'
+```
+
+**Pass looks like:** the history modal shows Ava Mitchell's $50 payment with a red "Refunded - Other" sub-row for $20 and a "Partly refunded" chip; Marcus Lee's $100 payment shows a struck-through amount and a "Voided" chip; the Refund and Void dialogs render per the mockups described in §41; the arrangement dialog shows "Last set {date} by {name}"; the who-owes-you panel shows the amber "Payment arrangement" badge (not the red age-bucket badge) for Benjamin Hayes' enrollment; the receipt page for Ava Mitchell's payment shows the red refund line and a bold "Net paid: $30.00" line. **Verify the role-gating and struck-through states visually, not just via the route reaching 200** — this spec hit the same unscoped-selector pitfall §2.65 already warned about (`getByRole('button', { name: /view payment history/i })` matching `WhoOwesYouList`'s own row `aria-label` before the student table's button, opening the wrong student's modal) and a Playwright strict-mode violation (`getByText('Voided')` matching both the status chip and the "Voided - Entered by mistake" sub-row) — both were caught by inspecting the actual screenshot output, not by the test turning red.
+
+**Backend gap found and fixed during this phase, confirmed by re-running the full backend suite afterward:** `studentService.ts`'s `activeEnrollment` projection gained `paymentArrangementSetAt/SetBy/Note` without the `ActiveEnrollmentSummary` type gaining matching fields, which crashed the dev server on restart with a TS2322 (not caught by a stale `tsc` run from earlier in the session — a reminder that `tsc --noEmit` needs re-running after every edit, not just once at the start). Fixed by updating the type; `npx tsc --noEmit` clean afterward, full backend suite (1008 tests) and the affected frontend suites re-run green before proceeding. A related, smaller gap (the arrangement dialog showing no setter name because `student.activeEnrollment` only carried a raw user id) was fixed the same session by adding a batched name lookup in `studentService.ts` — see §41 for detail.
+
+**Known gaps, by design (explicit scope boundaries set by the task, not missed work):** no booking-time payment rule or quick-amount chips were added; no form-field changes were made beyond what this phase needed; no list/filter redesign; the payment arrangement marker keeps no history of its own prior settings (only the current state); no booking-rule behavior reads the arrangement marker anywhere — it is purely informational.
+
+---
+
+### 2.67 Payments adjustments review fix: `PUT /payments/:id` can no longer bypass the append-only model
+
+Covers the `PUT /payments/:id` fix in `docs/ARCHITECTURE.md` §41's own "Gap found and fixed after initial review" subsection. A fresh-clone review of §2.66's branch found that `PUT /payments/:id` still let owner/admin/staff flip `amount`, `date`, `paymentMethod`, `status`, or `bsvTransactionId` directly on a confirmed payment — including setting `status` straight to `'refunded'` with no adjustment row. Fixed by locking those 5 fields once a payment is `confirmed`; `notes`/`referenceNumber` stay editable regardless of status, and `pending`/`failed` payments keep their prior free-edit behavior (nothing in this codebase has ever relied on this route to transition them — `markPaymentAsReceived` is the dedicated pending-to-confirmed route).
+
+**Backend (mocked-query, route-level):**
+```bash
+cd backend
+npx vitest run src/__tests__/paymentUpdateImmutability.test.ts
+npx vitest run src/__tests__/paymentServiceCaseConversion.test.ts src/__tests__/tenantIsolation.test.ts src/__tests__/paymentCreateAuditColumns.test.ts
+```
+
+**Pass looks like:** `paymentUpdateImmutability.test.ts` (10 tests) — staff and admin both get 409 (identically — this is not a role gap) trying to change `amount`, `date`, `paymentMethod`, `status`, or `bsvTransactionId` on a confirmed payment, with the error message naming Void/Refund (or, specifically for `amount`, pointing at recording a new payment instead); a nonexistent payment 404s rather than 409ing even with a locked field in the request body; `notes` and `referenceNumber` still update with a 200 on a confirmed payment; a `pending` payment's `amount` and a `failed` payment's `status` can still be corrected, proving the pre-existing transition behavior for those two statuses is unchanged. The three pre-existing test files updated alongside this fix (`paymentServiceCaseConversion.test.ts`, `tenantIsolation.test.ts`, `paymentCreateAuditColumns.test.ts`) each had one `updatePayment(..., { amount: N })` call switched to `{ notes: '...' }` — those tests were asserting camelCase conversion, tenant filtering, and the `updated_by` column respectively, none of which are about the immutability rule, so decoupling them from a field that now 409s on a confirmed payment keeps each test asserting only what it says it does.
+
+**Backend (real-DB):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/paymentUpdateImmutabilityRealDb.integration.test.ts
+```
+
+**Pass looks like** (7 tests, explicit no-op without `TEST_DATABASE_URL`): an amount change on a confirmed payment is rejected with `statusCode: 409` and the payment's amount is unchanged afterward (not partially applied); a status change to `'refunded'` is rejected the same way, proving the old refund-by-flip path is genuinely gone, not just fronted by a new error message; date, paymentMethod, and bsvTransactionId are each independently rejected; notes and referenceNumber both update successfully on a confirmed payment, with amount/status unchanged; a pending payment's amount and a failed payment's status can still be corrected; a payment id belonging to a different tenant 404s rather than 409ing (the pre-check's own tenant filter, not just the eventual UPDATE's). Numeric fields from Postgres come back as strings (`'100.00'`) — this file's own assertions coerce with `Number(...)` before comparing, per CLAUDE.md's numeric-coercion rule; this was caught on first run (`expected '100.00' to be 100`) and fixed before counting the file as passing.
+
+**Frontend:** no new test file — `paymentsApi.update` was deleted from `frontend/src/api/payments.ts` entirely (confirmed via a repo-wide search that no component ever called it; the UI has never had an edit-in-place form for a payment). `npx tsc --noEmit` in `frontend/` is the only check this specific removal needs, and it's included in the full verification pass below.
+
+**Playwright screenshots — force-added, now tracked:** the 14 screenshots from §2.66's spec (`history-refund`, `history-void`, `refund-dialog`, `void-dialog`, `arrangement-dialog`, `who-owes-you-arrangement`, `receipt-refund` × light/dark) were generated under `frontend/e2e-screenshots/__screenshots__/`, which `.gitignore` excludes by design (it's point-in-time visual output, not source) — so they were never actually in the `payments-adjustments` branch despite being referenced in §2.66 and the PR description. Fixed with `git add -f frontend/e2e-screenshots/__screenshots__/payments-adjustments-*.png`, the same force-add already used for every prior branch's own screenshots (`payments-actions-*`, `payments-phase1-*`, etc. — confirmed already tracked in `main` via `git log --diff-filter=A`). Verify any screenshot-producing branch actually committed its captures with:
+```bash
+git ls-tree HEAD -- frontend/e2e-screenshots/__screenshots__/ | grep <branch-prefix>
+```
+A route reaching 200 in CI proves nothing about whether its screenshot made it into the diff - only `git ls-tree` (or `git show --stat`) against the actual commit does.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.
