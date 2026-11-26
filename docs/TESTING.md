@@ -1092,6 +1092,36 @@ Re-running the same `payment-history-layout.spec.ts` from §2.68 regenerates all
 
 ---
 
+### 2.70 Payment History modal review fix: `PaymentRowMenu`'s dropdown clipped inside the table's overflow/sticky context
+
+A review of the §2.68/§2.69 branch found `PaymentRowMenu`'s dropdown (Print receipt/Refund/Void) rendering as only a thin grey sliver when opened, with later rows' own backgrounds painting over whatever did show. Root cause: the menu was `position: absolute` inside the trigger's own `relative inline-block` wrapper, itself inside the table's `overflow-x-auto` scroll container and the sticky `right-0` Actions cell — two separate reasons the menu's real painted area got clipped or buried in the table's own stacking/clipping context, regardless of viewport size.
+
+**Fix:** the menu is now rendered via `createPortal` straight into `document.body`, positioned with `fixed` from the trigger's own `getBoundingClientRect()` — right-aligned to the button, same as before, but computed from real viewport coordinates instead of an `absolute` offset inside a clipped ancestor. This is the exact same pattern already used by `TeamSettings.tsx`'s `MoreActionsMenu` for an identical class of problem — see `PaymentRowMenu.tsx`'s own doc comment for the full reasoning. New behavior added on top of that existing pattern, since the task asked for it explicitly:
+
+- **Flips above the trigger** when there isn't room below it in the viewport (estimated against a fixed 136px menu height — this menu is always at most 3 short rows, so a real post-render measurement isn't needed to make the right call at any viewport size that matters).
+- **Escape returns focus to the trigger button** after closing — without this, a keyboard user's focus would land on nothing once the menu unmounts.
+- Outside click (checking both the trigger and the portaled menu), window resize, and scroll of the modal/table all close the menu, matching `MoreActionsMenu`'s own close-on-scroll behavior (a short-lived transient control, not something scrolled while staying open).
+- `z-[60]`, not `z-50` — `PaymentHistoryModal`'s own backdrop+panel are `z-50`, so the menu needs to sit one layer above its own modal, not merely above the table.
+
+**Frontend (mocked, jsdom):**
+```bash
+cd frontend
+npx vitest run src/components/payments/PaymentRowMenu.test.tsx src/components/payments/PaymentHistoryModal.test.tsx
+```
+
+**Pass looks like:** `PaymentRowMenu.test.tsx` (9 tests, +4 new) — the open menu renders as a direct child of `document.body`, provably NOT a descendant of a `<table>` even when nested inside the exact `overflow-hidden`/`overflow-x-auto` shape `PaymentHistoryModal`'s own table uses; Escape closes the menu and returns focus to the trigger (`document.activeElement === trigger`); an outside click (a genuinely separate element, not a menu item) closes it; and — with `window.innerHeight` fixed at 400 and the trigger's own `getBoundingClientRect` mocked twice in the same test — the menu anchors from `top` when there's room below the trigger, and flips to anchor from `bottom` when there isn't. `PaymentHistoryModal.test.tsx`'s existing row-menu/dialog tests were updated: the trigger CLICK stays scoped to `within(screen.getByRole('table'))` (disambiguating which of the table/card-list's two parallel triggers to click), but every query for an already-OPEN menu's items (`Print receipt`/`Refund`/`Void`) switched from `within(table)` to plain `screen`, since those items are no longer a DOM descendant of the table at all once portaled.
+
+**Playwright screenshots (light + dark; first row, last row flipped, single payment = 6 new screenshots, 13 tests total for this spec including the pre-existing layout screenshots):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-history-layout.spec.ts
+```
+`payment-history-layout.spec.ts` gained a second fixture in `beforeAll` — a student with EIGHT confirmed payments, so the table's last row sits near the bottom of a normal 900px-tall viewport once scrolled into view via `scrollIntoView({ block: 'end' })`, which is the real condition the flip-above logic needs to fire, not a contrived one. The "first row" and "single payment" screenshots reuse the existing one-payment fixture; "last row" uses the new eight-payment one.
+
+**Pass looks like:** on the first row, the menu opens below the trigger with Print receipt/Refund/Void fully legible and nothing clipped or painted over by rows beneath it. On the last of eight rows (scrolled to the bottom of the viewport), the menu visibly renders ABOVE the trigger instead of below — confirmed by looking at the actual screenshot, not inferred from a `style.top`/`style.bottom` assertion alone — with all three items still fully visible above the table's own bottom edge. With a single payment on file, the menu opens cleanly with no extra rows nearby to clip or obscure it. All three hold in both light and dark theme. Also manually verified live (not screenshotted, since a static image can't show it): pressing Escape while the menu is open closes it and visibly returns focus to the trigger button; clicking anywhere else in the modal closes the menu without triggering any of its actions.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.

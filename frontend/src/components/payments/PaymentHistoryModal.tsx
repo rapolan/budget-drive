@@ -352,9 +352,12 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                 ) : (
                   <>
                     {/* Table - sm and up (payment-history-layout). Below
-                        sm, PaymentRowMenu's absolute dropdown and 7 tight
-                        columns don't fit any reasonable phone viewport, so
-                        a stacked card list renders instead (below). */}
+                        sm, 7 tight columns don't fit any reasonable phone
+                        viewport, so a stacked card list renders instead
+                        (below). PaymentRowMenu's own dropdown is portaled
+                        to document.body (payment-history-layout review
+                        fix), so it's no longer clipped by this table's
+                        overflow-x-auto wrapper at any width. */}
                     <div className="hidden sm:block overflow-hidden rounded-lg border border-edge">
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-edge">
