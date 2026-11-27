@@ -119,6 +119,50 @@ export const deletePayment = asyncHandler(async (req: Request, res: Response) =>
  * @desc    Get payments by student
  * @access  Private
  */
+/**
+ * @route   GET /api/v1/payments/student/:studentId/quick-amounts
+ * @desc    Powers the Record Payment form's quick-amount chips
+ *          (payment-form-v2) - next lesson, booked/completed lessons not
+ *          yet covered, remaining course balance, all net of credit
+ *          already on account.
+ * @access  Private
+ */
+export const getPaymentQuickAmounts = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { studentId } = req.params;
+
+  const quickAmounts = await paymentService.getPaymentQuickAmounts(tenantId, studentId);
+
+  res.json({
+    success: true,
+    data: quickAmounts,
+  });
+});
+
+/**
+ * @route   GET /api/v1/payments/student/:studentId/duplicate-check?amount=&paymentMethod=
+ * @desc    Powers the Record Payment form's gentle duplicate-payment
+ *          warning (payment-form-v2) - never blocking, just a nudge.
+ * @access  Private
+ */
+export const checkDuplicatePayment = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { studentId } = req.params;
+  const amount = Number(req.query.amount);
+  const paymentMethod = req.query.paymentMethod as string | undefined;
+
+  if (req.query.amount === undefined || Number.isNaN(amount) || amount <= 0 || !paymentMethod) {
+    throw new AppError('amount and paymentMethod query parameters are both required', 400);
+  }
+
+  const result = await paymentService.checkDuplicatePayment(tenantId, studentId, amount, paymentMethod);
+
+  res.json({
+    success: true,
+    data: result,
+  });
+});
+
 export const getPaymentsByStudent = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = getTenantId(req);
   const { studentId } = req.params;

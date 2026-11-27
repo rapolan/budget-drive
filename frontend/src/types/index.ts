@@ -586,6 +586,22 @@ export interface Lesson {
 // - matches backend/src/types/index.ts's Payment.paymentMethod exactly.
 export type PaymentMethod = 'bsv' | 'mnee' | 'stripe_card' | 'paypal' | 'cash' | 'check' | 'debit' | 'credit' | 'venmo' | 'zelle';
 
+// payment-form-v2: powers the Record Payment form's quick-amount chips.
+// null on any field means "nothing to show" (no chip rendered) - never 0
+// used as a stand-in for "not applicable."
+export interface PaymentQuickAmounts {
+  nextLesson: { amount: number; date: string } | null;
+  scheduledLessons: { amount: number; count: number } | null;
+  completedUnpaidLessons: { amount: number; count: number } | null;
+  remainingCourse: number | null;
+}
+
+// payment-form-v2: result of GET /payments/student/:id/duplicate-check
+export interface DuplicatePaymentCheck {
+  isDuplicate: boolean;
+  amount: number | null;
+}
+
 export interface Payment {
   id: string;
   tenantId: string;

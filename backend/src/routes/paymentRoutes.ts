@@ -71,6 +71,25 @@ router.get(
   paymentController.getPaymentsByPaymentMethod
 );
 
+// Record Payment form's quick-amount chips (payment-form-v2) - must be
+// before both /payments/student/:studentId (below) and /payments/:id.
+router.get(
+  '/payments/student/:studentId/quick-amounts',
+  validateUUID('studentId'),
+  paymentsOnly,
+  paymentController.getPaymentQuickAmounts
+);
+
+// Record Payment form's duplicate-payment warning (payment-form-v2) -
+// must be before both /payments/student/:studentId (below) and
+// /payments/:id.
+router.get(
+  '/payments/student/:studentId/duplicate-check',
+  validateUUID('studentId'),
+  paymentsOnly,
+  paymentController.checkDuplicatePayment
+);
+
 // Get payments by student (must be before /:id)
 router.get(
   '/payments/student/:studentId',

@@ -1211,6 +1211,37 @@ npx vitest run src/__tests__/instructorEarningsNoShow.test.ts
 
 ---
 
+### 2.73 Record Payment form redesign (payment-form-v2)
+
+`PaymentModal.tsx` rewritten to a two-step form (`'form' | 'confirmation'`): no default payment method (must be explicitly chosen, with an inline error on submit if missing), BSV/MNEE method chips hidden entirely (not shown-disabled) unless `enableBlockchainPayments` is on, quick-amount chips built from the student's real data, a same-day duplicate-payment warning, an overpay credit note, and a "Payment recorded" confirmation step with Print receipt/Record another/Done. All 4 existing entry points (Payments page toolbar, card/row "Add Payment", payment history modal, Who Owes You row, and the booking-eligibility banner) keep working unchanged - `PaymentModal`'s prop interface (`isOpen`/`onClose`/`student`) did not change. See `docs/ARCHITECTURE.md` §44 for the quick-amount FIFO-allocation design and the duplicate-check's deliberate server-side 24h-window approach.
+
+**Backend (mocked-query, new):**
+```bash
+cd backend
+npx vitest run src/__tests__/paymentQuickAmounts.test.ts src/__tests__/paymentQuickAmountsRoutes.test.ts
+```
+
+**Pass looks like:** `paymentQuickAmounts.test.ts` (12 tests) - a $0-lessons student gets every chip as `null`; with no payments at all every bucket shows its full lesson-sum cost; a partial payment covers the oldest completed lesson first, then the next, FIFO; enough payment to clear all completed debt partially covers the next scheduled lesson; a full credit clears every bucket; a `no_show` lesson's cost is excluded entirely from every bucket, same as `cancelled`; a package-priced enrollment's `totalCost` override drives `remainingCourse` independent of the lesson-bucket sum; every tenant-scoped query call includes `tenantId` in its params; a student outside the tenant 404s. `paymentQuickAmountsRoutes.test.ts` (7 tests) - staff/admin can reach both new routes (200), instructor is rejected (403, financial data is never instructor-visible), unknown student 404s, duplicate-check 400s when `amount`/`paymentMethod` query params are missing, and returns the correct `isDuplicate`/`amount` shape in both the match and no-match cases.
+
+**Frontend (mocked, jsdom):**
+```bash
+cd frontend
+npx vitest run src/components/payments/PaymentModal.test.tsx src/pages/Payments.test.tsx src/components/scheduling/SmartBookingForm/__tests__/PaymentNeededBanner.test.tsx
+```
+
+**Pass looks like:** `PaymentModal.test.tsx` (22 tests, fully rewritten for this redesign) - no payment method is selected by default and all 6 method chips (plus BSV/MNEE when enabled) render with `aria-pressed="false"` on open; submitting with no method shows "Please choose a payment method" and never calls `paymentsApi.create`; BSV/MNEE chips are absent from the DOM entirely (not just disabled) when `enableBlockchainPayments` is false, and selectable when true; quick-amount chips render each bucket's real amount/label from the mocked `getQuickAmounts` response, de-duplicating two chips that happen to share the same amount, covering a $0-lessons student (no chips), a fully-covered/credit student (no chips), and a response reflecting a `no_show` exclusion; the duplicate-payment warning shows and is dismissible without disabling submit; the overpay note shows the correct credit amount and is absent when the amount is within balance; the confirmation step shows "Payment recorded" with the right amount/method and does NOT call `onClose` until "Done" is clicked, "Record another" resets the form for the same student without closing, "Print receipt" opens `/payments/:id/receipt` in a new tab; the double-submission guard still disables the submit button mid-mutation; the student-selector dropdown (the one entry point with no preselected student, the Payments page's header "Record Payment" button) requires an explicit selection and is absent when a student IS preselected. `Payments.test.tsx` and `PaymentNeededBanner.test.tsx` re-run unchanged and pass with zero new failures, confirming every other entry point and the banner's `onClose`-triggers-a-recheck contract survived the rewrite untouched.
+
+**Playwright screenshots (light + dark; chips, validation error, duplicate warning, overpay note, confirmation, phone width — force-add with `git add -f`, confirm with `git ls-tree`):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-form-v2.spec.ts
+```
+Uses this tenant's existing seed data (Benjamin Hayes has a real outstanding balance with completed/scheduled lessons) rather than creating new fixtures - the quick-amount chips are screenshotted from his real numbers.
+
+**Pass looks like:** the form shows real quick-amount chips (e.g. "2 completed, unpaid · $290.00") with no method pre-selected; submitting with an amount but no method shows the inline "choose a payment method" error; entering an amount/method combo already recorded today shows the gentle "already recorded today" warning with a working Dismiss link, submit still enabled; an amount far exceeding the balance shows "This will leave $X credit on account"; after saving, the confirmation step shows "Payment recorded", the amount, the method, and all three buttons; at phone width both the chip form and the confirmation step remain fully readable with nothing clipped. Verify by looking at the actual screenshots, not just a green exit code.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.

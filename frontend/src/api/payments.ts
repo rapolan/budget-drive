@@ -9,6 +9,8 @@ import type {
   PaymentReceiptData,
   PaymentAdjustment,
   AdjustmentReasonCode,
+  PaymentQuickAmounts,
+  DuplicatePaymentCheck,
 } from '@/types';
 
 export interface CreateAdjustmentInput {
@@ -55,6 +57,29 @@ export const paymentsApi = {
 
   getByStudent: async (studentId: string) => {
     const response = await apiClient.get<ApiResponse<Payment[]>>(`/payments/student/${studentId}`);
+    return response.data;
+  },
+
+  // payment-form-v2: powers the Record Payment form's quick-amount chips
+  // (next lesson / booked lessons / completed-unpaid / remaining course),
+  // all server-derived from the same net-paid/lesson-cost definitions
+  // every other balance figure in this app already uses.
+  getQuickAmounts: async (studentId: string) => {
+    const response = await apiClient.get<ApiResponse<PaymentQuickAmounts>>(
+      `/payments/student/${studentId}/quick-amounts`
+    );
+    return response.data;
+  },
+
+  // payment-form-v2: gentle, non-blocking "already recorded today" check -
+  // server-side so the 24h window compares against Postgres's own clock,
+  // never a JS-side Date parse (see paymentService.checkDuplicatePayment's
+  // own doc comment for why that matters).
+  checkDuplicate: async (studentId: string, amount: number, paymentMethod: string) => {
+    const response = await apiClient.get<ApiResponse<DuplicatePaymentCheck>>(
+      `/payments/student/${studentId}/duplicate-check`,
+      { params: { amount, paymentMethod } }
+    );
     return response.data;
   },
 
