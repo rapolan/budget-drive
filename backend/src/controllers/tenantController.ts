@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import * as tenantService from '../services/tenantService';
+import { getBookingEligibilityPreview } from '../services/bookingEligibilityService';
 import { getTenantId } from '../middleware/tenantContext';
 import { resolveTenantTimezone } from '../utils/tenantTime';
 
@@ -73,5 +74,25 @@ export const updateTenantSettings = asyncHandler(async (req: Request, res: Respo
     success: true,
     data: settings,
     message: 'Tenant settings updated successfully',
+  });
+});
+
+/**
+ * @route   GET /api/v1/tenant/booking-eligibility-preview
+ * @desc    "Preview: students who couldn't book today" (payment-before-
+ *          booking's safety report) - read-only, owner/admin only
+ *          (route-gated), works even while the setting itself is OFF, so
+ *          an owner can review real students/numbers before turning the
+ *          toggle on. Never mutates anything.
+ * @access  Private (owner/admin)
+ */
+export const getBookingEligibilityPreviewReport = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+
+  const rows = await getBookingEligibilityPreview(tenantId);
+
+  res.json({
+    success: true,
+    data: rows,
   });
 });

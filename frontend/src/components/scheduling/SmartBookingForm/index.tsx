@@ -680,6 +680,7 @@ export const SmartBookingForm: React.FC<SmartBookingFormProps> = ({
           getProximityBadge={getProximityBadge}
           onBack={() => setStep('slots')}
           onConfirm={handleConfirmBooking}
+          showPaymentNeededBanner={!isReschedule && Boolean(tenantSettings?.requirePaymentBeforeBooking)}
         />
       )}
 

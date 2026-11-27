@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPage } from './Settings';
 import { tenantsApi, schedulingApi } from '@/api';
+import type { TenantSettings } from '@/types';
 
 function renderSettingsPage() {
   const queryClient = new QueryClient({
@@ -66,7 +67,11 @@ vi.mock('@/api', async () => {
   const actual = await vi.importActual<typeof import('@/api')>('@/api');
   return {
     ...actual,
-    tenantsApi: { ...actual.tenantsApi, updateSettings: vi.fn() },
+    tenantsApi: {
+      ...actual.tenantsApi,
+      updateSettings: vi.fn(),
+      getBookingEligibilityPreview: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    },
     schedulingApi: { ...actual.schedulingApi, getSchedulingSettings: vi.fn(), updateSchedulingSettings: vi.fn() },
   };
 });
@@ -580,5 +585,86 @@ describe('Settings - Scheduling tab (capacity-based scheduling)', () => {
     fireEvent.click(screen.getByRole('button', { name: /save scheduling settings/i }));
 
     expect(await screen.findByText(/scheduling settings not found/i)).toBeInTheDocument();
+  });
+});
+
+describe('Settings - Payments and booking tab (payment-before-booking)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(tenantsApi.getBookingEligibilityPreview).mockResolvedValue({ success: true, data: [] });
+    mockTenantSettings = { ...MOCK_SETTINGS, requirePaymentBeforeBooking: false } as typeof MOCK_SETTINGS;
+  });
+
+  it('shows the toggle OFF by default, with its helper text, and switches it on', async () => {
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.updateSettings).mockResolvedValue({
+      success: true,
+      data: { ...MOCK_SETTINGS, requirePaymentBeforeBooking: true } as TenantSettings,
+    });
+
+    renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /payments and booking/i }));
+
+    expect(await screen.findByText(/require payment before booking/i)).toBeInTheDocument();
+    expect(screen.getByText(/a lesson can only be booked when the student's payments cover it/i)).toBeInTheDocument();
+    expect(screen.getByText(/students on a payment arrangement can still book/i)).toBeInTheDocument();
+    expect(screen.getByText('OFF')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /toggle require payment before booking/i }));
+
+    await waitFor(() => {
+      expect(tenantsApi.updateSettings).toHaveBeenCalledWith({ requirePaymentBeforeBooking: true });
+    });
+    expect(await screen.findByText(/enabled successfully/i)).toBeInTheDocument();
+  });
+
+  it('shows a real error message when the toggle save fails', async () => {
+    mockSchedulingSettingsLoad();
+    const error = Object.assign(new Error('request failed'), {
+      response: { data: { error: 'Only an owner or admin can change this setting' } },
+    });
+    vi.mocked(tenantsApi.updateSettings).mockRejectedValue(error);
+
+    renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /payments and booking/i }));
+    await screen.findByText(/require payment before booking/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /toggle require payment before booking/i }));
+
+    expect(await screen.findByText(/only an owner or admin can change this setting/i)).toBeInTheDocument();
+  });
+
+  it('shows "no students blocked" when the safety-report preview is empty', async () => {
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.getBookingEligibilityPreview).mockResolvedValue({ success: true, data: [] });
+
+    renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /payments and booking/i }));
+
+    expect(await screen.findByText(/no active students would currently be blocked from booking/i)).toBeInTheDocument();
+  });
+
+  it('lists blocked students (name, net paid, scheduled lesson cost) from the safety-report preview, even while the setting is OFF', async () => {
+    mockSchedulingSettingsLoad();
+    vi.mocked(tenantsApi.getBookingEligibilityPreview).mockResolvedValue({
+      success: true,
+      data: [
+        { studentId: 's1', studentName: 'Ava Mitchell', enrollmentId: 'e1', netPaid: 0, nextScheduledLessonCost: 75 },
+        { studentId: 's2', studentName: 'Marcus Lee', enrollmentId: 'e2', netPaid: 25, nextScheduledLessonCost: null },
+      ],
+    });
+
+    renderSettingsPage();
+    fireEvent.click(screen.getByRole('button', { name: /payments and booking/i }));
+
+    expect(await screen.findByText('Ava Mitchell')).toBeInTheDocument();
+    expect(screen.getByText('Marcus Lee')).toBeInTheDocument();
+    expect(screen.getByText('$0.00')).toBeInTheDocument();
+    expect(screen.getByText('$25.00')).toBeInTheDocument();
+    expect(screen.getByText('$75.00')).toBeInTheDocument();
+    // null nextScheduledLessonCost renders as a dash, not "$null" or blank.
+    const rows = screen.getAllByRole('row');
+    const marcusRow = rows.find((r) => r.textContent?.includes('Marcus Lee'));
+    expect(marcusRow?.textContent).toContain('-');
   });
 });

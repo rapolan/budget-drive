@@ -1122,6 +1122,47 @@ npx playwright test e2e-screenshots/payment-history-layout.spec.ts
 
 ---
 
+### 2.71 Payment Before Booking: per-tenant credit gate on new lesson creation
+
+A per-tenant toggle (OFF by default), gated server-side in the lesson-creation path, that blocks booking a new lesson unless the student's active driver_training enrollment has enough credit (net paid minus the cost of its existing non-cancelled lessons) to cover it. Fee flags (cancellation/no-show cash notices) are never read by this check. See `docs/ARCHITECTURE.md` §43 for the full design, including the package-priced-enrollment investigation (conclusion: no such enrollment exists in this codebase today) and the pre-existing, unrelated `availabilityService.getSchedulingSettings` race bug found (and deliberately left unfixed, out of scope) while building the concurrency test below.
+
+**Backend (mocked-query, pure function + service + route level):**
+```bash
+cd backend
+npx vitest run src/__tests__/bookingEligibilityService.test.ts src/__tests__/lessonServiceBookingEligibility.test.ts
+```
+
+**Pass looks like:** `bookingEligibilityService.test.ts` (15 tests) — pay-per-lesson credit math; paying all up front then booking sequentially until credit is exhausted; paid for two lessons, a third of the same cost is blocked at exactly $0 credit; cancelling a lesson returns its cost to credit (proven identical to the lesson being entirely absent); a `'no_show'` lesson's cost is NOT excluded (regression test for the exact no_show-vs-cancelled distinction this feature's design depends on); a lower net-paid figure (simulating a refund or void already netted out) blocks where a higher one would allow, both as a pure-function test and as a mocked-SQL-level test proving the actual net-paid query subtracts `payment_adjustments.amount`; a payment arrangement (`paymentArrangementSetAt` set) always allows regardless of how bad the credit numbers are, proven to return before credit is ever computed; the package-priced/brand-new-enrollment fallback (blocked at net paid $0, allowed at any net paid > 0) with a code comment correcting the task's own "package-priced enrollment" framing against what `computePaymentSummary` actually does (see ARCHITECTURE.md §43's own writeup); tenant isolation on every query (enrollment lookup, lessons lookup, net-paid lookup all scoped by `tenant_id`). `lessonServiceBookingEligibility.test.ts` (5 tests) — setting OFF means the eligibility check is never even called (the single most important regression test in this feature, per its own "nothing changes until the owner turns it on" framing); setting ON with an allowed result books normally, called with the post-discount `finalCost`, not the raw requested cost; setting ON with a blocked result rejects with a 409 `AppError` whose `code` is exactly `'PAYMENT_REQUIRED'`, and the transaction rolls back (not commits) with the client still released; reschedule never triggers this check at all (structural - `updateLesson` never calls it); the concurrency MECHANISM (one transaction, one client, one lock) is exercised via mocks, with the real race-prevention guarantee left to the real-DB test below.
+
+**Backend (real-DB, concurrency):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school npx vitest run src/__tests__/bookingEligibilityConcurrency.integration.test.ts
+```
+
+**Pass looks like** (1 test, explicit no-op without `TEST_DATABASE_URL`): a real tenant/student/enrollment with exactly enough net paid for ONE $100 lesson, two concurrent `createLesson` calls for different non-conflicting slots fired via `Promise.allSettled` — exactly one succeeds, the other is rejected with a 409 `PAYMENT_REQUIRED`, never both (which would mean $200 of lessons booked against $100 of credit). This is the test that actually proves the enrollment row lock prevents the race, not just that the code is shaped correctly.
+
+**Route tests:** covered inline within `lessonServiceBookingEligibility.test.ts` and the existing lesson-route test suites (every booking entry point ultimately calls `lessonService.createLesson`, confirmed to be the single, un-bypassed insertion point for `lessons` rows in this codebase — no other route or service inserts into `lessons` directly). Setting-update owner/admin-only coverage already exists for `PUT /tenant/settings` (pre-existing `requireRole('owner','admin')` gate, unchanged by this feature — no new test needed since no new route-level gating was added, `requirePaymentBeforeBooking` just rides the existing field-builder).
+
+**Frontend (mocked, jsdom):**
+```bash
+cd frontend
+npx vitest run src/components/scheduling/SmartBookingForm/__tests__/PaymentNeededBanner.test.tsx src/components/scheduling/SmartBookingForm/__tests__/SmartBookingForm.test.tsx src/pages/Settings.test.tsx
+```
+
+**Pass looks like:** `PaymentNeededBanner.test.tsx` (6 tests) — the amber "Payment needed" banner with no dollar amounts anywhere when blocked; nothing rendered when allowed; the blue payment-arrangement note instead of the warning banner, checked FIRST even when the underlying credit numbers would otherwise block (matching the server's own precedence); clicking "Record payment" opens `PaymentModal` and closing it (whether saved or cancelled) re-runs the eligibility check; nothing rendered at all (no query fired) when the student has no active enrollment. `SmartBookingForm.test.tsx` gained 3 tests — the banner renders on the Confirm step with the current cost when the tenant setting is on; never renders when the setting is off; never renders in reschedule mode even with the setting on (constructed with the exact `preselectedStudent` + `prefilledInstructorId`/`prefilledDuration`/`prefilledLessonType`/`prefilledPickupAddress` + `existingLesson` shape the pre-existing reschedule tests already establish as correct — reschedule's own student-lock mechanics are not re-derived here, just reused). `Settings.test.tsx` gained 4 tests — the toggle starts OFF with its exact helper text ("A lesson can only be booked when the student's payments cover it. Students on a payment arrangement can still book.") and switches on, a real error message on a failed save, the safety-report preview showing "no students blocked" when empty, and listing blocked students (name, net paid, scheduled lesson cost, with a dash for a null lesson cost) even while the setting itself is off.
+
+**Playwright screenshots (light + dark; banner, arrangement note, Settings toggle + preview, phone width — force-add with `git add -f`, confirm with `git ls-tree`):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-before-booking.spec.ts
+```
+Creates its own self-contained fixture in `beforeAll`: one tenant-wide `requirePaymentBeforeBooking` toggle flip via the Settings API, one student with net paid $0 and no arrangement (triggers the banner), one student with a payment arrangement set (triggers the blue note). Leaves both behind in the dev DB by design, matching this repo's other one-shot fixture-creating specs.
+
+**Pass looks like:** the "Payment needed" banner renders in `SmartBookingForm`'s Confirm step with no dollar amounts visible, in both themes; the blue "Payment arrangement on file" note renders instead for the arrangement student; the Settings page's "Payments and Booking" tab shows the toggle and the safety-report preview table listing the blocked student; at a phone-width viewport the banner and the Settings page both remain fully readable with nothing clipped. Verify by looking at the actual screenshots, not just a green exit code.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.

@@ -226,6 +226,10 @@ export const updateTenantSettings = async (
     fields.push(`enable_driver_education = $${paramCount++}`);
     values.push(data.enableDriverEducation);
   }
+  if (data.requirePaymentBeforeBooking !== undefined) {
+    fields.push(`require_payment_before_booking = $${paramCount++}`);
+    values.push(data.requirePaymentBeforeBooking);
+  }
 
   // Student Defaults
   if (data.defaultHoursRequired !== undefined) {

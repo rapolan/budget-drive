@@ -12,6 +12,7 @@ import * as enrollmentService from '../services/enrollmentService';
 import * as studentService from '../services/studentService';
 import * as transcriptService from '../services/transcriptService';
 import * as adjustmentService from '../services/adjustmentService';
+import { checkBookingEligibility } from '../services/bookingEligibilityService';
 import { getTenantId } from '../middleware/tenantContext';
 
 /**
@@ -178,5 +179,41 @@ export const clearPaymentArrangement = asyncHandler(async (req: Request, res: Re
     success: true,
     data: null,
     message: 'Payment arrangement cleared',
+  });
+});
+
+/**
+ * @route   GET /api/v1/enrollments/:id/booking-eligibility?lessonCost=...
+ * @desc    Pre-submit check (payment-before-booking) - SmartBookingForm
+ *          calls this before the user clicks "Book lesson" to show the
+ *          "Payment needed" banner or the payment-arrangement note ahead
+ *          of time. Uses the exact same bookingEligibilityService function
+ *          the create path's row-locked check is built on (the unlocked
+ *          read-only variant here, since there is nothing to write yet) -
+ *          never a second, divergent definition of "eligible."
+ * @access  Private - any authenticated tenant user (matches
+ *          getWithdrawalTranscript's own no-extra-role-gate precedent;
+ *          this is a read, not a write, and every booking entry point
+ *          needs to call it, including instructor-initiated bookings).
+ */
+export const getBookingEligibility = asyncHandler(async (req: Request, res: Response) => {
+  const tenantId = getTenantId(req);
+  const { id } = req.params;
+  const lessonCost = Number(req.query.lessonCost);
+
+  if (req.query.lessonCost === undefined || Number.isNaN(lessonCost) || lessonCost < 0) {
+    throw new AppError('lessonCost query parameter is required and must be a non-negative number', 400);
+  }
+
+  const enrollment = await enrollmentService.getEnrollmentById(id, tenantId);
+  if (!enrollment) {
+    throw new AppError('Enrollment not found', 404);
+  }
+
+  const eligibility = await checkBookingEligibility(tenantId, id, lessonCost);
+
+  res.json({
+    success: true,
+    data: eligibility,
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockClientQuery, mockGetClient, resetMockClient } from './mocks/database';
 
 // Regression/behavioral coverage for the Google Calendar sync hook points
 // wired into lessonService.ts's 5 lesson-mutating functions
@@ -10,7 +10,7 @@ import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
 // that only resolves after the assertion on createLesson's own timing
 // already ran.
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const mockValidateLessonBooking = vi.fn();
 vi.mock('../services/schedulingService', () => ({
@@ -42,9 +42,20 @@ function mockCreateLessonQuerySequence(overrides: Partial<Record<string, unknown
       queryResult([{ id: 'enrollment-1', student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
     ) // active enrollment
     .mockResolvedValueOnce(queryResult([{ id: INSTRUCTOR_ID }])) // instructor check
-    .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
+    .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings (timezone)
     .mockResolvedValueOnce(queryResult([{ id: 'vehicle-explicit' }])) // explicit vehicle check
     .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation
+    // getTenantSettings is now called unconditionally right after
+    // hasCompletedInternalDriverEducation (payment-before-booking) - no
+    // requirePaymentBeforeBooking field, so the eligibility check never runs.
+    .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]))
+    .mockResolvedValueOnce(queryResult([{ email: null, full_name: 'Jane Doe' }])) // student email lookup
+    .mockResolvedValueOnce(queryResult([{ email: null }])) // instructor email lookup
+    .mockResolvedValueOnce(queryResult([])); // no-show notification dismissal
+
+  // The INSERT now runs inside a transaction on a separate client.
+  mockClientQuery
+    .mockResolvedValueOnce(queryResult([])) // BEGIN
     .mockResolvedValueOnce(
       queryResult([{
         id: LESSON_ID,
@@ -57,14 +68,13 @@ function mockCreateLessonQuerySequence(overrides: Partial<Record<string, unknown
         ...overrides,
       }])
     ) // insert lesson
-    .mockResolvedValueOnce(queryResult([{ email: null, full_name: 'Jane Doe' }])) // student email lookup
-    .mockResolvedValueOnce(queryResult([{ email: null }])) // instructor email lookup
-    .mockResolvedValueOnce(queryResult([])); // no-show notification dismissal
+    .mockResolvedValueOnce(queryResult([])); // COMMIT
 }
 
 describe('lessonService.ts - Google Calendar sync hook points never block the request path', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
     mockValidateLessonBooking.mockReset();
     mockSyncLessonToGoogle.mockReset();
     mockRemoveLessonEventFromInstructorCalendar.mockReset();

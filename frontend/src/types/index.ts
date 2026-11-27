@@ -151,6 +151,12 @@ export interface TenantSettings {
   // Off by default. Gates the Classroom nav page and driver_education's
   // classroom delivery mode (Phase 3 of the compliance-records arc).
   enableDriverEducation?: boolean;
+  // Off by default (payment-before-booking, migration 008). When true,
+  // SmartBookingForm shows a "Payment needed" banner and the server
+  // rejects a new booking (409 PAYMENT_REQUIRED) unless the student's
+  // enrollment has enough credit. Never fires for a reschedule or a
+  // student on a payment arrangement.
+  requirePaymentBeforeBooking?: boolean;
 
   // Onboarding wizard resumability (migration 006) - null until the
   // first-login wizard reaches its final step or is explicitly left via
@@ -647,6 +653,22 @@ export interface PaymentArrangement {
   setBy: string | null;
   setByName: string | null;
   note: string | null;
+}
+
+// payment-before-booking: result of GET /enrollments/:id/booking-eligibility
+export interface BookingEligibility {
+  allowed: boolean;
+  hasPaymentArrangement: boolean;
+}
+
+// payment-before-booking: one row of the Settings page's "Preview:
+// students who couldn't book today" safety report.
+export interface BookingEligibilityPreviewRow {
+  studentId: string;
+  studentName: string;
+  enrollmentId: string;
+  netPaid: number;
+  nextScheduledLessonCost: number | null;
 }
 
 // =====================================================

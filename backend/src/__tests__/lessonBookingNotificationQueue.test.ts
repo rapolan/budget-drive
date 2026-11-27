@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockClientQuery, mockGetClient, resetMockClient } from './mocks/database';
 
 // Regression coverage for the notification_queue table having no migration
 // anywhere in the repo (bug found via a full codebase health audit):
@@ -13,7 +13,7 @@ import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
 // claimed to, and that GET /notifications/history genuinely succeeds
 // against real data instead of 500ing on the missing relation.
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 vi.mock('../services/treasuryService', () => ({
   default: { createTransaction: vi.fn() },
@@ -48,6 +48,7 @@ function signToken(userId: string, role = 'staff') {
 describe('booking a lesson queues notification_queue rows (bug: table had no migration)', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('creates booking_confirmation and reminder rows for both student and instructor', async () => {
@@ -66,6 +67,13 @@ describe('booking a lesson queues notification_queue rows (bug: table had no mig
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking) - no
+      // requirePaymentBeforeBooking field, so the eligibility check never runs.
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: LESSON_ID,
@@ -76,7 +84,8 @@ describe('booking a lesson queues notification_queue rows (bug: table had no mig
           cost: 0, // 0 so the treasury-split block is skipped, isolating this test to notification queueing
           status: 'scheduled',
         }])
-      ); // insert lesson
+      ) // insert lesson
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     // Email lookups feeding the notification_queue inserts (run right after
     // the lesson INSERT, before the calendar-invite/no-show-dismissal calls

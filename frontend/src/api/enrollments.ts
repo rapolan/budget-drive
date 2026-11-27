@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Enrollment, ApiResponse, ProgramType, Student, PaymentArrangement } from '@/types';
+import type { Enrollment, ApiResponse, ProgramType, Student, PaymentArrangement, BookingEligibility } from '@/types';
 
 export interface CreateEnrollmentInput {
   programType: ProgramType;
@@ -126,6 +126,20 @@ export const enrollmentsApi = {
 
   clearPaymentArrangement: async (id: string) => {
     const response = await apiClient.delete<ApiResponse<null>>(`/enrollments/${id}/payment-arrangement`);
+    return response.data;
+  },
+
+  // Pre-submit check (payment-before-booking) - SmartBookingForm calls
+  // this before the user submits, to show the "Payment needed" banner or
+  // the payment-arrangement note ahead of time rather than only finding
+  // out via a 409 on submit. Any authenticated tenant user (not owner/
+  // admin-only - every booking entry point needs this, including
+  // instructor-initiated bookings).
+  getBookingEligibility: async (id: string, lessonCost: number) => {
+    const response = await apiClient.get<ApiResponse<BookingEligibility>>(
+      `/enrollments/${id}/booking-eligibility`,
+      { params: { lessonCost } }
+    );
     return response.data;
   },
 };
