@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockClientQuery, mockGetClient, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const mockValidateLessonBooking = vi.fn();
 vi.mock('../services/schedulingService', () => ({
@@ -35,12 +35,25 @@ function mockThroughToInsert() {
   mockValidateLessonBooking.mockResolvedValueOnce({ valid: true, conflicts: [] });
 }
 
+// The INSERT now happens inside a transaction on a separate client
+// (payment-before-booking's row-locked eligibility check needed the lock
+// and the insert on the same connection) - BEGIN/COMMIT are unused mock
+// results, and the row that used to be the LAST `mockQuery` call is now
+// queued on `mockClientQuery` instead.
+function mockTransactionAround(insertResultRow: Record<string, unknown>) {
+  mockClientQuery
+    .mockResolvedValueOnce(queryResult([])) // BEGIN
+    .mockResolvedValueOnce(queryResult([insertResultRow])) // INSERT INTO lessons
+    .mockResolvedValueOnce(queryResult([])); // COMMIT
+}
+
 // Phase 3 of the compliance-records arc: a per-lesson discount for
 // students who completed the school's own (internal) driver_education,
 // applied authoritatively at booking time - never a client-side estimate.
 describe('lessonService.createLesson - driver_education discount', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
     mockValidateLessonBooking.mockReset();
   });
 
@@ -50,16 +63,20 @@ describe('lessonService.createLesson - driver_education discount', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - none
-      .mockResolvedValueOnce(
-        queryResult([{ id: 'lesson-1', tenant_id: TENANT_ID, cost: '70.00', de_discount_applied: null, status: 'scheduled' }])
-      );
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (previously only inside the
+      // `if (hasInternalDe)` branch, which this test never enters) - no
+      // requirePaymentBeforeBooking field, so it stays falsy/undefined and
+      // the booking-eligibility check never runs.
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+    mockTransactionAround({ id: 'lesson-1', tenant_id: TENANT_ID, cost: '70.00', de_discount_applied: null, status: 'scheduled' });
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID, instructorId: INSTRUCTOR_ID, vehicleId: VEHICLE_ID,
       date: '2026-08-03', startTime: '10:00:00', endTime: '12:00:00', duration: 120, cost: 70,
     });
 
-    const insertCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
+    const insertCall = mockClientQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
     const [, params] = insertCall!;
     expect(params).toContain(70); // cost unchanged
     expect(params).toContain(null); // de_discount_applied null
@@ -71,17 +88,15 @@ describe('lessonService.createLesson - driver_education discount', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: 'de-enrollment-1' }])) // hasCompletedInternalDriverEducation - found
-      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '5.00' }])) // getTenantSettings for the discount amount
-      .mockResolvedValueOnce(
-        queryResult([{ id: 'lesson-1', tenant_id: TENANT_ID, cost: '65.00', de_discount_applied: '5.00', status: 'scheduled' }])
-      );
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '5.00' }])); // getTenantSettings for the discount amount
+    mockTransactionAround({ id: 'lesson-1', tenant_id: TENANT_ID, cost: '65.00', de_discount_applied: '5.00', status: 'scheduled' });
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID, instructorId: INSTRUCTOR_ID, vehicleId: VEHICLE_ID,
       date: '2026-08-03', startTime: '10:00:00', endTime: '12:00:00', duration: 120, cost: 70,
     });
 
-    const insertCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
+    const insertCall = mockClientQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
     const [sql, params] = insertCall!;
     expect(sql).toMatch(/de_discount_applied/);
     expect(params).toContain(65); // 70 - 5
@@ -94,17 +109,15 @@ describe('lessonService.createLesson - driver_education discount', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: 'de-enrollment-1' }])) // has completed internal DE
-      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '50.00' }])) // discount larger than the lesson cost
-      .mockResolvedValueOnce(
-        queryResult([{ id: 'lesson-1', tenant_id: TENANT_ID, cost: '0.00', de_discount_applied: '10.00', status: 'scheduled' }])
-      );
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '50.00' }])); // discount larger than the lesson cost
+    mockTransactionAround({ id: 'lesson-1', tenant_id: TENANT_ID, cost: '0.00', de_discount_applied: '10.00', status: 'scheduled' });
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID, instructorId: INSTRUCTOR_ID, vehicleId: VEHICLE_ID,
       date: '2026-08-03', startTime: '10:00:00', endTime: '12:00:00', duration: 120, cost: 10,
     });
 
-    const insertCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
+    const insertCall = mockClientQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
     const [, params] = insertCall!;
     expect(params).toContain(0); // floored at 0, not -40
     expect(params).toContain(10); // deDiscountApplied capped to the requested cost
@@ -116,10 +129,8 @@ describe('lessonService.createLesson - driver_education discount', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: 'de-enrollment-1' }]))
-      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '5.00' }]))
-      .mockResolvedValueOnce(
-        queryResult([{ id: 'lesson-1', tenant_id: TENANT_ID, cost: '95.00', de_discount_applied: '5.00', status: 'scheduled' }])
-      );
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '5.00' }]));
+    mockTransactionAround({ id: 'lesson-1', tenant_id: TENANT_ID, cost: '95.00', de_discount_applied: '5.00', status: 'scheduled' });
 
     // Admin manually raised the price to 100 in the confirm step
     await createLesson(TENANT_ID, {
@@ -127,7 +138,7 @@ describe('lessonService.createLesson - driver_education discount', () => {
       date: '2026-08-03', startTime: '10:00:00', endTime: '12:00:00', duration: 120, cost: 100,
     });
 
-    const insertCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
+    const insertCall = mockClientQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
     const [, params] = insertCall!;
     expect(params).toContain(95); // 100 - 5, not the default-cost-based 65
   });
@@ -138,17 +149,15 @@ describe('lessonService.createLesson - driver_education discount', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ id: 'de-enrollment-1' }]))
-      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '0.00' }]))
-      .mockResolvedValueOnce(
-        queryResult([{ id: 'lesson-1', tenant_id: TENANT_ID, cost: '70.00', de_discount_applied: null, status: 'scheduled' }])
-      );
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: '0.00' }]));
+    mockTransactionAround({ id: 'lesson-1', tenant_id: TENANT_ID, cost: '70.00', de_discount_applied: null, status: 'scheduled' });
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID, instructorId: INSTRUCTOR_ID, vehicleId: VEHICLE_ID,
       date: '2026-08-03', startTime: '10:00:00', endTime: '12:00:00', duration: 120, cost: 70,
     });
 
-    const insertCall = mockQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
+    const insertCall = mockClientQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO lessons'));
     const [, params] = insertCall!;
     expect(params).toContain(70);
     expect(params).toContain(null);

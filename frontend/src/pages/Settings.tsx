@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/contexts/TenantContext';
 import { tenantsApi, schedulingApi } from '@/api';
-import { Settings as SettingsIcon, Sparkles, Bell, Palette, Info, Calendar, Users } from 'lucide-react';
+import { Settings as SettingsIcon, Sparkles, Bell, Palette, Info, Calendar, Users, DollarSign, AlertTriangle, Handshake } from 'lucide-react';
 import { TeamSettings } from './TeamSettings';
 
 // Shared shape for every sub-tab's save-result banner below.
@@ -54,7 +54,7 @@ const TIMEZONE_OPTIONS: { value: string; label: string }[] = [
   { value: 'UTC', label: 'UTC' },
 ];
 
-type SettingsTab = 'general' | 'team' | 'features' | 'scheduling' | 'branding' | 'notifications';
+type SettingsTab = 'general' | 'team' | 'features' | 'scheduling' | 'payments' | 'branding' | 'notifications';
 
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('scheduling');
@@ -63,6 +63,7 @@ export const SettingsPage: React.FC = () => {
     { id: 'general' as SettingsTab, name: 'General', icon: Info },
     { id: 'team' as SettingsTab, name: 'Team', icon: Users },
     { id: 'scheduling' as SettingsTab, name: 'Scheduling', icon: Calendar },
+    { id: 'payments' as SettingsTab, name: 'Payments and booking', icon: DollarSign },
     { id: 'features' as SettingsTab, name: 'Features', icon: Sparkles },
     { id: 'branding' as SettingsTab, name: 'Branding', icon: Palette },
     { id: 'notifications' as SettingsTab, name: 'Notifications', icon: Bell },
@@ -109,6 +110,7 @@ export const SettingsPage: React.FC = () => {
         {activeTab === 'general' && <GeneralSettings />}
         {activeTab === 'team' && <TeamSettings />}
         {activeTab === 'scheduling' && <SchedulingSettings />}
+        {activeTab === 'payments' && <PaymentsBookingSettings />}
         {activeTab === 'features' && <FeaturesSettings />}
         {activeTab === 'branding' && <BrandingSettings />}
         {activeTab === 'notifications' && <NotificationsSettings />}
@@ -1287,6 +1289,148 @@ const FeaturesSettings: React.FC = () => {
         </div>
       </div>
 
+    </div>
+  );
+};
+
+/**
+ * Payments and Booking Settings Tab (payment-before-booking)
+ * One toggle - OFF by default, server-enforced owner/admin-only write
+ * (this page applies no extra client-side role gate, matching every
+ * other tab here: the server's existing requireRole('owner','admin') on
+ * PUT /tenant/settings is the real boundary) - plus a read-only safety-
+ * report preview that works even while the toggle is off, so an owner can
+ * review real students/balances before turning it on.
+ */
+const PaymentsBookingSettings: React.FC = () => {
+  const { settings, refreshSettings } = useTenant();
+  const [message, setMessage] = useState<SaveMessage>(null);
+
+  const requirePaymentEnabled = settings?.requirePaymentBeforeBooking === true;
+
+  const toggleMutation = useMutation({
+    mutationFn: () => tenantsApi.updateSettings({ requirePaymentBeforeBooking: !requirePaymentEnabled }),
+    onSuccess: async () => {
+      await refreshSettings();
+      setMessage({
+        type: 'success',
+        text: `Require payment before booking ${!requirePaymentEnabled ? 'enabled' : 'disabled'} successfully!`,
+      });
+      setTimeout(() => setMessage(null), 3000);
+    },
+    onError: (error) => {
+      setMessage({ type: 'error', text: mutationErrorText(error, 'Failed to update setting. Please try again.') });
+    },
+  });
+
+  const previewQuery = useQuery({
+    queryKey: ['booking-eligibility-preview'],
+    queryFn: () => tenantsApi.getBookingEligibilityPreview(),
+  });
+  const previewRows = previewQuery.data?.data ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-tx-primary">Payments and Booking</h2>
+        <p className="mt-1 text-sm text-tx-muted">
+          Control whether a lesson can be booked before it's paid for
+        </p>
+      </div>
+
+      {message && (
+        <div
+          className={`rounded-md p-4 ${message.type === 'success' ? 'bg-status-success-bg text-status-success-text' : 'bg-status-danger-bg text-status-danger-text'}`}
+        >
+          {message.text}
+        </div>
+      )}
+
+      <div className="border border-edge rounded-lg p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="text-base font-medium text-tx-primary">Require payment before booking</h3>
+            <p className="mt-2 text-sm text-tx-muted">
+              A lesson can only be booked when the student's payments cover it. Students on a payment
+              arrangement can still book.
+            </p>
+          </div>
+
+          <div className="ml-6 flex-shrink-0">
+            <button
+              onClick={() => { setMessage(null); toggleMutation.mutate(); }}
+              title="Toggle require payment before booking"
+              aria-label="Toggle require payment before booking"
+              disabled={toggleMutation.isPending}
+              className={`
+                relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent
+                transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+                ${requirePaymentEnabled ? 'bg-primary' : 'bg-surface3'}
+                ${toggleMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
+            >
+              <span
+                className={`
+                  pointer-events-none inline-block h-5 w-5 transform rounded-full bg-surface shadow ring-0
+                  transition duration-200 ease-in-out
+                  ${requirePaymentEnabled ? 'translate-x-5' : 'translate-x-0'}
+                `}
+              />
+            </button>
+            <span className="ml-3 text-sm font-medium text-tx-primary">
+              {requirePaymentEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Safety report - read-only, works even while the setting is OFF */}
+      <div className="border border-edge rounded-lg p-6">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-status-warning-text" />
+          <h3 className="text-base font-medium text-tx-primary">Preview: students who couldn't book today</h3>
+        </div>
+        <p className="mt-2 text-sm text-tx-muted">
+          Read-only - shows who this check would currently block, whether or not the toggle above is on.
+          Review this list before turning it on.
+        </p>
+
+        <div className="mt-4">
+          {previewQuery.isLoading ? (
+            <p className="text-sm text-tx-muted">Loading...</p>
+          ) : previewRows.length === 0 ? (
+            <div className="flex items-center gap-2 rounded-lg bg-status-success-bg border border-status-success-border p-3">
+              <Handshake className="h-4 w-4 text-status-success-text flex-shrink-0" />
+              <p className="text-sm text-status-success-text">
+                No active students would currently be blocked from booking.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-edge">
+              <table className="min-w-full divide-y divide-edge text-sm">
+                <thead className="bg-surface2">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-tx-muted">Student</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">Net Paid</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-tx-muted">Scheduled Lesson Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-edge bg-surface">
+                  {previewRows.map((row) => (
+                    <tr key={row.enrollmentId}>
+                      <td className="whitespace-nowrap px-4 py-2 text-tx-primary">{row.studentName}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right text-tx-primary">${Number(row.netPaid).toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-right text-tx-muted">
+                        {row.nextScheduledLessonCost !== null ? `$${Number(row.nextScheduledLessonCost).toFixed(2)}` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

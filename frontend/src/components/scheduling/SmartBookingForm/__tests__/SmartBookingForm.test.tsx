@@ -20,6 +20,7 @@ const updateLesson = vi.fn();
 const getAllStudents = vi.fn();
 const getByStudent = vi.fn();
 const getAllInstructors = vi.fn();
+const getBookingEligibility = vi.fn();
 
 vi.mock('@/api', () => ({
   schedulingApi: {
@@ -37,11 +38,25 @@ vi.mock('@/api', () => ({
   instructorsApi: {
     getAll: (...args: unknown[]) => getAllInstructors(...args),
   },
+  enrollmentsApi: {
+    getBookingEligibility: (...args: unknown[]) => getBookingEligibility(...args),
+  },
+}));
+
+// payment-before-booking's PaymentNeededBanner is exercised in its own
+// isolated PaymentNeededBanner.test.tsx - stubbed here to a simple marker
+// so this file's tests only need to assert WHETHER it renders (wired
+// correctly by ConfirmStep/index.tsx), not its own internal behavior.
+vi.mock('../PaymentNeededBanner', () => ({
+  PaymentNeededBanner: ({ lessonCost }: { lessonCost: number }) => (
+    <div data-testid="payment-needed-banner-stub">payment-needed-banner:{lessonCost}</div>
+  ),
 }));
 
 // Mutable so individual tests can override the tenant's defaultLessonCost
-// without a full vi.mock reset - defaults back to 150 in beforeEach.
-let mockTenantSettings: { defaultLessonCost: number | string } | null = { defaultLessonCost: 150 };
+// (and, for payment-before-booking, requirePaymentBeforeBooking) without a
+// full vi.mock reset - defaults back to the base shape in beforeEach.
+let mockTenantSettings: { defaultLessonCost: number | string; requirePaymentBeforeBooking?: boolean } | null = { defaultLessonCost: 150 };
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({ settings: mockTenantSettings }),
 }));
@@ -161,6 +176,7 @@ beforeEach(() => {
   getAllStudents.mockReset();
   getByStudent.mockReset();
   getAllInstructors.mockReset();
+  getBookingEligibility.mockReset();
 
   getAllStudents.mockResolvedValue({ data: [STUDENT] });
   getByStudent.mockResolvedValue({ data: [] });
@@ -249,6 +265,81 @@ describe('SmartBookingForm - happy path', () => {
 
     await user.click(screen.getByRole('button', { name: /^done$/i }));
     expect(onBookingComplete).toHaveBeenCalledWith('lesson-1');
+  });
+});
+
+describe('SmartBookingForm - payment-before-booking banner wiring', () => {
+  const STUDENT_WITH_ENROLLMENT: Student = {
+    ...STUDENT,
+    activeEnrollment: { id: 'enrollment-1' },
+  } as Student;
+
+  it('renders the banner on the Confirm step when the tenant setting is on, with the current cost', async () => {
+    const user = userEvent.setup();
+    mockTenantSettings = { defaultLessonCost: 150, requirePaymentBeforeBooking: true };
+    getAllStudents.mockResolvedValue({ data: [STUDENT_WITH_ENROLLMENT] });
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({ preselectedStudent: STUDENT_WITH_ENROLLMENT });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+    expect(screen.getByTestId('payment-needed-banner-stub')).toHaveTextContent('payment-needed-banner:150');
+  });
+
+  it('never renders the banner when the tenant setting is off', async () => {
+    const user = userEvent.setup();
+    mockTenantSettings = { defaultLessonCost: 150, requirePaymentBeforeBooking: false };
+    getAllStudents.mockResolvedValue({ data: [STUDENT_WITH_ENROLLMENT] });
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({ preselectedStudent: STUDENT_WITH_ENROLLMENT });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+    expect(screen.queryByTestId('payment-needed-banner-stub')).not.toBeInTheDocument();
+  });
+
+  it('never renders the banner in reschedule mode, even when the tenant setting is on', async () => {
+    const user = userEvent.setup();
+    mockTenantSettings = { defaultLessonCost: 150, requirePaymentBeforeBooking: true };
+    getAllStudents.mockResolvedValue({ data: [STUDENT_WITH_ENROLLMENT] });
+    findRankedAvailableSlots.mockResolvedValue({ slots: [SLOT], failedInstructors: [] });
+
+    renderForm({
+      preselectedStudent: STUDENT_WITH_ENROLLMENT,
+      prefilledInstructorId: EXISTING_LESSON.instructorId,
+      prefilledDuration: Number(EXISTING_LESSON.duration),
+      prefilledLessonType: EXISTING_LESSON.lessonType,
+      prefilledPickupAddress: EXISTING_LESSON.pickupAddress ?? undefined,
+      existingLesson: EXISTING_LESSON,
+    });
+
+    const findButton = await screen.findByRole('button', { name: /find available instructors/i });
+    await waitFor(() => expect(findButton).not.toBeDisabled());
+    await user.click(findButton);
+    const instructorHeader = await screen.findByText('John Smith');
+    await user.click(instructorHeader);
+    const slotButton = await screen.findByText(/10:00 AM - 12:00 PM/i);
+    await user.click(slotButton);
+
+    expect(await screen.findByText('Booking Summary')).toBeInTheDocument();
+    expect(screen.queryByTestId('payment-needed-banner-stub')).not.toBeInTheDocument();
   });
 });
 

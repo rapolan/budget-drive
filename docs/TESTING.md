@@ -944,7 +944,7 @@ TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
   npx vitest run src/__tests__/adjustmentServiceRealDb.integration.test.ts
 ```
 
-**Pass looks like** (10 tests, explicit no-op without `TEST_DATABASE_URL`, same convention as every other `*RealDb.integration.test.ts` file):
+**Pass looks like** (15 tests, explicit no-op without `TEST_DATABASE_URL`, same convention as every other `*RealDb.integration.test.ts` file):
 - A partial refund followed by a second refund requesting more than the remainder is rejected, and the rejected attempt leaves no partial row behind.
 - **Two concurrent refund requests against the same payment, together exceeding its remaining amount, cannot both succeed** — exactly one succeeds, the other is rejected, and the total adjusted never exceeds the payment amount. This is the one regression-proven by deliberately breaking the code first: temporarily removing the `SELECT ... FOR UPDATE` row lock and inserting an artificial delay between the balance check and the insert reproduced the real bug (both refunds succeeded, $140 adjusted off a $100 payment) before the lock was restored and reconfirmed to prevent it. If you want to see the failure yourself, comment out `FOR UPDATE` in `adjustmentService.createAdjustment`'s `SELECT` and re-run this one test — do not leave that change in place.
 - A void always adjusts the full remaining amount (ignoring whatever `amount` was passed), even after a prior partial refund.
@@ -953,10 +953,26 @@ TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
 - Tenant isolation — a payment id belonging to a different tenant 404s.
 - Balances, credit, and the period summary all reflect net paid (payment amount minus its adjustments), not the gross payment amount, after a refund.
 - A legacy `status = 'refunded'` payment with zero adjustment rows is still treated as fully refunded (net paid 0) — proving the "never backfilled" legacy-data rule holds without any special-case SQL.
-- The period summary's "Refunded" figure is counted by the ADJUSTMENT's own date, not the original payment's date — proven under a hostile clock (`TZ=Pacific/Kiritimati`, UTC+14) to confirm the date boundary is Postgres-`::date`-based, never Node-process-local-time-based.
+- The period summary's "Refunded" figure is counted by the ADJUSTMENT's own date, not the original payment's date — proven under a hostile clock (`TZ=Pacific/Kiritimati`, UTC+14), **and now at 5 different faked UTC hours** (02:00, 09:30, 10:30, 16:50, 23:50 — see "CI flake fixed" below for why the hour matters).
 - The CSV export includes both the payment row and its adjustment row, with the adjustment row carrying the ORIGINAL payment's receipt number (an adjustment has no receipt number of its own).
 
 Test cleanup for this one table has to work around the very trigger being tested: the file's own `deleteAdjustmentsForTenant` helper wraps its single teardown `DELETE` in `ALTER TABLE payment_adjustments DISABLE TRIGGER ALL` / `ENABLE TRIGGER ALL`. This is test-infrastructure-only — no application code does this anywhere, since the trigger's whole purpose is to block exactly this from everywhere else.
+
+**CI flake fixed: the hostile-clock test itself was comparing two differently-shifted clocks.** The original test computed `adjustmentDateIso` via `new Date(adjustment.createdAt).toISOString().slice(0, 10)` and compared it against `getPaymentPeriodSummary`'s own Postgres-side `created_at::date` filter, expecting them to always agree. They don't, for a subtle reason specific to how `node-postgres` handles a `timestamp without time zone` column (`payment_adjustments.created_at`) under a hostile `process.env.TZ`:
+
+1. `adjustmentService.createAdjustment` builds `created_at` in application code as `new Date()` (a real, TZ-agnostic UTC instant) — not via Postgres's own `now()`.
+2. When `pg` serializes that JS `Date` as a parameter into a `timestamp without time zone` column, it writes a wall-clock string using the **Node process's own local TZ** (confirmed directly: under `TZ=Pacific/Kiritimati`, UTC+14, a real instant of `2026-11-27T17:11:27Z` gets written to the column as the literal text `2026-11-28 07:11:27` — a full calendar day ahead).
+3. Postgres stores that string as-is (the column type carries no zone of its own) and its own `created_at::date` cast reflects exactly that written string — `2026-11-28` in the example above.
+4. When the SAME process reads `created_at` back out, `pg`'s parser applies the identical (wrong) TZ assumption on the way in, so `adjustment.createdAt` round-trips back to the correct original UTC instant (`2026-11-27T17:11:27Z`) — internally self-consistent, but now disagreeing with what Postgres itself thinks the calendar date is, because step 2's write-side shift and step 4's read-side shift land on different representations (a wall-clock string vs. a UTC instant) that only agree before crossing a day boundary. This is why the bug only reproduced for a UTC hour past ~10:00 (this DB's own server-level default session timezone, confirmed via `SHOW timezone`, is `America/Los_Angeles`, UTC-8 — once the actual UTC instant resolves back far enough on its own date-line math, the Kiritimati round-trip above crosses into the previous or next calendar day relative to what Postgres recorded).
+
+**Fix**: read the date Postgres itself recorded, directly from the database (`SELECT created_at::date::text FROM payment_adjustments WHERE id = $1`), instead of deriving it from a JS-side `Date` parse of the already-round-tripped `adjustment.createdAt`. Applied to both the original hostile-clock test and the CSV-export test right after it (same pattern, not itself broken today only because no sibling test currently leaves `process.env.TZ` in a bad state before it runs — fixed anyway, to not depend on that). A grep across the rest of `backend/src/__tests__/` for the same `new Date(....createdAt).toISOString().slice(0, 10)` pattern combined with a `process.env.TZ` mutation found no other instances; `tenantTimeHostileClock.test.ts` only *mentions* `process.env.TZ` in a comment (explaining why it deliberately does NOT mutate it at runtime) and was already correctly designed before this fix.
+
+**Does the real app have the same problem? Yes — reported here, not fixed in this commit, per the task's own scope.** `backend/src/config/database.ts`'s `Pool` sets no `timezone`/`options` parameter at all, so the Postgres session's timezone is whatever the server defaults to (`America/Los_Angeles` on this dev database) — completely independent of the app's own `process.env.TZ` (confirmed: `backend/.env` sets `TZ=UTC`, and node-postgres/libpq never forwards a client's `TZ` to the Postgres session). That session-vs-process mismatch means `backend/src/services/paymentReportingService.ts` has several of the SAME risky `new Date(row.created_at).toISOString()`-style conversions in real (non-test) code, all reading a `timestamp without time zone` or bare `date` column back into a JS `Date` for display:
+- `getPaymentReceiptData`'s `createdAt: new Date(a.created_at).toISOString()` (an adjustment's displayed timestamp on a receipt).
+- `getPaymentsForExport`'s `date: new Date(row.created_at).toISOString().slice(0, 10)` (an adjustment row's displayed date in the CSV export) — this one is the most consequential, since the SQL filter that SELECTED the row already correctly used `pa.created_at::date`, so the exported date can disagree with the very date range the export itself claims to cover.
+- `getWhoOwesYou`'s `oldestDate`/`lastPaymentDate` conversions (`new Date(row.oldest_date).toISOString().slice(0, 10)` etc.) — these read plain `date` columns (`lessons.date`/`payments.date`), which turn out to have the SAME exposure: a probe directly against this dev database confirmed a `date`-typed column parses to the wrong calendar day under a hostile process TZ too (`'2026-11-27'::date` round-tripped as `2026-11-26` under `TZ=Pacific/Kiritimati`), not just `timestamp without time zone` columns.
+
+In production, this would only actually surface as a wrong displayed/exported date for requests served in whatever UTC-hour window corresponds to the Postgres session TZ crossing a calendar boundary relative to the app's own `TZ=UTC` clock (currently an 8-hour PST / 7-hour PDT gap, so roughly the first 7-8 hours of each UTC day) — a real, currently-live, low-frequency display bug, not a data-integrity issue (nothing is stored wrong; only each of these specific JS-side display/export conversions can show the wrong day). Flagged for a future fix; not touched in this commit, per the task's explicit scope.
 
 **Frontend:**
 ```bash
@@ -1119,6 +1135,79 @@ npx playwright test e2e-screenshots/payment-history-layout.spec.ts
 `payment-history-layout.spec.ts` gained a second fixture in `beforeAll` — a student with EIGHT confirmed payments, so the table's last row sits near the bottom of a normal 900px-tall viewport once scrolled into view via `scrollIntoView({ block: 'end' })`, which is the real condition the flip-above logic needs to fire, not a contrived one. The "first row" and "single payment" screenshots reuse the existing one-payment fixture; "last row" uses the new eight-payment one.
 
 **Pass looks like:** on the first row, the menu opens below the trigger with Print receipt/Refund/Void fully legible and nothing clipped or painted over by rows beneath it. On the last of eight rows (scrolled to the bottom of the viewport), the menu visibly renders ABOVE the trigger instead of below — confirmed by looking at the actual screenshot, not inferred from a `style.top`/`style.bottom` assertion alone — with all three items still fully visible above the table's own bottom edge. With a single payment on file, the menu opens cleanly with no extra rows nearby to clip or obscure it. All three hold in both light and dark theme. Also manually verified live (not screenshotted, since a static image can't show it): pressing Escape while the menu is open closes it and visibly returns focus to the trigger button; clicking anywhere else in the modal closes the menu without triggering any of its actions.
+
+---
+
+### 2.71 Payment Before Booking: per-tenant credit gate on new lesson creation
+
+A per-tenant toggle (OFF by default), gated server-side in the lesson-creation path, that blocks booking a new lesson unless the student's active driver_training enrollment has enough credit (net paid minus the cost of its existing non-cancelled lessons) to cover it. Fee flags (cancellation/no-show cash notices) are never read by this check. See `docs/ARCHITECTURE.md` §43 for the full design, including the package-priced-enrollment investigation (conclusion: no such enrollment exists in this codebase today) and the pre-existing, unrelated `availabilityService.getSchedulingSettings` race bug found (and deliberately left unfixed, out of scope) while building the concurrency test below.
+
+**Backend (mocked-query, pure function + service + route level):**
+```bash
+cd backend
+npx vitest run src/__tests__/bookingEligibilityService.test.ts src/__tests__/lessonServiceBookingEligibility.test.ts
+```
+
+**Pass looks like:** `bookingEligibilityService.test.ts` (15 tests) — pay-per-lesson credit math; paying all up front then booking sequentially until credit is exhausted; paid for two lessons, a third of the same cost is blocked at exactly $0 credit; cancelling a lesson returns its cost to credit (proven identical to the lesson being entirely absent); a `'no_show'` lesson's cost is NOT excluded (regression test for the exact no_show-vs-cancelled distinction this feature's design depends on); a lower net-paid figure (simulating a refund or void already netted out) blocks where a higher one would allow, both as a pure-function test and as a mocked-SQL-level test proving the actual net-paid query subtracts `payment_adjustments.amount`; a payment arrangement (`paymentArrangementSetAt` set) always allows regardless of how bad the credit numbers are, proven to return before credit is ever computed; the package-priced/brand-new-enrollment fallback (blocked at net paid $0, allowed at any net paid > 0) with a code comment correcting the task's own "package-priced enrollment" framing against what `computePaymentSummary` actually does (see ARCHITECTURE.md §43's own writeup); tenant isolation on every query (enrollment lookup, lessons lookup, net-paid lookup all scoped by `tenant_id`). `lessonServiceBookingEligibility.test.ts` (5 tests) — setting OFF means the eligibility check is never even called (the single most important regression test in this feature, per its own "nothing changes until the owner turns it on" framing); setting ON with an allowed result books normally, called with the post-discount `finalCost`, not the raw requested cost; setting ON with a blocked result rejects with a 409 `AppError` whose `code` is exactly `'PAYMENT_REQUIRED'`, and the transaction rolls back (not commits) with the client still released; reschedule never triggers this check at all (structural - `updateLesson` never calls it); the concurrency MECHANISM (one transaction, one client, one lock) is exercised via mocks, with the real race-prevention guarantee left to the real-DB test below.
+
+**Backend (real-DB, concurrency):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school npx vitest run src/__tests__/bookingEligibilityConcurrency.integration.test.ts
+```
+
+**Pass looks like** (1 test, explicit no-op without `TEST_DATABASE_URL`): a real tenant/student/enrollment with exactly enough net paid for ONE $100 lesson, two concurrent `createLesson` calls for different non-conflicting slots fired via `Promise.allSettled` — exactly one succeeds, the other is rejected with a 409 `PAYMENT_REQUIRED`, never both (which would mean $200 of lessons booked against $100 of credit). This is the test that actually proves the enrollment row lock prevents the race, not just that the code is shaped correctly.
+
+**Route tests:** covered inline within `lessonServiceBookingEligibility.test.ts` and the existing lesson-route test suites (every booking entry point ultimately calls `lessonService.createLesson`, confirmed to be the single, un-bypassed insertion point for `lessons` rows in this codebase — no other route or service inserts into `lessons` directly). Setting-update owner/admin-only coverage already exists for `PUT /tenant/settings` (pre-existing `requireRole('owner','admin')` gate, unchanged by this feature — no new test needed since no new route-level gating was added, `requirePaymentBeforeBooking` just rides the existing field-builder).
+
+**Frontend (mocked, jsdom):**
+```bash
+cd frontend
+npx vitest run src/components/scheduling/SmartBookingForm/__tests__/PaymentNeededBanner.test.tsx src/components/scheduling/SmartBookingForm/__tests__/SmartBookingForm.test.tsx src/pages/Settings.test.tsx
+```
+
+**Pass looks like:** `PaymentNeededBanner.test.tsx` (6 tests) — the amber "Payment needed" banner with no dollar amounts anywhere when blocked; nothing rendered when allowed; the blue payment-arrangement note instead of the warning banner, checked FIRST even when the underlying credit numbers would otherwise block (matching the server's own precedence); clicking "Record payment" opens `PaymentModal` and closing it (whether saved or cancelled) re-runs the eligibility check; nothing rendered at all (no query fired) when the student has no active enrollment. `SmartBookingForm.test.tsx` gained 3 tests — the banner renders on the Confirm step with the current cost when the tenant setting is on; never renders when the setting is off; never renders in reschedule mode even with the setting on (constructed with the exact `preselectedStudent` + `prefilledInstructorId`/`prefilledDuration`/`prefilledLessonType`/`prefilledPickupAddress` + `existingLesson` shape the pre-existing reschedule tests already establish as correct — reschedule's own student-lock mechanics are not re-derived here, just reused). `Settings.test.tsx` gained 4 tests — the toggle starts OFF with its exact helper text ("A lesson can only be booked when the student's payments cover it. Students on a payment arrangement can still book.") and switches on, a real error message on a failed save, the safety-report preview showing "no students blocked" when empty, and listing blocked students (name, net paid, scheduled lesson cost, with a dash for a null lesson cost) even while the setting itself is off.
+
+**Playwright screenshots (light + dark; banner, arrangement note, Settings toggle + preview, phone width — force-add with `git add -f`, confirm with `git ls-tree`):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-before-booking.spec.ts
+```
+Creates its own self-contained fixture in `beforeAll`: one tenant-wide `requirePaymentBeforeBooking` toggle flip via the Settings API, one student with net paid $0 and no arrangement (triggers the banner), one student with a payment arrangement set (triggers the blue note). Leaves both behind in the dev DB by design, matching this repo's other one-shot fixture-creating specs.
+
+**Pass looks like:** the "Payment needed" banner renders in `SmartBookingForm`'s Confirm step with no dollar amounts visible, in both themes; the blue "Payment arrangement on file" note renders instead for the arrangement student; the Settings page's "Payments and Booking" tab shows the toggle and the safety-report preview table listing the blocked student; at a phone-width viewport the banner and the Settings page both remain fully readable with nothing clipped. Verify by looking at the actual screenshots, not just a green exit code.
+
+---
+
+### 2.72 No-show lessons excluded from student cost (owner decision, follow-up to §2.71)
+
+A `'no_show'` lesson's cost no longer counts toward a STUDENT's cost/balance/credit figure anywhere in the app - treated exactly like `'cancelled'`. The student already paid for it; the no-show fee stays a separate cash matter in `fee_flags`, untouched by this change. See `docs/ARCHITECTURE.md` §43's "No-show lessons excluded from student cost" subsection for the full design and the new shared `backend/src/utils/lessonCostFilter.ts` module.
+
+**Backend (mocked-query, the two files updated for the new behavior):**
+```bash
+cd backend
+npx vitest run src/__tests__/bookingEligibilityService.test.ts src/__tests__/computePaymentSummaryCredit.test.ts
+```
+
+**Pass looks like:** `bookingEligibilityService.test.ts`'s former "no_show is NOT excluded" regression test now asserts the opposite - a no-show lesson's cost returns to credit, proven identical to the same scenario with that lesson cancelled instead - plus a new test confirming an outstanding fee flag doesn't matter (the function has no `fee_flags` parameter at all, so it structurally can't read one). `computePaymentSummaryCredit.test.ts` gained a direct unit test asserting a no-show lesson is excluded from the lesson-sum `totalCost` derivation, with the no-show and cancelled scenarios producing an identical result.
+
+**Backend (real-DB, the 3 `paymentReportingService.ts` sites - new file, nothing covered these before this fix):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school npx vitest run src/__tests__/paymentReportingNoShowRealDb.integration.test.ts
+```
+
+**Pass looks like** (5 tests, explicit no-op without `TEST_DATABASE_URL`): `getPaymentPeriodSummary`'s tenant-wide outstanding total shows `$0` for a student whose only unpaid-looking lesson is a no-show, not inflated by its cost; a student whose only lesson is a no-show does not appear in `getWhoOwesYou` at all (nothing left to owe once that lesson's cost is excluded); a student with both a real unpaid lesson and an unrelated no-show lesson shows the correct, lower `amountOwed` in `getWhoOwesYou` (the no-show's cost is not added on top); `getPaymentReceiptData`'s `enrollmentOutstandingBalance`/`enrollmentCreditBalance` exclude a no-show lesson's cost from the enrollment total; and a no-show lesson creates a real, independent `fee_flags` row (status `outstanding`) that has zero effect on any of the balance figures above - proving the fee and the credit exclusion are two genuinely separate numbers, not accidentally linked.
+
+**Backend (instructor earnings, confirming no code change was needed):**
+```bash
+cd backend
+npx vitest run src/__tests__/instructorEarningsNoShow.test.ts
+```
+
+**Pass looks like:** `getInstructorEarnings`'s own SQL still filters `l.status = 'completed'` exactly and was never widened to reference the new shared no-show exclusion - a no-show lesson was already excluded from instructor earnings before this fix (it was never `'completed'`), so this test passes with zero code changes to `instructorService.ts`, proving the pre-existing behavior was already correct.
+
+**Frontend:** no code or test changes - confirmed by searching `frontend/src` for any component that independently re-filters lesson cost by status client-side (none found; every student-facing balance display renders a server-computed number only).
 
 ---
 

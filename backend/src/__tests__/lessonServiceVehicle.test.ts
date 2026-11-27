@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockClientQuery, mockGetClient, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const mockValidateLessonBooking = vi.fn();
 vi.mock('../services/schedulingService', () => ({
@@ -28,6 +28,7 @@ const INSTRUCTOR_ID = 'instructor-1';
 describe('lessonService.createLesson - vehicle auto-assignment', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
     mockValidateLessonBooking.mockReset();
   });
 
@@ -91,6 +92,12 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking).
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: 'lesson-1',
@@ -101,7 +108,8 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
           cost: 0,
           status: 'scheduled',
         }])
-      ); // insert
+      ) // insert
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID,
@@ -176,6 +184,12 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking).
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: 'lesson-1',
@@ -186,7 +200,8 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
           cost: 0,
           status: 'scheduled',
         }])
-      ); // insert
+      ) // insert
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID,
@@ -229,6 +244,12 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking).
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: 'lesson-1',
@@ -239,7 +260,8 @@ describe('lessonService.createLesson - vehicle auto-assignment', () => {
           cost: 0,
           status: 'scheduled',
         }])
-      ); // insert
+      ) // insert
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     await createLesson(TENANT_ID, {
       studentId: STUDENT_ID,

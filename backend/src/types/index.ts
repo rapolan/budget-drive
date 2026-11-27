@@ -71,6 +71,14 @@ export interface TenantSettings {
   // Off by default. Gates the Classroom nav page and driver_education's
   // classroom delivery mode (Phase 3 of the compliance-records arc).
   enableDriverEducation: boolean;
+  // Off by default (payment-before-booking). When true, creating a new
+  // lesson is blocked unless the student's active driver_training
+  // enrollment has enough credit to cover it - see
+  // bookingEligibilityService.ts for the full rule. Never affects
+  // rescheduling/editing an existing lesson, a student on a payment
+  // arrangement, or fee flags (cancellation/no-show fees stay a cash
+  // notice, entirely outside this check).
+  requirePaymentBeforeBooking: boolean;
 
   // Student Defaults
   defaultHoursRequired: number;

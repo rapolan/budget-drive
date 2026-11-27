@@ -41,4 +41,16 @@ router.put(
   tenantController.updateTenantSettings
 );
 
+// "Preview: students who couldn't book today" (payment-before-booking
+// safety report) - owner/admin only, same gate as the settings write
+// above; read-only but shows real student names/balances, so it's not
+// open to every tenant member the way GET /tenant/settings itself is.
+router.get(
+  '/tenant/booking-eligibility-preview',
+  authenticate,
+  requireTenantContext,
+  requireRole('owner', 'admin'),
+  tenantController.getBookingEligibilityPreviewReport
+);
+
 export default router;

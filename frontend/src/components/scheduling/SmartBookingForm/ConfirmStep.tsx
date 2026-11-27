@@ -4,6 +4,7 @@ import { Student } from '@/types';
 import { SlotWithProximity } from './GroupedAvailabilityView';
 import { Button } from '@/components/common';
 import { OutstandingFeeFlagsBanner } from './SetupStep';
+import { PaymentNeededBanner } from './PaymentNeededBanner';
 
 interface ConfirmStepProps {
   selectedStudent: Student | undefined;
@@ -23,6 +24,12 @@ interface ConfirmStepProps {
   getProximityBadge: (score: number) => { label: string; class: string };
   onBack: () => void;
   onConfirm: () => void;
+  // payment-before-booking: the caller (index.tsx) decides this from
+  // !isReschedule && tenantSettings.requirePaymentBeforeBooking - never
+  // computed in here, so "never shown on reschedule, never shown when the
+  // setting is off" stays visible at the one call site rather than
+  // duplicated as a condition inside this component too.
+  showPaymentNeededBanner: boolean;
 }
 
 export const ConfirmStep: React.FC<ConfirmStepProps> = ({
@@ -43,6 +50,7 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
   getProximityBadge,
   onBack,
   onConfirm,
+  showPaymentNeededBanner,
 }) => {
   return (
     <div className="p-6 space-y-6">
@@ -96,6 +104,9 @@ export const ConfirmStep: React.FC<ConfirmStepProps> = ({
       </div>
 
       {selectedStudent && <OutstandingFeeFlagsBanner studentId={selectedStudent.id} />}
+      {selectedStudent && showPaymentNeededBanner && (
+        <PaymentNeededBanner student={selectedStudent} lessonCost={cost} />
+      )}
 
       {/* Editable fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

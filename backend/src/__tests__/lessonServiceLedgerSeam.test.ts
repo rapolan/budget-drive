@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockClientQuery, mockGetClient, resetMockClient } from './mocks/database';
 
 // Regression coverage (bug found via a full codebase health audit):
 // lessonService.ts directly imported and called treasuryService.
@@ -34,7 +34,7 @@ describe('Structural: lessonService.ts routes treasury/BSV activity through the 
   });
 });
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 const mockValidateLessonBooking = vi.fn();
 vi.mock('../services/schedulingService', () => ({
@@ -61,6 +61,7 @@ const LESSON_ID = 'lesson-1';
 describe('lessonService.createLesson - treasury split via the ledger seam (BSV_ENABLED=false)', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
     mockValidateLessonBooking.mockReset();
     vi.resetModules();
   });
@@ -90,6 +91,13 @@ describe('lessonService.createLesson - treasury split via the ledger seam (BSV_E
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking) - no
+      // requirePaymentBeforeBooking field, so the eligibility check never runs.
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: LESSON_ID,
@@ -100,7 +108,8 @@ describe('lessonService.createLesson - treasury split via the ledger seam (BSV_E
           cost: 75,
           status: 'scheduled',
         }])
-      ); // insert lesson
+      ) // insert lesson
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     // Email lookups + notification_queue inserts (no email set, so none fire).
     mockQuery
@@ -171,6 +180,12 @@ describe('lessonService.createLesson - treasury split via the ledger seam (BSV_E
 
     mockQuery
       .mockResolvedValueOnce(queryResult([]))
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking).
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: LESSON_ID,
@@ -181,7 +196,8 @@ describe('lessonService.createLesson - treasury split via the ledger seam (BSV_E
           cost: 75,
           status: 'scheduled',
         }])
-      );
+      )
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     mockQuery
       .mockResolvedValueOnce(queryResult([{ email: null, full_name: 'Jane Doe' }]))

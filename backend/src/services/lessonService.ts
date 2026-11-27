@@ -6,7 +6,7 @@
  * BDP Integration: Treasury splits recorded on lesson booking (Phase 1)
  */
 
-import { query } from '../config/database';
+import { query, getClient } from '../config/database';
 import { Lesson, SchedulingConflict } from '../types';
 import { AppError } from '../middleware/errorHandler';
 import { ledger } from './Ledger';
@@ -18,6 +18,7 @@ import { createLogger } from '../utils/logger';
 import * as notificationService from './notificationService';
 import * as feeFlagService from './feeFlagService';
 import { getActiveDriverTrainingEnrollment, hasCompletedInternalDriverEducation } from './enrollmentService';
+import { checkBookingEligibilityLocked } from './bookingEligibilityService';
 import { resolveTenantTimezone, formatInTenantZone, zonedWallClockToUtc } from '../utils/tenantTime';
 import { syncLessonToGoogle, removeLessonEventFromInstructorCalendar } from './googleCalendarSyncService';
 
@@ -532,44 +533,80 @@ export const createLesson = async (
     let deDiscountApplied: number | null = null;
     const requestedCost = data.cost || 0;
     const hasInternalDe = await hasCompletedInternalDriverEducation(data.studentId, tenantId);
+    const tenantSettingsForCreate = await getTenantSettings(tenantId);
     if (hasInternalDe) {
-      const tenantSettings = await getTenantSettings(tenantId);
-      const discountAmount = Number(tenantSettings?.deDiscountAmount) || 0;
+      const discountAmount = Number(tenantSettingsForCreate?.deDiscountAmount) || 0;
       if (discountAmount > 0) {
         deDiscountApplied = Math.min(discountAmount, requestedCost);
       }
     }
     const finalCost = deDiscountApplied ? requestedCost - deDiscountApplied : requestedCost;
 
-    logger.debug('Inserting lesson into database', { tenantId, deDiscountApplied });
-    const result = await query(
-      `INSERT INTO lessons (
-        tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time,
-        duration, lesson_number, lesson_type, cost, de_discount_applied, status, pickup_address, notes,
-        created_by, updated_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled', $13, $14, $15, $15)
-      RETURNING *, $16 AS student_id`,
-      [
-        tenantId,
-        activeEnrollment.id,
-        data.instructorId,
-        data.vehicleId,
-        lessonDate,
-        lessonStartTime,
-        endTime,
-        duration,
-        data.lessonNumber || null,
-        data.lessonType || 'behind_wheel',
-        finalCost,
-        deDiscountApplied,
-        data.pickupAddress || null,
-        data.notes || null,
-        userId || null,
-        data.studentId,
-      ]
-    );
+    // "Require payment before booking" (payment-before-booking, OFF by
+    // default) - the row-locked eligibility check and the INSERT below
+    // happen inside ONE transaction, on the SAME client, so the lock
+    // taken here actually serializes against a second simultaneous
+    // booking request for this enrollment (see bookingEligibilityService's
+    // own doc comment for why a lock on a different connection would not
+    // help). Everything AFTER the insert (treasury split, notifications,
+    // calendar sync) stays on the plain module-level `query` exactly as
+    // before - those are all already-non-blocking, already-independently-
+    // tolerant-of-failure side effects that never needed to be inside this
+    // lock, and pulling them in would risk holding the enrollment row
+    // locked for far longer than this feature needs.
+    const client = await getClient();
+    let lesson: Lesson;
+    try {
+      await client.query('BEGIN');
 
-    const lesson = keysToCamel(result.rows[0]) as Lesson;
+      if (tenantSettingsForCreate?.requirePaymentBeforeBooking) {
+        const eligibility = await checkBookingEligibilityLocked(client, tenantId, activeEnrollment.id, finalCost);
+        if (!eligibility.allowed) {
+          throw new AppError(
+            'A payment is required before this lesson can be booked.',
+            409,
+            undefined,
+            'PAYMENT_REQUIRED'
+          );
+        }
+      }
+
+      logger.debug('Inserting lesson into database', { tenantId, deDiscountApplied });
+      const result = await client.query(
+        `INSERT INTO lessons (
+          tenant_id, enrollment_id, instructor_id, vehicle_id, date, start_time, end_time,
+          duration, lesson_number, lesson_type, cost, de_discount_applied, status, pickup_address, notes,
+          created_by, updated_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled', $13, $14, $15, $15)
+        RETURNING *, $16 AS student_id`,
+        [
+          tenantId,
+          activeEnrollment.id,
+          data.instructorId,
+          data.vehicleId,
+          lessonDate,
+          lessonStartTime,
+          endTime,
+          duration,
+          data.lessonNumber || null,
+          data.lessonType || 'behind_wheel',
+          finalCost,
+          deDiscountApplied,
+          data.pickupAddress || null,
+          data.notes || null,
+          userId || null,
+          data.studentId,
+        ]
+      );
+
+      await client.query('COMMIT');
+      lesson = keysToCamel(result.rows[0]) as Lesson;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
     logger.info('Lesson created successfully', {
       tenantId,
       lessonId: lesson.id,

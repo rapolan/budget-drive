@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import { mockQuery, resetMockQuery, queryResult } from './mocks/database';
+import { mockQuery, resetMockQuery, queryResult, mockClientQuery, mockGetClient, resetMockClient } from './mocks/database';
 
-vi.mock('../config/database', () => ({ query: mockQuery }));
+vi.mock('../config/database', () => ({ query: mockQuery, getClient: mockGetClient }));
 
 vi.mock('../services/treasuryService', () => ({
   default: { createTransaction: vi.fn() },
@@ -39,6 +39,7 @@ function signToken(userId: string, role = 'staff') {
 describe('no-show notification creation', () => {
   beforeEach(() => {
     resetMockQuery();
+    resetMockClient();
   });
 
   it('marking a lesson no-show creates a follow_up_due notification owned by the acting user', async () => {
@@ -81,6 +82,13 @@ describe('no-show notification creation', () => {
 
     mockQuery
       .mockResolvedValueOnce(queryResult([])) // hasCompletedInternalDriverEducation - no completed DE
+      // getTenantSettings is now called unconditionally right after
+      // hasCompletedInternalDriverEducation (payment-before-booking) - no
+      // requirePaymentBeforeBooking field, so the eligibility check never runs.
+      .mockResolvedValueOnce(queryResult([{ de_discount_amount: null }]));
+
+    mockClientQuery
+      .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(
         queryResult([{
           id: LESSON_ID,
@@ -91,7 +99,8 @@ describe('no-show notification creation', () => {
           cost: 0,
           status: 'scheduled',
         }])
-      ); // insert lesson
+      ) // insert lesson
+      .mockResolvedValueOnce(queryResult([])); // COMMIT
 
     mockQuery.mockResolvedValueOnce(queryResult([])); // dismissal UPDATE
 

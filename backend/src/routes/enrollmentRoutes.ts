@@ -72,6 +72,16 @@ router.get(
   enrollmentController.getWithdrawalTranscript
 );
 
+// Pre-submit booking-eligibility check (payment-before-booking) - read-
+// only, same no-extra-role-gate shape as withdrawal-transcript above (any
+// authenticated tenant user; every booking entry point needs this, not
+// just owner/admin).
+router.get(
+  '/enrollments/:id/booking-eligibility',
+  validateUUID('id'),
+  enrollmentController.getBookingEligibility
+);
+
 // Payment arrangement marker (payments-adjustments) - owner/admin only,
 // same guarded-write shape as reopen/withdraw above. Informational only;
 // no booking-rule behavior is wired to it in this change.
