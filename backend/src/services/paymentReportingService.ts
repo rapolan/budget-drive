@@ -15,6 +15,7 @@
 
 import { query } from '../config/database';
 import { computeReceiptNumber } from './receiptService';
+import { STUDENT_COST_SQL_CONDITION } from '../utils/lessonCostFilter';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -126,7 +127,7 @@ export async function getPaymentPeriodSummary(
     `WITH lesson_totals AS (
        SELECT enrollment_id, SUM(cost) AS lesson_cost_sum
        FROM lessons
-       WHERE tenant_id = $1 AND status != 'cancelled'
+       WHERE tenant_id = $1 AND ${STUDENT_COST_SQL_CONDITION}
        GROUP BY enrollment_id
      ),
      payment_totals AS (
@@ -226,7 +227,7 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
     `WITH lesson_totals AS (
        SELECT enrollment_id, SUM(cost) AS lesson_cost_sum
        FROM lessons
-       WHERE tenant_id = $1 AND status != 'cancelled'
+       WHERE tenant_id = $1 AND ${STUDENT_COST_SQL_CONDITION}
        GROUP BY enrollment_id
      ),
      payment_totals AS (
@@ -393,7 +394,7 @@ export async function getPaymentReceiptData(
   const lessonTotalsResult = await query(
     `SELECT COALESCE(SUM(cost), 0) AS lesson_cost_sum
      FROM lessons
-     WHERE tenant_id = $1 AND enrollment_id = $2 AND status != 'cancelled'`,
+     WHERE tenant_id = $1 AND enrollment_id = $2 AND ${STUDENT_COST_SQL_CONDITION}`,
     [tenantId, row.enrollment_id]
   );
   // NET paid across the whole enrollment (payments-adjustments) - same

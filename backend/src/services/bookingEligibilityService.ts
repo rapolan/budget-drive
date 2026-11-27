@@ -10,9 +10,9 @@
  *          adjustments/refunds/voids, via the SAME SQL
  *          enrollmentService.ts's attachProgressAndPayments already uses -
  *          not a second definition of "paid")
- *          minus the cost of the enrollment's existing NON-CANCELLED
- *          lessons (status != 'cancelled' - this intentionally includes
- *          'no_show', see below)
+ *          minus the cost of the enrollment's STUDENT-COST-COUNTED
+ *          lessons (see utils/lessonCostFilter.ts - excludes both
+ *          'cancelled' and 'no_show')
  *
  * allow if credit >= the new lesson's own cost.
  *
@@ -28,14 +28,14 @@
  * notice only, collected by the instructor in cash, never a payment or a
  * school-side credit - see feeFlagService.ts's own doc comment ("this
  * never touches payments/payment_adjustments"). A 'no_show' lesson's own
- * `cost` still counts toward the enrollment's cost sum below (it is NOT
- * `status = 'cancelled'`, so it is not excluded) - that is a pre-existing,
- * unrelated fact about how this app has always summed lesson cost
- * (computePaymentSummary's own `nonCancelled` filter, which predates this
- * feature and is unchanged here); the thing this feature must never do is
- * read the SEPARATE no-show/late-cancellation FEE FLAG amount and treat it
- * as reducing credit. It never does, because this service never imports or
- * queries fee_flags at all.
+ * `cost` is excluded from the enrollment's cost sum below, the same as a
+ * cancelled lesson's - a deliberate owner decision: the student already
+ * paid for the no-show lesson, so its cost returns to their credit and
+ * they can rebook without paying again. The no-show FEE (a separate cash
+ * matter between student and instructor, tracked in fee_flags) is never
+ * read here either way - this service never imports or queries fee_flags
+ * at all, so excluding a no-show lesson's cost from credit cannot be
+ * confused with reading or reducing by its fee amount.
  *
  * Package-priced enrollments: investigated before implementing (see this
  * branch's own commit/PR description for the full writeup). Conclusion: no

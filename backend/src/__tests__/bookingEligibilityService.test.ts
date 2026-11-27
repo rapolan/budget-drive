@@ -89,23 +89,39 @@ describe('evaluateBookingEligibility - credit math (pure function)', () => {
     expect(asIfAbsent).toEqual(allowedAfterCancel);
   });
 
-  it("a 'no_show' lesson's cost is NOT excluded, unlike 'cancelled' (the feature's own key distinction)", () => {
+  it("a 'no_show' lesson's cost IS excluded from the student's cost sum, same as 'cancelled' (owner decision: the student already paid, the no-show fee is a separate cash matter)", () => {
     const netPaid = 200;
     const withNoShow: LessonFixture[] = [
       { status: 'no_show', cost: 100 },
       { status: 'scheduled', cost: 100 },
     ];
-    // Both lessons' cost still counts (no_show != cancelled) - credit is
-    // exhausted, same as if both were 'scheduled'.
+    // The no-show lesson's cost returns to credit, same as if it were
+    // cancelled - only the remaining $100 'scheduled' lesson counts, so
+    // $200 paid leaves $100 of credit, enough for one more $100 lesson.
     const result = evaluateBookingEligibility({ totalCost: null, paymentArrangementSetAt: null }, withNoShow, netPaid, 100);
-    expect(result.allowed).toBe(false);
+    expect(result.allowed).toBe(true);
 
     const withCancelledInstead: LessonFixture[] = [
       { status: 'cancelled', cost: 100 },
       { status: 'scheduled', cost: 100 },
     ];
     const resultIfCancelled = evaluateBookingEligibility({ totalCost: null, paymentArrangementSetAt: null }, withCancelledInstead, netPaid, 100);
-    expect(resultIfCancelled.allowed).toBe(true);
+    // Identical outcome to the no_show case - that's the point: no_show
+    // and cancelled are treated exactly the same for student cost.
+    expect(resultIfCancelled).toEqual(result);
+  });
+
+  it("a 'no_show' lesson with an outstanding fee flag still returns its cost to credit - the fee is never read by this check", () => {
+    // The fee flag itself (a separate table, fee_flags) is never
+    // constructed or passed to evaluateBookingEligibility at all - this
+    // test proves the credit math doesn't need one to behave correctly,
+    // which is the structural proof that an outstanding fee can't
+    // possibly reduce credit: there's no fee_flags argument anywhere in
+    // this function's signature for it to come from.
+    const netPaid = 100;
+    const lessons: LessonFixture[] = [{ status: 'no_show', cost: 100 }];
+    const result = evaluateBookingEligibility({ totalCost: null, paymentArrangementSetAt: null }, lessons, netPaid, 100);
+    expect(result.allowed).toBe(true);
   });
 
   it('refund reduces credit - a lower netPaid blocks where a higher one would have allowed', () => {

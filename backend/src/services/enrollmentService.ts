@@ -23,6 +23,7 @@ import { keysToCamel } from '../utils/caseConversion';
 import { createLogger } from '../utils/logger';
 import { getTenantSettings } from './tenantService';
 import { resolveTenantTimezone } from '../utils/tenantTime';
+import { isStudentCostCountedStatus } from '../utils/lessonCostFilter';
 import { computeStudentProgress, calculateAge } from './studentProgressService';
 import { getClassroomAttendanceSummaries, getClassroomAttendanceSummary } from './classroomAttendanceService';
 import { resolveFormType } from './certificateService';
@@ -142,7 +143,12 @@ async function attachProgressAndPayments(
 /**
  * total_cost derivation, in priority order: (1) enrollment.totalCost if
  * explicitly set - a quoted package-price override; (2) sum of this
- * enrollment's non-cancelled lessons.cost - the actual charge, since
+ * enrollment's STUDENT-COST-COUNTED lessons.cost (see
+ * utils/lessonCostFilter.ts - excludes 'cancelled' AND 'no_show': a
+ * no-show lesson's cost returns to the student's credit the same as a
+ * cancelled one, a deliberate owner decision - the no-show fee is a
+ * separate cash matter between student and instructor via fee_flags,
+ * never derived from this sum) - the actual charge, since
  * tenant_settings.default_lesson_cost is confirmed to be only a
  * booking-wizard prefill, not an enforced formula (lessons.cost is freely
  * edited per lesson and that's what's actually persisted); (3) null - "not
@@ -155,9 +161,9 @@ export function computePaymentSummary(
 ): EnrollmentPaymentSummary {
   let totalCost: number | null = enrollment.totalCost;
   if (totalCost === null || totalCost === undefined) {
-    const nonCancelled = lessons.filter(l => l.status !== 'cancelled');
-    totalCost = nonCancelled.length > 0
-      ? round2(nonCancelled.reduce((sum, l) => sum + l.cost, 0))
+    const costCounted = lessons.filter(l => isStudentCostCountedStatus(l.status));
+    totalCost = costCounted.length > 0
+      ? round2(costCounted.reduce((sum, l) => sum + l.cost, 0))
       : null;
   }
 

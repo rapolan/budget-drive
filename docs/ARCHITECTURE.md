@@ -1213,7 +1213,8 @@ A per-tenant setting (`tenant_settings.require_payment_before_booking`, migratio
 
 ```
 credit = net paid on the enrollment
-         minus the cost of its existing non-cancelled lessons
+         minus the cost of its existing STUDENT-COST-COUNTED lessons
+           (excludes 'cancelled' AND 'no_show' - see utils/lessonCostFilter.ts)
 allow if credit >= the new lesson's own cost
 ```
 
@@ -1223,7 +1224,7 @@ Implemented in `backend/src/services/bookingEligibilityService.ts` as `evaluateB
 
 Cancellation/no-show fees (`feeFlagService.ts`) are a notice only, collected by the instructor in cash, never a payment or a school-side credit - confirmed before writing any code that nothing in `feeFlagService.ts` ever touches `payments`/`payment_adjustments`, and nothing in the existing booking/scheduling path reads a fee flag to make a booking decision. `bookingEligibilityService.ts` never imports or queries `fee_flags` at all - there is no code path by which a late-cancellation or no-show fee could reduce credit or block a booking, by construction, not by a runtime check.
 
-A `'no_show'` lesson's own `cost` still counts toward the enrollment's cost sum (it is not `status = 'cancelled'`, so `computePaymentSummary`'s own `nonCancelled` filter does not exclude it) - this is a pre-existing, unrelated fact about how lesson cost has always been summed in this app, not something this feature changes. The thing the task asked this feature to never do is treat the SEPARATE fee-flag amount as reducing credit, which it never does since it never reads fee_flags.
+A `'no_show'` lesson's own `cost` is EXCLUDED from the enrollment's cost sum, exactly like `'cancelled'` (see "No-show lessons excluded from student cost" below for the full writeup - this was a deliberate owner decision made shortly after this feature first shipped, not part of the original design). The thing this feature has never done, before or after that change, is treat the SEPARATE fee-flag amount as reducing credit - it never reads fee_flags at all.
 
 ### Package-priced enrollments: investigated, found not to exist in this codebase today
 
@@ -1251,6 +1252,23 @@ A pre-existing, unrelated bug surfaced while building the concurrency integratio
 - **`SmartBookingForm`'s `ConfirmStep`** - a new `PaymentNeededBanner` component (its own file, `SmartBookingForm/PaymentNeededBanner.tsx`) renders next to the existing `OutstandingFeeFlagsBanner`, gated by a `showPaymentNeededBanner` prop the top-level `index.tsx` computes as `!isReschedule && tenantSettings.requirePaymentBeforeBooking` - kept visible at the one call site rather than re-derived inside the banner itself. Because `SmartBookingForm` already has a fully-implemented reschedule mode (an `existingLesson` prop that routes Confirm's submit to `lessonsApi.update` instead of `lessonsApi.create` - this was NOT a gap needing new work, confirmed by reading `index.tsx` before writing anything), gating on `!isReschedule` here automatically matches the server's own behavior: the create-path check in `lessonService.ts` is structurally unreachable from a reschedule, since reschedule never calls `createLesson` at all.
 - The banner fetches the same `GET /enrollments/:id/booking-eligibility` the safety report also uses, keyed by `[enrollmentId, lessonCost]` so it naturally re-fetches if the user edits the cost field. Three states: `hasPaymentArrangement` → a blue note ("Payment arrangement on file. No payment is needed to book.") - checked FIRST, before credit, matching the server's own precedence (`evaluateBookingEligibility`'s arrangement branch returns before computing credit at all); `allowed` → nothing rendered; neither → the amber "Payment needed" banner with a "Record payment" button that opens the existing `PaymentModal` for that student, re-running the eligibility check on close (whether the payment was actually saved or the modal was just cancelled - cheap and idempotent either way, and avoids needing `PaymentModal` to grow its own "did it save" signal). "Book lesson" stays enabled regardless of the banner's state - the real enforcement is the server's 409, this is only an advance warning.
 - **Settings page** - new "Payments and Booking" tab (`PaymentsBookingSettings` in `Settings.tsx`), its own self-contained toggle mutation (matching `FeaturesSettings`'s power-mode toggle pattern, not bundled into `GeneralSettings`'s shared save-everything form, since the toggle and the safety-report preview below it both need their own independent data lifecycle). No client-side role gate on this tab - matching every other tab in this file, the server's existing `requireRole('owner','admin')` on `PUT /tenant/settings` (and the new one on the preview route) is the real, already-enforced boundary.
+
+### No-show lessons excluded from student cost (owner decision, follow-up fix)
+
+Shortly after this feature first shipped, the owner made an explicit call: a `'no_show'` lesson must stop counting toward a STUDENT's cost/balance/credit sum, treated exactly like `'cancelled'`. The student already paid for the no-show lesson - the no-show fee (`fee_flags`, driven by `tenant_settings.cancellationFeeAmount`) is a separate cash matter between student and instructor, and must stay completely untouched by this change.
+
+**New shared definition**: `backend/src/utils/lessonCostFilter.ts` - exports `STUDENT_COST_EXCLUDED_STATUSES = ['cancelled', 'no_show']`, `isStudentCostCountedStatus(status)` for JS-side filtering, and `STUDENT_COST_SQL_CONDITION = "status NOT IN ('cancelled', 'no_show')"` for raw-SQL interpolation. Before this fix, no single shared definition existed: the JS side had one shared function (`computePaymentSummary`) but the SQL side independently inlined `status != 'cancelled'` three separate times. All four call sites now route through this one module instead of each carrying its own copy:
+
+- `enrollmentService.ts`'s `computePaymentSummary` - the `nonCancelled` filter (renamed `costCounted`) now calls `isStudentCostCountedStatus`. This is the ONE shared JS function; `bookingEligibilityService.ts` and `studentService.ts` both already call it and needed zero changes themselves.
+- `paymentReportingService.ts`'s `getPaymentPeriodSummary` (tenant-wide outstanding/credit totals), `getWhoOwesYou` (per-student owed amounts), and `getPaymentReceiptData` (a receipt's enrollment balance figures) - all three raw-SQL sites now interpolate `${STUDENT_COST_SQL_CONDITION}` instead of inlining the filter.
+
+**Confirmed unaffected, investigated by reading the code directly before making any change** (not assumed):
+
+- **Instructor earnings** (`instructorService.ts`'s `getInstructorEarnings`): filters `l.status = 'completed'` exactly, in its own raw SQL. A no-show lesson was never `'completed'`, so it was never included in instructor earnings before this change either - no code change needed here, and the query was deliberately left alone rather than widened to also reference the new shared filter, since doing so would have been pointless (it already excludes no-show lessons via a stricter, unrelated condition).
+- **Treasury/BDP fee splits**: `recordTreasurySplit` fires once, inside `createLesson`, before a lesson's status can ever become `'no_show'`. `noShowLesson` only runs an `UPDATE lessons` for status/review columns plus the fee-flag/notification side effects below - it never touches `treasury_transactions`, so there is nothing to reverse or adjust.
+- **Progress/hours-completed** (`studentProgressService.ts`): filters lessons by status for an entirely different purpose (how much training happened, in hours and lesson counts) and never reads `cost` at all. A no-show lesson was already excluded from "hours completed" (not `'completed'`) and already counted as "booked" (not `'cancelled'`) before this change - unaffected either way, confirmed by reading the file rather than assumed from its name.
+- **`fee_flags`**: `noShowLesson` (`lessonService.ts`) creates the fee flag with `amount` read from `tenant_settings.cancellationFeeAmount`, never from `lesson.cost` - confirmed directly in the code. Excluding a no-show lesson's cost from the student-cost sum cannot be confused with reading or reducing a fee flag's own amount, since the two numbers were never the same number to begin with.
+- **Frontend**: no component independently re-filters lesson cost by status client-side - every student-facing balance display (Payments page, Students page, receipt view) renders a server-computed number only. No frontend change was needed.
 
 ---
 

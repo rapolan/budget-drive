@@ -128,6 +128,33 @@ describe('computePaymentSummary - creditBalance (additive, outstanding/status un
     });
   });
 
+  it("'no_show' lessons are excluded from the lesson-sum totalCost derivation, exactly like 'cancelled' (owner decision: the student already paid - the no-show fee is a separate cash matter, tracked outside this function entirely)", () => {
+    const withNoShow = computePaymentSummary(
+      { totalCost: null },
+      [
+        { status: 'scheduled', cost: 100 },
+        { status: 'no_show', cost: 500 }, // excluded - would otherwise swing this to a huge outstanding balance
+      ],
+      100
+    );
+    const withCancelledInstead = computePaymentSummary(
+      { totalCost: null },
+      [
+        { status: 'scheduled', cost: 100 },
+        { status: 'cancelled', cost: 500 },
+      ],
+      100
+    );
+    expect(withNoShow).toEqual({
+      totalPaid: 100,
+      outstandingBalance: 0,
+      paymentStatus: 'paid',
+      creditBalance: 0,
+    });
+    // Identical outcome to the cancelled case - that's the point.
+    expect(withNoShow).toEqual(withCancelledInstead);
+  });
+
   it('no computable totalCost (no override, no lessons at all): both outstandingBalance and creditBalance are null, status unknown', () => {
     const result = computePaymentSummary({ totalCost: null }, [], 0);
     expect(result).toEqual({

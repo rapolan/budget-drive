@@ -1163,6 +1163,38 @@ Creates its own self-contained fixture in `beforeAll`: one tenant-wide `requireP
 
 ---
 
+### 2.72 No-show lessons excluded from student cost (owner decision, follow-up to §2.71)
+
+A `'no_show'` lesson's cost no longer counts toward a STUDENT's cost/balance/credit figure anywhere in the app - treated exactly like `'cancelled'`. The student already paid for it; the no-show fee stays a separate cash matter in `fee_flags`, untouched by this change. See `docs/ARCHITECTURE.md` §43's "No-show lessons excluded from student cost" subsection for the full design and the new shared `backend/src/utils/lessonCostFilter.ts` module.
+
+**Backend (mocked-query, the two files updated for the new behavior):**
+```bash
+cd backend
+npx vitest run src/__tests__/bookingEligibilityService.test.ts src/__tests__/computePaymentSummaryCredit.test.ts
+```
+
+**Pass looks like:** `bookingEligibilityService.test.ts`'s former "no_show is NOT excluded" regression test now asserts the opposite - a no-show lesson's cost returns to credit, proven identical to the same scenario with that lesson cancelled instead - plus a new test confirming an outstanding fee flag doesn't matter (the function has no `fee_flags` parameter at all, so it structurally can't read one). `computePaymentSummaryCredit.test.ts` gained a direct unit test asserting a no-show lesson is excluded from the lesson-sum `totalCost` derivation, with the no-show and cancelled scenarios producing an identical result.
+
+**Backend (real-DB, the 3 `paymentReportingService.ts` sites - new file, nothing covered these before this fix):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school npx vitest run src/__tests__/paymentReportingNoShowRealDb.integration.test.ts
+```
+
+**Pass looks like** (5 tests, explicit no-op without `TEST_DATABASE_URL`): `getPaymentPeriodSummary`'s tenant-wide outstanding total shows `$0` for a student whose only unpaid-looking lesson is a no-show, not inflated by its cost; a student whose only lesson is a no-show does not appear in `getWhoOwesYou` at all (nothing left to owe once that lesson's cost is excluded); a student with both a real unpaid lesson and an unrelated no-show lesson shows the correct, lower `amountOwed` in `getWhoOwesYou` (the no-show's cost is not added on top); `getPaymentReceiptData`'s `enrollmentOutstandingBalance`/`enrollmentCreditBalance` exclude a no-show lesson's cost from the enrollment total; and a no-show lesson creates a real, independent `fee_flags` row (status `outstanding`) that has zero effect on any of the balance figures above - proving the fee and the credit exclusion are two genuinely separate numbers, not accidentally linked.
+
+**Backend (instructor earnings, confirming no code change was needed):**
+```bash
+cd backend
+npx vitest run src/__tests__/instructorEarningsNoShow.test.ts
+```
+
+**Pass looks like:** `getInstructorEarnings`'s own SQL still filters `l.status = 'completed'` exactly and was never widened to reference the new shared no-show exclusion - a no-show lesson was already excluded from instructor earnings before this fix (it was never `'completed'`), so this test passes with zero code changes to `instructorService.ts`, proving the pre-existing behavior was already correct.
+
+**Frontend:** no code or test changes - confirmed by searching `frontend/src` for any component that independently re-filters lesson cost by status client-side (none found; every student-facing balance display renders a server-computed number only).
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.
