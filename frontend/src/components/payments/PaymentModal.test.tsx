@@ -23,11 +23,13 @@ vi.mock('@/api', async () => {
 });
 
 let mockEnableBlockchainPayments = false;
+let mockTenantNowToday = '2026-11-27';
 vi.mock('@/contexts/TenantContext', () => ({
   useTenant: () => ({
     tenant: null,
     tenantType: 'school',
     settings: { enableBlockchainPayments: mockEnableBlockchainPayments },
+    tenantNow: { today: mockTenantNowToday, monthBoundaries: { start: '2026-11-01', end: '2026-11-30' } },
     loading: false,
     error: null,
     refreshSettings: vi.fn(),
@@ -71,6 +73,7 @@ function renderModal(props: Partial<React.ComponentProps<typeof PaymentModal>> =
 beforeEach(() => {
   vi.clearAllMocks();
   mockEnableBlockchainPayments = false;
+  mockTenantNowToday = '2026-11-27';
   (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
   (paymentsApi.getQuickAmounts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: EMPTY_QUICK_AMOUNTS });
   (paymentsApi.checkDuplicate as ReturnType<typeof vi.fn>).mockResolvedValue({ data: NO_DUPLICATE });
@@ -89,7 +92,7 @@ describe('PaymentModal - payment method (no default)', () => {
   it('has no method selected by default', async () => {
     renderModal();
 
-    for (const name of ['Cash', 'Check', 'Card', 'Zelle', 'Venmo', 'Other']) {
+    for (const name of ['Cash', 'Check', 'Card', 'Zelle', 'Venmo', 'PayPal']) {
       expect(await screen.findByRole('button', { name })).toHaveAttribute('aria-pressed', 'false');
     }
   });
@@ -131,6 +134,48 @@ describe('PaymentModal - payment method (no default)', () => {
     const bsvChip = await screen.findByRole('button', { name: /bsv/i });
     fireEvent.click(bsvChip);
     expect(bsvChip).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('PaymentModal - default date (tenant-local "today", not browser/UTC clock)', () => {
+  it("defaults the date field to tenantNow.today even when it differs from the UTC date", async () => {
+    // A hostile system clock: UTC is already 2026-11-28 (e.g. late evening
+    // in a US Pacific timezone), but the tenant's own school-local "today"
+    // (tenantNow.today, server-resolved) is still 2026-11-27. The date
+    // field must show the tenant's date, never new Date().toISOString()'s
+    // UTC date - that bug is why this test exists. Only Date is faked
+    // (not real timers, which testing-library's findBy*/waitFor need) -
+    // vi.setSystemTime alone overrides `new Date()`/`Date.now()` without
+    // entering fake-timer mode.
+    vi.setSystemTime(new Date('2026-11-28T06:30:00.000Z'));
+    mockTenantNowToday = '2026-11-27';
+
+    renderModal();
+
+    const dateInput = (await screen.findByLabelText('Date')) as HTMLInputElement;
+    expect(dateInput.value).toBe('2026-11-27');
+
+    vi.useRealTimers();
+  });
+
+  it('"Record another" resets the date to tenantNow.today as well, not the browser clock', async () => {
+    vi.setSystemTime(new Date('2026-11-28T06:30:00.000Z'));
+    mockTenantNowToday = '2026-11-27';
+    (paymentsApi.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { id: 'payment-1', amount: '50.00', paymentMethod: 'cash' },
+    });
+
+    renderModal();
+    await fillAmountAndMethod('50', 'Cash');
+    fireEvent.click(screen.getByRole('button', { name: /record payment/i }));
+    await screen.findByText(/payment recorded/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /record another/i }));
+
+    const dateInput = (await screen.findByLabelText('Date')) as HTMLInputElement;
+    expect(dateInput.value).toBe('2026-11-27');
+
+    vi.useRealTimers();
   });
 });
 

@@ -28,15 +28,19 @@ const METHOD_CHIPS: { value: PaymentMethod; label: string }[] = [
   { value: 'credit', label: 'Card' },
   { value: 'zelle', label: 'Zelle' },
   { value: 'venmo', label: 'Venmo' },
-  { value: 'paypal', label: 'Other' },
+  { value: 'paypal', label: 'PayPal' },
 ];
 
-const EMPTY_FORM = (studentId: string): CreatePaymentInput => ({
+// `today` must be the tenant's own school-local "today" (tenantNow.today -
+// the same source Payments.tsx uses for its month boundaries), never a
+// browser/UTC clock read - new Date() is tomorrow's date in the evening
+// Pacific time, for example.
+const EMPTY_FORM = (studentId: string, today: string): CreatePaymentInput => ({
   studentId,
   amount: 0,
   paymentMethod: undefined as unknown as PaymentMethod,
   paymentType: 'lesson_payment',
-  date: new Date().toISOString().split('T')[0],
+  date: today,
   status: 'confirmed',
   notes: '',
   referenceNumber: '',
@@ -67,13 +71,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   student: preselectedStudent,
 }) => {
   const queryClient = useQueryClient();
-  const { settings } = useTenant();
+  const { settings, tenantNow } = useTenant();
   const blockchainPaymentsEnabled = settings?.enableBlockchainPayments === true;
+  // Falls back to an empty string (not a browser-clock date) on the rare
+  // first render before tenantNow has loaded - the date field is still
+  // editable, and the effect below re-seeds it the instant tenantNow
+  // arrives for whichever step/student is current at that moment.
+  const today = tenantNow?.today ?? '';
 
   const [step, setStep] = useState<ModalStep>('form');
   const [savedPayment, setSavedPayment] = useState<Payment | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [formData, setFormData] = useState<CreatePaymentInput>(() => EMPTY_FORM(preselectedStudent?.id || ''));
+  const [formData, setFormData] = useState<CreatePaymentInput>(() => EMPTY_FORM(preselectedStudent?.id || '', today));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
@@ -123,7 +132,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setStep('form');
     setSavedPayment(null);
     setSelectedStudentId(preselectedStudent?.id || '');
-    setFormData(EMPTY_FORM(preselectedStudent?.id || ''));
+    setFormData(EMPTY_FORM(preselectedStudent?.id || '', today));
     setDuplicateDismissed(false);
     setErrors({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,7 +186,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   });
 
   const resetFormForSameStudent = () => {
-    setFormData(EMPTY_FORM(student?.id || ''));
+    setFormData(EMPTY_FORM(student?.id || '', today));
     setDuplicateDismissed(false);
     setErrors({});
     setSavedPayment(null);
@@ -543,7 +552,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             value={formData.notes ?? ''}
             onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
             autoComplete="nope"
-            placeholder="Anything worth remembering about this payment"
+            placeholder="Anything worth remembering"
             className="block w-full rounded-lg border border-edge-strong py-2 px-3 bg-surface text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
