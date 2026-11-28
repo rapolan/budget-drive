@@ -19,7 +19,22 @@ vi.mock('@/api', async () => {
       noShow: vi.fn(),
       cancel: vi.fn(),
     },
-    paymentsApi: { ...actual.paymentsApi, getAll: vi.fn() },
+    paymentsApi: {
+      ...actual.paymentsApi,
+      getAll: vi.fn(),
+      getPeriodSummary: vi.fn().mockResolvedValue({
+        data: {
+          start: '2026-08-01',
+          end: '2026-08-31',
+          collected: { amount: 0, count: 0 },
+          refunded: { amount: 0, count: 0 },
+          net: 0,
+          outstanding: 0,
+          paidNotYetScheduled: 0,
+          collectedByMethod: [],
+        },
+      }),
+    },
     dashboardApi: {
       ...actual.dashboardApi,
       getNoShowAlerts: vi.fn(),
@@ -406,5 +421,49 @@ describe('Dashboard - TodaysScheduleWidget inline actions reuse the same lessons
 
     await waitFor(() => expect(lessonsApi.noShow).toHaveBeenCalledWith('l1', true));
     confirmSpy.mockRestore();
+  });
+});
+
+// payments-dates-and-cards: "Revenue This Month" used to sum raw payment
+// rows client-side (gross collected only, no upper month bound, every
+// refund silently ignored) - now reads the same server-side
+// getPaymentPeriodSummary every other net/collected/refunded figure in
+// this app already uses.
+describe('Dashboard - "Revenue This Month" reflects net, not gross (payments-dates-and-cards)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (instructorsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (lessonsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+    (dashboardApi.getNoShowAlerts as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [] });
+  });
+
+  it('shows the net figure (collected minus refunded) from the server period summary, requested for the tenant\'s own month boundaries', async () => {
+    (paymentsApi.getPeriodSummary as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        start: '2026-08-01',
+        end: '2026-08-31',
+        collected: { amount: 500, count: 3 },
+        refunded: { amount: 120, count: 1 },
+        net: 380,
+        outstanding: 0,
+        paidNotYetScheduled: 0,
+        collectedByMethod: [],
+      },
+    });
+
+    renderDashboard();
+
+    await waitFor(() =>
+      expect(paymentsApi.getPeriodSummary).toHaveBeenCalledWith(
+        MOCK_TENANT_NOW.monthBoundaries.start,
+        MOCK_TENANT_NOW.monthBoundaries.end
+      )
+    );
+    expect(await screen.findByText('$380.00')).toBeInTheDocument();
+    // The old gross figure ($500) never appears as "Revenue This Month" -
+    // only the net, refund-aware figure does.
+    expect(screen.queryByText('$500.00')).not.toBeInTheDocument();
   });
 });

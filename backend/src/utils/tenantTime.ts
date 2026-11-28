@@ -202,3 +202,46 @@ export function parseTenantDateOnly(dateStr: string): Date {
 export function daysBetweenTenantDates(fromDateStr: string, toDateStr: string): number {
   return differenceInDays(parseTenantDateOnly(toDateStr), parseTenantDateOnly(fromDateStr));
 }
+
+/**
+ * SQL fragment: resolves a `timestamp without time zone` column/expression
+ * (one storing a UTC wall-clock value - see database.ts's pool-level
+ * `options: '-c timezone=UTC'`, which makes this the guaranteed convention
+ * for every such column going forward, confirmed already true in
+ * production) to the tenant's own school-local calendar date, entirely in
+ * SQL. `timezoneParamIndex` is the 1-based `$N` placeholder position the
+ * caller's own query text will bind the tenant's timezone string to.
+ *
+ * This is THE shared "school's local date for any timestamp" resolution
+ * (payments-dates-and-cards) - every query reading a date/timestamp column
+ * for display, grouping, or range-filtering against the school's calendar
+ * must use this, never a bare `column::date` (which answers "what date is
+ * this UTC instant in UTC," not "what date is this in the tenant's own
+ * timezone" - two different, frequently disagreeing answers) and never a
+ * JS-side `new Date(row.column)` parse (pg's own JS-side type parser for a
+ * `timestamp without time zone` value interprets the stored wall-clock
+ * string using the NODE PROCESS's local TZ, not UTC - confirmed by direct
+ * probe against a real Postgres instance: a correctly-UTC-stored value,
+ * read back the normal way under a hostile `process.env.TZ`, produces a
+ * JS `Date` representing the WRONG instant, off by the hostile zone's full
+ * UTC offset. There is no JS-side fix for this - the date must be resolved
+ * in SQL and read back as text, never parsed into a JS Date at all).
+ *
+ * Usage: `SELECT ${tenantLocalDateSql('p.created_at')} AS created_date
+ * FROM payments p WHERE ... AND timezone = $3`, then read
+ * `row.created_date` directly as the already-correct YYYY-MM-DD string -
+ * never re-wrap it in `new Date(...)`.
+ */
+export function tenantLocalDateSql(columnExpr: string, timezoneParamIndex: number): string {
+  return `((${columnExpr} AT TIME ZONE 'UTC') AT TIME ZONE $${timezoneParamIndex})::date::text`;
+}
+
+/**
+ * Same as tenantLocalDateSql, but resolves the full school-local
+ * wall-clock timestamp (date AND time) as text, not just the date -
+ * for any future caller that needs "what did the clock on the wall read"
+ * rather than just "what day was it."
+ */
+export function tenantLocalTimestampSql(columnExpr: string, timezoneParamIndex: number): string {
+  return `((${columnExpr} AT TIME ZONE 'UTC') AT TIME ZONE $${timezoneParamIndex})::text`;
+}

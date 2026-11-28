@@ -67,16 +67,19 @@ describe('POST /payments/:id/adjustments - role gating (owner/admin only, staff 
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asRole('admin');
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
 
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: PAYMENT_ID, tenant_id: TENANT_ID, amount: '100.00', status: 'confirmed' }]))
       .mockResolvedValueOnce(queryResult([{ total_adjusted: '0' }]))
+      .mockResolvedValueOnce(queryResult([{ created_at_iso: '2026-01-01T00:00:00.000Z' }])) // to_char(now()...)
       .mockResolvedValueOnce(
         queryResult([{
           id: 'adj-1', tenant_id: TENANT_ID, payment_id: PAYMENT_ID, adjustment_type: 'refund',
           amount: '25.00', reason_code: 'overpaid', note: null, created_by: 'admin-1',
           created_at: '2026-01-01T00:00:00.000Z', ledger_hash: 'abc', ledger_txid: null,
+          created_at_date_local: '2025-12-31',
         }])
       )
       .mockResolvedValueOnce(queryResult([])); // COMMIT
@@ -94,16 +97,19 @@ describe('POST /payments/:id/adjustments - role gating (owner/admin only, staff 
     const { default: app } = await import('../app');
     const token = signToken('owner-1', 'owner');
     asRole('owner');
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
 
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: PAYMENT_ID, tenant_id: TENANT_ID, amount: '100.00', status: 'confirmed' }]))
       .mockResolvedValueOnce(queryResult([{ total_adjusted: '0' }]))
+      .mockResolvedValueOnce(queryResult([{ created_at_iso: '2026-01-01T00:00:00.000Z' }])) // to_char(now()...)
       .mockResolvedValueOnce(
         queryResult([{
           id: 'adj-2', tenant_id: TENANT_ID, payment_id: PAYMENT_ID, adjustment_type: 'void',
           amount: '100.00', reason_code: 'entered_in_error', note: null, created_by: 'owner-1',
           created_at: '2026-01-01T00:00:00.000Z', ledger_hash: 'def', ledger_txid: null,
+          created_at_date_local: '2025-12-31',
         }])
       )
       .mockResolvedValueOnce(queryResult([])); // COMMIT

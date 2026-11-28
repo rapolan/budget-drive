@@ -97,12 +97,33 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
   // duration of ONE cleanup statement is standard practice for tearing
   // down an append-only table's test data; ordinary application code
   // never does this.
+  // Runs disable/delete/enable as one transaction on one dedicated
+  // client, not three separate pool.query() calls (each of which could
+  // land on a different pooled connection) - DISABLE/ENABLE TRIGGER is a
+  // persistent catalog change, not scoped to a connection or session, so
+  // three separate calls are unsafe the moment another
+  // *RealDb.integration.test.ts file is running concurrently against the
+  // same shared dev database (vitest's default file-level parallelism) -
+  // confirmed by direct reproduction once a second file
+  // (paymentDatesHostileClockRealDb.integration.test.ts) started doing
+  // the same disable/enable dance: a "payment_adjustments is append-only:
+  // UPDATE is not permitted" error fired because this file's own cleanup
+  // re-enabled the trigger mid-sequence. A single transaction on one
+  // client lets Postgres's own DDL locking serialize two concurrent
+  // disable/enable sequences correctly instead.
   async function deleteAdjustmentsForTenant(tenantId: string) {
-    await pool.query('ALTER TABLE payment_adjustments DISABLE TRIGGER ALL');
+    const client = await pool.connect();
     try {
-      await pool.query('DELETE FROM payment_adjustments WHERE tenant_id = $1', [tenantId]);
+      await client.query('BEGIN');
+      await client.query('ALTER TABLE payment_adjustments DISABLE TRIGGER ALL');
+      await client.query('DELETE FROM payment_adjustments WHERE tenant_id = $1', [tenantId]);
+      await client.query('ALTER TABLE payment_adjustments ENABLE TRIGGER ALL');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
     } finally {
-      await pool.query('ALTER TABLE payment_adjustments ENABLE TRIGGER ALL');
+      client.release();
     }
   }
 
@@ -373,33 +394,39 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
     expect(summary).toMatchObject({ totalPaid: 0, outstandingBalance: 300, creditBalance: 0 });
   });
 
-  // Hostile-clock pattern: the period summary's refunded-by-adjustment-
-  // date rule relies on `created_at::date` in Postgres. This proves that
-  // holds against a REAL database, not just a mocked assumption, with the
-  // Node process clock set far ahead of the tenant's own boundary.
+  // Hostile-clock pattern (payments-dates-and-cards rewrite of the
+  // original payment-before-booking-era version of this test).
   //
-  // Root cause this test previously got wrong (found investigating a CI
-  // failure that reproduced locally): `new Date(adjustment.createdAt)`
-  // does NOT reliably land on the same calendar day Postgres itself
-  // stored. `payment_adjustments.created_at` is `timestamp without time
-  // zone`, and this DB's own server-level default session timezone
-  // (`SHOW timezone`) is `America/Los_Angeles`, independent of
-  // process.env.TZ - node-postgres/libpq never forwards the Node
-  // process's TZ to the Postgres session. But node-postgres'S OWN
-  // timestamp-without-time-zone PARSER (turning the raw wall-clock string
-  // Postgres returns into a JS Date) DOES use the Node process's local
-  // timezone to interpret that string, since the column carries no
-  // explicit offset of its own. With process.env.TZ set to
-  // Pacific/Kiritimati (UTC+14) below, a value Postgres stored as (say)
-  // "2026-11-27 09:02:26" (its own Pacific-time wall clock) gets
-  // misinterpreted as 09:02:26 KIRITIMATI time, converting to a UTC
-  // instant on the PREVIOUS calendar day - so `adjustmentDateIso`,
-  // computed from that misinterpreted Date, named the wrong day for any
-  // run where the misinterpretation crosses a UTC midnight relative to
-  // when the row was actually written. Reading the date PostgreSQL itself
-  // recorded, directly from the database, sidesteps the JS Date parse
-  // entirely and is correct at every hour of the real clock.
-  it('period summary counts a refund by the adjustment\'s own date boundary, independent of the server process clock (hostile-clock)', async () => {
+  // Two layers of bugs were found and fixed in this area, both proven
+  // here:
+  //
+  // 1. WRITE path: adjustmentService.createAdjustment used to generate
+  //    created_at via `new Date()` in application code, bound as a JS
+  //    Date parameter into a `timestamp without time zone` column. pg's
+  //    own write-serializer for that column type uses the Node PROCESS's
+  //    local TZ to produce the wall-clock string it sends to Postgres -
+  //    confirmed by direct probe that this silently writes a wall-clock
+  //    value shifted by the hostile zone's full UTC offset, independent
+  //    of whatever Postgres's own session timezone is. Fixed by having
+  //    Postgres itself compute now() in SQL and reading it back as plain
+  //    TEXT (never a JS Date) for both the hash input and the INSERT -
+  //    see createAdjustment's own comment for the exact mechanism.
+  // 2. READ path: even a CORRECTLY-stored UTC wall-clock value, read back
+  //    the normal way (letting pg parse it into a JS Date), round-trips
+  //    through the Node process's local TZ again - confirmed by direct
+  //    probe that this can produce a JS Date representing the WRONG
+  //    instant under a hostile TZ. There is no JS-side fix for this - a
+  //    date must be resolved in SQL (tenantLocalDateSql) and read back as
+  //    text, never parsed into a JS Date at all. This is why
+  //    getPaymentPeriodSummary's own refunded-date-range query now uses
+  //    tenantLocalDateSql instead of a bare `created_at::date`.
+  //
+  // This test tenant has no explicit tenant_settings.timezone row, so
+  // resolveTenantTimezone falls back to DEFAULT_TENANT_TIMEZONE
+  // ('America/Los_Angeles') - deliberately NOT UTC, so this test also
+  // proves the tenant-LOCAL date resolution (not just "is it UTC-safe")
+  // is what getPaymentPeriodSummary actually uses.
+  it('period summary counts a refund by the adjustment\'s own TENANT-LOCAL date boundary, independent of the server process clock (hostile-clock)', async () => {
     if (!TEST_DATABASE_URL) return;
     const originalTZ = process.env.TZ;
     process.env.TZ = 'Pacific/Kiritimati'; // UTC+14 - far ahead of any US tenant zone
@@ -412,19 +439,21 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
         reasonCode: 'overpaid',
       });
 
-      // The date Postgres itself stored - read directly from the
-      // database, NOT derived from a JS-side Date parse of
-      // adjustment.createdAt (see the comment above for why that
-      // approach silently names the wrong day under a hostile TZ).
+      // Ground truth: the adjustment's TENANT-LOCAL (America/Los_Angeles)
+      // calendar date, resolved entirely in SQL via the same AT TIME ZONE
+      // pattern tenantLocalDateSql builds - never a JS-side Date parse of
+      // adjustment.createdAt, which (see above) is unsafe under a
+      // hostile process TZ even when the stored value is correct.
       const storedDateResult = await pool.query(
-        `SELECT created_at::date::text AS date FROM payment_adjustments WHERE id = $1`,
-        [adjustment.id]
+        `SELECT ((created_at AT TIME ZONE 'UTC') AT TIME ZONE $2)::date::text AS date
+         FROM payment_adjustments WHERE id = $1`,
+        [adjustment.id, 'America/Los_Angeles']
       );
       const adjustmentDateIso: string = storedDateResult.rows[0].date;
 
-      // A period covering exactly the adjustment's own stored calendar
-      // date must count it - regardless of what process.env.TZ says
-      // right now, and regardless of what hour UTC it currently is.
+      // A period covering exactly the adjustment's own TENANT-LOCAL
+      // calendar date must count it - regardless of what process.env.TZ
+      // says right now, and regardless of what hour UTC it currently is.
       const summary = await paymentReportingService.getPaymentPeriodSummary(
         realTenantId,
         adjustmentDateIso,
@@ -445,25 +474,27 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
   });
 
   // Proves the fix above holds at every hour of the real clock, not just
-  // whatever hour happened to be live when this was written - the
-  // original bug (expected 0 to be >= 30) only reproduced for a UTC hour
-  // past roughly 10:00, because that's when the Postgres-session-vs-
-  // process-TZ wall-clock shift crosses a UTC midnight relative to
-  // adjustment.createdAt's own (internally self-consistent, but
-  // differently-shifted) round trip - see the comment on the test above
-  // for the full mechanism. adjustmentService.createAdjustment generates
-  // created_at from `new Date()` in application code (not Postgres's own
-  // now()), so faking the Node process's system clock via
-  // vi.useFakeTimers()/vi.setSystemTime() genuinely controls what gets
-  // written - this is a real INSERT against the real database at each
-  // faked instant, not a mocked assumption.
+  // whatever hour happened to be live when this was written. Several of
+  // these instants are chosen specifically where UTC and
+  // America/Los_Angeles (this test tenant's resolved timezone) land on
+  // DIFFERENT calendar dates (e.g. 02:00 UTC on the 27th is still the
+  // evening of the 26th in Los Angeles) - a test that only used
+  // instants where both zones agree could pass even with the UTC-vs-
+  // tenant-timezone bug still present. createAdjustment's own now()-in-
+  // SQL approach means faking the Node process's system clock via
+  // vi.useFakeTimers()/vi.setSystemTime() does NOT affect what gets
+  // written (Postgres computes its own now(), independent of the Node
+  // process clock) - these fakes are here only to exercise the READ-path
+  // bug class (a hostile process TZ at query/report time), proving the
+  // fix holds regardless of what the server process's clock claims "now"
+  // is when the report is generated.
   it.each([
     ['02:00 UTC', '2026-11-27T02:00:00.000Z'],
     ['09:30 UTC', '2026-11-27T09:30:00.000Z'],
     ['10:30 UTC', '2026-11-27T10:30:00.000Z'],
     ['16:50 UTC', '2026-11-27T16:50:00.000Z'],
     ['23:50 UTC', '2026-11-27T23:50:00.000Z'],
-  ])('period summary counts a refund by its own date boundary at %s, under a hostile process TZ', async (_label, fakeInstant) => {
+  ])('period summary counts a refund by its own tenant-local date boundary at %s, under a hostile process TZ', async (_label, fakeInstant) => {
     if (!TEST_DATABASE_URL) return;
     const originalTZ = process.env.TZ;
     process.env.TZ = 'Pacific/Kiritimati';
@@ -479,8 +510,9 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
       });
 
       const storedDateResult = await pool.query(
-        `SELECT created_at::date::text AS date FROM payment_adjustments WHERE id = $1`,
-        [adjustment.id]
+        `SELECT ((created_at AT TIME ZONE 'UTC') AT TIME ZONE $2)::date::text AS date
+         FROM payment_adjustments WHERE id = $1`,
+        [adjustment.id, 'America/Los_Angeles']
       );
       const adjustmentDateIso: string = storedDateResult.rows[0].date;
 
@@ -503,6 +535,44 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
     }
   });
 
+  // Direct, narrow regression proof that the WRITE path specifically no
+  // longer depends on the Node process clock: under a hostile
+  // process.env.TZ, the adjustment's stored created_at (resolved to UTC
+  // via AT TIME ZONE 'UTC', independent of session/process timezone)
+  // must land within a few seconds of the real wall-clock instant this
+  // test actually ran at - proving createAdjustment's now()-in-SQL
+  // approach, not a hostile-TZ-corrupted new Date(), produced it.
+  it('created_at is written as a correct UTC instant even under a hostile process TZ (write-path regression)', async () => {
+    if (!TEST_DATABASE_URL) return;
+    const originalTZ = process.env.TZ;
+    process.env.TZ = 'Pacific/Kiritimati';
+    try {
+      const beforeMs = Date.now();
+      const { paymentId } = await makeStudentEnrollmentPayment(realTenantId, 300, 300);
+      const adjustment = await adjustmentService.createAdjustment(realTenantId, paymentId, adminUserId, {
+        adjustmentType: 'refund',
+        amount: 30,
+        reasonCode: 'overpaid',
+      });
+      const afterMs = Date.now();
+
+      const storedResult = await pool.query(
+        `SELECT extract(epoch FROM (created_at AT TIME ZONE 'UTC')) * 1000 AS epoch_ms
+         FROM payment_adjustments WHERE id = $1`,
+        [adjustment.id]
+      );
+      const storedEpochMs = Number(storedResult.rows[0].epoch_ms);
+
+      // A generous window (not an exact match) - this only needs to rule
+      // out the multi-hour shift a hostile TZ would otherwise introduce,
+      // not assert sub-second write latency.
+      expect(storedEpochMs).toBeGreaterThanOrEqual(beforeMs - 5000);
+      expect(storedEpochMs).toBeLessThanOrEqual(afterMs + 5000);
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+
   it('CSV export includes both the original payment row and a separate adjustment row for a refund', async () => {
     if (!TEST_DATABASE_URL) return;
 
@@ -512,15 +582,20 @@ describe('real-Postgres: payment_adjustments (payments-adjustments)', () => {
       amount: 30,
       reasonCode: 'overpaid',
     });
-    // Read the date Postgres itself stored, not a JS-side Date parse of
-    // adjustment.createdAt - see the hostile-clock test above for why
-    // that conversion can silently name the wrong calendar day. This test
-    // doesn't set a hostile TZ itself, but reading the stored date
-    // directly removes any dependency on a sibling test's TZ cleanup
-    // having already run first.
+    // Read the adjustment's TENANT-LOCAL (America/Los_Angeles - this test
+    // tenant's resolved default) calendar date, not a bare UTC
+    // created_at::date and not a JS-side Date parse of
+    // adjustment.createdAt - getPaymentsForExport itself now groups
+    // adjustment rows by this same tenant-local date (tenantLocalDateSql),
+    // so the test's own ground truth must match that same resolution or
+    // this assertion would flake near a UTC-vs-tenant-timezone date
+    // boundary. This test doesn't set a hostile TZ itself, but reading
+    // the stored date directly removes any dependency on a sibling
+    // test's TZ cleanup having already run first.
     const storedDateResult = await pool.query(
-      `SELECT created_at::date::text AS date FROM payment_adjustments WHERE id = $1`,
-      [adjustment.id]
+      `SELECT ((created_at AT TIME ZONE 'UTC') AT TIME ZONE $2)::date::text AS date
+       FROM payment_adjustments WHERE id = $1`,
+      [adjustment.id, 'America/Los_Angeles']
     );
     const adjustmentDateIso: string = storedDateResult.rows[0].date;
 

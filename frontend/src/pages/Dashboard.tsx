@@ -76,6 +76,21 @@ export const DashboardPage: React.FC = () => {
     enabled: !isInstructor,
   });
 
+  // "Revenue This Month" (payments-dates-and-cards): the server's own
+  // period summary, never a client-side sum of raw payment rows - the
+  // prior sumConfirmedInRange-style approach here silently ignored every
+  // refund/void (gross collected only) and had no upper bound on the
+  // month (only checked >= monthBoundaries.start, never <= .end), so a
+  // payment dated in a future month would have been counted too. Same
+  // fix as Payments.tsx's "Collected This Calendar Month" card - net
+  // (collected minus refunded), from the one shared
+  // getPaymentPeriodSummary definition.
+  const { data: monthlyRevenueSummaryData } = useQuery({
+    queryKey: ['payments', 'period-summary', tenantNow?.monthBoundaries.start, tenantNow?.monthBoundaries.end],
+    queryFn: () => paymentsApi.getPeriodSummary(tenantNow!.monthBoundaries.start, tenantNow!.monthBoundaries.end),
+    enabled: !isInstructor && Boolean(tenantNow),
+  });
+
   const { data: noShowAlertsData } = useQuery({
     queryKey: ['dashboard', 'no-show-alerts'],
     queryFn: () => dashboardApi.getNoShowAlerts(),
@@ -166,16 +181,9 @@ export const DashboardPage: React.FC = () => {
     });
   }, [students, tenantNow]);
 
-  // This month's revenue, in the tenant's own month boundaries.
-  const monthlyRevenue = useMemo(() => {
-    if (!tenantNow) return 0;
-    return payments
-      .filter(p => {
-        const paymentDateStr = String(p.date).split('T')[0];
-        return paymentDateStr >= tenantNow.monthBoundaries.start && p.status === 'confirmed';
-      })
-      .reduce((sum, p) => sum + (+p.amount || 0), 0);
-  }, [payments, tenantNow]);
+  // This month's revenue - net (collected minus refunded), from the
+  // server's own period summary (see the query above).
+  const monthlyRevenue = monthlyRevenueSummaryData?.data?.net ?? 0;
 
   // Pending payments
   const pendingPayments = useMemo(() => {

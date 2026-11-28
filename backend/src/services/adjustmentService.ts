@@ -22,6 +22,8 @@ import { createLogger } from '../utils/logger';
 import { keysToCamel } from '../utils/caseConversion';
 import { PaymentAdjustment } from '../types';
 import { computeReceiptNumber, computeAdjustmentLedgerHash } from './receiptService';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone, tenantLocalDateSql } from '../utils/tenantTime';
 
 const logger = createLogger('AdjustmentService');
 
@@ -112,17 +114,21 @@ export function computeNetPaid(
 }
 
 export async function getAdjustmentsForPayment(paymentId: string, tenantId: string): Promise<PaymentAdjustment[]> {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
   const result = await query(
-    `SELECT pa.*, u.full_name AS created_by_name
+    `SELECT pa.*, u.full_name AS created_by_name, ${tenantLocalDateSql('pa.created_at', 3)} AS created_at_date_local
      FROM payment_adjustments pa
      LEFT JOIN users u ON u.id = pa.created_by
      WHERE pa.payment_id = $1 AND pa.tenant_id = $2
      ORDER BY pa.created_at ASC`,
-    [paymentId, tenantId]
+    [paymentId, tenantId, timezone]
   );
   return result.rows.map((row) => ({
     ...(keysToCamel(row) as PaymentAdjustment),
     amount: round2(parseFloat(row.amount)),
+    createdAtDateLocal: row.created_at_date_local,
   }));
 }
 
@@ -130,18 +136,22 @@ export async function getAdjustmentsForPayments(paymentIds: string[], tenantId: 
   const map = new Map<string, PaymentAdjustment[]>();
   if (paymentIds.length === 0) return map;
 
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
   const result = await query(
-    `SELECT pa.*, u.full_name AS created_by_name
+    `SELECT pa.*, u.full_name AS created_by_name, ${tenantLocalDateSql('pa.created_at', 3)} AS created_at_date_local
      FROM payment_adjustments pa
      LEFT JOIN users u ON u.id = pa.created_by
      WHERE pa.payment_id = ANY($1::uuid[]) AND pa.tenant_id = $2
      ORDER BY pa.created_at ASC`,
-    [paymentIds, tenantId]
+    [paymentIds, tenantId, timezone]
   );
   for (const row of result.rows) {
     const adjustment = {
       ...(keysToCamel(row) as PaymentAdjustment),
       amount: round2(parseFloat(row.amount)),
+      createdAtDateLocal: row.created_at_date_local,
     };
     const list = map.get(adjustment.paymentId) ?? [];
     list.push(adjustment);
@@ -246,15 +256,37 @@ export async function createAdjustment(
       }
     }
 
-    // The adjustment's id and created_at are generated in application
-    // code (not left to the table's own DEFAULTs) specifically so the
-    // ledger hash can be computed BEFORE the row is inserted and written
-    // in the same single INSERT - migration 007's append-only trigger
-    // rejects UPDATE unconditionally, including a same-transaction,
-    // same-row backfill of this row's own hash right after inserting it,
-    // so a naive insert-then-UPDATE-with-the-hash approach would fail.
+    // The adjustment's id is still generated in application code (not
+    // left to the table's own DEFAULT) so the ledger hash can be computed
+    // BEFORE the row is inserted and written in the same single INSERT -
+    // migration 007's append-only trigger rejects UPDATE unconditionally,
+    // including a same-transaction, same-row backfill of this row's own
+    // hash right after inserting it, so a naive insert-then-UPDATE-with-
+    // the-hash approach would fail.
+    //
+    // created_at is NO LONGER a JS `new Date()` passed as a bound
+    // parameter (payments-dates-and-cards) - confirmed by direct probe
+    // that pg's own JS-side type parser for a `timestamp without time
+    // zone` value interprets the stored wall-clock string using the NODE
+    // PROCESS's local TZ, not UTC. A `new Date()` instant is itself
+    // always correct, but round-tripping it through that parser under a
+    // hostile process TZ corrupts the wall-clock string actually written
+    // to the column. Instead, Postgres's OWN now() is read here as a
+    // plain UTC-wall-clock STRING (never parsed back into a JS Date),
+    // used verbatim as the hash's createdAt input (same ISO-8601 shape
+    // `.toISOString()` always produced, so this format is unchanged from
+    // every existing row's hash - see computeAdjustmentLedgerHash's own
+    // doc comment), and re-inserted as that same string (cast to
+    // ::timestamp), never as a Date object - this relies on the
+    // connection pool's own `options: '-c timezone=UTC'` (database.ts)
+    // making every `timestamp without time zone DEFAULT now()` column's
+    // stored convention unambiguously UTC, confirmed already true in
+    // production.
     const adjustmentId = crypto.randomUUID();
-    const createdAt = new Date();
+    const nowResult = await client.query(
+      `SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso`
+    );
+    const createdAtIso: string = nowResult.rows[0].created_at_iso;
     const receiptNumber = computeReceiptNumber(tenantId, paymentId);
     const ledgerHash = computeAdjustmentLedgerHash({
       adjustmentId,
@@ -262,13 +294,16 @@ export async function createAdjustment(
       adjustmentType: input.adjustmentType,
       amount: adjustmentAmount,
       reasonCode: input.reasonCode,
-      createdAt: createdAt.toISOString(),
+      createdAt: createdAtIso,
     });
+
+    const tenantSettings = await getTenantSettings(tenantId);
+    const timezone = resolveTenantTimezone(tenantSettings?.timezone);
 
     const insertResult = await client.query(
       `INSERT INTO payment_adjustments (id, tenant_id, payment_id, adjustment_type, amount, reason_code, note, created_by, created_at, ledger_hash)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamp, $10)
+       RETURNING *, ${tenantLocalDateSql('created_at', 11)} AS created_at_date_local`,
       [
         adjustmentId,
         tenantId,
@@ -278,8 +313,9 @@ export async function createAdjustment(
         input.reasonCode,
         input.note?.trim() || null,
         userId,
-        createdAt,
+        createdAtIso,
         ledgerHash,
+        timezone,
       ]
     );
     const adjustmentRow = insertResult.rows[0];
@@ -296,6 +332,7 @@ export async function createAdjustment(
     return {
       ...(keysToCamel(adjustmentRow) as PaymentAdjustment),
       amount: adjustmentAmount,
+      createdAtDateLocal: adjustmentRow.created_at_date_local,
     };
   } catch (err) {
     await client.query('ROLLBACK');

@@ -56,13 +56,38 @@ export const PaymentsPage: React.FC = () => {
     queryFn: () => studentsApi.getAll(1, 1000),
   });
 
-  // Fetch payments (for the "Total collected this month" summary card -
-  // Student.paymentSummary only ever carries a lifetime total, not a
-  // per-period one). Same paymentsApi.getAll(1, 1000) call Dashboard.tsx
-  // already uses for its own monthly-revenue card.
+  // Fetch payments - used only for the table/card sort-by-last-payment-
+  // date ordering below (getLastPaymentCreatedAt), never for the
+  // "Collected This Calendar Month" card any more (payments-dates-and-
+  // cards) - that card now reads two server-computed period summaries
+  // instead of summing raw payment rows client-side, so it reflects
+  // refunds and uses the school's own calendar month boundaries, not a
+  // client-side date-string comparison.
   const { data: paymentsData } = useQuery({
     queryKey: ['payments'],
     queryFn: () => paymentsApi.getAll(1, 1000),
+  });
+
+  // "Collected This Calendar Month" card (payments-dates-and-cards): two
+  // server period summaries (this month, last month), both scoped to the
+  // tenant's own school-local calendar month boundaries via
+  // tenantNow.monthBoundaries/getMonthBoundaries - the same
+  // getPaymentPeriodSummary the period panel above already calls, so
+  // refunds count in the month they were REFUNDED (not the original
+  // payment's month), matching that function's own documented rule.
+  // Never a client-side sum of raw payment rows (the prior
+  // sumConfirmedInRange approach silently ignored every refund/void).
+  const lastMonthBoundaries = tenantNow ? getMonthBoundaries(tenantNow.today, -1) : null;
+
+  const thisMonthSummaryQuery = useQuery({
+    queryKey: ['payments', 'period-summary', tenantNow?.monthBoundaries.start, tenantNow?.monthBoundaries.end],
+    queryFn: () => paymentsApi.getPeriodSummary(tenantNow!.monthBoundaries.start, tenantNow!.monthBoundaries.end),
+    enabled: Boolean(tenantNow),
+  });
+  const lastMonthSummaryQuery = useQuery({
+    queryKey: ['payments', 'period-summary', lastMonthBoundaries?.start, lastMonthBoundaries?.end],
+    queryFn: () => paymentsApi.getPeriodSummary(lastMonthBoundaries!.start, lastMonthBoundaries!.end),
+    enabled: Boolean(lastMonthBoundaries),
   });
 
   const students = studentsData?.data || [];
@@ -253,32 +278,21 @@ export const PaymentsPage: React.FC = () => {
     { studentsWithBalance: 0 }
   );
 
-  // Total collected THIS MONTH (tenant-timezone month boundaries, never
-  // client-clock derived - same tenantNow.monthBoundaries pattern
-  // Dashboard.tsx's own monthlyRevenue card already uses). Distinct from
-  // totals.totalPaid above, which is a lifetime figure.
-  const sumConfirmedInRange = (start: string, end: string) =>
-    payments
-      .filter((p) => {
-        const paymentDateStr = String(p.date).split('T')[0];
-        return paymentDateStr >= start && paymentDateStr <= end && p.status === 'confirmed';
-      })
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-  const totalCollectedThisMonth = tenantNow
-    ? sumConfirmedInRange(tenantNow.monthBoundaries.start, tenantNow.monthBoundaries.end)
-    : 0;
-
-  // Last month's collected total, for the trend comparison below - last
-  // month's boundaries are derived from tenantNow.today via pure
-  // calendar-month arithmetic (getMonthBoundaries), never the browser's
-  // own clock. Matches Students.tsx's stats.newLastMonth in spirit (a
-  // month-over-month comparison), but tenant-time-correct from the start.
-  const lastMonthBoundaries = tenantNow ? getMonthBoundaries(tenantNow.today, -1) : null;
-  const totalCollectedLastMonth = lastMonthBoundaries
-    ? sumConfirmedInRange(lastMonthBoundaries.start, lastMonthBoundaries.end)
-    : 0;
-  const collectedDiffVsLastMonth = totalCollectedThisMonth - totalCollectedLastMonth;
+  // Net collected THIS MONTH (payments-dates-and-cards): from the server
+  // period summary's own collected/refunded/net figures - never summed
+  // client-side. Net (collected minus refunded) is the big figure, since
+  // a refund genuinely reduces what the school actually kept this month;
+  // the small "$X collected, $Y refunded" line still shows the gross
+  // breakdown underneath for anyone who wants it. The month-over-month
+  // comparison below is also on NET for both months (not gross collected)
+  // - a month where $500 came in and $500 was refunded is not meaningfully
+  // "even" with a prior month where nothing happened at all, which a
+  // gross-only comparison would have shown identically.
+  const thisMonthSummary = thisMonthSummaryQuery.data?.data;
+  const lastMonthSummary = lastMonthSummaryQuery.data?.data;
+  const netCollectedThisMonth = thisMonthSummary?.net ?? 0;
+  const netCollectedLastMonth = lastMonthSummary?.net ?? 0;
+  const collectedDiffVsLastMonth = netCollectedThisMonth - netCollectedLastMonth;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -473,16 +487,29 @@ export const PaymentsPage: React.FC = () => {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-bold text-status-success-text">{formatMoney(totalCollectedThisMonth)}</p>
+            <p className="text-2xl font-bold text-status-success-text">
+              {thisMonthSummaryQuery.isLoading ? '—' : formatMoney(netCollectedThisMonth)}
+            </p>
             <p className="text-sm text-tx-muted">Collected This Calendar Month (fixed, not the period chip above)</p>
+            {/* Gross breakdown underneath the net headline figure - a
+                refund this month (even against a payment collected in an
+                earlier month) always counts here, in the month it was
+                REFUNDED, matching getPaymentPeriodSummary's own rule. */}
+            {thisMonthSummary && (
+              <p className="text-xs text-tx-muted mt-0.5">
+                {formatMoney(thisMonthSummary.collected.amount)} collected, {formatMoney(thisMonthSummary.refunded.amount)} refunded
+              </p>
+            )}
             {/* Month-over-month trend - same icon/styling treatment as
                 Students.tsx's "New This Month" comparison (TrendingUp,
-                rotated 180deg when negative, success/danger token pair). */}
+                rotated 180deg when negative, success/danger token pair).
+                Compares NET to NET, not gross collected - see the
+                comment on netCollectedThisMonth's own declaration. */}
             <p className={`flex items-center text-xs font-medium mt-1 ${
               collectedDiffVsLastMonth >= 0 ? 'text-status-success-text' : 'text-status-danger-text'
             }`}>
               <TrendingUp className={`h-3 w-3 mr-1 ${collectedDiffVsLastMonth < 0 ? 'rotate-180' : ''}`} />
-              {collectedDiffVsLastMonth >= 0 ? '+' : '-'}{formatMoney(Math.abs(collectedDiffVsLastMonth))} vs last month ({formatMoney(totalCollectedLastMonth)})
+              {collectedDiffVsLastMonth >= 0 ? '+' : '-'}{formatMoney(Math.abs(collectedDiffVsLastMonth))} vs last month ({formatMoney(netCollectedLastMonth)})
             </p>
           </div>
         </div>

@@ -190,15 +190,18 @@ describe('adjustmentService.createAdjustment', () => {
   it('a successful partial refund inserts the exact requested amount and commits', async () => {
     const { createAdjustment } = await import('../services/adjustmentService');
 
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: PAYMENT_ID, tenant_id: TENANT_ID, amount: '100.00', status: 'confirmed' }]))
       .mockResolvedValueOnce(queryResult([{ total_adjusted: '0' }]))
+      .mockResolvedValueOnce(queryResult([{ created_at_iso: '2026-01-01T00:00:00.000Z' }])) // to_char(now()...)
       .mockResolvedValueOnce(
         queryResult([{
           id: 'adj-1', tenant_id: TENANT_ID, payment_id: PAYMENT_ID, adjustment_type: 'refund',
           amount: '40.00', reason_code: 'overpaid', note: null, created_by: USER_ID,
           created_at: '2026-01-01T00:00:00.000Z', ledger_hash: 'abc123', ledger_txid: null,
+          created_at_date_local: '2025-12-31',
         }])
       ) // INSERT
       .mockResolvedValueOnce(queryResult([])); // COMMIT
@@ -211,6 +214,7 @@ describe('adjustmentService.createAdjustment', () => {
 
     expect(adjustment.amount).toBe(40);
     expect(adjustment.adjustmentType).toBe('refund');
+    expect(adjustment.createdAtDateLocal).toBe('2025-12-31');
     const calls = mockClientQuery.mock.calls.map(([sql]) => sql);
     expect(calls[calls.length - 1]).toBe('COMMIT');
     const insertCall = mockClientQuery.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO payment_adjustments'));
@@ -220,15 +224,18 @@ describe('adjustmentService.createAdjustment', () => {
   it('a void always covers the full remaining amount, ignoring any amount the caller passes', async () => {
     const { createAdjustment } = await import('../services/adjustmentService');
 
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: PAYMENT_ID, tenant_id: TENANT_ID, amount: '100.00', status: 'confirmed' }]))
       .mockResolvedValueOnce(queryResult([{ total_adjusted: '25.00' }])) // $75 remains
+      .mockResolvedValueOnce(queryResult([{ created_at_iso: '2026-01-01T00:00:00.000Z' }])) // to_char(now()...)
       .mockResolvedValueOnce(
         queryResult([{
           id: 'adj-2', tenant_id: TENANT_ID, payment_id: PAYMENT_ID, adjustment_type: 'void',
           amount: '75.00', reason_code: 'entered_in_error', note: null, created_by: USER_ID,
           created_at: '2026-01-01T00:00:00.000Z', ledger_hash: 'def456', ledger_txid: null,
+          created_at_date_local: '2025-12-31',
         }])
       )
       .mockResolvedValueOnce(queryResult([])); // COMMIT
@@ -245,15 +252,18 @@ describe('adjustmentService.createAdjustment', () => {
   it('requires a note when reasonCode is "other", and accepts it when provided', async () => {
     const { createAdjustment } = await import('../services/adjustmentService');
 
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockClientQuery
       .mockResolvedValueOnce(queryResult([])) // BEGIN
       .mockResolvedValueOnce(queryResult([{ id: PAYMENT_ID, tenant_id: TENANT_ID, amount: '100.00', status: 'confirmed' }]))
       .mockResolvedValueOnce(queryResult([{ total_adjusted: '0' }]))
+      .mockResolvedValueOnce(queryResult([{ created_at_iso: '2026-01-01T00:00:00.000Z' }])) // to_char(now()...)
       .mockResolvedValueOnce(
         queryResult([{
           id: 'adj-3', tenant_id: TENANT_ID, payment_id: PAYMENT_ID, adjustment_type: 'refund',
           amount: '10.00', reason_code: 'other', note: 'called and asked', created_by: USER_ID,
           created_at: '2026-01-01T00:00:00.000Z', ledger_hash: 'ghi789', ledger_txid: null,
+          created_at_date_local: '2025-12-31',
         }])
       )
       .mockResolvedValueOnce(queryResult([])); // COMMIT

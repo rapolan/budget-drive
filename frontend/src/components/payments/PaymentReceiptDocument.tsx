@@ -81,7 +81,7 @@ export const PaymentReceiptDocument: React.FC<PaymentReceiptDocumentProps> = ({ 
               <span className="text-status-danger-text">
                 {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
                 {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode as keyof typeof ADJUSTMENT_REASON_LABELS] ?? adjustment.reasonCode}
-                {' '}({adjustment.createdAt.slice(0, 10)})
+                {' '}({adjustment.createdAt})
               </span>
               <span className="text-status-danger-text font-medium">-{formatMoney(adjustment.amount)}</span>
             </div>

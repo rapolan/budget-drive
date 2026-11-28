@@ -79,6 +79,7 @@ describe('payments-phase1 reporting routes - role gating', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(queryResult([{ amount: '0', count: '0' }])); // collected
     mockQuery.mockResolvedValueOnce(queryResult([{ amount: '0', count: '0' }])); // refunded
     mockQuery.mockResolvedValueOnce(queryResult([])); // by method
@@ -144,6 +145,7 @@ describe('GET /payments/period-summary - tenant isolation and response shape', (
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(queryResult([{ amount: '500.00', count: '3' }]));
     mockQuery.mockResolvedValueOnce(queryResult([{ amount: '50.00', count: '1' }]));
     mockQuery.mockResolvedValueOnce(queryResult([{ payment_method: 'cash', amount: '500.00', count: '3' }]));
@@ -156,7 +158,9 @@ describe('GET /payments/period-summary - tenant isolation and response shape', (
     expect(res.status).toBe(200);
     // Every query call after the role-check lookup must include TENANT_ID
     // as one of its bound parameters - confirms no query accidentally
-    // queries across all tenants.
+    // queries across all tenants. getTenantSettings' own lookup is keyed
+    // by tenantId too (its only bound param), so it's included here, not
+    // skipped - only requireRole's lookup (keyed by userId) is skipped.
     const dataQueryCalls = mockQuery.mock.calls.slice(1); // skip requireRole's own lookup
     for (const [, params] of dataQueryCalls) {
       expect(params).toContain(TENANT_ID);
@@ -184,12 +188,15 @@ describe('GET /payments/who-owes-you - response shape', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
 
-    const today = new Date();
-    const old = new Date(today);
-    old.setDate(old.getDate() - 90); // > 60 days -> '61+'
-    const recent = new Date(today);
-    recent.setDate(recent.getDate() - 10); // <= 30 days -> '0-30'
+    // Tenant-local "today" (America/Los_Angeles) is resolved server-side
+    // via tenantToday - these fixture dates are plain YYYY-MM-DD strings,
+    // matching the ::text shape the real SQL now returns for
+    // oldest_date/last_payment_date, never an ISO instant a JS Date would
+    // need to parse.
+    const oldDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // > 60 days -> '61+'
+    const recentDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // <= 30 days -> '0-30'
 
     mockQuery.mockResolvedValueOnce(
       queryResult([
@@ -199,9 +206,12 @@ describe('GET /payments/who-owes-you - response shape', () => {
           student_name: 'Small Owed',
           total_cost: '100.00',
           total_paid: '90.00',
-          oldest_date: recent.toISOString(),
-          last_payment_date: recent.toISOString(),
+          oldest_date: recentDate,
+          last_payment_date: recentDate,
           last_payment_amount: '90.00',
+          payment_arrangement_set_at_local: null,
+          payment_arrangement_note: null,
+          payment_arrangement_set_by_name: null,
         },
         {
           enrollment_id: 'enrollment-big',
@@ -209,9 +219,12 @@ describe('GET /payments/who-owes-you - response shape', () => {
           student_name: 'Big Owed',
           total_cost: '500.00',
           total_paid: '50.00',
-          oldest_date: old.toISOString(),
+          oldest_date: oldDate,
           last_payment_date: null,
           last_payment_amount: null,
+          payment_arrangement_set_at_local: null,
+          payment_arrangement_note: null,
+          payment_arrangement_set_by_name: null,
         },
       ])
     );
@@ -243,6 +256,7 @@ describe('GET /payments/:id/receipt - not found and tenant scoping', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(queryResult([])); // payment lookup, scoped to tenant, finds nothing
 
     const res = await request(app)
@@ -256,6 +270,7 @@ describe('GET /payments/:id/receipt - not found and tenant scoping', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     const PAYMENT_ID = '550e8400-e29b-41d4-a716-446655440099';
     mockQuery.mockResolvedValueOnce(
       queryResult([
@@ -304,6 +319,7 @@ describe('GET /payments/export - formula injection guard', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {
@@ -339,6 +355,7 @@ describe('GET /payments/export - formula injection guard', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {
@@ -376,6 +393,7 @@ describe('GET /payments/export - formula injection guard', () => {
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {
@@ -412,6 +430,7 @@ describe('GET /payments/export - includes adjustment (refund/void) lines (paymen
     const { default: app } = await import('../app');
     const token = signToken('admin-1', 'admin');
     asAdmin();
+    mockQuery.mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // getTenantSettings
     mockQuery.mockResolvedValueOnce(
       queryResult([
         {
@@ -433,7 +452,7 @@ describe('GET /payments/export - includes adjustment (refund/void) lines (paymen
           adjustment_type: 'refund',
           amount: '20.00',
           reason_code: 'overpaid',
-          created_at: '2026-01-15T00:00:00.000Z',
+          created_at_date_local: '2026-01-15',
           original_payment_id: '550e8400-e29b-41d4-a716-446655440010',
           student_name: 'Jane Doe',
         },

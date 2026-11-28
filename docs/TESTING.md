@@ -1244,6 +1244,50 @@ Uses this tenant's existing seed data (Benjamin Hayes has a real outstanding bal
 
 ---
 
+### 2.74 Payment and adjustment dates agree with the school's calendar (payments-dates-and-cards)
+
+Two independent bug classes fixed in how every payment/adjustment timestamp is written and read - see `docs/ARCHITECTURE.md` §45 for the full root-cause writeup (confirmed by direct probes against a real Postgres instance, not assumed). Summary: (1) the connection pool now forces every session's Postgres `timezone` to UTC (`backend/src/config/database.ts`'s `options: '-c timezone=UTC'`) so every `timestamp without time zone` column's stored convention is unambiguously UTC everywhere, not dependent on whatever a given Postgres server's own `postgresql.conf` happens to say; (2) every date/timestamp read for display, grouping, or range-filtering now resolves the tenant-local calendar date **entirely in SQL** (`tenantLocalDateSql`/`tenantLocalTimestampSql`, `backend/src/utils/tenantTime.ts`) and reads the result back as `::text`, never as a JS `Date` `pg` would parse (confirmed: even a correctly-stored UTC value, read the normal way under a hostile Node process `TZ`, represents the WRONG instant - there is no JS-side fix for this).
+
+**Backend (mocked-query, unchanged behavior proven via existing suites):**
+```bash
+cd backend
+npx vitest run src/__tests__/adjustmentService.test.ts src/__tests__/paymentAdjustmentRoutes.test.ts src/__tests__/paymentReportingRoutes.test.ts src/__tests__/paymentCreateAuditColumns.test.ts src/__tests__/paymentCreateDeEnrollmentTarget.test.ts src/__tests__/paymentServiceCaseConversion.test.ts src/__tests__/feeFlags.test.ts
+```
+
+**Pass looks like:** all pre-existing tests pass with updated mock sequences only (an extra `getTenantSettings` query call now precedes `createAdjustment`'s/`createPayment`'s INSERT whenever a timezone-dependent default is needed) - no behavior change, same inputs/outputs as before this fix, confirming the rewrite preserved every existing contract.
+
+**Backend (real-Postgres, hostile-clock - the actual proof this fix works):**
+```bash
+cd backend
+TEST_DATABASE_URL=postgres://postgres:<password>@localhost:5432/driving_school \
+  npx vitest run src/__tests__/adjustmentServiceRealDb.integration.test.ts src/__tests__/paymentDatesHostileClockRealDb.integration.test.ts
+```
+
+**Pass looks like:** `adjustmentServiceRealDb.integration.test.ts` - `getPaymentPeriodSummary` counts a refund by the adjustment's own TENANT-LOCAL date boundary (not a bare UTC date) at 5 different UTC hours chosen to straddle the UTC-vs-America/Los_Angeles calendar-day boundary, all under a hostile `process.env.TZ`; plus a direct write-path regression proof that `created_at` lands within a few seconds of the real wall-clock instant even under that hostile TZ (confirming `createAdjustment`'s now()-in-SQL approach, not a JS `new Date()`, produced it). `paymentDatesHostileClockRealDb.integration.test.ts` (new file, 20 tests) - `getPaymentReceiptData`'s own payment date and refund-adjustment date, `getPaymentsForExport`'s CSV rows for both a payment and an adjustment, and `getWhoOwesYou`'s `lastPaymentDate`, all agree with the ground truth read directly from Postgres via the same `AT TIME ZONE` SQL pattern the fix itself uses, at the same 5 hostile hours. **Important nuance proven while writing these tests**: `createAdjustment`'s `created_at` is written via Postgres's own `now()` in SQL, which makes it structurally IMMUNE to `vi.setSystemTime()` - genuinely varying which calendar day gets stored for the adjustment-date tests required directly overwriting `payment_adjustments.created_at` after insert (a test-only operation, same disable-trigger pattern the suite's own cleanup already uses for this append-only table), not faking the clock before calling the service. `payments.date`, by contrast, IS genuinely faked by `vi.setSystemTime()` (its default comes from `paymentService.createPayment`'s own `tenantToday(timezone)` fallback, a plain JS computation using `new Date()` as its reference) - both mechanisms are used correctly in their respective tests, documented inline.
+
+**Regression-proven, not just passing by luck:** the `getPaymentReceiptData` adjustment-date test was temporarily reverted to the old `new Date(a.created_at).toISOString().slice(0,10)` pattern mid-session - it failed at exactly 2 of the 5 hostile hours (09:30 and 10:30 UTC, the two where UTC and America/Los_Angeles land on different calendar days), confirming the test genuinely detects the bug class, not a coincidence. Restored and reconfirmed all 20 pass afterward.
+
+**Frontend:**
+```bash
+cd frontend
+npx vitest run src/pages/Payments.test.tsx src/pages/Dashboard.test.tsx src/components/payments/PaymentHistoryModal.test.tsx
+```
+
+**Pass looks like:** `Payments.test.tsx` - the "Collected This Calendar Month" card now shows the server's own `net` figure (never a client-side sum of raw payment rows), the "$X collected, $Y refunded" breakdown line, and a direct regression test that a refund issued THIS month against a payment collected LAST month lowers only this month's net (last month's own figure is untouched) - all via a `mockPeriodSummaryByRange` helper that routes `paymentsApi.getPeriodSummary` to different mocked responses depending on which `[start, end]` it's called with, since the page now calls this endpoint 3 times (the period panel, the card's this-month query, its last-month comparison). `Dashboard.test.tsx` gained a new test confirming "Revenue This Month" shows the same server-derived net figure, not the old gross client-side sum. `PaymentHistoryModal.test.tsx` passes unchanged - its existing assertions don't pin an exact rendered date string, so switching from `new Date(...).toLocaleDateString()` to `parseLocalDate(...).toLocaleDateString()` required no test changes, only the underlying component fix.
+
+**Playwright screenshots (light + dark; the "Collected This Calendar Month" card before/after a real refund, with its net figure and breakdown line, plus phone width — force-add with `git add -f`, confirm with `git ls-tree`):**
+```bash
+cd frontend
+npx playwright test e2e-screenshots/payment-dates-and-cards.spec.ts
+```
+Creates its own self-contained fixture in `beforeAll` (direct API calls): a fresh student with a $200 payment recorded today. Screenshots the card once before any refund, records a real $50 refund against that payment via the adjustments API, then screenshots the card again - confirmed live: net dropped from $2,587.00 to $2,537.00, refunded rose from $630.00 to $680.00, with the breakdown line correctly showing both.
+
+**Pass looks like:** the "before" screenshot shows the card's net figure and breakdown line reflecting all of this tenant's existing refund activity (proving the card already accounts for refunds recorded before this spec ran, not just its own fixture); the "after" screenshot shows the net figure $50 lower and the refunded breakdown $50 higher than before; at phone width the card (net figure, breakdown line, and trend line) remains fully readable with nothing clipped. Verify by looking at the actual screenshots, not just a green exit code.
+
+**Known, deliberately out-of-scope finding (not fixed, flagged for a future task):** `PaymentModal.tsx`'s quick-amount "Next lesson" chip label has the identical browser-timezone date-parsing bug just fixed in `PaymentHistoryModal.tsx` (`new Date(aPlainDateString).toLocaleDateString()`) - not fixed here because this task's own instructions explicitly protect the Record Payment form (payment-form-v2) from changes.
+
+---
+
 ## 3. Known issues to route around
 
 - **Email not configured**: the backend logs `⚠️ Email configuration incomplete` on startup — expected, `SMTP_USER`/`SMTP_PASS` aren't set by default. Notifications requiring actual email delivery won't send; this is not a bug to chase during UI testing.
