@@ -204,8 +204,41 @@ describe('Payments page - sorting (item 3)', () => {
   });
 });
 
+// Routes paymentsApi.getPeriodSummary to a different mocked response
+// depending on which [start, end] it was called with - the page now
+// calls this same endpoint 3 times (the period panel's own selection,
+// the "Collected This Calendar Month" card's this-month query, and its
+// last-month comparison query), so a single blanket mockResolvedValue
+// can no longer distinguish them.
+function mockPeriodSummaryByRange(
+  responses: Record<string, {
+    collected: { amount: number; count: number };
+    refunded: { amount: number; count: number };
+    outstanding?: number;
+    paidNotYetScheduled?: number;
+    collectedByMethod?: { paymentMethod: string; amount: number; count: number }[];
+  }>
+) {
+  (paymentsApi.getPeriodSummary as ReturnType<typeof vi.fn>).mockImplementation((start: string, end: string) => {
+    const key = `${start}|${end}`;
+    const match = responses[key] ?? { collected: { amount: 0, count: 0 }, refunded: { amount: 0, count: 0 } };
+    return Promise.resolve({
+      data: {
+        start,
+        end,
+        collected: match.collected,
+        refunded: match.refunded,
+        net: match.collected.amount - match.refunded.amount,
+        outstanding: match.outstanding ?? 0,
+        paidNotYetScheduled: match.paidNotYetScheduled ?? 0,
+        collectedByMethod: match.collectedByMethod ?? [],
+      },
+    });
+  });
+}
+
 describe('Payments page - summary cards (item 4)', () => {
-  it('shows Collected This Calendar Month and Students with a Balance, combining BTW+DE balances - no duplicate Total Outstanding card', async () => {
+  it('shows Collected This Calendar Month (net) and Students with a Balance, combining BTW+DE balances - no duplicate Total Outstanding card', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: [
         // paymentSummary already combines BTW+DE (studentService's
@@ -216,15 +249,8 @@ describe('Payments page - summary cards (item 4)', () => {
         student({ id: 's3', fullName: 'Student Three', paymentSummary: { totalPaid: 200, outstandingBalance: 0, paymentStatus: 'paid', creditBalance: 0 } }),
       ],
     });
-    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        payment({ id: 'p1', amount: 100, date: '2026-08-05' as unknown as Date, status: 'confirmed' }),
-        payment({ id: 'p2', amount: 200, date: '2026-08-12' as unknown as Date, status: 'confirmed' }),
-        // Outside the tenant month boundary - must not count.
-        payment({ id: 'p3', amount: 999, date: '2026-07-20' as unknown as Date, status: 'confirmed' }),
-        // Not confirmed - must not count.
-        payment({ id: 'p4', amount: 999, date: '2026-08-15' as unknown as Date, status: 'pending' }),
-      ],
+    mockPeriodSummaryByRange({
+      '2026-08-01|2026-08-31': { collected: { amount: 300, count: 2 }, refunded: { amount: 0, count: 0 } },
     });
 
     renderPage();
@@ -237,10 +263,51 @@ describe('Payments page - summary cards (item 4)', () => {
     expect(screen.queryByText('Total Outstanding')).not.toBeInTheDocument();
 
     const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
-    expect(within(collectedCard).getByText('$300.00')).toBeInTheDocument(); // 100 + 200, not 999s
+    expect(within(collectedCard).getByText('$300.00')).toBeInTheDocument(); // net = 300 - 0
 
     const balanceCountCard = screen.getByText('Students with a Balance').closest('div')!.parentElement as HTMLElement;
     expect(within(balanceCountCard).getByText('2')).toBeInTheDocument(); // s1 and s2, not s3
+  });
+
+  it('shows the net figure after a refund, plus the gross collected/refunded breakdown line', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+    mockPeriodSummaryByRange({
+      '2026-08-01|2026-08-31': { collected: { amount: 300, count: 2 }, refunded: { amount: 50, count: 1 } },
+    });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
+    // Net (big figure) is collected minus refunded, never the gross
+    // collected amount alone - this is the direct regression test for
+    // the bug this card was rewritten to fix (refunds used to be
+    // silently ignored by a client-side sum of raw payment rows).
+    expect(within(collectedCard).getByText('$250.00')).toBeInTheDocument();
+    expect(within(collectedCard).getByText('$300.00 collected, $50.00 refunded')).toBeInTheDocument();
+  });
+
+  it('a refund issued this month against a payment collected in an earlier month lowers only this month\'s net', async () => {
+    (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
+    mockPeriodSummaryByRange({
+      // This month: no new collections, but a $40 refund against last
+      // month's payment - getPaymentPeriodSummary counts a refund by the
+      // adjustment's OWN date, not the original payment's month.
+      '2026-08-01|2026-08-31': { collected: { amount: 0, count: 0 }, refunded: { amount: 40, count: 1 } },
+      // Last month: the original $200 payment, unaffected - it was
+      // already collected and counted in its own month before the
+      // refund happened.
+      '2026-07-01|2026-07-31': { collected: { amount: 200, count: 1 }, refunded: { amount: 0, count: 0 } },
+    });
+
+    renderPage();
+    await screen.findByText('Test Student');
+
+    const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
+    expect(within(collectedCard).getByText('-$40.00')).toBeInTheDocument(); // this month's net is negative
+    expect(within(collectedCard).getByText('$0.00 collected, $40.00 refunded')).toBeInTheDocument();
+    // Last month's own net ($200) is untouched by this month's refund.
+    expect(within(collectedCard).getByText(/vs last month \(\$200\.00\)/)).toBeInTheDocument();
   });
 });
 
@@ -342,14 +409,9 @@ describe('Payments page - sort by payment date', () => {
 describe('Payments page - month-over-month trend on Collected This Month', () => {
   it('shows a trend comparison to last month with an up arrow when collections increased', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
-    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        // This month (tenant "today" is 2026-08-17): $300
-        payment({ id: 'p1', amount: 100, date: '2026-08-05' as unknown as Date, status: 'confirmed' }),
-        payment({ id: 'p2', amount: 200, date: '2026-08-12' as unknown as Date, status: 'confirmed' }),
-        // Last month: $100
-        payment({ id: 'p3', amount: 100, date: '2026-07-10' as unknown as Date, status: 'confirmed' }),
-      ],
+    mockPeriodSummaryByRange({
+      '2026-08-01|2026-08-31': { collected: { amount: 300, count: 2 }, refunded: { amount: 0, count: 0 } },
+      '2026-07-01|2026-07-31': { collected: { amount: 100, count: 1 }, refunded: { amount: 0, count: 0 } },
     });
 
     renderPage();
@@ -362,13 +424,9 @@ describe('Payments page - month-over-month trend on Collected This Month', () =>
 
   it('shows a down trend when collections decreased vs last month', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
-    (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: [
-        // This month: $50
-        payment({ id: 'p1', amount: 50, date: '2026-08-05' as unknown as Date, status: 'confirmed' }),
-        // Last month: $400
-        payment({ id: 'p2', amount: 400, date: '2026-07-10' as unknown as Date, status: 'confirmed' }),
-      ],
+    mockPeriodSummaryByRange({
+      '2026-08-01|2026-08-31': { collected: { amount: 50, count: 1 }, refunded: { amount: 0, count: 0 } },
+      '2026-07-01|2026-07-31': { collected: { amount: 400, count: 1 }, refunded: { amount: 0, count: 0 } },
     });
 
     renderPage();
@@ -383,25 +441,24 @@ describe('Payments page - month-over-month trend on Collected This Month', () =>
     // near the tenant's 2026-08-17 "today", a naive new Date()-based
     // computation in the browser's own zone could disagree with the
     // tenant-resolved boundary on which side of the month-end a payment
-    // near 2026-07-31/2026-08-01 falls on. This proves the card uses
-    // MOCK_TENANT_NOW.monthBoundaries/today, never the browser's.
+    // near 2026-07-31/2026-08-01 falls on. This proves the card requests
+    // period summaries for MOCK_TENANT_NOW.monthBoundaries/today's
+    // derived last-month range, never a browser-clock-derived one - the
+    // card itself does no date math at all any more, it only forwards
+    // tenantNow's own boundaries to the server.
     const originalTZ = process.env.TZ;
     process.env.TZ = 'Pacific/Kiritimati'; // UTC+14 - far ahead of Los Angeles
     try {
       (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
-      (paymentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({
-        data: [
-          payment({ id: 'p1', amount: 75, date: '2026-08-01' as unknown as Date, status: 'confirmed' }),
-          payment({ id: 'p2', amount: 40, date: '2026-07-31' as unknown as Date, status: 'confirmed' }),
-        ],
+      mockPeriodSummaryByRange({
+        '2026-08-01|2026-08-31': { collected: { amount: 75, count: 1 }, refunded: { amount: 0, count: 0 } },
+        '2026-07-01|2026-07-31': { collected: { amount: 40, count: 1 }, refunded: { amount: 0, count: 0 } },
       });
 
       renderPage();
       await screen.findByText('Test Student');
 
       const collectedCard = screen.getByText(/Collected This Calendar Month/).closest('div')!.parentElement as HTMLElement;
-      // 2026-08-01 is in tenant "this month" ($75), 2026-07-31 is "last
-      // month" ($40) - correct regardless of the hostile browser TZ.
       expect(within(collectedCard).getByText('$75.00')).toBeInTheDocument();
       expect(within(collectedCard).getByText(/\+\$35\.00 vs last month \(\$40\.00\)/)).toBeInTheDocument();
     } finally {
@@ -432,17 +489,20 @@ describe('Payments page - status filter reflects the combined balance (item 6)',
 describe('Payments page - payments-phase1: period summary panel', () => {
   it('renders period chips and the Collected/Refunded/Net/Outstanding/Paid-not-yet-scheduled cards', async () => {
     (studentsApi.getAll as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [student()] });
-    (paymentsApi.getPeriodSummary as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: {
-        start: '2026-08-01',
-        end: '2026-08-31',
+    // The panel's own default range ("This Month") and the new
+    // "Collected This Calendar Month" card's own this-month query hit
+    // the exact same [start, end] - distinguished here only by giving
+    // last month a different (zero) response, so the panel's own
+    // figures ($500/$50/$450/$75) each appear exactly once on the page.
+    mockPeriodSummaryByRange({
+      '2026-08-01|2026-08-31': {
         collected: { amount: 500, count: 3 },
         refunded: { amount: 50, count: 1 },
-        net: 450,
         outstanding: 200,
         paidNotYetScheduled: 75,
         collectedByMethod: [{ paymentMethod: 'cash', amount: 500, count: 3 }],
       },
+      '2026-07-01|2026-07-31': { collected: { amount: 0, count: 0 }, refunded: { amount: 0, count: 0 } },
     });
 
     renderPage();
@@ -454,10 +514,13 @@ describe('Payments page - payments-phase1: period summary panel', () => {
     expect(screen.getByRole('button', { name: /this month/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /custom/i })).toBeInTheDocument();
 
-    await waitFor(() => expect(screen.getByText('$500.00')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('$500.00').length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getByText('$75.00')).toBeInTheDocument());
     expect(screen.getByText('$50.00')).toBeInTheDocument();
-    expect(screen.getByText('$450.00')).toBeInTheDocument();
-    expect(screen.getByText('$75.00')).toBeInTheDocument();
+    // $450 (net) appears twice: the panel's own "Net" card AND the new
+    // "Collected This Calendar Month" card's big figure - both correctly
+    // derived from the same server response, not a collision to avoid.
+    expect(screen.getAllByText('$450.00').length).toBe(2);
     expect(screen.getByText('Collected by Method')).toBeInTheDocument();
   });
 

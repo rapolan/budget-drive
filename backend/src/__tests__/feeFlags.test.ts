@@ -145,6 +145,7 @@ describe('feeFlagService', () => {
         .mockResolvedValueOnce(queryResult([{ id: STUDENT_ID }])) // paymentService.createPayment's student check
         .mockResolvedValueOnce(queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])) // paymentService.createPayment's active driver_training enrollment lookup
         .mockResolvedValueOnce(queryResult([{ id: LESSON_ID }])) // paymentService.createPayment's lesson check
+        .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // paymentService.createPayment's own getTenantSettings (no data.date passed)
         .mockResolvedValueOnce(
           queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, student_id: STUDENT_ID, amount: 50, payment_type: 'cancellation_fee', status: 'confirmed' }])
         ) // INSERT INTO payments
@@ -207,7 +208,8 @@ describe('feeFlagService', () => {
         .mockResolvedValueOnce(queryResult([{ tenant_id: TENANT_ID, cancellation_fee_payee: 'school' }])) // getTenantSettings (recordPaymentForFeeFlag's own re-check)
         .mockResolvedValueOnce(
           queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
-        ); // createPayment's active driver_training enrollment lookup
+        ) // createPayment's active driver_training enrollment lookup
+        .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])); // createPayment's own getTenantSettings (no data.date passed) - also a plain module-level read, never dbQuery
 
       mockClientQuery
         .mockResolvedValueOnce(queryResult([])) // BEGIN

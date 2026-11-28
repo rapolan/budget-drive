@@ -4,6 +4,7 @@ import { X, DollarSign, Calendar, CreditCard, FileText, Mail, Phone, UserCircle,
 import { paymentsApi } from '@/api';
 import type { Student, Payment } from '@/types';
 import { formatMoney } from '@/utils/moneyFormat';
+import { parseLocalDate } from '@/utils/timeFormat';
 import { useAuth } from '@/contexts/AuthContext';
 import { PaymentRowMenu } from './PaymentRowMenu';
 import { RefundDialog } from './RefundDialog';
@@ -427,7 +428,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                     <td className="whitespace-nowrap px-4 py-3">
                                       <div className="flex items-center gap-2 text-sm text-tx-primary">
                                         <Calendar className="h-4 w-4 text-tx-muted" />
-                                        {new Date(payment.date).toLocaleDateString()}
+                                        {parseLocalDate(String(payment.date)).toLocaleDateString()}
                                       </div>
                                     </td>
                                     <td className="whitespace-nowrap px-4 py-3">
@@ -522,7 +523,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                             {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
                                             {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode]}
                                             {adjustment.createdByName ? ` by ${adjustment.createdByName}` : ''} on{' '}
-                                            {new Date(adjustment.createdAt).toLocaleDateString()}
+                                            {parseLocalDate(adjustment.createdAtDateLocal).toLocaleDateString()}
                                           </span>
                                         </div>
                                       </td>
@@ -561,7 +562,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex items-center gap-2 text-sm text-tx-primary">
                                 <Calendar className="h-4 w-4 flex-shrink-0 text-tx-muted" />
-                                {new Date(payment.date).toLocaleDateString()}
+                                {parseLocalDate(String(payment.date)).toLocaleDateString()}
                               </div>
                               <PaymentRowMenu
                                 onPrintReceipt={() =>
@@ -624,7 +625,7 @@ export const PaymentHistoryModal: React.FC<PaymentHistoryModalProps> = ({
                                         {adjustment.adjustmentType === 'void' ? 'Voided' : 'Refunded'} -{' '}
                                         {ADJUSTMENT_REASON_LABELS[adjustment.reasonCode]}
                                         {adjustment.createdByName ? ` by ${adjustment.createdByName}` : ''} on{' '}
-                                        {new Date(adjustment.createdAt).toLocaleDateString()}
+                                        {parseLocalDate(adjustment.createdAtDateLocal).toLocaleDateString()}
                                       </span>
                                     </div>
                                     <span className="whitespace-nowrap text-xs font-semibold text-status-danger-text">

@@ -1014,6 +1014,13 @@ export interface PaymentAdjustment {
   createdBy: string | null;
   createdByName: string | null;
   createdAt: Date;
+  // payments-dates-and-cards: the adjustment's created_at resolved to the
+  // tenant's OWN school-local calendar date (YYYY-MM-DD), computed
+  // server-side in SQL (see utils/tenantTime.ts's tenantLocalDateSql) -
+  // never derive this on the frontend by parsing createdAt with
+  // new Date(...), which reads the browser's own local timezone instead
+  // of the tenant's.
+  createdAtDateLocal: string;
 }
 
 export interface Invoice {

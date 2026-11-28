@@ -142,6 +142,7 @@ describe('paymentService - keysToCamel applied at every return site', () => {
       .mockResolvedValueOnce(
         queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
       ) // getActiveDriverTrainingEnrollment
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings (no data.date passed)
       .mockResolvedValueOnce(queryResult([rawPaymentRow])); // INSERT ... RETURNING
 
     const payment = await createPayment(TENANT_ID, { studentId: STUDENT_ID, amount: 50 }, 'user-1');

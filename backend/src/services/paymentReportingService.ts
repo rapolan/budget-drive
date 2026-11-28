@@ -16,6 +16,14 @@
 import { query } from '../config/database';
 import { computeReceiptNumber } from './receiptService';
 import { STUDENT_COST_SQL_CONDITION } from '../utils/lessonCostFilter';
+import { getTenantSettings } from './tenantService';
+import {
+  resolveTenantTimezone,
+  tenantLocalDateSql,
+  tenantLocalTimestampSql,
+  tenantToday,
+  daysBetweenTenantDates,
+} from '../utils/tenantTime';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -60,11 +68,19 @@ export async function getPaymentPeriodSummary(
   start: string,
   end: string
 ): Promise<PaymentPeriodSummary> {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
   // "Collected" stays the gross amount of confirmed payments DATED in the
   // period - what actually came in that day, unaffected by a later
   // refund/void (which is its own dated event, accounted for separately
   // below). A payment refunded/voided after the period it was collected
   // in still correctly shows as collected in that earlier period.
+  // `payments.date` is a plain calendar date with no time component, set
+  // directly from the school-local date the user chose when recording
+  // the payment (PaymentModal's own EMPTY_FORM default, payment-form-v2)
+  // - already tenant-local by construction, no AT TIME ZONE conversion
+  // needed, unlike created_at below (a real instant).
   const collectedResult = await query(
     `SELECT COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
      FROM payments
@@ -82,15 +98,32 @@ export async function getPaymentPeriodSummary(
   // since no adjustment row exists for it to carry a separate date
   // (migration 007's own comment: legacy rows are never backfilled with
   // a matching adjustment).
+  //
+  // payment_adjustments.created_at is a real UTC instant (see
+  // database.ts's pool-level `options: '-c timezone=UTC'`) - resolved to
+  // the TENANT's own school-local calendar date via tenantLocalDateSql
+  // before comparing against start/end (themselves already tenant-local
+  // date strings, from tenantTime.ts's own month-boundary helpers), never
+  // a bare `created_at::date` (which answers "what date in UTC," not "what
+  // date for this school" - two different, frequently disagreeing
+  // answers for a tenant whose timezone isn't UTC).
   const refundedResult = await query(
+    // $2/$3 are cast explicitly on BOTH sides of this UNION ALL - without
+    // the ::date cast in the second branch, Postgres infers $2/$3's type
+    // from whichever branch it resolves first (here, text - the first
+    // branch's tenantLocalDateSql fragment is already ::text), then fails
+    // with "operator does not exist: date >= text" when that same
+    // inferred type collides with the second branch's plain `date`
+    // column - confirmed by direct probe against a real Postgres
+    // instance, not a hypothetical.
     `SELECT COALESCE(SUM(amount), 0) AS amount, COALESCE(COUNT(*), 0) AS count FROM (
        SELECT amount FROM payment_adjustments
-       WHERE tenant_id = $1 AND created_at::date >= $2 AND created_at::date <= $3
+       WHERE tenant_id = $1 AND ${tenantLocalDateSql('created_at', 4)} >= $2 AND ${tenantLocalDateSql('created_at', 4)} <= $3
        UNION ALL
        SELECT amount FROM payments
-       WHERE tenant_id = $1 AND status = 'refunded' AND date >= $2 AND date <= $3
+       WHERE tenant_id = $1 AND status = 'refunded' AND date >= $2::date AND date <= $3::date
      ) refunded_events`,
-    [tenantId, start, end]
+    [tenantId, start, end, timezone]
   );
   const byMethodResult = await query(
     `SELECT payment_method, COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
@@ -223,6 +256,9 @@ export interface WhoOwesYouRow {
  * enrollment technically still has a balance.
  */
 export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
   const result = await query(
     `WITH lesson_totals AS (
        SELECT enrollment_id, SUM(cost) AS lesson_cost_sum
@@ -263,10 +299,22 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
        s.full_name AS student_name,
        COALESCE(e.total_cost, lt.lesson_cost_sum) AS total_cost,
        COALESCE(pt.total_paid, 0) AS total_paid,
-       ouc.oldest_date,
-       lp.date AS last_payment_date,
+       -- lessons.date/payments.date are plain calendar dates (no time
+       -- component), already tenant-local by construction - cast to
+       -- ::text in SQL so the value is never handed to pg's own
+       -- JS-side Date parser (confirmed by direct probe: parsing a
+       -- plain date column into a JS Date interprets midnight in the
+       -- NODE PROCESS's own local timezone, not UTC - a correctly
+       -- stored date can come back as the wrong calendar day entirely
+       -- under a hostile process TZ).
+       ouc.oldest_date::text AS oldest_date,
+       lp.date::text AS last_payment_date,
        lp.amount AS last_payment_amount,
-       e.payment_arrangement_set_at,
+       -- payment_arrangement_set_at IS a real UTC instant (set via
+       -- NOW() in adjustmentService.setPaymentArrangement) - resolved to
+       -- the tenant's own school-local date/time via tenantLocalTimestampSql,
+       -- never a bare column read that pg would parse into a JS Date.
+       ${tenantLocalTimestampSql('e.payment_arrangement_set_at', 2)} AS payment_arrangement_set_at_local,
        e.payment_arrangement_note,
        arr_user.full_name AS payment_arrangement_set_by_name
      FROM enrollments e
@@ -281,18 +329,20 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
        AND COALESCE(e.total_cost, lt.lesson_cost_sum) IS NOT NULL
        AND COALESCE(e.total_cost, lt.lesson_cost_sum) - COALESCE(pt.total_paid, 0) > 0
        AND ouc.oldest_date IS NOT NULL`,
-    [tenantId]
+    [tenantId, timezone]
   );
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  // Age buckets are measured against the TENANT's own "today," never the
+  // server process's UTC/local date - a lesson that happened "today" in
+  // the school's timezone must never register as 1+ days old just
+  // because it's already tomorrow in UTC (or vice versa).
+  const todayIso = tenantToday(timezone);
 
   return result.rows
     .map((row) => {
       const amountOwed = round2(parseFloat(row.total_cost) - parseFloat(row.total_paid));
-      const oldestDate = new Date(row.oldest_date).toISOString().slice(0, 10);
-      const ageDays = Math.floor(
-        (new Date(todayIso).getTime() - new Date(oldestDate).getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const oldestDate: string = row.oldest_date;
+      const ageDays = daysBetweenTenantDates(oldestDate, todayIso);
       const ageBucket: WhoOwesYouRow['ageBucket'] =
         ageDays <= 30 ? '0-30' : ageDays <= 60 ? '31-60' : '61+';
 
@@ -303,18 +353,16 @@ export async function getWhoOwesYou(tenantId: string): Promise<WhoOwesYouRow[]> 
         amountOwed,
         oldestUnpaidLessonDate: oldestDate,
         ageBucket,
-        lastPaymentDate: row.last_payment_date
-          ? new Date(row.last_payment_date).toISOString().slice(0, 10)
-          : null,
+        lastPaymentDate: row.last_payment_date,
         lastPaymentAmount: row.last_payment_amount !== null ? round2(parseFloat(row.last_payment_amount)) : null,
         // Payments-adjustments: a row on an agreed arrangement shows an
         // amber "Payment arrangement" badge instead of the red age-bucket
         // badge (ageBucket is still computed/returned above regardless -
         // the frontend decides which badge to render based on this flag,
         // so the underlying age data is never lost even when hidden).
-        paymentArrangement: row.payment_arrangement_set_at
+        paymentArrangement: row.payment_arrangement_set_at_local
           ? {
-              setAt: new Date(row.payment_arrangement_set_at).toISOString(),
+              setAt: row.payment_arrangement_set_at_local,
               setByName: row.payment_arrangement_set_by_name,
               note: row.payment_arrangement_note,
             }
@@ -328,6 +376,11 @@ export interface ReceiptAdjustmentLine {
   adjustmentType: 'refund' | 'void';
   amount: number;
   reasonCode: string;
+  // The adjustment's TENANT-local calendar date (YYYY-MM-DD), resolved
+  // server-side in SQL (payments-dates-and-cards) - no longer a full ISO
+  // instant string. The frontend renders this directly; never re-derive
+  // or re-parse it with new Date(...), which would read the browser's
+  // own local timezone instead of the school's.
   createdAt: string;
   createdByName: string | null;
 }
@@ -373,8 +426,16 @@ export async function getPaymentReceiptData(
   tenantId: string,
   paymentId: string
 ): Promise<PaymentReceiptData | null> {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
   const paymentResult = await query(
-    `SELECT p.id, p.date, p.amount, p.payment_method, p.reference_number, p.enrollment_id,
+    // p.date is a plain calendar date (no time component), already
+    // tenant-local by construction (set directly from the school-local
+    // date the user chose in PaymentModal) - cast to ::text so it's
+    // never handed to pg's own JS-side Date parser (see getWhoOwesYou's
+    // own comment on this exact same pattern for the full why).
+    `SELECT p.id, p.date::text AS date, p.amount, p.payment_method, p.reference_number, p.enrollment_id,
             e.student_id, e.program_type, e.total_cost,
             s.full_name AS student_name
      FROM payments p
@@ -416,14 +477,20 @@ export async function getPaymentReceiptData(
   );
   // This payment's OWN adjustment lines - shown on the receipt in order,
   // with who made each one (for the owner's own records; never shown as
-  // a claim about what the student was told).
+  // a claim about what the student was told). created_at is a real UTC
+  // instant - resolved to the tenant's own school-local date here in
+  // SQL, never a JS-side new Date(...) parse (same reasoning as
+  // getWhoOwesYou's payment_arrangement_set_at - see that function's
+  // own comment).
   const adjustmentsResult = await query(
-    `SELECT pa.adjustment_type, pa.amount, pa.reason_code, pa.created_at, u.full_name AS created_by_name
+    `SELECT pa.adjustment_type, pa.amount, pa.reason_code,
+            ${tenantLocalDateSql('pa.created_at', 3)} AS created_at_date_local,
+            u.full_name AS created_by_name
      FROM payment_adjustments pa
      LEFT JOIN users u ON u.id = pa.created_by
      WHERE pa.tenant_id = $1 AND pa.payment_id = $2
      ORDER BY pa.created_at ASC`,
-    [tenantId, paymentId]
+    [tenantId, paymentId, timezone]
   );
 
   const totalCost = row.total_cost !== null
@@ -439,7 +506,7 @@ export async function getPaymentReceiptData(
     adjustmentType: a.adjustment_type,
     amount: round2(parseFloat(a.amount)),
     reasonCode: a.reason_code,
-    createdAt: new Date(a.created_at).toISOString(),
+    createdAt: a.created_at_date_local,
     createdByName: a.created_by_name,
   }));
   const totalAdjustedForThisPayment = round2(adjustments.reduce((sum, a) => sum + a.amount, 0));
@@ -448,7 +515,7 @@ export async function getPaymentReceiptData(
   return {
     paymentId: row.id,
     receiptNumber: computeReceiptNumber(tenantId, row.id),
-    date: new Date(row.date).toISOString().slice(0, 10),
+    date: row.date,
     studentId: row.student_id,
     studentName: row.student_name,
     amount: paymentAmount,
@@ -497,8 +564,15 @@ export async function getPaymentsForExport(
   start: string,
   end: string
 ): Promise<PaymentExportRow[]> {
+  const tenantSettings = await getTenantSettings(tenantId);
+  const timezone = resolveTenantTimezone(tenantSettings?.timezone);
+
+  // p.date is a plain calendar date (no time component), already
+  // tenant-local by construction - cast to ::text so it's never handed
+  // to pg's own JS-side Date parser (see getWhoOwesYou's own comment on
+  // this exact pattern for the full why).
   const result = await query(
-    `SELECT p.id, p.date, p.amount, p.payment_method, p.status, p.reference_number,
+    `SELECT p.id, p.date::text AS date, p.amount, p.payment_method, p.status, p.reference_number,
             s.full_name AS student_name
      FROM payments p
      JOIN enrollments e ON e.id = p.enrollment_id
@@ -510,7 +584,7 @@ export async function getPaymentsForExport(
 
   const paymentRows: PaymentExportRow[] = result.rows.map((row) => ({
     rowType: 'payment',
-    date: new Date(row.date).toISOString().slice(0, 10),
+    date: row.date,
     studentName: row.student_name,
     amount: round2(parseFloat(row.amount)),
     paymentMethod: row.payment_method,
@@ -520,20 +594,29 @@ export async function getPaymentsForExport(
     receiptNumber: computeReceiptNumber(tenantId, row.id),
   }));
 
+  // pa.created_at is a real UTC instant - resolved to the TENANT's own
+  // school-local calendar date via tenantLocalDateSql, both for the
+  // range filter (start/end are themselves tenant-local date strings)
+  // and for the exported date column itself - never a bare
+  // created_at::date (answers "what date in UTC") and never a JS-side
+  // new Date(...) parse (reads the server process's own local timezone).
   const adjustmentsResult = await query(
-    `SELECT pa.id, pa.payment_id, pa.adjustment_type, pa.amount, pa.reason_code, pa.created_at,
+    `SELECT pa.id, pa.payment_id, pa.adjustment_type, pa.amount, pa.reason_code,
+            ${tenantLocalDateSql('pa.created_at', 4)} AS created_at_date_local,
             p.id AS original_payment_id, s.full_name AS student_name
      FROM payment_adjustments pa
      JOIN payments p ON p.id = pa.payment_id
      JOIN enrollments e ON e.id = p.enrollment_id
      JOIN students s ON s.id = e.student_id
-     WHERE pa.tenant_id = $1 AND pa.created_at::date >= $2 AND pa.created_at::date <= $3
+     WHERE pa.tenant_id = $1
+       AND ${tenantLocalDateSql('pa.created_at', 4)} >= $2
+       AND ${tenantLocalDateSql('pa.created_at', 4)} <= $3
      ORDER BY pa.created_at ASC`,
-    [tenantId, start, end]
+    [tenantId, start, end, timezone]
   );
   const adjustmentRows: PaymentExportRow[] = adjustmentsResult.rows.map((row) => ({
     rowType: 'adjustment',
-    date: new Date(row.created_at).toISOString().slice(0, 10),
+    date: row.created_at_date_local,
     studentName: row.student_name,
     amount: round2(parseFloat(row.amount)),
     paymentMethod: null,

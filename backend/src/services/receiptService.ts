@@ -52,6 +52,23 @@ export function computeReceiptNumber(tenantId: string, paymentId: string): strin
  * NEVER includes the free-text note or any name - the same "internal IDs
  * and non-PII scalars only" rule every other hash in this codebase
  * follows.
+ *
+ * `createdAt` format (payments-dates-and-cards): always the exact
+ * `YYYY-MM-DDTHH:mm:ss.sssZ` shape `Date.prototype.toISOString()`
+ * produces (3-digit, zero-padded milliseconds, trailing literal "Z") -
+ * this is an invariant every caller must preserve, not just a
+ * convention, since a byte-for-byte-identical string is required to
+ * reproduce an EXISTING row's hash for verification. Every row created
+ * before this comment was added built this string via
+ * `new Date().toISOString()` directly. Every row created after it is
+ * built via `to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`
+ * in SQL instead (adjustmentService.createAdjustment) - same shape,
+ * same UTC instant, but computed without ever passing a JS `Date`
+ * through pg's write serializer for a `timestamp without time zone`
+ * column, which (confirmed by direct probe) silently corrupts the
+ * stored wall-clock value under a Node process TZ other than UTC. Both
+ * forms verify identically against this function; this function itself
+ * has no awareness of which one produced its input.
  */
 export function computeAdjustmentLedgerHash(payload: {
   adjustmentId: string;

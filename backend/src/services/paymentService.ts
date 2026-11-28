@@ -12,6 +12,8 @@ import { ledger } from './Ledger';
 import { getActiveDriverTrainingEnrollment, getEnrollmentById, computePaymentSummary } from './enrollmentService';
 import { keysToCamel } from '../utils/caseConversion';
 import { isStudentCostCountedStatus } from '../utils/lessonCostFilter';
+import { getTenantSettings } from './tenantService';
+import { resolveTenantTimezone, tenantToday } from '../utils/tenantTime';
 
 const logger = createLogger('PaymentService');
 
@@ -532,6 +534,22 @@ export const createPayment = async (
       }
     }
 
+    // payments-dates-and-cards: defaults to the TENANT's own school-local
+    // "today" (tenantToday), never new Date() - a JS Date written into
+    // this plain `date` column stores whatever calendar date
+    // new Date()'s real UTC instant falls on, which is a day AHEAD of
+    // the tenant's own date for several hours each evening in any US
+    // timezone (e.g. 9pm Pacific = already past midnight UTC). The vast
+    // majority of callers already pass an explicit data.date (every
+    // frontend entry point does, via PaymentModal's own tenantNow.today
+    // default - see that component's own fix for the identical bug) -
+    // this fallback exists only for callers that omit it entirely (e.g.
+    // this file's own tests, or a future direct API caller).
+    const paymentDate = data.date || await (async () => {
+      const tenantSettings = await getTenantSettings(tenantId);
+      return tenantToday(resolveTenantTimezone(tenantSettings?.timezone));
+    })();
+
     const result = await dbQuery(
       `INSERT INTO payments (
         tenant_id, enrollment_id, amount, payment_method, payment_type,
@@ -544,7 +562,7 @@ export const createPayment = async (
         data.amount,
         data.paymentMethod || 'cash',
         data.paymentType || 'lesson_payment',
-        data.date || new Date(),
+        paymentDate,
         data.status || 'confirmed',
         data.bsvTransactionId || null,
         data.notes || null,

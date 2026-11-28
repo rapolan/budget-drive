@@ -41,13 +41,14 @@ describe('paymentService.createPayment - DE enrollment fallback target', () => {
       .mockResolvedValueOnce(
         queryResult([{ id: DE_ENROLLMENT_ID, total_cost: '150.00', total_paid: '0' }])
       ) // DE enrollment lookup (outstanding balance)
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings (no data.date passed)
       .mockResolvedValueOnce(
         queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, enrollment_id: DE_ENROLLMENT_ID }])
       ); // INSERT ... RETURNING
 
     await createPayment(TENANT_ID, { studentId: STUDENT_ID, amount: 150, paymentMethod: 'cash' }, 'user-1');
 
-    const [, insertParams] = mockQuery.mock.calls[3];
+    const [, insertParams] = mockQuery.mock.calls[4];
     expect(insertParams).toContain(DE_ENROLLMENT_ID);
   });
 
@@ -88,13 +89,14 @@ describe('paymentService.createPayment - DE enrollment fallback target', () => {
       .mockResolvedValueOnce(
         queryResult([{ id: 'btw-enrollment-1', tenant_id: TENANT_ID, student_id: STUDENT_ID, program_type: 'driver_training', status: 'active' }])
       ) // getActiveDriverTrainingEnrollment - active
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings (no data.date passed)
       .mockResolvedValueOnce(
         queryResult([{ id: 'payment-2', tenant_id: TENANT_ID, enrollment_id: 'btw-enrollment-1' }])
       ); // INSERT ... RETURNING (no DE lookup query in between)
 
     await createPayment(TENANT_ID, { studentId: STUDENT_ID, amount: 50, paymentMethod: 'cash' }, 'user-1');
 
-    const [, insertParams] = mockQuery.mock.calls[2];
+    const [, insertParams] = mockQuery.mock.calls[3];
     expect(insertParams).toContain('btw-enrollment-1');
   });
 });

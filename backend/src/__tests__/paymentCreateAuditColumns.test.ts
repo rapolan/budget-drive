@@ -42,13 +42,14 @@ describe('paymentService.createPayment - audit columns + reference_number', () =
       .mockResolvedValueOnce(
         queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
       ) // getActiveDriverTrainingEnrollment
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings (no data.date passed - falls back to tenant-local today)
       .mockResolvedValueOnce(
         queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, enrollment_id: ENROLLMENT_ID, created_by: USER_ID, updated_by: USER_ID }])
       ); // INSERT ... RETURNING
 
     await createPayment(TENANT_ID, { studentId: STUDENT_ID, amount: 50, paymentMethod: 'cash' }, USER_ID);
 
-    const [sql, params] = mockQuery.mock.calls[2];
+    const [sql, params] = mockQuery.mock.calls[3];
     expect(sql).toMatch(/created_by/);
     expect(sql).toMatch(/updated_by/);
     expect(params).toContain(USER_ID);
@@ -62,6 +63,7 @@ describe('paymentService.createPayment - audit columns + reference_number', () =
       .mockResolvedValueOnce(
         queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
       )
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(
         queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, enrollment_id: ENROLLMENT_ID, reference_number: 'VENMO-4521' }])
       );
@@ -72,7 +74,7 @@ describe('paymentService.createPayment - audit columns + reference_number', () =
       USER_ID
     );
 
-    const [sql, params] = mockQuery.mock.calls[2];
+    const [sql, params] = mockQuery.mock.calls[3];
     expect(sql).toMatch(/reference_number/);
     expect(params).toContain('VENMO-4521');
   });
@@ -85,11 +87,12 @@ describe('paymentService.createPayment - audit columns + reference_number', () =
       .mockResolvedValueOnce(
         queryResult([{ id: ENROLLMENT_ID, student_id: STUDENT_ID, tenant_id: TENANT_ID, program_type: 'driver_training', status: 'active' }])
       )
+      .mockResolvedValueOnce(queryResult([{ timezone: 'America/Los_Angeles' }])) // getTenantSettings
       .mockResolvedValueOnce(queryResult([{ id: 'payment-1', tenant_id: TENANT_ID, enrollment_id: ENROLLMENT_ID }]));
 
     await createPayment(TENANT_ID, { studentId: STUDENT_ID, amount: 50, paymentMethod: 'cash' }, USER_ID);
 
-    const [, params] = mockQuery.mock.calls[2];
+    const [, params] = mockQuery.mock.calls[3];
     expect(params).toContain(null);
     expect(params).not.toContain(undefined);
   });
