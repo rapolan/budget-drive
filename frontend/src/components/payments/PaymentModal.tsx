@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { X, User, Lock } from 'lucide-react';
+import { X, CheckCircle2, User } from 'lucide-react';
 import { paymentsApi, studentsApi } from '@/api';
-import type { CreatePaymentInput, PaymentMethod, Student } from '@/types';
+import type { CreatePaymentInput, Payment, PaymentMethod, Student } from '@/types';
 import { ModalShell, Button } from '@/components/common';
 import { useTenant } from '@/contexts/TenantContext';
 import { formatMoney } from '@/utils/moneyFormat';
@@ -23,134 +23,123 @@ interface PaymentModalProps {
 // admin recorded that a card was used," matching how debit/credit exist
 // specifically for hand-entered card tender.
 const METHOD_CHIPS: { value: PaymentMethod; label: string }[] = [
-  { value: 'credit', label: 'Card' },
   { value: 'cash', label: 'Cash' },
-  { value: 'venmo', label: 'Venmo' },
-  { value: 'zelle', label: 'Zelle' },
-  { value: 'paypal', label: 'PayPal' },
   { value: 'check', label: 'Check' },
+  { value: 'credit', label: 'Card' },
+  { value: 'zelle', label: 'Zelle' },
+  { value: 'venmo', label: 'Venmo' },
+  { value: 'paypal', label: 'PayPal' },
 ];
 
-// BSV/MNEE render at the end of the row, locked unless
-// tenant_settings.enableBlockchainPayments is on - same flag/pattern as
-// the Treasury nav item (Sidebar.tsx) and enableCertificates/
-// enableDriverEducation.
-const BLOCKCHAIN_METHOD_CHIPS: { value: PaymentMethod; label: string }[] = [
-  { value: 'bsv', label: 'BSV' },
-  { value: 'mnee', label: 'MNEE' },
-];
+// `today` must be the tenant's own school-local "today" (tenantNow.today -
+// the same source Payments.tsx uses for its month boundaries), never a
+// browser/UTC clock read - new Date() is tomorrow's date in the evening
+// Pacific time, for example.
+const EMPTY_FORM = (studentId: string, today: string): CreatePaymentInput => ({
+  studentId,
+  amount: 0,
+  paymentMethod: undefined as unknown as PaymentMethod,
+  paymentType: 'lesson_payment',
+  date: today,
+  status: 'confirmed',
+  notes: '',
+  referenceNumber: '',
+});
 
+type ModalStep = 'form' | 'confirmation';
+
+/**
+ * Record Payment form (payment-form-v2). Opened from 4 entry points - the
+ * Payments page's own row action, the payment history modal, the "Who
+ * owes you" list (all 3 funnel through Payments.tsx's one instance), and
+ * SmartBookingForm's "Payment needed" banner (its own separate instance).
+ * `onClose` keeps its EXACT prior contract: called once the modal is
+ * dismissed, whether a payment was recorded or the user backed out -
+ * PaymentNeededBanner's own onClose unconditionally re-runs its
+ * booking-eligibility check on every call, and that must keep working
+ * unchanged (confirmed by reading its current code before writing this).
+ *
+ * Two steps: the form itself, then (only after a successful save) a
+ * confirmation step with Print receipt/Record another/Done - `onClose`
+ * only actually fires once the user leaves the confirmation step (Done
+ * or Record another's own next completion), never immediately on save,
+ * so the user always sees the confirmation before the modal disappears.
+ */
 export const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
   onClose,
-  student,
+  student: preselectedStudent,
 }) => {
   const queryClient = useQueryClient();
-  const { settings } = useTenant();
+  const { settings, tenantNow } = useTenant();
   const blockchainPaymentsEnabled = settings?.enableBlockchainPayments === true;
+  // Falls back to an empty string (not a browser-clock date) on the rare
+  // first render before tenantNow has loaded - the date field is still
+  // editable, and the effect below re-seeds it the instant tenantNow
+  // arrives for whichever step/student is current at that moment.
+  const today = tenantNow?.today ?? '';
 
-  const [formData, setFormData] = useState<CreatePaymentInput>({
-    studentId: '',
-    amount: 0,
-    paymentMethod: 'credit',
-    paymentType: 'lesson_payment',
-    date: new Date().toISOString().split('T')[0],
-    status: 'confirmed',
-    notes: '',
-    referenceNumber: '',
-  });
-  // Tracks whether the admin has touched the amount field themselves -
-  // once they have, selecting a different student must never clobber
-  // their edit. Resets to false on modal open and on every student
-  // change, so pre-fill only ever happens automatically before a human
-  // has typed into the field.
-  const [amountTouched, setAmountTouched] = useState(false);
-
+  const [step, setStep] = useState<ModalStep>('form');
+  const [savedPayment, setSavedPayment] = useState<Payment | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [formData, setFormData] = useState<CreatePaymentInput>(() => EMPTY_FORM(preselectedStudent?.id || '', today));
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+  const amountInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch all students for dropdown (when no student is pre-selected)
+  // Student selector - only shown/needed when the caller didn't already
+  // pass a specific student (the Payments page's own header-level
+  // "Record Payment" button, the one entry point with no student in
+  // hand - every other entry point always preselects one).
   const { data: studentsData } = useQuery({
     queryKey: ['students'],
     queryFn: () => studentsApi.getAll(1, 1000),
-    enabled: !student && isOpen,
+    enabled: !preselectedStudent && isOpen,
   });
-
   const students = studentsData?.data || [];
-  const selectedStudentData = student || students.find(s => s.id === formData.studentId);
-  const outstandingBalance = selectedStudentData?.paymentSummary?.outstandingBalance ?? 0;
+  const student = preselectedStudent || students.find((s) => s.id === selectedStudentId) || null;
 
-  // Smart pre-fill (item 1): default the amount to the selected student's
-  // outstandingBalance the moment a student is selected, fully editable,
-  // and re-applied whenever the student selection changes - but never
-  // once the admin has started editing it themselves.
+  const outstandingBalance = student?.paymentSummary?.outstandingBalance ?? 0;
+
+  // Quick-amount chips (item 2) - server-derived, never a second
+  // definition of paid/owed, never a fixed lesson count.
+  const quickAmountsQuery = useQuery({
+    queryKey: ['payment-quick-amounts', student?.id],
+    queryFn: () => paymentsApi.getQuickAmounts(student!.id),
+    enabled: Boolean(student?.id) && isOpen,
+  });
+  const quickAmounts = quickAmountsQuery.data?.data;
+
+  // Duplicate-payment check (item 4) - re-runs whenever amount or method
+  // changes, server-side (see paymentsApi.checkDuplicate's own doc
+  // comment for why this isn't a client-side Date comparison).
+  const duplicateCheckQuery = useQuery({
+    queryKey: ['payment-duplicate-check', student?.id, formData.amount, formData.paymentMethod],
+    queryFn: () => paymentsApi.checkDuplicate(student!.id, formData.amount, formData.paymentMethod!),
+    enabled: Boolean(student?.id) && isOpen && formData.amount > 0 && Boolean(formData.paymentMethod),
+  });
+  const duplicateMatch = duplicateCheckQuery.data?.data;
+
+  // Reset everything on open - every piece of per-open state (step, saved
+  // payment, touched flags, dismissed warnings, the student picker) must
+  // start fresh, or a stale confirmation screen or dismissed-warning flag
+  // from a PRIOR open could leak into this one. Deliberately keyed only
+  // on `isOpen`, not the resolved student - selecting a student from the
+  // dropdown (when none was preselected) must NOT wipe whatever the admin
+  // already typed, same as the prior component's own behavior.
   useEffect(() => {
     if (!isOpen) return;
-    if (selectedStudentData && !amountTouched) {
-      setFormData((prev) => ({
-        ...prev,
-        studentId: selectedStudentData.id,
-        amount: outstandingBalance,
-      }));
-    } else if (student) {
-      setFormData((prev) => ({ ...prev, studentId: student.id }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStudentData?.id, isOpen]);
-
-  // Create payment mutation
-  const createMutation = useMutation({
-    mutationFn: (data: CreatePaymentInput) => paymentsApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['students'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      onClose();
-      resetForm();
-    },
-    onError: (error: any) => {
-      console.error('Failed to create payment:', error);
-      setErrors({
-        submit: error.response?.data?.error || 'Failed to record payment. Please try again.',
-      });
-    },
-  });
-
-  const resetForm = () => {
-    setFormData({
-      studentId: student?.id || '',
-      amount: 0,
-      paymentMethod: 'credit',
-      paymentType: 'lesson_payment',
-      date: new Date().toISOString().split('T')[0],
-      status: 'confirmed',
-      notes: '',
-      referenceNumber: '',
-    });
-    setAmountTouched(false);
+    setStep('form');
+    setSavedPayment(null);
+    setSelectedStudentId(preselectedStudent?.id || '');
+    setFormData(EMPTY_FORM(preselectedStudent?.id || '', today));
+    setDuplicateDismissed(false);
     setErrors({});
-  };
-
-  // Reset the touched-amount guard whenever the modal is (re)opened, so
-  // the next open starts fresh with pre-fill active again.
-  useEffect(() => {
-    if (isOpen) {
-      setAmountTouched(false);
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const handleAmountChange = (value: string) => {
-    setAmountTouched(true);
-    setFormData((prev) => ({ ...prev, amount: parseFloat(value) || 0 }));
-    if (errors.amount) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next.amount;
-        return next;
-      });
-    }
-  };
-
   const handleStudentSelect = (studentId: string) => {
-    setAmountTouched(false);
+    setSelectedStudentId(studentId);
     setFormData((prev) => ({ ...prev, studentId }));
     if (errors.studentId) {
       setErrors((prev) => {
@@ -161,31 +150,102 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-  const handleMethodSelect = (value: PaymentMethod, locked: boolean) => {
-    if (locked) return;
-    setFormData((prev) => ({ ...prev, paymentMethod: value }));
+  // First field focused on open (item 7: keyboard) - the amount input,
+  // since method/date/notes all have sensible defaults or are secondary.
+  useEffect(() => {
+    if (isOpen && step === 'form') {
+      amountInputRef.current?.focus();
+    }
+  }, [isOpen, step]);
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreatePaymentInput) => paymentsApi.create(data),
+    onSuccess: (response) => {
+      const payment = response.data as Payment;
+      setSavedPayment(payment);
+      setStep('confirmation');
+
+      // Item 6: refresh every surface that shows a balance/eligibility
+      // figure derived from payments - the Payments page's own lists,
+      // the history modal, who-owes-you, and any open booking-eligibility
+      // banner (keyed by enrollment, so this invalidates every instance,
+      // not just the one that happened to open this modal).
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['who-owes-you'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-eligibility'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-eligibility-preview'] });
+      queryClient.invalidateQueries({ queryKey: ['payment-quick-amounts'] });
+      queryClient.invalidateQueries({ queryKey: ['payment-duplicate-check'] });
+    },
+    onError: (error: any) => {
+      setErrors({
+        submit: error.response?.data?.error || 'Failed to record payment. Please try again.',
+      });
+    },
+  });
+
+  const resetFormForSameStudent = () => {
+    setFormData(EMPTY_FORM(student?.id || '', today));
+    setDuplicateDismissed(false);
+    setErrors({});
+    setSavedPayment(null);
+    setStep('form');
   };
 
-  // Live running-balance preview (item 4): outstandingBalance minus the
-  // amount currently entered. Allowed to go negative - an overpayment is
-  // a real credit the student now holds toward a future charge, not an
-  // error to floor away; flooring at $0.00 would silently hide the fact
-  // that the admin just recorded more than was owed. Rendered with its
-  // own "credit" framing below so a negative number reads as a credit,
-  // not an implied debt.
+  const handleAmountChange = (value: string) => {
+    setDuplicateDismissed(false);
+    setFormData((prev) => ({ ...prev, amount: parseFloat(value) || 0 }));
+    if (errors.amount) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.amount;
+        return next;
+      });
+    }
+  };
+
+  const handleMethodSelect = (value: PaymentMethod) => {
+    setDuplicateDismissed(false);
+    setFormData((prev) => ({ ...prev, paymentMethod: value }));
+    if (errors.paymentMethod) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.paymentMethod;
+        return next;
+      });
+    }
+  };
+
+  const handleQuickAmount = (amount: number) => {
+    setDuplicateDismissed(false);
+    setFormData((prev) => ({ ...prev, amount }));
+    if (errors.amount) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.amount;
+        return next;
+      });
+    }
+  };
+
+  // Live running-balance preview, and the overpay note (item 5) -
+  // allowed, never blocked: an overpayment is a real credit the student
+  // now holds, not an error to floor away.
   const newBalance = useMemo(() => outstandingBalance - (formData.amount || 0), [outstandingBalance, formData.amount]);
+  const isOverpay = newBalance < 0;
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.studentId) {
+    if (!student) {
       newErrors.studentId = 'Please select a student';
     }
     if (!formData.amount || formData.amount <= 0) {
       newErrors.amount = 'Amount must be greater than 0';
     }
     if (!formData.paymentMethod) {
-      newErrors.paymentMethod = 'Payment method is required';
+      newErrors.paymentMethod = 'Please choose a payment method';
     }
     if (!formData.date) {
       newErrors.date = 'Date is required';
@@ -197,13 +257,100 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (createMutation.isPending) return; // item 5: guard against a rapid double-submit racing validate()
-    if (validate()) {
-      createMutation.mutate(formData);
+    if (createMutation.isPending) return; // guard against a rapid double-submit racing validate()
+    if (validate() && student) {
+      createMutation.mutate({ ...formData, studentId: student.id });
     }
   };
 
+  const handlePrintReceipt = () => {
+    if (savedPayment) {
+      window.open(`/payments/${savedPayment.id}/receipt`, '_blank', 'noopener');
+    }
+  };
+
+  const handleDone = () => {
+    onClose();
+  };
+
   if (!isOpen) return null;
+
+  // Quick-amount chips (item 2): only shown when positive and distinct
+  // from an amount already shown by another chip - never a fixed lesson
+  // count, always derived from this student's real data.
+  const chipCandidates: { key: string; label: string; amount: number }[] = [];
+  if (quickAmounts?.nextLesson && quickAmounts.nextLesson.amount > 0) {
+    const formattedDate = new Date(quickAmounts.nextLesson.date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+    chipCandidates.push({
+      key: 'next-lesson',
+      label: `Next lesson (${formattedDate})`,
+      amount: quickAmounts.nextLesson.amount,
+    });
+  }
+  if (quickAmounts?.scheduledLessons && quickAmounts.scheduledLessons.amount > 0) {
+    chipCandidates.push({
+      key: 'scheduled-lessons',
+      label: `${quickAmounts.scheduledLessons.count} booked lesson${quickAmounts.scheduledLessons.count === 1 ? '' : 's'}`,
+      amount: quickAmounts.scheduledLessons.amount,
+    });
+  }
+  if (quickAmounts?.completedUnpaidLessons && quickAmounts.completedUnpaidLessons.amount > 0) {
+    chipCandidates.push({
+      key: 'completed-unpaid',
+      label: `${quickAmounts.completedUnpaidLessons.count} completed, unpaid`,
+      amount: quickAmounts.completedUnpaidLessons.amount,
+    });
+  }
+  if (quickAmounts?.remainingCourse !== null && quickAmounts?.remainingCourse !== undefined && quickAmounts.remainingCourse > 0) {
+    chipCandidates.push({
+      key: 'remaining-course',
+      label: 'Remaining course',
+      amount: quickAmounts.remainingCourse,
+    });
+  }
+  // De-duplicate by amount - a chip showing the same amount as an earlier
+  // one adds no new information (e.g. one booked lesson left = the same
+  // figure as "next lesson" would show).
+  const seenAmounts = new Set<number>();
+  const chips = chipCandidates.filter((chip) => {
+    if (seenAmounts.has(chip.amount)) return false;
+    seenAmounts.add(chip.amount);
+    return true;
+  });
+
+  const showDuplicateWarning = Boolean(duplicateMatch?.isDuplicate) && !duplicateDismissed;
+
+  if (step === 'confirmation' && savedPayment) {
+    const methodLabel = METHOD_CHIPS.find((c) => c.value === savedPayment.paymentMethod)?.label
+      ?? (savedPayment.paymentMethod === 'bsv' ? 'BSV' : savedPayment.paymentMethod === 'mnee' ? 'MNEE' : savedPayment.paymentMethod);
+    return (
+      <ModalShell maxWidth="max-w-md">
+        <div className="px-6 py-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-status-success-bg">
+            <CheckCircle2 className="h-8 w-8 text-status-success-text" />
+          </div>
+          <h2 className="mt-4 text-lg font-semibold text-tx-primary">Payment recorded</h2>
+          <p className="mt-2 text-2xl font-bold text-tx-primary">{formatMoney(Number(savedPayment.amount))}</p>
+          <p className="mt-1 text-sm text-tx-secondary capitalize">{methodLabel}</p>
+
+          <div className="mt-6 flex flex-col gap-2">
+            <Button type="button" variant="secondary" onClick={handlePrintReceipt} className="w-full justify-center">
+              Print receipt
+            </Button>
+            <Button type="button" variant="secondary" onClick={resetFormForSameStudent} className="w-full justify-center">
+              Record another
+            </Button>
+            <Button type="button" variant="primary" onClick={handleDone} className="w-full justify-center">
+              Done
+            </Button>
+          </div>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell maxWidth="max-w-lg">
@@ -221,8 +368,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       </div>
 
       <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-        {/* Student selector - only shown when no student was pre-selected */}
-        {!student && (
+        {/* Student selector - only shown when the caller didn't already
+            preselect a student (the Payments page's header-level "Record
+            Payment" button is the one entry point this applies to). */}
+        {!preselectedStudent && (
           <div>
             <label className="block text-sm font-medium text-tx-secondary mb-1">
               Student <span className="text-status-danger-text">*</span>
@@ -233,7 +382,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
               <select
                 name="studentId"
-                value={formData.studentId}
+                value={selectedStudentId}
                 onChange={(e) => handleStudentSelect(e.target.value)}
                 className="block w-full rounded-lg border border-edge-strong py-2.5 pl-10 pr-3 bg-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               >
@@ -258,11 +407,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </p>
         )}
 
-        {/* Amount - the visual centerpiece (item 1: smart pre-fill) */}
+        {/* Amount - the visual centerpiece */}
         <div className="text-center py-2">
           <div className="relative inline-flex items-center justify-center">
             <span className="text-4xl font-bold text-tx-muted mr-1">$</span>
             <input
+              ref={amountInputRef}
               type="number"
               name="amount"
               value={formData.amount === 0 ? '' : formData.amount}
@@ -274,109 +424,175 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               className="w-48 text-center text-5xl font-bold text-tx-primary bg-transparent border-none outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           </div>
-          {selectedStudentData && !amountTouched && outstandingBalance > 0 && (
-            <p className="mt-1 text-xs text-tx-muted">Pre-filled from outstanding balance</p>
-          )}
           {errors.amount && (
             <p className="mt-1 text-sm text-status-danger-text">{errors.amount}</p>
           )}
         </div>
 
-        {/* Method + Date, side by side (item 2) */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <span className="block text-xs font-medium text-tx-secondary mb-1.5">Method</span>
-            <div role="group" aria-label="Payment method" className="flex flex-wrap gap-1.5">
-              {METHOD_CHIPS.map((chip) => {
-                const selected = formData.paymentMethod === chip.value;
-                return (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => handleMethodSelect(chip.value, false)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
-                      selected
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-surface text-tx-secondary border-edge-strong hover:border-primary/60'
-                    }`}
-                  >
-                    {chip.label}
-                  </button>
-                );
-              })}
-              {BLOCKCHAIN_METHOD_CHIPS.map((chip) => {
-                const selected = formData.paymentMethod === chip.value;
-                const locked = !blockchainPaymentsEnabled;
-                return (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    aria-pressed={selected}
-                    disabled={locked}
-                    title={locked ? 'Enable blockchain payments in Settings to use this method' : undefined}
-                    onClick={() => handleMethodSelect(chip.value, locked)}
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
-                      locked
-                        ? 'border-dashed border-edge text-tx-muted opacity-60 cursor-not-allowed'
-                        : selected
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-surface text-tx-secondary border-edge-strong hover:border-primary/60'
-                    }`}
-                  >
-                    {locked && <Lock className="h-3 w-3" />}
-                    {chip.label}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Quick-amount chips (item 2) */}
+        {chips.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2">
+            {chips.map((chip) => {
+              const selected = formData.amount === chip.amount;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => handleQuickAmount(chip.amount)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                    selected
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-primary/60'
+                  }`}
+                >
+                  {chip.label} · {formatMoney(chip.amount)}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              aria-pressed={chips.every((c) => c.amount !== formData.amount)}
+              onClick={() => amountInputRef.current?.focus()}
+              className="px-3 py-1.5 text-xs font-medium rounded-full border border-dashed border-edge-strong text-tx-muted hover:border-primary/60 hover:text-tx-secondary transition-colors"
+            >
+              Custom amount
+            </button>
           </div>
+        )}
 
-          <div>
-            <label htmlFor="payment-date" className="block text-xs font-medium text-tx-secondary mb-1.5">
-              Date
-            </label>
-            <input
-              id="payment-date"
-              type="date"
-              name="date"
-              value={formData.date}
-              onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-              autoComplete="nope"
-              className="block w-full rounded-lg border border-edge-strong py-2 px-3 bg-surface text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-            {errors.date && <p className="mt-1 text-xs text-status-danger-text">{errors.date}</p>}
+        {/* Method (item 1: no default) */}
+        <div>
+          <span className="block text-xs font-medium text-tx-secondary mb-1.5">
+            Method <span className="text-status-danger-text">*</span>
+          </span>
+          <div role="group" aria-label="Payment method" className="flex flex-wrap gap-1.5">
+            {METHOD_CHIPS.map((chip) => {
+              const selected = formData.paymentMethod === chip.value;
+              return (
+                <button
+                  key={chip.value}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => handleMethodSelect(chip.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                    selected
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-surface text-tx-secondary border-edge-strong hover:border-primary/60'
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+            {/* BSV/MNEE are hidden entirely (never shown disabled) when
+                blockchain payments are off - item 1's explicit
+                requirement, a change from the prior locked-chip
+                treatment. */}
+            {blockchainPaymentsEnabled && (
+              <button
+                type="button"
+                aria-pressed={formData.paymentMethod === 'bsv'}
+                onClick={() => handleMethodSelect('bsv')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                  formData.paymentMethod === 'bsv'
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-surface text-tx-secondary border-edge-strong hover:border-primary/60'
+                }`}
+              >
+                BSV
+              </button>
+            )}
+            {blockchainPaymentsEnabled && (
+              <button
+                type="button"
+                aria-pressed={formData.paymentMethod === 'mnee'}
+                onClick={() => handleMethodSelect('mnee')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                  formData.paymentMethod === 'mnee'
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-surface text-tx-secondary border-edge-strong hover:border-primary/60'
+                }`}
+              >
+                MNEE
+              </button>
+            )}
           </div>
+          {errors.paymentMethod && (
+            <p className="mt-1 text-xs text-status-danger-text">{errors.paymentMethod}</p>
+          )}
         </div>
 
-        {/* Reference number (item 3) */}
+        {/* Date */}
         <div>
-          <label htmlFor="payment-reference" className="block text-xs font-medium text-tx-secondary mb-1.5">
-            Reference # (optional)
+          <label htmlFor="payment-date" className="block text-xs font-medium text-tx-secondary mb-1.5">
+            Date
           </label>
           <input
-            id="payment-reference"
-            type="text"
-            name="referenceNumber"
-            value={formData.referenceNumber ?? ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, referenceNumber: e.target.value }))}
+            id="payment-date"
+            type="date"
+            name="date"
+            value={formData.date}
+            onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
             autoComplete="nope"
-            placeholder="Square receipt #, last 4, etc."
+            className="block w-full rounded-lg border border-edge-strong py-2 px-3 bg-surface text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {errors.date && <p className="mt-1 text-xs text-status-danger-text">{errors.date}</p>}
+        </div>
+
+        {/* Notes (item 3) */}
+        <div>
+          <label htmlFor="payment-notes" className="block text-xs font-medium text-tx-secondary mb-1.5">
+            Notes (optional)
+          </label>
+          <input
+            id="payment-notes"
+            type="text"
+            name="notes"
+            value={formData.notes ?? ''}
+            onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+            autoComplete="nope"
+            placeholder="Anything worth remembering"
             className="block w-full rounded-lg border border-edge-strong py-2 px-3 bg-surface text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
 
-        {/* Live running-balance preview (item 4) */}
-        {selectedStudentData && (
-          <div className="rounded-lg bg-surface2 px-4 py-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-tx-secondary">New balance after this payment</span>
-              <span className={`text-sm font-semibold ${newBalance < 0 ? 'text-status-success-text' : newBalance > 0 ? 'text-status-danger-text' : 'text-tx-primary'}`}>
-                {newBalance < 0 ? `${formatMoney(Math.abs(newBalance))} credit` : formatMoney(newBalance)}
-              </span>
+        {/* Duplicate warning (item 4) - gentle, dismissible, never blocking */}
+        {showDuplicateWarning && duplicateMatch && (
+          <div className="rounded-lg bg-status-warning-bg border border-status-warning-border px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm text-status-warning-text">
+                A {formatMoney(duplicateMatch.amount ?? 0)} payment was already recorded today. Record it again?
+              </p>
+              <button
+                type="button"
+                onClick={() => setDuplicateDismissed(true)}
+                className="flex-shrink-0 text-xs font-medium text-status-warning-text underline hover:no-underline"
+              >
+                Dismiss
+              </button>
             </div>
           </div>
         )}
+
+        {/* Overpay note (item 5) - allowed, not blocked */}
+        {isOverpay && (
+          <div className="rounded-lg bg-status-info-bg px-4 py-3">
+            <p className="text-sm text-primary">
+              This will leave {formatMoney(Math.abs(newBalance))} credit on account.
+            </p>
+          </div>
+        )}
+
+        {/* Live running-balance preview */}
+        <div className="rounded-lg bg-surface2 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-tx-secondary">New balance after this payment</span>
+            <span className={`text-sm font-semibold ${newBalance < 0 ? 'text-status-success-text' : newBalance > 0 ? 'text-status-danger-text' : 'text-tx-primary'}`}>
+              {newBalance < 0 ? `${formatMoney(Math.abs(newBalance))} credit` : formatMoney(newBalance)}
+            </span>
+          </div>
+        </div>
 
         {/* Error Message */}
         {errors.submit && (
@@ -385,7 +601,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
         )}
 
-        {/* Actions - one large, clearly primary button (item 5: disabled while pending) */}
+        {/* Actions */}
         <div className="pt-1">
           <Button
             type="submit"
@@ -396,9 +612,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           >
             {createMutation.isPending ? 'Recording...' : 'Record Payment'}
           </Button>
-          <p className="mt-2 text-center text-xs text-tx-muted">
-            Everything's pre-filled - tap Confirm, or edit any field first
-          </p>
         </div>
       </form>
     </ModalShell>

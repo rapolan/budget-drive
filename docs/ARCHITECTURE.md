@@ -1272,4 +1272,45 @@ Shortly after this feature first shipped, the owner made an explicit call: a `'n
 
 ---
 
+## 44. Record Payment form redesign: quick-amount chips, no default method, duplicate/overpay notes, confirmation step (payment-form-v2)
+
+`PaymentModal.tsx` rewritten for speed and clarity, reached from the same four places as before (Payments page toolbar/card/row, payment history modal, Who Owes You row, and `PaymentNeededBanner`) - its prop interface (`isOpen`/`onClose`/`student`) is unchanged, so none of those callers needed any code change.
+
+### Payment method: no default
+
+`formData.paymentMethod` is initialized `undefined`, not any particular method - the owner's explicit instruction was that a wrong default (e.g. always defaulting to Card) is worse than forcing a deliberate choice. `validate()` requires it be set before submit, with an inline "Please choose a payment method" error. The BSV/MNEE chips are omitted from the DOM entirely (not rendered disabled) unless `useTenant()`'s `settings.enableBlockchainPayments` is `true` - consistent with BDP/BSV being feature-flagged off by default across this app (see CLAUDE.md's BSV/Ledger rules).
+
+The chip's underlying `payment_method` values are exactly the ones the `payments_payment_method_check` CHECK constraint allows (`backend/database/migrations/001_baseline.sql`, widened by `030_widen_payment_method_check.sql`): `cash`, `check`, `credit` (manual-entry "Card"), `zelle`, `venmo`, `paypal`, plus `bsv`/`mnee` when blockchain payments are enabled. The chip originally labeled `paypal` as "Other" - a mislabeling caught and fixed shortly after this feature first shipped, since every OTHER surface that reads the same `payment_method` column (`PaymentHistoryModal.tsx`, `PaymentPeriodSummaryPanel.tsx`, `PaymentReceiptDocument.tsx`) already correctly displayed `paypal` as "PayPal" - a payment recorded via the "Other" chip in the form would then show as "PayPal" everywhere else, with no actual "Other" value existing in the schema to back up the chip's own label. Relabeled to "PayPal" for an honest match; no new CHECK-constraint value was introduced, and no backend change was needed, since the stored value was already correct.
+
+### Quick-amount chips: `getPaymentQuickAmounts` (new, `paymentService.ts`)
+
+A new `GET /payments/student/:studentId/quick-amounts` endpoint (staff/admin/owner only, same `paymentsOnly` gate as every other payments-reporting route) resolves the enrollment via a newly-extracted `resolveTargetEnrollmentForPayment(tenantId, studentId, hasLessonId, amount?, dbQuery)` - the exact same resolution logic `createPayment` itself already used inline (preferring an active `driver_training` enrollment, falling back to the `driver_education` enrollment with the largest genuine outstanding balance). Extracting this into its own function means the quick-amount chips can never silently target a *different* enrollment than the one a submitted payment will actually attach to.
+
+A FIFO credit-allocation walk computes four independent figures:
+
+- **`nextLesson`** - the cost of the single soonest scheduled lesson, net of any running credit.
+- **`scheduledLessons`** - the sum still owed across all scheduled lessons not yet covered (soonest-first).
+- **`completedUnpaidLessons`** - the sum still owed across completed lessons not yet covered (oldest-first, since a completed lesson is more overdue than a future one).
+- **`remainingCourse`** - the enrollment's own `outstandingBalance` from `computePaymentSummary`, independent of the lesson-bucket walk, so a package-priced (`totalCost` override) enrollment reports correctly even though its lesson costs don't sum to the real total.
+
+All four route through `isStudentCostCountedStatus` (`utils/lessonCostFilter.ts`) - a `cancelled`/`no_show` lesson never appears in any bucket, matching §43's existing no-show exclusion rule exactly, with no second definition invented for this feature. The frontend renders a chip only when its amount is `> 0` and not already shown by an earlier chip with the identical amount (de-duplicated client-side, since two buckets legitimately coinciding at the same dollar figure - e.g. "2 booked lessons" and "1 completed, unpaid" both totaling $100 - would otherwise show two redundant buttons for the same number).
+
+### Duplicate-payment warning: `checkDuplicatePayment` (new, `paymentService.ts`)
+
+A new `GET /payments/student/:studentId/duplicate-check?amount=&paymentMethod=` endpoint, deliberately server-side: `... AND p.created_at >= now() - interval '24 hours'`, using Postgres's own `now()` rather than any JS-computed boundary. This was a direct, deliberate consequence of the hostile-clock timezone bug fixed earlier this session (see the hostile-clock test-fix writeup) - that bug class only affects a *calendar-day* boundary comparison (a JS `Date` parsed against a Postgres `::date` cast can disagree by a full day depending on the Node process's `TZ`), and does NOT affect a rolling duration window like "last 24 hours," which is timezone-invariant by construction. The frontend shows a dismissible, non-blocking inline warning ("A $X payment was already recorded today. Record it again?") - the user can always proceed; dismissing just suppresses the note until the amount or method changes again.
+
+### Overpay note
+
+Computed client-side from the same `outstandingBalance - formData.amount` figure the live running-balance preview already used - no second definition. Allowed, never blocked: "This will leave $X credit on account."
+
+### Confirmation step
+
+A `'form' | 'confirmation'` step state inside `PaymentModal` itself (not a separate component) - on a successful `paymentsApi.create`, the modal shows "Payment recorded" with the amount/method and three actions: **Print receipt** (opens `/payments/:id/receipt`, same pattern `PaymentHistoryModal.tsx` already uses), **Record another** (resets the form to `'form'` for the same student, without closing the modal or calling `onClose`), and **Done** (calls `onClose`). This preserves `PaymentNeededBanner`'s existing contract exactly: its own `onClose` unconditionally re-runs the booking-eligibility check, and that must keep firing once per dismissal whether the user actually recorded a payment or just cancelled - `onClose` is now called only from "Done" (or the header's close button), never automatically right after save, so a user who clicks "Record another" doesn't trigger a redundant early recheck mid-flow. On save, query invalidation covers `students`, `payments`, `who-owes-you`, `booking-eligibility`, `booking-eligibility-preview`, `payment-quick-amounts`, and `payment-duplicate-check` - broader than before this rewrite, since the new quick-amount/duplicate-check queries also need to reflect the just-recorded payment if the user records another one back-to-back.
+
+### Default date: tenant-local "today," never the browser/UTC clock
+
+`EMPTY_FORM`'s original default date was `new Date().toISOString().split('T')[0]` - `toISOString()` always renders the UTC date, which is already tomorrow across every US timezone for several hours each evening (e.g. 9pm Pacific = 5am UTC the next day). This is the exact class of bug this app's own Tenant Timezone Authority rule exists to prevent (see CLAUDE.md and `docs/ARCHITECTURE.md`'s Tenant Timezone Authority section) - the frontend must never compute a date/timezone boundary itself. Fixed by threading `tenantNow.today` (the same server-resolved, school-local "today" `Payments.tsx` already uses for its month-boundary defaults, read via the same `useTenant()` hook `PaymentModal` already calls for `settings.enableBlockchainPayments`) through `EMPTY_FORM` as a parameter, used both for the form's initial state and for "Record another"'s reset. No client-side date math of any kind - `today` is passed through as the exact string the server already resolved.
+
+---
+
 **Note:** For implementation guides and roadmaps, see [BLOCKCHAIN.md](BLOCKCHAIN.md). For operational user guides, see [OPERATIONS.md](OPERATIONS.md).
